@@ -15,6 +15,7 @@ Capacitor's goal is to level the field: providing a UI option for Flux users tha
 Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
 
 - 1730CET, 16th October - Capacitor launch, Flux CRD backend
+    - https://youtube.com/live/Tw18CWFL5jo
 - 1730CET, 23rd October - TBD
 - 1730CET, 30th October - TBD
 - 1730CET, 6th November - TBD
