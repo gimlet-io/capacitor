@@ -8,7 +8,7 @@ FluxCD is an amazing backend for all things gitops.
 
 It is a shame that ArgoCD gained so much traction mostly because developers appreciate the UI. Rolling out a read-only ArgoCD UI made Argo the de-facto kubernetes dashboard, where people look at logs and various kubernetes resources.
 
-Capacitor's goal is to level the field: providing a UI option for Flux that removes this advantage from ArgoCD.
+Capacitor's goal is to level the field: providing a UI option for Flux users that matches or exceeds the level of ArgoCD.
 
 ## Built in public
 
