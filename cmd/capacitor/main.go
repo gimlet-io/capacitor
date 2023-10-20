@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -39,53 +40,15 @@ func main() {
 		panic(err.Error())
 	}
 
-	gitRepositories, err := dynamicClient.
-		Resource(schema.GroupVersionResource{
-			Group:    "source.toolkit.fluxcd.io",
-			Version:  "v1",
-			Resource: "gitrepositories",
-		}).
-		Namespace("").
-		List(context.TODO(), metav1.ListOptions{})
+	fluxState, err := getFluxState(dynamicClient)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	for _, repo := range gitRepositories.Items {
-		unstructured := repo.UnstructuredContent()
-
-		var gitRepository sourcev1.GitRepository
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &gitRepository)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		fmt.Printf("%s\n", gitRepository.Name)
-	}
-
-	kustomizations, err := dynamicClient.
-		Resource(schema.GroupVersionResource{
-			Group:    "kustomize.toolkit.fluxcd.io",
-			Version:  "v1",
-			Resource: "kustomizations",
-		}).
-		Namespace("").
-		List(context.TODO(), metav1.ListOptions{})
+	fluxStateBytes, err := json.Marshal(fluxState)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	for _, k := range kustomizations.Items {
-		unstructured := k.UnstructuredContent()
-
-		var kustomization kustomizationv1.Kustomization
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &kustomization)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		fmt.Printf("%s\n", kustomization.Name)
-	}
+	fmt.Println(string(fluxStateBytes))
 
 	var gitRepositoryResource = schema.GroupVersionResource{
 		Group:    "source.toolkit.fluxcd.io",
@@ -105,6 +68,10 @@ func main() {
 				fallthrough
 			case "delete":
 				fmt.Printf("Changes in %s\n", objectMeta.Name)
+				_, err := getFluxState(dynamicClient)
+				if err != nil {
+					panic(err.Error())
+				}
 			}
 			return nil
 		})
@@ -130,4 +97,59 @@ func main() {
 	logrus.Info("Initialized")
 	<-done
 	logrus.Info("Exiting")
+}
+
+type fluxState struct {
+	GitRepositories []sourcev1.GitRepository        `json:"gitRepositories"`
+	Kustomizations  []kustomizationv1.Kustomization `json:"kustomizations"`
+}
+
+func getFluxState(dc *dynamic.DynamicClient) (*fluxState, error) {
+	fluxState := &fluxState{
+		GitRepositories: []sourcev1.GitRepository{},
+		Kustomizations:  []kustomizationv1.Kustomization{},
+	}
+
+	gitRepositories, err := dc.Resource(schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1",
+		Resource: "gitrepositories",
+	}).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, repo := range gitRepositories.Items {
+		unstructured := repo.UnstructuredContent()
+		var gitRepository sourcev1.GitRepository
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &gitRepository)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.GitRepositories = append(fluxState.GitRepositories, gitRepository)
+	}
+
+	kustomizations, err := dc.Resource(schema.GroupVersionResource{
+		Group:    "kustomize.toolkit.fluxcd.io",
+		Version:  "v1",
+		Resource: "kustomizations",
+	}).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range kustomizations.Items {
+		unstructured := k.UnstructuredContent()
+		var kustomization kustomizationv1.Kustomization
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &kustomization)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.Kustomizations = append(fluxState.Kustomizations, kustomization)
+	}
+
+	return fluxState, nil
 }
