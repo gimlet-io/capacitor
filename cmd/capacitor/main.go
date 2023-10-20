@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/gimlet-io/capacitor/pkg/controllers"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,6 +60,9 @@ func main() {
 		Resource: "gitrepositories",
 	}
 
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
 	ctrl := controllers.NewDynamicController(
 		"gitrepositories.source.toolkit.fluxcd.io",
 		dynamicClient,
@@ -75,11 +82,15 @@ func main() {
 			}
 			return nil
 		})
-
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
 	go ctrl.Run(1, stopCh)
+
+	r := setupRouter(dynamicClient)
+	go func() {
+		err = http.ListenAndServe(":9000", r)
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -152,4 +163,58 @@ func getFluxState(dc *dynamic.DynamicClient) (*fluxState, error) {
 	}
 
 	return fluxState, nil
+}
+
+func setupRouter(
+	dynamicClient *dynamic.DynamicClient,
+) *chi.Mux {
+	r := chi.NewRouter()
+	r.Use(middleware.WithValue("dynamicClient", dynamicClient))
+
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	r.Get("/api/fluxState", fluxStateHandler)
+
+	filesDir := http.Dir("./web/build")
+	fileServer(r, "/", filesDir)
+
+	return r
+}
+
+// static files from a http.FileSystem
+func fileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		//TODO: serve all React routes https://github.com/go-chi/chi/issues/403
+		panic("FileServer does not permit any URL parameters.")
+	}
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", http.StatusMovedPermanently).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+		ctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(ctx.RoutePattern(), "/*")
+		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
+		fs.ServeHTTP(w, r)
+	})
+}
+
+func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
+	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
+
+	fluxState, err := getFluxState(dynamicClient)
+	if err != nil {
+		panic(err.Error())
+	}
+	fluxStateBytes, err := json.Marshal(fluxState)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(fluxStateBytes)
 }

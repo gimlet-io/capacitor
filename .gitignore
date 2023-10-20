@@ -2,6 +2,7 @@
 .env
 kubeconfig.yaml
 build
+cmd/capacitor/web
 
 # dependencies
 web/node_modules

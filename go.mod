@@ -31,6 +31,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fluxcd/kustomize-controller/api v1.1.1
 	github.com/fluxcd/source-controller/api v1.1.2
+	github.com/go-chi/chi v1.5.5
 	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
