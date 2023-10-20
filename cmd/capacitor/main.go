@@ -14,6 +14,7 @@ import (
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/gimlet-io/capacitor/pkg/controllers"
+	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/sirupsen/logrus"
@@ -63,6 +64,9 @@ func main() {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
+	clientHub := streaming.NewClientHub()
+	go clientHub.Run()
+
 	ctrl := controllers.NewDynamicController(
 		"gitrepositories.source.toolkit.fluxcd.io",
 		dynamicClient,
@@ -75,16 +79,21 @@ func main() {
 				fallthrough
 			case "delete":
 				fmt.Printf("Changes in %s\n", objectMeta.Name)
-				_, err := getFluxState(dynamicClient)
+				fluxState, err := getFluxState(dynamicClient)
 				if err != nil {
 					panic(err.Error())
 				}
+				fluxStateBytes, err := json.Marshal(fluxState)
+				if err != nil {
+					panic(err.Error())
+				}
+				clientHub.Broadcast <- fluxStateBytes
 			}
 			return nil
 		})
 	go ctrl.Run(1, stopCh)
 
-	r := setupRouter(dynamicClient)
+	r := setupRouter(dynamicClient, clientHub)
 	go func() {
 		err = http.ListenAndServe(":9000", r)
 		if err != nil {
@@ -167,6 +176,7 @@ func getFluxState(dc *dynamic.DynamicClient) (*fluxState, error) {
 
 func setupRouter(
 	dynamicClient *dynamic.DynamicClient,
+	clientHub *streaming.ClientHub,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.WithValue("dynamicClient", dynamicClient))
@@ -175,6 +185,9 @@ func setupRouter(
 		w.WriteHeader(http.StatusOK)
 	})
 	r.Get("/api/fluxState", fluxStateHandler)
+	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {
+		streaming.ServeWs(clientHub, w, r)
+	})
 
 	filesDir := http.Dir("./web/build")
 	fileServer(r, "/", filesDir)

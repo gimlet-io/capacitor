@@ -1,6 +1,7 @@
 import logo from './logo.svg';
 import './App.css';
 import APIBackend from "./apiBackend";
+import StreamingBackend from "./streamingBackend";
 import CapacitorClient from "./client";
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
   return (
     <>
     <APIBackend capacitorClient={capacitorClient}/>
+    <StreamingBackend capacitorClient={capacitorClient}/>
     <div className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
