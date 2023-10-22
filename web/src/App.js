@@ -3,6 +3,8 @@ import './App.css';
 import APIBackend from "./apiBackend";
 import StreamingBackend from "./streamingBackend";
 import CapacitorClient from "./client";
+import { createStore } from 'redux'
+import { rootReducer } from './redux';
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -11,10 +13,13 @@ function App() {
     }
   );
 
+  const store = createStore(rootReducer);
+  store.subscribe(() => console.log(store.getState()))
+
   return (
     <>
-    <APIBackend capacitorClient={capacitorClient}/>
-    <StreamingBackend capacitorClient={capacitorClient}/>
+    <APIBackend capacitorClient={capacitorClient} store={store}/>
+    <StreamingBackend capacitorClient={capacitorClient} store={store}/>
     <div className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
