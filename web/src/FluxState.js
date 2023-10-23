@@ -13,6 +13,7 @@ function FluxState(props) {
     <div>
       <h2>GitRepositories</h2>
       <table>
+        <thead>
         <tr>
           <th>NAMESPACE</th>
           <th>NAME</th>
@@ -20,32 +21,38 @@ function FluxState(props) {
           <th>READY</th>
           <th>STATUS</th>
         </tr>
-      {
-        fluxState.gitRepositories?.map(gitRepository => {
-          const ready = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].status');
-          const message = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].message');
+        </thead>
+          <tbody>
+          {
+            fluxState.gitRepositories?.map(gitRepository => {
+              const ready = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].status');
+              const message = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].message');
 
-          return (
-            <tr key={gitRepository.metadata.namespace/gitRepository.metadata.name}>
-              <td>{gitRepository.metadata.namespace}</td>
-              <td>{gitRepository.metadata.name}</td>
-              <td>{gitRepository.spec.url}</td>
-              <td>{ready}</td>
-              <td>{message}</td>
-            </tr>
-          )
-        })
-      }
+              return (
+                <tr key={gitRepository.metadata.namespace/gitRepository.metadata.name}>
+                  <td>{gitRepository.metadata.namespace}</td>
+                  <td>{gitRepository.metadata.name}</td>
+                  <td>{gitRepository.spec.url}</td>
+                  <td>{ready}</td>
+                  <td>{message}</td>
+                </tr>
+              )
+            })
+          }
+        </tbody>
       </table> 
       <h2>Kustomizations</h2>
       <table>
-        <tr>
-          <th>NAMESPACE</th>
-          <th>NAME</th>
-          <th>URL</th>
-          <th>READY</th>
-          <th>STATUS</th>
-        </tr>
+        <thead>
+          <tr>
+            <th>NAMESPACE</th>
+            <th>NAME</th>
+            <th>URL</th>
+            <th>READY</th>
+            <th>STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
         {
         fluxState.kustomizations?.map(kustomization => {
           const ready = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].status');
@@ -61,7 +68,8 @@ function FluxState(props) {
             </tr>
           )
         })
-      }
+        }
+        </tbody>
       </table>
     </div>
   )

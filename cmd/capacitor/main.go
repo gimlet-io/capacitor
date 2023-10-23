@@ -40,6 +40,8 @@ func main() {
 
 	gitRepositoryController := controllers.GitRepositoryController(dynamicClient, clientHub)
 	go gitRepositoryController.Run(1, stopCh)
+	kustomizationController := controllers.KustomizeController(dynamicClient, clientHub)
+	go kustomizationController.Run(1, stopCh)
 
 	r := api.SetupRouter(dynamicClient, clientHub)
 	go func() {

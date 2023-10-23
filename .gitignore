@@ -3,6 +3,7 @@
 kubeconfig.yaml
 build
 cmd/capacitor/web
+cmd/capacitor/__debug_bin
 
 # dependencies
 web/node_modules
