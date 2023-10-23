@@ -19,6 +19,7 @@ Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
 - 1700CET, 20th October - Rudimentary data model, bundling a React frontend
     - https://www.youtube.com/watch?v=rhQ_ZSon8KA
 - 1730CET, 23rd October - TBD
+    - https://www.youtube.com/watch?v=BoOIRF2bsQY
 - 1730CET, 30th October - TBD
 - 1730CET, 6th November - TBD
 
