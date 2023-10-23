@@ -2,7 +2,7 @@ export const initialState = {
   fluxState: {}
 }
 
-export const ACTION_FLUX_STATE_RECEIVED = 'ACTION_FLUX_STATE_RECEIVED';
+export const ACTION_FLUX_STATE_RECEIVED = 'FLUX_STATE_RECEIVED';
 
 export function rootReducer(state = initialState, action) {
   switch (action.type) {

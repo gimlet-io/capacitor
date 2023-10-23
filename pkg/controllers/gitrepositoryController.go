@@ -37,7 +37,10 @@ func GitRepositoryController(
 				if err != nil {
 					panic(err.Error())
 				}
-				fluxStateBytes, err := json.Marshal(fluxState)
+				fluxStateBytes, err := json.Marshal(streaming.Envelope{
+					Type:    streaming.FLUX_STATE_RECEIVED,
+					Payload: fluxState,
+				})
 				if err != nil {
 					panic(err.Error())
 				}
