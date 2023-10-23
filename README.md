@@ -12,6 +12,8 @@ Capacitor's goal is to level the field: providing a UI option for Flux users tha
 
 ## Built in public
 
+![image](https://github.com/gimlet-io/capacitor/assets/4289031/00fd3517-d50a-4d66-89c8-b609d2721abe)
+
 Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
 
 - 1730CET, 16th October - Capacitor launch, Flux CRD backend
