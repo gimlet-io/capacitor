@@ -11,7 +11,7 @@ function FluxState(props) {
 
   return (
     <div>
-      <h2 className='text-xl text-red-500'>GitRepositories</h2>
+      <h2 className='text-xl'>GitRepositories</h2>
       <table>
         <thead>
         <tr>

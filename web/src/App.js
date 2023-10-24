@@ -4,6 +4,7 @@ import CapacitorClient from "./client";
 import { createStore } from 'redux'
 import { rootReducer } from './redux';
 import FluxState from "./FluxState";
+import Footer from "./Footer";
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -13,7 +14,6 @@ function App() {
   );
 
   const store = createStore(rootReducer);
-  // store.subscribe(() => console.log(store.getState()))
 
   return (
     <>
@@ -22,6 +22,7 @@ function App() {
     <div className="App">
       <FluxState store={store}/>
     </div>
+    <Footer />
     </>
   );
 }
