@@ -58,7 +58,7 @@ export function GitRepositories(props){
 
           return (
             <div 
-              className="rounded border border-neutral-300 p-4 grid grid-cols-12 gap-x-4"
+              className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
               key={`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`}
               >
               <div className="col-span-2">
