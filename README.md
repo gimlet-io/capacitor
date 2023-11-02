@@ -12,7 +12,8 @@ Capacitor's goal is to level the field: providing a UI option for Flux users tha
 
 ## Built in public
 
-![image](https://github.com/gimlet-io/capacitor/assets/4289031/00fd3517-d50a-4d66-89c8-b609d2721abe)
+![image](https://github.com/gimlet-io/capacitor/assets/4289031/81ca9de2-9fe0-44e7-ac7a-f7e1878f999f)
+
 
 Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
 
@@ -22,8 +23,7 @@ Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
     - https://www.youtube.com/watch?v=rhQ_ZSon8KA
 - 1730CET, 23rd October - Rendering Flux state
     - https://www.youtube.com/watch?v=BoOIRF2bsQY
-- 1730CET, 30th October - TBD
-- 1730CET, 6th November - TBD
+- 1700CET, 6th November - Product vision, Rendering Kustomizations, React event handlers
 
 ## Philosophy
 
