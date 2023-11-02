@@ -1,13 +1,12 @@
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import { ArrowUpRightIcon } from '@heroicons/react/24/outline'
 import React, { useState } from 'react';
 import { GitRepositories } from './FluxState';
 
 // https://blog.stackademic.com/building-a-resizable-sidebar-component-with-persisting-width-using-react-tailwindcss-bdec28a594f
 
-const navigation = [
-  { name: 'Sources', href: '#', count: '5', current: true },
+const navigationDefault = [
   { name: 'Kustomizations', href: '#', count: 10, current: false },
+  { name: 'Sources', href: '#', count: '5', current: true },
   { name: 'Runtime', href: '#', current: false },
   { name: 'Logs', href: '#', current: false },
 ]
@@ -15,8 +14,15 @@ const navigation = [
 function Footer(props) {
   const { store } = props
 
+  const [navigation, setNavigation] = useState(navigationDefault);
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setFluxState(store.getState().fluxState))
+
+  const navigate = (selected) => {
+    setNavigation(navigationDefault)
+    // TODO
+    // How to update array element: https://react.dev/learn/updating-arrays-in-state#replacing-items-in-an-array
+  }
 
   return (
     <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
@@ -32,7 +38,7 @@ function Footer(props) {
         <div className="flex pt-10">
           <div>
             <div className="w-48 px-4 border-r border-neutral-300">
-              <SideBar navigation={navigation} />
+              <SideBar navigation={navigation} navigate={navigate} />
             </div>
           </div>
           <div className="w-full px-4 h-[calc(60vh)] overflow-x-hidden overflow-y-scroll">
@@ -62,6 +68,7 @@ function SideBar(props) {
                 item.current ? 'bg-neutral-100 text-black' : 'text-neutral-700 hover:bg-neutral-100 hover:text-black',
                 'group flex gap-x-3 p-2 pl-3 text-sm leading-6 rounded'
               )}
+              onClick={() => props.navigate(item.name)}
             >
               {item.name}
               {item.count ? (
