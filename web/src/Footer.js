@@ -20,7 +20,7 @@ function Footer(props) {
 
   return (
     <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
-      <div className="fixed inset-x-0 bottom-0 h-2/5 z-40 bg-white border-t border-neutral-300 shadow-xl">
+      <div className="fixed inset-x-0 bottom-0 h-3/4 z-40 bg-white border-t border-neutral-300 shadow-xl">
         <div className="absolute top-0 right-0 px-2 pt-1">
           <button
             onClick={() => console.log("close")}
@@ -36,10 +36,12 @@ function Footer(props) {
           </button>
         </div>
         <div className="flex pt-10">
-          <div className='w-48 px-4 border-r border-neutral-300'>
-            <SideBar navigation={navigation} />
+          <div>
+            <div className="w-48 px-4 border-r border-neutral-300">
+              <SideBar navigation={navigation} />
+            </div>
           </div>
-          <div className="w-full px-4">
+          <div className="w-full px-4 h-[calc(60vh)] overflow-x-hidden overflow-y-scroll">
             <div className="w-full max-w-6xl mx-auto">
               <GitRepositories gitRepositories={fluxState.gitRepositories} />
             </div>
