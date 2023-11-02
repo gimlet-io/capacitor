@@ -21,13 +21,7 @@ function Footer(props) {
   return (
     <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
       <div className="fixed inset-x-0 bottom-0 h-3/4 z-40 bg-white border-t border-neutral-300 shadow-xl">
-        <div className="absolute top-0 right-0 px-2 pt-1">
-          <button
-            onClick={() => console.log("close")}
-            type="button" className="rounded-md bg-white hover:bg-neutral-200 text-neutral-400 p-1">
-            <span className="sr-only">Close panel</span>
-            <ArrowUpRightIcon className="h-5 w-5" aria-hidden="true" />
-          </button>
+        <div className="absolute top-0 right-0 px-4 py-2">
           <button
             onClick={() => console.log("close")}
             type="button" className="ml-1 rounded-md bg-white hover:bg-neutral-200 text-neutral-400 p-1">
@@ -59,7 +53,7 @@ function classNames(...classes) {
 function SideBar(props) {
   return (
     <nav className="flex flex-1 flex-col" aria-label="Sidebar">
-      <ul className="-mx-2 space-y-1">
+      <ul className="space-y-1">
         {props.navigation.map((item) => (
           <li key={item.name}>
             <a
