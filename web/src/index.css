@@ -3,5 +3,9 @@
 @tailwind utilities;
 
 body {
-  @apply bg-zinc-800 text-zinc-300
+  @apply bg-neutral-50 text-neutral-800
+}
+
+.field {
+  @apply text-ellipsis overflow-hidden whitespace-nowrap
 }

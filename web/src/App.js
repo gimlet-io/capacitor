@@ -3,7 +3,6 @@ import StreamingBackend from "./streamingBackend";
 import CapacitorClient from "./client";
 import { createStore } from 'redux'
 import { rootReducer } from './redux';
-import FluxState from "./FluxState";
 import Footer from "./Footer";
 
 function App() {
@@ -19,10 +18,7 @@ function App() {
     <>
     <APIBackend capacitorClient={capacitorClient} store={store}/>
     <StreamingBackend capacitorClient={capacitorClient} store={store}/>
-    <div className="App">
-      <FluxState store={store}/>
-    </div>
-    <Footer />
+    <Footer store={store} />
     </>
   );
 }
