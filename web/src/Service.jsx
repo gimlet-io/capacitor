@@ -42,6 +42,10 @@ function Service(props) {
                   }
                 </div>
                 <div>
+                  <p className="text-base text-neutral-600">Dependencies</p>
+                  configmaps.. secrets.. (with view action)
+                </div>
+                <div>
                   <p className="text-base text-neutral-600">Links</p>
                   <div className="text-neutral-700 text-sm mt-2">
                   <a
