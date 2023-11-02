@@ -3,7 +3,9 @@ import StreamingBackend from "./streamingBackend";
 import CapacitorClient from "./client";
 import { createStore } from 'redux'
 import { rootReducer } from './redux';
-import FluxState from "./FluxState";
+import Footer from "./Footer";
+import Service from "./Service";
+import FilterBar from "./FilterBar";
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -13,15 +15,60 @@ function App() {
   );
 
   const store = createStore(rootReducer);
-  // store.subscribe(() => console.log(store.getState()))
 
   return (
     <>
     <APIBackend capacitorClient={capacitorClient} store={store}/>
     <StreamingBackend capacitorClient={capacitorClient} store={store}/>
-    <div className="App">
-      <FluxState store={store}/>
+    <div className="max-w-6xl mx-auto">
+      <div className="my-16">
+        <FilterBar 
+          filters={[
+            {
+              property: "Owner",
+              value: "backend-team"
+            },
+            {
+              property: "App",
+              value: "*app*"
+            },
+          ]}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-y-4">
+        <Service 
+          stack={{
+            deployment: {
+              pods: [
+                {name: "xxx", status: "Running"},
+                {name: "xxx", status: "Running"}
+              ]
+            },
+            service: {
+              name: "my-app",
+              namespace: "default"
+            }
+          }}
+          alerts={[]}
+        />
+        <Service 
+          stack={{
+            deployment: {
+              pods: [
+                {name: "xxx", status: "Running"},
+                {name: "xxx", status: "Running"}
+              ]
+            },
+            service: {
+              name: "your-app",
+              namespace: "default"
+            }
+          }}
+          alerts={[]}
+        />
+      </div>
     </div>
+    <Footer store={store} />
     </>
   );
 }
