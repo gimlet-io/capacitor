@@ -42,3 +42,9 @@ Capacitor wants to be more than a tool that displays Flux's CRDs in tables. Capa
   - Error notifications
   - Support for environments
   - Display application meta information - service catalog items
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=gimlet-io/capacitor&type=Date)](https://star-history.com/#gimlet-io/capacitor&Date)
+
+Please push ✨
