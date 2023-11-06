@@ -41,7 +41,7 @@ function App() {
             deployment: {
               pods: [
                 {name: "xxx", status: "Running"},
-                {name: "xxx", status: "Running"}
+                {name: "yyy", status: "Running"}
               ]
             },
             service: {
@@ -55,8 +55,8 @@ function App() {
           stack={{
             deployment: {
               pods: [
-                {name: "xxx", status: "Running"},
-                {name: "xxx", status: "Running"}
+                {name: "zzz", status: "Running"},
+                {name: "uuu", status: "Running"}
               ]
             },
             service: {

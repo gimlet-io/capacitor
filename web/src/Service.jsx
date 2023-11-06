@@ -152,6 +152,10 @@ function Service(props) {
                   </div>
                 </div>
                 }
+                <div>
+                  <p className="text-base text-neutral-600">Sync</p>
+                  Last sync time, state, ref to kustomization
+                </div>
               </div>
             </div>
           </div>
