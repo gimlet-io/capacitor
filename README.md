@@ -12,6 +12,8 @@ Capacitor's goal is to level the field: providing a UI option for Flux users tha
 
 ## Built in public
 
+The vision: [https://www.youtube.com/watch?v=LaDRRDvsRAs](https://www.youtube.com/watch?v=LaDRRDvsRAs)
+
 ![image](https://github.com/gimlet-io/capacitor/assets/4289031/81ca9de2-9fe0-44e7-ac7a-f7e1878f999f)
 
 
