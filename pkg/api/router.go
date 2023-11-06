@@ -21,6 +21,7 @@ func SetupRouter(
 		w.WriteHeader(http.StatusOK)
 	})
 	r.Get("/api/fluxState", fluxStateHandler)
+	r.Get("/api/services", servicesHandler)
 	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {
 		streaming.ServeWs(clientHub, w, r)
 	})
