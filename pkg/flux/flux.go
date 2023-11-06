@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/cli-utils/pkg/object"
 )
 
 var (
@@ -50,10 +51,11 @@ func GetFluxInventory(dc *dynamic.DynamicClient) ([]string, error) {
 
 		for _, entry := range kustomization.Status.Inventory.Entries {
 			fmt.Println(entry)
-			// objMeta, err := object.ParseObjMetadata(entry.ID)
-			// if err != nil {
-			// 	return nil, err
-			// }
+			objMeta, err := object.ParseObjMetadata(entry.ID)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(objMeta)
 
 			// inventory = append(inventory, objMeta)
 		}
