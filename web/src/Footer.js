@@ -63,7 +63,7 @@ function ExpandedFooter(props) {
           <div className="w-full px-4 h-[calc(60vh)] overflow-x-hidden overflow-y-scroll">
             <div className="w-full max-w-6xl mx-auto">
             { navigation.find((n) => n.name === "Kustomizations").current &&
-              <Kustomizations kustomizations={fluxState.kustomizations} />
+              <Kustomizations fluxState={fluxState} />
             }
             { navigation.find((n) => n.name === "Sources").current &&
               <GitRepositories gitRepositories={fluxState.gitRepositories} />

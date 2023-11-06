@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import jp from 'jsonpath'
+import { formatDistance, parse } from "date-fns";
 
 function FluxState(props) {
   const { store } = props
@@ -45,17 +46,29 @@ function FluxState(props) {
 }
 
 export function Kustomizations(props){
-  const { kustomizations } = props
+  const { fluxState } = props
+  const kustomizations = fluxState.kustomizations;
+  const gitRepositories = fluxState.gitRepositories
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
         kustomizations?.map(kustomization => {
-          console.log(kustomization)
-
           const message = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].message');
           const revision = kustomization.status.lastAppliedRevision
           const hash = revision.slice(revision.indexOf(':') + 1);
+
+          const readyConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].status');
+          const ready = readyConditions.includes("True")
+
+          const lastAttemptedRevision = kustomization.status.lastAppliedRevision;
+          const lastAttemptedHash = lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1);
+
+          const parsed = parse(kustomization.status.lastHandledReconcileAt, "yyyy-MM-dd'T'HH:mm:ssXXXXXXXXX", new Date());
+          const dateLabel = "TODO"//formatDistance(parsed, new Date());
+
+          const sourceIsGitRepository = kustomization.spec.sourceRef.kind === "GitRepository";
+          const gitRepository = gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
 
           return (
             <div
@@ -78,15 +91,11 @@ export function Kustomizations(props){
                 <span className="block field font-medium text-neutral-700">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
                   <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{hash.slice(0, 8)}</a></span>
+                  <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
                 </span>
-                {/* TODO
-                  - status.lastAppliedRevision is the hash we run
-                  - status.lastAttemptedRevision is the hash we want to deploy
-                  - status.lastHandledReconcileAt is the time we last tried
-                  - spec.sourceRef[?(@.kind=="GitRepository")].name is the git repo that we should link to
-                  All this information should be on the UI. Probably ig status is not READY
-                */}
-                {/* <span className="block field text-neutral-600">{url}</span> */}
+                {/* { !ready && */}
+                <span className="block field text-yellow-500">Attempted applying {lastAttemptedHash.slice(0, 8)} at {dateLabel}</span>
+                {/* } */}
               </div>
             </div>
           )
