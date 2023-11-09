@@ -2,7 +2,6 @@ package flux
 
 import (
 	"context"
-	"fmt"
 
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -32,8 +31,8 @@ type FluxState struct {
 	Kustomizations  []kustomizationv1.Kustomization `json:"kustomizations"`
 }
 
-func GetFluxInventory(dc *dynamic.DynamicClient) ([]string, error) {
-	inventory := []string{}
+func GetFluxInventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {
+	inventory := []object.ObjMetadata{}
 
 	kustomizations, err := dc.Resource(kustomizationGVR).
 		Namespace("").
@@ -49,15 +48,16 @@ func GetFluxInventory(dc *dynamic.DynamicClient) ([]string, error) {
 			return nil, err
 		}
 
+		if kustomization.Status.Inventory == nil {
+			continue
+		}
 		for _, entry := range kustomization.Status.Inventory.Entries {
-			fmt.Println(entry)
 			objMeta, err := object.ParseObjMetadata(entry.ID)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println(objMeta)
 
-			// inventory = append(inventory, objMeta)
+			inventory = append(inventory, objMeta)
 		}
 	}
 

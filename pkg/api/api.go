@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
@@ -38,11 +37,6 @@ func servicesHandler(w http.ResponseWriter, r *http.Request) {
 		logrus.Errorf(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("{}"))
-	}
-
-	for _, item := range inventory {
-		// fmt.Println(item.Namespace + "/" + item.Name + "(" + item.GroupKind.Kind + ")")
-		fmt.Println(item)
 	}
 
 	servicesBytes, err := json.Marshal(inventory)

@@ -56,13 +56,13 @@ export function Kustomizations(props){
         kustomizations?.map(kustomization => {
           const message = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].message');
           const revision = kustomization.status.lastAppliedRevision
-          const hash = revision.slice(revision.indexOf(':') + 1);
+          const hash = revision ? revision.slice(revision.indexOf(':') + 1) : "";
 
           const readyConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].status');
           const ready = readyConditions.includes("True")
 
           const lastAttemptedRevision = kustomization.status.lastAppliedRevision;
-          const lastAttemptedHash = lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1);
+          const lastAttemptedHash = lastAttemptedRevision ? lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1) : "";
 
           const parsed = parse(kustomization.status.lastHandledReconcileAt, "yyyy-MM-dd'T'HH:mm:ssXXXXXXXXX", new Date());
           const dateLabel = "TODO"//formatDistance(parsed, new Date());
