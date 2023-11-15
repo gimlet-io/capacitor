@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
@@ -32,7 +31,6 @@ func GitRepositoryController(
 			case "update":
 				fallthrough
 			case "delete":
-				fmt.Printf("Changes in %s\n", objectMeta.Name)
 				fluxState, err := flux.GetFluxState(dynamicClient)
 				if err != nil {
 					panic(err.Error())

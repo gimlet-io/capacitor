@@ -26,7 +26,7 @@ const Footer = memo(function Footer(props) {
   )
 
   return (
-    <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true" className={`fixed inset-x-0 bottom-0 bg-neutral-200 border-t border-neutral-300 ${expanded ? 'h-2/5' : 'h-16'}`}>
+    <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true" className={`fixed inset-x-0 bottom-0 bg-neutral-200 border-t border-neutral-300 ${expanded ? 'h-4/5' : 'h-16'}`}>
       <div className={`flex justify-between w-full ${expanded ? '' : 'h-full'}`}>
         <div className='h-auto w-full cursor-pointer' onClick={() => setExpanded(!expanded)} />
         <div className='px-4 py-2'>

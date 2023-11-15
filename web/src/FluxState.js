@@ -11,36 +11,7 @@ function FluxState(props) {
   return (
     <div>
       <GitRepositories gitRepositories={fluxState.gitRepositories} />
-      <h2>Kustomizations</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>NAMESPACE</th>
-            <th>NAME</th>
-            <th>URL</th>
-            <th>READY</th>
-            <th>STATUS</th>
-          </tr>
-        </thead>
-        <tbody>
-        {
-        fluxState.kustomizations?.map(kustomization => {
-          const ready = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].status');
-          const message = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].message');
-
-          return (
-            <tr key={kustomization.metadata.namespace/kustomization.metadata.name}>
-              <td>{kustomization.metadata.namespace}</td>
-              <td>{kustomization.metadata.name}</td>
-              <td>{kustomization.status.lastAppliedRevision}</td>
-              <td>{ready}</td>
-              <td>{message}</td>
-            </tr>
-          )
-        })
-        }
-        </tbody>
-      </table>
+      <Kustomizations fluxState={fluxState} />
     </div>
   )
 }

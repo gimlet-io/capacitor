@@ -9,6 +9,8 @@ export default class CapacitorClient {
 
   getFluxState = () => this.get('/api/fluxState');
 
+  getServices = () => this.get('/api/services');
+
   get = async (path) => {
     try {
       const { data } = await axios.get(path, {

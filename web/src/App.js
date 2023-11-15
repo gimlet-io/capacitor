@@ -4,8 +4,8 @@ import CapacitorClient from "./client";
 import { createStore } from 'redux'
 import { rootReducer } from './redux';
 import Footer from "./Footer";
-import Service from "./Service";
 import FilterBar from "./FilterBar";
+import Services from "./Services";
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -36,36 +36,7 @@ function App() {
         />
       </div>
       <div className="grid grid-cols-1 gap-y-4">
-        <Service 
-          stack={{
-            deployment: {
-              pods: [
-                {name: "xxx", status: "Running"},
-                {name: "yyy", status: "Running"}
-              ]
-            },
-            service: {
-              name: "my-app",
-              namespace: "default"
-            }
-          }}
-          alerts={[]}
-        />
-        <Service 
-          stack={{
-            deployment: {
-              pods: [
-                {name: "zzz", status: "Running"},
-                {name: "uuu", status: "Running"}
-              ]
-            },
-            service: {
-              name: "your-app",
-              namespace: "default"
-            }
-          }}
-          alerts={[]}
-        />
+        <Services store={store} />
       </div>
     </div>
     <Footer store={store} />
