@@ -10,7 +10,6 @@ const Footer = memo(function Footer(props) {
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setFluxState(store.getState().fluxState))
 
-  // https://blog.stackademic.com/building-a-resizable-sidebar-component-with-persisting-width-using-react-tailwindcss-bdec28a594f
   const navigationDefault = [
     { name: 'Kustomizations', href: '#', count: 10 },
     { name: 'Sources', href: '#', count: '5'},
@@ -25,7 +24,6 @@ const Footer = memo(function Footer(props) {
   },
     [setSelected]
   )
-
 
   return (
     <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true" className={`fixed inset-x-0 bottom-0 bg-neutral-200 border-t border-neutral-300 ${expanded ? 'h-2/5' : 'h-16'}`}>
@@ -42,18 +40,22 @@ const Footer = memo(function Footer(props) {
       </div>
       {expanded &&
         <div className="flex w-full h-full">
-          <div className="w-48 px-4 border-r border-neutral-300">
-            <SideBar navigation={navigationDefault} selectedMenu={handlerSelect} selected={selected}/>
+          <div>
+            <div className="w-48 px-4 border-r border-neutral-300">
+              <SideBar navigation={navigationDefault} selectedMenu={handlerSelect} selected={selected}/>
+            </div>
           </div>
 
-          <div className="w-full px-4 overflow-x-hidden overflow-y-scroll mb-20">
+          <div className="w-full px-4 overflow-x-hidden overflow-y-scroll">
             <div className="w-full max-w-6xl mx-auto flex-col h-full">
+              <div className="pb-24">
               { selected === "Kustomizations" &&
                 <Kustomizations fluxState={fluxState} />
               }
               { selected === "Sources" &&
                 <GitRepositories gitRepositories={fluxState.gitRepositories} />
               }
+              </div>
             </div>
           </div>
         </div>
