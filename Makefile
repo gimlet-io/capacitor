@@ -1,5 +1,4 @@
 export PATH := $(abspath bin/):${PATH}
-export DAGGER_MODULE="ci"
 
 .PHONY: build
 build:
@@ -7,6 +6,7 @@ build:
 
 .PHONY: dagger-build
 dagger-build:
+	export DAGGER_MODULE="ci"
 	dagger call build
 
 .PHONY: test
@@ -22,6 +22,7 @@ build-ui:
 
 .PHONY: dagger-build-ui
 dagger-build-ui:
+	export DAGGER_MODULE="ci"
 	dagger call buildUi
 	@rm -rf cmd/capacitor/web/build
 	@mkdir -p cmd/capacitor/web/build
