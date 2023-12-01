@@ -35,7 +35,7 @@ function App() {
           ]}
         />
       </div>
-      <div className="grid grid-cols-1 gap-y-4">
+      <div className="grid grid-cols-1 gap-y-4 pb-32">
         <Services store={store} />
       </div>
     </div>

@@ -2,16 +2,16 @@ import React from 'react';
 import Timeline from './Timeline';
 
 function Service(props) {
-  const { stack, alerts } = props;
+  const { service, alerts } = props;
 
-  const deployment = stack.deployment;
+  const deployment = service.deployment;
 
   return (
     <>
       <div className="w-full flex items-center justify-between space-x-6 bg-white pb-6 rounded-lg border border-neutral-300 shadow-lg">
         <div className="flex-1">
           <h3 className="flex text-lg font-bold rounded p-4">
-            <span className="cursor-pointer">{stack.service.name}</span>
+            <span className="cursor-pointer">{service.svc.metadata.name}</span>
             <>
             <div className="flex items-center ml-auto space-x-2">
               { deployment &&
@@ -36,8 +36,8 @@ function Service(props) {
                 <div>
                   <p className="text-base text-neutral-600">Pods</p>
                   {
-                    deployment && deployment.pods && deployment.pods.map((pod) => (
-                      <Pod key={pod.name} pod={pod} />
+                    service.pods.map((pod) => (
+                      <Pod key={pod.metadata.name} pod={pod} />
                     ))
                   }
                 </div>
@@ -121,13 +121,13 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Address</p>
                   <div className="text-neutral-900 text-sm">
                     <div className="relative">
-                    {stack.service.name}.{stack.service.namespace}.svc.cluster.local
+                    {service.svc.name}.{service.svc.namespace}.svc.cluster.local
                     <button
                       className="absolute right-0 bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
                       Port-forward command
                     </button>
                     </div>
-                    {stack.ingresses ? stack.ingresses.map((ingress) =>
+                    {service.ingresses ? service.ingresses.map((ingress) =>
                       <p key={`${ingress.namespace}/${ingress.name}`}>
                         <a href={'https://' + ingress.url} target="_blank" rel="noopener noreferrer">{ingress.url}
                         <svg xmlns="http://www.w3.org/2000/svg"
@@ -172,7 +172,7 @@ function Pod(props) {
 
   let color;
   let pulsar;
-  switch (pod.status) {
+  switch (pod.status.phase) {
     case 'Running':
       color = 'bg-green-200';
       pulsar = '';
@@ -194,8 +194,8 @@ function Pod(props) {
   }
 
   return (
-    <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.name} - ${pod.status}`}>
-      {pod.status}
+    <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.metadata.name} - ${pod.status}`}>
+      {pod.status.phase}
     </span>
   );
 }
