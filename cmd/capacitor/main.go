@@ -13,6 +13,7 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -25,6 +26,11 @@ func main() {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err.Error())
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err)
 	}
 
 	dynamicClient, err := dynamic.NewForConfig(config)
@@ -43,7 +49,7 @@ func main() {
 	kustomizationController := controllers.KustomizeController(dynamicClient, clientHub)
 	go kustomizationController.Run(1, stopCh)
 
-	r := api.SetupRouter(dynamicClient, clientHub)
+	r := api.SetupRouter(client, dynamicClient, clientHub)
 	go func() {
 		err = http.ListenAndServe(":9000", r)
 		if err != nil {

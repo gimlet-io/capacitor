@@ -8,14 +8,17 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 func SetupRouter(
+	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.WithValue("dynamicClient", dynamicClient))
+	r.Use(middleware.WithValue("client", client))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

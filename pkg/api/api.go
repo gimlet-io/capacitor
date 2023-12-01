@@ -7,12 +7,13 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
 	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
 
-	fluxState, err := flux.GetFluxState(dynamicClient)
+	fluxState, err := flux.State(dynamicClient)
 	if err != nil {
 		logrus.Errorf(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -31,15 +32,16 @@ func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
 
 func servicesHandler(w http.ResponseWriter, r *http.Request) {
 	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
+	client, _ := r.Context().Value("client").(*kubernetes.Clientset)
 
-	inventory, err := flux.GetFluxInventory(dynamicClient)
+	services, err := flux.Services(client, dynamicClient)
 	if err != nil {
 		logrus.Errorf(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("{}"))
 	}
 
-	servicesBytes, err := json.Marshal(inventory)
+	servicesBytes, err := json.Marshal(services)
 	if err != nil {
 		logrus.Errorf(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

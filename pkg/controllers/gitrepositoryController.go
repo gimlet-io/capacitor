@@ -31,7 +31,7 @@ func GitRepositoryController(
 			case "update":
 				fallthrough
 			case "delete":
-				fluxState, err := flux.GetFluxState(dynamicClient)
+				fluxState, err := flux.State(dynamicClient)
 				if err != nil {
 					panic(err.Error())
 				}
