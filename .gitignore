@@ -1,5 +1,4 @@
 bin
-.vscode
 .env
 kubeconfig.yaml
 build
