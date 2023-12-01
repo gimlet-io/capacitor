@@ -6,8 +6,8 @@ import (
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	apps_v1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -70,15 +70,17 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 		}
 	}
 
+	pods, err := c.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
 	for idx, service := range services {
-		selector := labels.Set(service.Svc.Spec.Selector).AsSelector().String()
-		pods, err := c.CoreV1().Pods(service.Svc.Namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: selector,
-		})
-		if err != nil {
-			return nil, err
+		services[idx].Pods = []v1.Pod{}
+		for _, pod := range pods.Items {
+			if labelsMatchSelectors(pod.ObjectMeta.Labels, service.Svc.Spec.Selector) {
+				services[idx].Pods = append(services[idx].Pods, pod)
+			}
 		}
-		services[idx].Pods = pods.Items
 	}
 
 	return services, nil
@@ -101,6 +103,20 @@ func selectorsMatch(first map[string]string, second map[string]string) bool {
 
 	for k2, v2 := range second {
 		if v, ok := first[k2]; ok {
+			if v2 != v {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+
+	return true
+}
+
+func labelsMatchSelectors(labels map[string]string, selectors map[string]string) bool {
+	for k2, v2 := range selectors {
+		if v, ok := labels[k2]; ok {
 			if v2 != v {
 				return false
 			}
