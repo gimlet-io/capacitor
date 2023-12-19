@@ -6,6 +6,7 @@ import { rootReducer } from './redux';
 import Footer from "./Footer";
 import FilterBar from "./FilterBar";
 import Services from "./Services";
+import { useState, useEffect } from "react";
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -15,6 +16,32 @@ function App() {
   );
 
   const store = createStore(rootReducer);
+  const [filters, setFilters] = useState(JSON.parse(localStorage.getItem("filters")) ?? [])
+
+  useEffect(() => {
+    localStorage.setItem("filters", JSON.stringify(filters));
+  }, [filters]);
+
+  const addFilter = (filter) => {
+    setFilters([...filters, filter]);
+  }
+  
+  const filterValueByProperty = (property) => {
+    const filter = filters.find(f => f.property === property)
+    if (!filter) {
+      return ""
+    }
+  
+    return filter.value
+  }
+  
+  const deleteFilter = (filter) => {
+    setFilters(filters.filter(f => f.property !== filter.property))
+  }
+  
+  const resetFilters = () => {
+    setFilters([])
+  }
 
   return (
     <>
@@ -23,20 +50,15 @@ function App() {
     <div className="max-w-6xl mx-auto">
       <div className="my-16">
         <FilterBar 
-          filters={[
-            {
-              property: "Owner",
-              value: "backend-team"
-            },
-            {
-              property: "App",
-              value: "*app*"
-            },
-          ]}
+          filters={filters}
+          addFilter={addFilter}
+          deleteFilter={deleteFilter}
+          resetFilters={resetFilters}
+          filterValueByProperty={filterValueByProperty}
         />
       </div>
       <div className="grid grid-cols-1 gap-y-4 pb-32">
-        <Services store={store} />
+        <Services store={store} filters={filters} />
       </div>
     </div>
     <Footer store={store} />

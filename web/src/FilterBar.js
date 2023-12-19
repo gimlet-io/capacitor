@@ -1,19 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
-function FilterBar(props) {
+function FilterBar({ filters, addFilter, deleteFilter, resetFilters, filterValueByProperty }) {
   return (
     <div className="w-full">
       <div className="relative">
         <div className="absolute inset-y-0 left-0 flex items-center pl-3">
           <FunnelIcon className="h-5 w-5 text-neutral-400" aria-hidden="true" />
-          {props.filters.map(filter => (
-            <Filter key={filter.property + filter.value} filter={filter} deleteFilter={props.deleteFilter} />
+          {filters.map(filter => (
+            <Filter key={filter.property + filter.value} filter={filter} deleteFilter={deleteFilter} />
           ))}
-          <FilterInput addFilter={props.addFilter} />
+          <FilterInput addFilter={addFilter} filterValueByProperty={filterValueByProperty} />
         </div>
         <div className="block w-full rounded-lg border-0 bg-white py-1.5 pl-10 pr-3 text-neutral-900 ring-1 ring-inset ring-neutral-300 placeholder:text-neutral-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6">
           &nbsp;
+        </div>
+        <div className="absolute inset-y-0 right-0 flex items-center p-1">
+          <button onClick={resetFilters} className="py-1 px-2 bg-gray-200 text-gray-400 rounded-full text-sm">reset</button>
         </div>
       </div>
     </div>
@@ -38,8 +41,8 @@ function FilterInput(props) {
   const [active, setActive] = useState(false)
   const [property, setProperty] = useState("")
   const [value, setValue] = useState("")
-  const properties=["Repository", "Service", "Namespace", "Owner", "Starred", "Domain"]
-  const { addFilter } = props;
+  const properties=["Service", "Namespace", "Owner", "Domain"]
+  const { addFilter, filterValueByProperty } = props;
 	const inputRef = useRef(null);
 
   const reset = () => {
@@ -73,7 +76,7 @@ function FilterInput(props) {
               setActive(false);
               if (value !== "") {
                 if (property === "") {
-                  addFilter({property: "Repository", value: value})
+                  addFilter({property: "Service", value: value})
                 } else {
                   addFilter({property, value})
                 }
@@ -89,7 +92,7 @@ function FilterInput(props) {
             if (e.keyCode === 13){
               setActive(false)
               if (property === "") {
-                addFilter({property: "Repository", value: value})
+                addFilter({property: "Service", value: value})
               } else {
                 addFilter({property, value})
               }
@@ -104,18 +107,22 @@ function FilterInput(props) {
         />
       </span>
       {active && property === "" &&
-      <div className="z-10 absolute bg-blue-100 w-48 p-2 text-blue-800">
-        <ul className="">
-          {properties.map(p => (
-            <li
-              key={p}
-              className="cursor-pointer hover:bg-blue-200"
-              onClick={() => {setProperty(p); setActive(false); }}>
-              {p}
-            </li>
-          ))}
-        </ul>
-      </div>
+        <div className="z-10 absolute bg-blue-100 w-48 p-2 text-blue-800">
+          <ul className="">
+            {properties.map(p => {
+              if (filterValueByProperty(p) !== "") {
+                return null;
+              }
+
+              return (<li
+                key={p}
+                className="cursor-pointer hover:bg-blue-200"
+                onClick={() => { setProperty(p); setActive(false); }}>
+                {p}
+              </li>)
+            })}
+          </ul>
+        </div>
       }
     </span>
   )
