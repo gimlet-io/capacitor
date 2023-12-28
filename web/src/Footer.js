@@ -10,13 +10,6 @@ const Footer = memo(function Footer(props) {
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setFluxState(store.getState().fluxState))
 
-  const navigationDefault = [
-    { name: 'Kustomizations', href: '#', count: 10 },
-    { name: 'Sources', href: '#', count: '5'},
-    { name: 'Runtime', href: '#' },
-    { name: 'Logs', href: '#' },
-  ]
-
   const [selected, setSelected] = useState('Kustomizations');
 
   const handlerSelect = useCallback((selectedNav) => {
@@ -42,7 +35,16 @@ const Footer = memo(function Footer(props) {
         <div className="flex w-full h-full">
           <div>
             <div className="w-48 px-4 border-r border-neutral-300">
-              <SideBar navigation={navigationDefault} selectedMenu={handlerSelect} selected={selected}/>
+              <SideBar
+                navigation={[
+                  { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
+                  { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
+                  { name: 'Runtime', href: '#' },
+                  { name: 'Logs', href: '#' },
+                ]}
+                selectedMenu={handlerSelect}
+                selected={selected}
+              />
             </div>
           </div>
 
@@ -86,7 +88,7 @@ function SideBar(props) {
               {item.name}
               {item.count ? (
                 <span
-                  className="ml-auto w-9 min-w-max whitespace-nowrap rounded-full bg-white px-2.5 py-0.5 text-center text-xs font-medium leading-5 text-neutral-700 ring-1 ring-inset ring-neutral-200"
+                  className="ml-auto w-6 min-w-max whitespace-nowrap rounded-full bg-white px-2.5 py-0.5 text-center text-xs font-medium leading-5 text-neutral-700 ring-1 ring-inset ring-neutral-200"
                   aria-hidden="true"
                 >
                   {item.count}
