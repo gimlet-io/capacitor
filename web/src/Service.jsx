@@ -45,7 +45,7 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Dependencies</p>
                   configmaps.. secrets.. (with view action)
                 </div>
-                <div>
+                {/* <div>
                   <p className="text-base text-neutral-600">Links</p>
                   <div className="text-neutral-700 text-sm mt-2">
                   <a
@@ -113,7 +113,7 @@ function Service(props) {
                     </svg>
                   </a>
                 </div>
-                </div>
+                </div> */}
               </div>
               <div className="col-span-7 space-y-4 pl-2">
                 { deployment &&
@@ -121,7 +121,7 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Address</p>
                   <div className="text-neutral-900 text-sm">
                     <div className="relative">
-                    {service.svc.name}.{service.svc.namespace}.svc.cluster.local
+                    {service.svc.metadata.name}.{service.svc.metadata.namespace}.svc.cluster.local
                     <button
                       className="absolute right-0 bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
                       Port-forward command
