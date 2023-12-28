@@ -26,8 +26,6 @@ export function Kustomizations(props){
       {
         kustomizations?.map(kustomization => {
           const message = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].message');
-          const revision = kustomization.status.lastAppliedRevision
-          const hash = revision ? revision.slice(revision.indexOf(':') + 1) : "";
 
           const readyConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].status');
           const ready = readyConditions.includes("True")
@@ -55,15 +53,11 @@ export function Kustomizations(props){
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><Ready gitRepository={kustomization}/></span>
+                <span className="block font-medium text-neutral-700"><ReadyWidget gitRepository={kustomization}/></span>
                 <span className="block text-neutral-600 field">{message}</span>
               </div>
               <div className="col-span-5">
-                <span className="block field font-medium text-neutral-700">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
-                  <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{hash.slice(0, 8)}</a></span>
-                  <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
-                </span>
+                <div className="font-medium text-neutral-700"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
                 {/* { !ready && */}
                 <span className="block field text-yellow-500">Attempted applying {lastAttemptedHash.slice(0, 8)} at {dateLabel}</span>
                 {/* } */}
@@ -73,6 +67,20 @@ export function Kustomizations(props){
         })
       }
     </div>
+  )
+}
+
+export function RevisionWidget(props) {
+  const { kustomization, gitRepository } = props
+  const revision = kustomization.status.lastAppliedRevision
+  const hash = revision ? revision.slice(revision.indexOf(':') + 1) : "";
+
+  return (
+    <span className="block field">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
+      <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{hash.slice(0, 8)}</a></span>
+      <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
+    </span>
   )
 }
 
@@ -102,7 +110,7 @@ export function GitRepositories(props){
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><Ready gitRepository={gitRepository}/></span>
+                <span className="block font-medium text-neutral-700"><ReadyWidget gitRepository={gitRepository}/></span>
                 <span className="block text-neutral-600 field">{message}</span>
               </div>
               <div className="col-span-5">
@@ -120,7 +128,7 @@ export function GitRepositories(props){
   )
 }
 
-function Ready(props) {
+export function ReadyWidget(props) {
   const { gitRepository } = props
   const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].status');
   const ready = readyConditions.includes("True")

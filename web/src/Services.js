@@ -4,14 +4,25 @@ import Service from "./Service";
 const Services = memo(function Services(props) {
   const { store, filters } = props
   const [services, setServices] = useState(store.getState().services);
+  const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setServices(store.getState().services))
+  store.subscribe(() => setFluxState(store.getState().fluxState))
   const filteredServices = filterServices(services, filters)
 
   return (
     <>
       {filteredServices.map((service) => {
+        const kustomization = findServiceInInventory(fluxState.kustomizations, service)
+        const gitRepository = fluxState.gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
+
         return (
-          <Service key={`${service.svc.metadata.namespace}/${service.svc.metadata.name}`} service={service} alerts={[]} />
+          <Service
+            key={`${service.svc.metadata.namespace}/${service.svc.metadata.name}`}
+            service={service}
+            alerts={[]}
+            kustomization={kustomization}
+            gitRepository={gitRepository}
+          />
         )
       })}
     </>
@@ -19,6 +30,19 @@ const Services = memo(function Services(props) {
 })
 
 export default Services;
+
+const findServiceInInventory = (kustomizations, service) => {
+  const serviceKey = `${service.svc.metadata.namespace}_${service.svc.metadata.name}__Service`
+
+  for (const k of kustomizations) {
+    const inInventory = k.status.inventory.entries.find((elem) => elem.id === serviceKey)
+    if (inInventory) {
+      return k
+    }
+  }
+
+  return undefined
+}
 
 const filterServices = (services, filters) => {
   let filteredServices = services;

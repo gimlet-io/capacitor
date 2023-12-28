@@ -1,9 +1,9 @@
 import React from 'react';
 import Timeline from './Timeline';
+import { RevisionWidget, ReadyWidget } from './FluxState';
 
 function Service(props) {
-  const { service, alerts } = props;
-
+  const { service, alerts, kustomization, gitRepository } = props;
   const deployment = service.deployment;
 
   return (
@@ -45,7 +45,7 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Dependencies</p>
                   configmaps.. secrets.. (with view action)
                 </div>
-                {/* <div>
+                <div>
                   <p className="text-base text-neutral-600">Links</p>
                   <div className="text-neutral-700 text-sm mt-2">
                   <a
@@ -113,7 +113,7 @@ function Service(props) {
                     </svg>
                   </a>
                 </div>
-                </div> */}
+                </div>
               </div>
               <div className="col-span-7 space-y-4 pl-2">
                 { deployment &&
@@ -154,7 +154,10 @@ function Service(props) {
                 }
                 <div>
                   <p className="text-base text-neutral-600">Sync</p>
-                  Last sync time, state, ref to kustomization
+                  <div className="flex text-sm text-neutral-600">
+                    <div className="ml-4"><ReadyWidget gitRepository={kustomization}/></div>
+                    <div className="ml-2"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
+                  </div>
                 </div>
               </div>
             </div>
