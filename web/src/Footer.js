@@ -39,8 +39,8 @@ const Footer = memo(function Footer(props) {
                 navigation={[
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
                   { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
-                  { name: 'Runtime', href: '#' },
-                  { name: 'Logs', href: '#' },
+                  { name: 'Flux', href: '#' },
+                  { name: 'Flux Logs', href: '#' },
                 ]}
                 selectedMenu={handlerSelect}
                 selected={selected}
