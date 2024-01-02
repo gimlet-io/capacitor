@@ -3,6 +3,7 @@ package flux
 import (
 	"context"
 
+	helmv1 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	apps_v1 "k8s.io/api/apps/v1"
@@ -26,6 +27,12 @@ var (
 		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1",
 		Resource: "gitrepositories",
+	}
+
+	helmReleaseGVR = schema.GroupVersionResource{
+		Group:    "helm.toolkit.fluxcd.io",
+		Version:  "v2beta2",
+		Resource: "helmreleases",
 	}
 )
 
@@ -198,6 +205,22 @@ func State(dc *dynamic.DynamicClient) (*FluxState, error) {
 			return nil, err
 		}
 		fluxState.Kustomizations = append(fluxState.Kustomizations, kustomization)
+	}
+
+	helmReleases, err := dc.Resource(helmReleaseGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range helmReleases.Items {
+		unstructured := h.UnstructuredContent()
+		var helmRelease helmv1.HelmRelease
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.HelmReleases = append(fluxState.HelmReleases, helmRelease)
 	}
 
 	return fluxState, nil

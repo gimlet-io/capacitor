@@ -48,6 +48,8 @@ func main() {
 	go gitRepositoryController.Run(1, stopCh)
 	kustomizationController := controllers.KustomizeController(dynamicClient, clientHub)
 	go kustomizationController.Run(1, stopCh)
+	helmReleaseController := controllers.HelmReleaseController(dynamicClient, clientHub)
+	go helmReleaseController.Run(1, stopCh)
 
 	r := api.SetupRouter(client, dynamicClient, clientHub)
 	go func() {

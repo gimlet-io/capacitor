@@ -1,6 +1,7 @@
 package flux
 
 import (
+	helmv1 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	apps_v1 "k8s.io/api/apps/v1"
@@ -10,6 +11,7 @@ import (
 type FluxState struct {
 	GitRepositories []sourcev1.GitRepository        `json:"gitRepositories"`
 	Kustomizations  []kustomizationv1.Kustomization `json:"kustomizations"`
+	HelmReleases    []helmv1.HelmRelease            `json:"helmReleases"`
 }
 
 type Service struct {
