@@ -70,6 +70,56 @@ export function Kustomizations(props){
   )
 }
 
+export function HelmReleases(props) {
+  const { helmReleases } = props
+
+  return (
+    <div className="grid gap-y-4 grid-cols-1">
+      {
+        helmReleases?.map(helmRelease => {
+          console.log(helmRelease)
+          const message = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].message');
+
+          const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');
+          const ready = readyConditions.includes("True")
+
+          const lastAttemptedRevision = helmRelease.status.lastAppliedRevision;
+          const lastAttemptedHash = lastAttemptedRevision ? lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1) : "";
+
+          const parsed = parse(helmRelease.status.lastHandledReconcileAt, "yyyy-MM-dd'T'HH:mm:ssXXXXXXXXX", new Date());
+          const dateLabel = "TODO"//formatDistance(parsed, new Date());
+
+          return (
+            <div
+              className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
+              key={`${helmRelease.metadata.namespace}/${helmRelease.metadata.name}`}
+              >
+              <div className="col-span-2">
+                <span className="block font-medium text-black">
+                  {helmRelease.metadata.name}
+                </span>
+                <span className="block text-neutral-600">
+                  {helmRelease.metadata.namespace}
+                </span>
+              </div>
+              <div className="col-span-5">
+                <span className="block font-medium text-neutral-700"><ReadyWidget gitRepository={helmRelease}/></span>
+                <span className="block text-neutral-600 field">{message}</span>
+              </div>
+              <div className="col-span-5">
+                <div className="font-medium text-neutral-700"><RevisionWidget kustomization={helmRelease} gitRepository={helmRelease} /></div>
+                {/* { !ready && */}
+                <span className="block field text-yellow-500">Attempted applying {lastAttemptedHash.slice(0, 8)} at {dateLabel}</span>
+                {/* } */}
+              </div>
+            </div>
+          )
+        })
+      }
+    </div>
+  )
+}
+
 export function RevisionWidget(props) {
   const { kustomization, gitRepository } = props
   const revision = kustomization.status.lastAppliedRevision

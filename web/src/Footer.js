@@ -1,6 +1,6 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import React, { memo, useState, useCallback } from 'react';
-import { GitRepositories, Kustomizations } from './FluxState';
+import { GitRepositories, Kustomizations, HelmReleases } from './FluxState';
 
 const Footer = memo(function Footer(props) {
   
@@ -38,6 +38,7 @@ const Footer = memo(function Footer(props) {
               <SideBar
                 navigation={[
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
+                  { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
                   { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
                   { name: 'Flux', href: '#' },
                   { name: 'Flux Logs', href: '#' },
@@ -53,6 +54,9 @@ const Footer = memo(function Footer(props) {
               <div className="pb-24">
               { selected === "Kustomizations" &&
                 <Kustomizations fluxState={fluxState} />
+              }
+              { selected === "Helm Releases" &&
+                <HelmReleases helmReleases={fluxState.helmReleases} />
               }
               { selected === "Sources" &&
                 <GitRepositories gitRepositories={fluxState.gitRepositories} />
