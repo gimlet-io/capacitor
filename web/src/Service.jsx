@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Timeline from './Timeline';
 import { RevisionWidget, ReadyWidget } from './FluxState';
+import jp from 'jsonpath';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 function Service(props) {
   const { service, alerts, kustomization, gitRepository } = props;
@@ -43,7 +45,8 @@ function Service(props) {
                 </div>
                 <div>
                   <p className="text-base text-neutral-600">Dependencies</p>
-                  configmaps.. secrets.. (with view action)
+                  {configMaps(service.pods)}
+                  {secrets(service.pods)}
                 </div>
                 <div>
                   <p className="text-base text-neutral-600">Links</p>
@@ -200,5 +203,135 @@ function Pod(props) {
     <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.metadata.name} - ${pod.status}`}>
       {pod.status.phase}
     </span>
+  );
+}
+
+function configMaps(pods) {
+  let configMaps = []
+  pods.forEach((pod) => {
+    const configMapNames = jp.query(pod, '$.spec.volumes[*].configMap.name');
+    configMaps.push(...configMapNames);
+  })
+
+  if (configMaps.length === 0) {
+    return null
+  }
+
+  return (
+    <div className='block text-base text-neutral-600'>
+      ConfigMaps
+      {configMaps.map(configMap => {
+        return <Modal title={configMap} textToCopy={`kubectl describe configmap ${configMap}`} />
+      })}
+    </div>
+  )
+}
+
+function secrets(pods) {
+  let secrets = []
+  pods.forEach((pod) => {
+    const secretNames = jp.query(pod, '$.spec.volumes[*].secret.secretName');
+    secrets.push(...secretNames)
+  })
+
+  if (secrets.length === 0) {
+    return null
+  }
+
+  return (
+    <div className='text-base text-neutral-600'>
+      Secrets
+      {secrets.map(secret => {
+        return <Modal title={secret} textToCopy={`kubectl describe secret ${secret}`} />
+      })}
+    </div>
+  )
+}
+
+function Modal({ title, textToCopy }) {
+  const [showModal, setShowModal] = React.useState(false);
+  return (
+    <>
+      <button
+        className="block text-sm text-neutral-600 hover:text-black"
+        onClick={() => setShowModal(true)}
+      >
+        {title}
+      </button>
+      {showModal ? (
+        <div className="relative z-10">
+          <div onClick={() => setShowModal(false)} className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity">
+            <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
+              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div onClick={e => e.stopPropagation()} className="relative transform overflow-hidden rounded-lg bg-white p-4 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                  <div className="absolute right-0 top-0 pr-3 pt-2 sm:block">
+                    <button
+                      type="button"
+                      className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none"
+                      onClick={() => setShowModal(false)}
+                    >
+                      <span className="sr-only">Close</span>
+                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="flex items-start w-full">
+                    <div className="text-center sm:mt-0 sm:text-left w-full">
+                      <code className='flex justify-between whitespace-pre items-center font-mono text-sm mt-6 p-2 bg-gray-800 text-yellow-100 rounded'>
+                        {`$ ${textToCopy}`}
+                        <CopyBtn textToCopy={textToCopy} />
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function CopyBtn({ textToCopy = 'Copy default' }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(textToCopy).then(
+      () => {
+        setCopied(true);
+        // changing back to default state after 2 seconds.
+        setTimeout(() => {
+          setCopied(false);
+        }, 2000);
+      },
+      (err) => {
+        console.log("failed to copy", err.mesage);
+      }
+    );
+  };
+
+  const btnStyle = copied ? "text-white" : "";
+
+  return (
+    <div className="text-center relative">
+      {copied &&
+      <span class="absolute -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
+        Copied
+      </span>
+      }
+      <button
+        onClick={copyToClipboard}
+        className={
+          btnStyle +
+          " text-sm border border-gray-500 rounded p-2 transition"
+        }
+      >
+        {copied ?
+          <svg class="js-clipboard-success w-4 h-4 text-green-600 rotate-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          :
+          <svg class="js-clipboard-default w-4 h-4 group-hover:rotate-6 transition" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg>
+        }
+      </button>
+    </div>
   );
 }
