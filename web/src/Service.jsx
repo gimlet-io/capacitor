@@ -4,9 +4,24 @@ import { RevisionWidget, ReadyWidget } from './FluxState';
 import jp from 'jsonpath';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
+const documentIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
+);
+
+const lockIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+  </svg>
+);
+
 function Service(props) {
   const { service, alerts, kustomization, gitRepository } = props;
   const deployment = service.deployment;
+
+  const configMapWidgets = configMaps(service.pods)
+  const secretWidgets = secrets(service.pods)
 
   return (
     <>
@@ -43,11 +58,15 @@ function Service(props) {
                     ))
                   }
                 </div>
+                {(configMapWidgets || secretWidgets) &&
                 <div>
                   <p className="text-base text-neutral-600">Dependencies</p>
-                  {configMaps(service.pods)}
-                  {secrets(service.pods)}
+                  <div className='grid grid-cols-4 gap-2'>
+                    {configMapWidgets}
+                    {secretWidgets}
+                  </div>
                 </div>
+                }
                 <div>
                   <p className="text-base text-neutral-600">Links</p>
                   <div className="text-neutral-700 text-sm mt-2">
@@ -212,6 +231,10 @@ function configMaps(pods) {
     const configMapNames = jp.query(pod, '$.spec.volumes[*].configMap.name');
     configMaps.push(...configMapNames);
   })
+  pods.forEach((pod) => {
+    const configMapNames = jp.query(pod, '$.spec.containers[*].envFrom[*].configMapRef.name');
+    configMaps.push(...configMapNames);
+  })
 
   if (configMaps.length === 0) {
     return null
@@ -219,9 +242,8 @@ function configMaps(pods) {
 
   return (
     <div className='block text-base text-neutral-600'>
-      ConfigMaps
       {configMaps.map(configMap => {
-        return <Modal title={configMap} textToCopy={`kubectl describe configmap ${configMap}`} />
+        return <Modal key={configMap} title={configMap} icon={documentIcon} textToCopy={`kubectl describe configmap ${configMap}`} />
       })}
     </div>
   )
@@ -233,6 +255,10 @@ function secrets(pods) {
     const secretNames = jp.query(pod, '$.spec.volumes[*].secret.secretName');
     secrets.push(...secretNames)
   })
+  pods.forEach((pod) => {
+    const configMapNames = jp.query(pod, '$.spec.containers[*].envFrom[*].secretRef.name');
+    secrets.push(...configMapNames);
+  })
 
   if (secrets.length === 0) {
     return null
@@ -240,22 +266,22 @@ function secrets(pods) {
 
   return (
     <div className='text-base text-neutral-600'>
-      Secrets
       {secrets.map(secret => {
-        return <Modal title={secret} textToCopy={`kubectl describe secret ${secret}`} />
+        return <Modal key={secret} title={secret} icon={lockIcon} textToCopy={`kubectl describe secret ${secret}`} />
       })}
     </div>
   )
 }
 
-function Modal({ title, textToCopy }) {
+function Modal({ title, icon, textToCopy }) {
   const [showModal, setShowModal] = React.useState(false);
   return (
     <>
       <button
-        className="block text-sm text-neutral-600 hover:text-black"
+        className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
         onClick={() => setShowModal(true)}
       >
+        <div className='text-center mx-auto w-6'>{icon}</div>
         {title}
       </button>
       {showModal ? (
@@ -315,7 +341,7 @@ function CopyBtn({ textToCopy = 'Copy default' }) {
   return (
     <div className="text-center relative">
       {copied &&
-      <span class="absolute -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
+      <span className="absolute -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
         Copied
       </span>
       }
@@ -327,9 +353,9 @@ function CopyBtn({ textToCopy = 'Copy default' }) {
         }
       >
         {copied ?
-          <svg class="js-clipboard-success w-4 h-4 text-green-600 rotate-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          <svg className="js-clipboard-success w-4 h-4 text-green-600 rotate-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           :
-          <svg class="js-clipboard-default w-4 h-4 group-hover:rotate-6 transition" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg>
+          <svg className="js-clipboard-default w-4 h-4 group-hover:rotate-6 transition" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg>
         }
       </button>
     </div>
