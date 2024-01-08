@@ -77,7 +77,6 @@ export function HelmReleases(props) {
     <div className="grid gap-y-4 grid-cols-1">
       {
         helmReleases?.map(helmRelease => {
-          console.log(helmRelease)
           const message = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].message');
 
           const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');

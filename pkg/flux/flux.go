@@ -1,11 +1,17 @@
 package flux
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 
-	helmv1 "github.com/fluxcd/helm-controller/api/v2beta2"
+	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	"github.com/sirupsen/logrus"
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/kube"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +42,45 @@ var (
 	}
 )
 
+func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
+	helmReleases, err := helmReleases(dc)
+	if err != nil {
+		return nil, err
+	}
+
+	services := []Service{}
+	for _, release := range helmReleases {
+		resources, err := helmStatusWithResources(release.Name)
+		if err != nil {
+			logrus.Warnf("could not get helm status with resources info: %s", err.Error())
+			continue
+		}
+
+		if objs, found := resources["v1/Service"]; found {
+			svc := v1.Service{}
+			for _, obj := range objs {
+				unstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+				if err != nil {
+					logrus.Warnf("could not convert to unstructured: %s", err.Error())
+					continue
+				}
+
+				err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &svc)
+				if err != nil {
+					logrus.Warnf("could not convert from unstructured: %s", err.Error())
+					continue
+				}
+
+				services = append(services, Service{
+					Svc: svc,
+				})
+			}
+		}
+	}
+
+	return services, nil
+}
+
 func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, error) {
 	services := []Service{}
 
@@ -56,6 +101,13 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 			})
 		}
 	}
+
+	helmServices, err := helmServices(dc)
+	if err != nil {
+		return nil, err
+	}
+
+	services = append(services, helmServices...)
 
 	deploymentsInNamespaces := map[string][]apps_v1.Deployment{}
 	for _, service := range services {
@@ -168,6 +220,57 @@ func inventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {
 	return inventory, nil
 }
 
+func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) {
+	releases := []helmv2beta2.HelmRelease{}
+
+	helmReleases, err := dc.Resource(helmReleaseGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, h := range helmReleases.Items {
+		unstructured := h.UnstructuredContent()
+		var helmRelease helmv2beta2.HelmRelease
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
+		if err != nil {
+			return nil, err
+		}
+
+		releases = append(releases, helmRelease)
+	}
+
+	return releases, nil
+}
+
+func helmStatusWithResources(releaseName string) (map[string][]runtime.Object, error) {
+	actionConfig := action.Configuration{}
+	actionConfig.Init(cli.New().RESTClientGetter(), "", "", nil)
+
+	r, err := actionConfig.Releases.Last(releaseName)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeClient, ok := actionConfig.KubeClient.(kube.InterfaceResources)
+	if !ok {
+		return nil, fmt.Errorf("unable to get kubeClient with interface InterfaceResources")
+	}
+
+	resources, err := actionConfig.KubeClient.Build(bytes.NewBufferString(r.Manifest), false)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := kubeClient.Get(resources, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 func State(dc *dynamic.DynamicClient) (*FluxState, error) {
 	fluxState := &FluxState{
 		GitRepositories: []sourcev1.GitRepository{},
@@ -215,7 +318,7 @@ func State(dc *dynamic.DynamicClient) (*FluxState, error) {
 	}
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv1.HelmRelease
+		var helmRelease helmv2beta2.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
