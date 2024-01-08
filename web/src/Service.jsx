@@ -166,14 +166,14 @@ function Service(props) {
                   </div>
                 </div>
                 }
-                { deployment &&
+                {/* { deployment &&
                 <div>
                   <p className="text-base text-neutral-600">Health</p>
                   <div className="text-neutral-900 text-sm">
                     <Timeline alerts={alerts} />
                   </div>
                 </div>
-                }
+                } */}
                 <div>
                   <p className="text-base text-neutral-600">Sync</p>
                   <div className="flex text-sm text-neutral-600">
