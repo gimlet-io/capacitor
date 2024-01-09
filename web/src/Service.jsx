@@ -67,7 +67,7 @@ function Service(props) {
                   </div>
                 </div>
                 }
-                <div>
+                {/* <div>
                   <p className="text-base text-neutral-600">Links</p>
                   <div className="text-neutral-700 text-sm mt-2">
                   <a
@@ -135,7 +135,7 @@ function Service(props) {
                     </svg>
                   </a>
                 </div>
-                </div>
+                </div> */}
               </div>
               <div className="col-span-7 space-y-4 pl-2">
                 { deployment &&
