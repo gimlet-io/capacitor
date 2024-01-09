@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Timeline from './Timeline';
 import { RevisionWidget, ReadyWidget } from './FluxState';
+import jp from 'jsonpath';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+
+const documentIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
+);
+
+const lockIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+  </svg>
+);
 
 function Service(props) {
-  const { service, alerts, kustomization, gitRepository } = props;
+  const { service, alerts, kustomization, gitRepository, capacitorClient } = props;
   const deployment = service.deployment;
+
+  const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
+  const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
   return (
     <>
@@ -41,10 +58,15 @@ function Service(props) {
                     ))
                   }
                 </div>
+                {(configMapWidgets || secretWidgets) &&
                 <div>
                   <p className="text-base text-neutral-600">Dependencies</p>
-                  configmaps.. secrets.. (with view action)
+                  <div className='grid grid-cols-4 gap-2'>
+                    {configMapWidgets}
+                    {secretWidgets}
+                  </div>
                 </div>
+                }
                 <div>
                   <p className="text-base text-neutral-600">Links</p>
                   <div className="text-neutral-700 text-sm mt-2">
@@ -144,14 +166,14 @@ function Service(props) {
                   </div>
                 </div>
                 }
-                { deployment &&
+                {/* { deployment &&
                 <div>
                   <p className="text-base text-neutral-600">Health</p>
                   <div className="text-neutral-900 text-sm">
                     <Timeline alerts={alerts} />
                   </div>
                 </div>
-                }
+                } */}
                 <div>
                   <p className="text-base text-neutral-600">Sync</p>
                   <div className="flex text-sm text-neutral-600">
@@ -201,4 +223,157 @@ function Pod(props) {
       {pod.status.phase}
     </span>
   );
+}
+
+function configMaps(pods, namespace, capacitorClient) {
+  let configMaps = []
+  pods.forEach((pod) => {
+    const configMapNames = jp.query(pod, '$.spec.volumes[*].configMap.name');
+    configMaps.push(...configMapNames);
+  })
+  pods.forEach((pod) => {
+    const configMapNames = jp.query(pod, '$.spec.containers[*].envFrom[*].configMapRef.name');
+    configMaps.push(...configMapNames);
+  })
+
+  if (configMaps.length === 0) {
+    return null
+  }
+
+  return (
+    <div className='block text-base text-neutral-600'>
+      {configMaps.map(configMap => {
+        return <ConfigMap key={configMap} name={configMap} namespace={namespace} capacitorClient={capacitorClient} />
+      })}
+    </div>
+  )
+}
+
+function secrets(pods, namespace, capacitorClient) {
+  let secrets = []
+  pods.forEach((pod) => {
+    const secretNames = jp.query(pod, '$.spec.volumes[*].secret.secretName');
+    secrets.push(...secretNames)
+  })
+  pods.forEach((pod) => {
+    const configMapNames = jp.query(pod, '$.spec.containers[*].envFrom[*].secretRef.name');
+    secrets.push(...configMapNames);
+  })
+
+  if (secrets.length === 0) {
+    return null
+  }
+
+  return (
+    <div className='text-base text-neutral-600'>
+      {secrets.map(secret => {
+        return <Secret key={secret} name={secret} namespace={namespace} capacitorClient={capacitorClient} />
+      })}
+    </div>
+  )
+}
+
+function ConfigMap({ name, namespace, capacitorClient }) {
+  const [showModal, setShowModal] = useState(false);
+
+  const describeConfigmap = () => {
+    return capacitorClient.describeConfigmap(namespace, name)
+  }
+
+  return (
+    <>
+      <button
+        className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
+        onClick={() => setShowModal(true)}
+      >
+        <div className='text-center mx-auto w-6'>{documentIcon}</div>
+        {name}
+      </button>
+      {showModal &&
+        <Modal setShowModal={setShowModal} fetchData={describeConfigmap} />
+      }
+    </>
+  );
+}
+
+function Secret({ name, namespace, capacitorClient }) {
+  const [showModal, setShowModal] = useState(false);
+
+  const describeSecret = () => {
+    return capacitorClient.describeSecret(namespace, name)
+  }
+
+  return (
+    <>
+      <button
+        className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
+        onClick={() => setShowModal(true)}
+      >
+        <div className='text-center mx-auto w-6'>{lockIcon}</div>
+        {name}
+      </button>
+      {showModal &&
+        <Modal setShowModal={setShowModal} fetchData={describeSecret} />
+      }
+    </>
+  );
+}
+
+function Modal(props) {
+  const { setShowModal, fetchData } = props;
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    fetchData().then(data => setData(data));
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = '15px';
+    return () => { document.body.style.overflow = 'unset'; document.body.style.paddingRight = '0px' }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div
+      className="fixed flex inset-0 z-10 bg-gray-500 bg-opacity-75"
+      onClick={() => setShowModal(false)}
+    >
+      <div className="flex self-center items-center justify-center w-full p-8 h-4/5">
+        <div className="transform flex flex-col overflow-hidden bg-slate-600 rounded-xl h-4/5 max-h-full w-4/5 pt-8"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="absolute top-0 right-0 p-1.5">
+            <button
+              className="rounded-md inline-flex text-gray-200 hover:text-gray-500 focus:outline-none"
+              onClick={() => setShowModal(false)}
+            >
+              <span className="sr-only">Close</span>
+              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg">
+            <code className='flex whitespace-pre items-center font-mono text-sm p-2 text-yellow-100 rounded'>
+              {data ?? <SkeletonLoader />}
+            </code>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const SkeletonLoader = () => {
+  return (
+    <div className="w-full">
+      <div className="animate-pulse flex space-x-4">
+        <div className="flex-1 space-y-3 py-1">
+          <div className="h-2 bg-slate-700 rounded"></div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-2 bg-slate-700 rounded col-span-2"></div>
+            <div className="h-2 bg-slate-700 rounded col-span-1"></div>
+          </div>
+          <div className="h-2 bg-slate-700 rounded"></div>
+        </div>
+      </div>
+    </div>
+  )
 }

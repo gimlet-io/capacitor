@@ -6,8 +6,11 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/kubectl/pkg/describe"
 )
 
 func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
@@ -50,4 +53,46 @@ func servicesHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(servicesBytes)
+}
+
+func describeConfigmap(w http.ResponseWriter, r *http.Request) {
+	config, _ := r.Context().Value("config").(*rest.Config)
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+
+	describer, ok := describe.DescriberFor(schema.GroupKind{Group: "", Kind: "ConfigMap"}, config)
+	if !ok {
+		logrus.Errorf("could not get describer for configmap")
+		return
+	}
+
+	output, err := describer.Describe(namespace, name, describe.DescriberSettings{ShowEvents: true, ChunkSize: 500})
+	if err != nil {
+		logrus.Errorf("could not get output of describer: %s", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(output))
+}
+
+func describeSecret(w http.ResponseWriter, r *http.Request) {
+	config, _ := r.Context().Value("config").(*rest.Config)
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+
+	describer, ok := describe.DescriberFor(schema.GroupKind{Group: "", Kind: "Secret"}, config)
+	if !ok {
+		logrus.Errorf("could not get describer for secret")
+		return
+	}
+
+	output, err := describer.Describe(namespace, name, describe.DescriberSettings{ShowEvents: true, ChunkSize: 500})
+	if err != nil {
+		logrus.Errorf("could not get output of describer: %s", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(output))
 }
