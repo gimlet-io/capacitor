@@ -11,6 +11,10 @@ export default class CapacitorClient {
 
   getServices = () => this.get('/api/services');
 
+  describeConfigmap = (namespace, name) => this.get(`/api/describeConfigmap?namespace=${namespace}&name=${name}`);
+
+  describeSecret = (namespace, name) => this.get(`/api/describeSecret?namespace=${namespace}&name=${name}`);
+
   get = async (path) => {
     try {
       const { data } = await axios.get(path, {

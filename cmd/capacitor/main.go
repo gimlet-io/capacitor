@@ -49,7 +49,7 @@ func main() {
 	kustomizationController := controllers.KustomizeController(dynamicClient, clientHub)
 	go kustomizationController.Run(1, stopCh)
 
-	r := api.SetupRouter(client, dynamicClient, clientHub)
+	r := api.SetupRouter(client, dynamicClient, config, clientHub)
 	go func() {
 		err = http.ListenAndServe(":9000", r)
 		if err != nil {

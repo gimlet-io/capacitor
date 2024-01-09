@@ -9,22 +9,27 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 func SetupRouter(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
+	config *rest.Config,
 	clientHub *streaming.ClientHub,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.WithValue("dynamicClient", dynamicClient))
 	r.Use(middleware.WithValue("client", client))
+	r.Use(middleware.WithValue("config", config))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	r.Get("/api/fluxState", fluxStateHandler)
 	r.Get("/api/services", servicesHandler)
+	r.Get("/api/describeConfigmap", describeConfigmap)
+	r.Get("/api/describeSecret", describeSecret)
 	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {
 		streaming.ServeWs(clientHub, w, r)
 	})

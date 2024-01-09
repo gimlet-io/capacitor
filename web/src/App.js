@@ -58,7 +58,7 @@ function App() {
         />
       </div>
       <div className="grid grid-cols-1 gap-y-4 pb-32">
-        <Services store={store} filters={filters} />
+        <Services capacitorClient={capacitorClient} store={store} filters={filters} />
       </div>
     </div>
     <Footer store={store} />
