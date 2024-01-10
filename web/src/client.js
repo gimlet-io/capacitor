@@ -17,6 +17,10 @@ export default class CapacitorClient {
 
   describeDeployment = (namespace, name) => this.get(`/api/describeDeployment?namespace=${namespace}&name=${name}`);
 
+  podLogsRequest = (namespace, svc) => this.get(`/api/podLogs?namespace=${namespace}&serviceName=${svc}`);
+
+  stopPodLogsRequest = (namespace, svc) => this.get(`/api/stopPodLogs?namespace=${namespace}&serviceName=${svc}`);
+
   get = async (path) => {
     try {
       const { data } = await axios.get(path, {

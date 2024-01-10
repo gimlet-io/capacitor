@@ -10,6 +10,7 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/api"
 	"github.com/gimlet-io/capacitor/pkg/controllers"
+	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/dynamic"
@@ -38,6 +39,8 @@ func main() {
 		panic(err.Error())
 	}
 
+	runningLogStreams := flux.NewRunningLogStreams()
+
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
@@ -49,7 +52,7 @@ func main() {
 	kustomizationController := controllers.KustomizeController(dynamicClient, clientHub)
 	go kustomizationController.Run(1, stopCh)
 
-	r := api.SetupRouter(client, dynamicClient, config, clientHub)
+	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {
 		err = http.ListenAndServe(":9000", r)
 		if err != nil {

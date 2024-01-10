@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Timeline from './Timeline';
 import { RevisionWidget, ReadyWidget } from './FluxState';
 import jp from 'jsonpath';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { ACTION_CLEAR_PODLOGS } from './redux';
 
 const documentIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
@@ -17,9 +18,14 @@ const lockIcon = (
 );
 
 function Service(props) {
-  const { service, alerts, kustomization, gitRepository, capacitorClient } = props;
+  const { service, alerts, kustomization, gitRepository, capacitorClient, store } = props;
+  let reduxState = store.getState();
   const [showDescribe, setShowDescribe] = useState(false)
+  const [showLogs, setShowLogs] = useState(false)
   const deployment = service.deployment;
+  const svc = service.svc.metadata.namespace + "/" + service.svc.metadata.name
+  const [logs, setLogs] = useState(reduxState.podLogs[svc]);
+  store.subscribe(() =>  setLogs([...reduxState.podLogs[svc] ?? []]));
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
@@ -28,10 +34,27 @@ function Service(props) {
     return capacitorClient.describeDeployment(deployment.metadata.namespace, deployment.metadata.name)
   }
 
+  const streamPodLogs = () => {
+    capacitorClient.podLogsRequest(service.svc.metadata.namespace, service.svc.metadata.name)
+  }
+
+  const stopLogsHandler = () => {
+    setShowLogs(false);
+    capacitorClient.stopPodLogsRequest(service.svc.metadata.namespace, service.svc.metadata.name);
+    store.dispatch({
+      type: ACTION_CLEAR_PODLOGS, payload: {
+        pod: service.svc.metadata.namespace + "/" + service.svc.metadata.name
+      }
+    });
+  }
+
   return (
     <>
       {showDescribe &&
-        <Modal setShowModal={setShowDescribe} fetchData={describeDeployment}/>
+        <Modal setShowModal={setShowDescribe} fetchData={describeDeployment} />
+      }
+      {showLogs &&
+        <PodLogsModal stopHandler={stopLogsHandler} logs={logs} />
       }
       <div className="w-full flex items-center justify-between space-x-6 bg-white pb-6 rounded-lg border border-neutral-300 shadow-lg">
         <div className="flex-1">
@@ -41,7 +64,7 @@ function Service(props) {
             <div className="flex items-center ml-auto space-x-2">
               { deployment &&
               <>
-              <button
+              <button onClick={() => {setShowLogs(true); streamPodLogs()}}
                 className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded"
                 >
                 Logs
@@ -359,9 +382,56 @@ function Modal(props) {
             </button>
           </div>
           <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg">
-            <code className='flex whitespace-pre items-center font-mono text-sm p-2 text-yellow-100 rounded'>
+            <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
               {data ?? <SkeletonLoader />}
             </code>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PodLogsModal(props) {
+  const { stopHandler, logs } = props;
+  const logsEndRef = useRef(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = '15px';
+    return () => { document.body.style.overflow = 'unset'; document.body.style.paddingRight = '0px' }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    logsEndRef.current.scrollIntoView();
+  }, [logs]);
+
+  return (
+    <div
+      className="fixed flex inset-0 z-10 bg-gray-500 bg-opacity-75"
+      onClick={stopHandler}
+    >
+      <div className="flex self-center items-center justify-center w-full p-8 h-4/5">
+        <div className="transform flex flex-col overflow-hidden bg-slate-600 rounded-xl h-4/5 max-h-full w-4/5 pt-8"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="absolute top-0 right-0 p-1.5">
+            <button
+              className="rounded-md inline-flex text-gray-200 hover:text-gray-500 focus:outline-none"
+              onClick={stopHandler}
+            >
+              <span className="sr-only">Close</span>
+              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg">
+            {logs ?
+              logs.map((line, idx) => <p key={idx} className={`font-mono text-xs ${line.color}`}>{line.content}</p>)
+              :
+              <SkeletonLoader />
+            }
+            <p ref={logsEndRef} />
           </div>
         </div>
       </div>
