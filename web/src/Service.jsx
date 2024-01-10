@@ -23,6 +23,25 @@ function Service(props) {
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
+  const containerPort = jp.query(deployment, '$.spec.template.spec.containers[0].ports[0].containerPort')
+  let hostPort = "<host-port>"
+  let appPort = "<app-port>"
+  if (containerPort) {
+    appPort = containerPort[0] ?? 80;
+
+    if (appPort < 99) {
+      hostPort = "100" + appPort
+    } else if (appPort < 999) {
+      hostPort = "10" + appPort
+    } else {
+      hostPort = appPort
+    }
+
+    if (hostPort === "10080") { // Connections to HTTP, HTTPS or FTP servers on port 10080 will fail. This is a mitigation for the NAT Slipstream 2.0 attack.
+      hostPort = "10081"
+    }
+  }
+
   return (
     <>
       <div className="w-full flex items-center justify-between space-x-6 bg-white pb-6 rounded-lg border border-neutral-300 shadow-lg">
@@ -144,10 +163,12 @@ function Service(props) {
                   <div className="text-neutral-900 text-sm">
                     <div className="relative">
                     {service.svc.metadata.name}.{service.svc.metadata.namespace}.svc.cluster.local
-                    <button
-                      className="absolute right-0 bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
-                      Port-forward command
-                    </button>
+                    <div className='absolute right-0 top-0'>
+                      <CopyBtn
+                        title='Port-forward command'
+                        textToCopy={`kubectl port-forward deploy/${deployment.metadata.name} -n ${deployment.metadata.namespace} ${hostPort}:${appPort}`}
+                      />
+                    </div>
                     </div>
                     {service.ingresses ? service.ingresses.map((ingress) =>
                       <p key={`${ingress.namespace}/${ingress.name}`}>
@@ -163,6 +184,20 @@ function Service(props) {
                       </p>
                       ) : null
                     }
+                    {containerPort &&
+                        <>
+                          <a href={'http://127.0.0.1:' + hostPort} target="_blank" rel="noopener noreferrer">http://127.0.0.1:{hostPort}
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                              className="inline fill-current text-gray-500 hover:text-gray-700 mr-1 h-4 w-4"
+                              viewBox="0 0 24 24">
+                              <path d="M0 0h24v24H0z" fill="none" />
+                              <path
+                                d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+                            </svg>
+                          </a>
+                          (port-forward)
+                        </>
+                      }
                   </div>
                 </div>
                 }
@@ -376,4 +411,36 @@ const SkeletonLoader = () => {
       </div>
     </div>
   )
+}
+
+function CopyBtn({ title, textToCopy }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(textToCopy).then(
+      () => {
+        setCopied(true);
+        // changing back to default state after 2 seconds.
+        setTimeout(() => {
+          setCopied(false);
+        }, 2000);
+      },
+      (err) => {
+        console.log("failed to copy", err.mesage);
+      }
+    );
+  };
+
+  return (
+    <button
+      onClick={copyToClipboard}
+      className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
+      {title}
+      {copied &&
+      <span className="absolute right-2/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
+        Copied
+      </span>
+    }
+    </button>
+  );
 }
