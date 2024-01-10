@@ -18,13 +18,21 @@ const lockIcon = (
 
 function Service(props) {
   const { service, alerts, kustomization, gitRepository, capacitorClient } = props;
+  const [showDescribe, setShowDescribe] = useState(false)
   const deployment = service.deployment;
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
+  const describeDeployment = () => {
+    return capacitorClient.describeDeployment(deployment.metadata.namespace, deployment.metadata.name)
+  }
+
   return (
     <>
+      {showDescribe &&
+        <Modal setShowModal={setShowDescribe} fetchData={describeDeployment}/>
+      }
       <div className="w-full flex items-center justify-between space-x-6 bg-white pb-6 rounded-lg border border-neutral-300 shadow-lg">
         <div className="flex-1">
           <h3 className="flex text-lg font-bold rounded p-4">
@@ -38,7 +46,7 @@ function Service(props) {
                 >
                 Logs
               </button>
-              <button
+              <button onClick={() => setShowDescribe(true)}
                 className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
                 Describe
               </button>

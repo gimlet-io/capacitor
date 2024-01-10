@@ -15,6 +15,8 @@ export default class CapacitorClient {
 
   describeSecret = (namespace, name) => this.get(`/api/describeSecret?namespace=${namespace}&name=${name}`);
 
+  describeDeployment = (namespace, name) => this.get(`/api/describeDeployment?namespace=${namespace}&name=${name}`);
+
   get = async (path) => {
     try {
       const { data } = await axios.get(path, {

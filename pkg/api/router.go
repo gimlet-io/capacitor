@@ -30,6 +30,7 @@ func SetupRouter(
 	r.Get("/api/services", servicesHandler)
 	r.Get("/api/describeConfigmap", describeConfigmap)
 	r.Get("/api/describeSecret", describeSecret)
+	r.Get("/api/describeDeployment", describeDeployment)
 	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {
 		streaming.ServeWs(clientHub, w, r)
 	})
