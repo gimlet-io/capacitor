@@ -363,17 +363,23 @@ function Modal(props) {
 
 const SkeletonLoader = () => {
   return (
-    <div className="w-full">
-      <div className="animate-pulse flex space-x-4">
-        <div className="flex-1 space-y-3 py-1">
-          <div className="h-2 bg-slate-700 rounded"></div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-2 bg-slate-700 rounded col-span-2"></div>
-            <div className="h-2 bg-slate-700 rounded col-span-1"></div>
-          </div>
-          <div className="h-2 bg-slate-700 rounded"></div>
-        </div>
-      </div>
+    <div class="w-full max-w-4xl animate-pulse space-y-3">
+      <div class="h-2 bg-slate-700 rounded w-1/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-2/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-3/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-4/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-4/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-3/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-2/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-1/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-2/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-2/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-1/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-1/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-1/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-1/6"></div>
+      <div class="h-2 bg-slate-700 rounded w-2/5"></div>
+      <div class="h-2 bg-slate-700 rounded w-3/5"></div>
     </div>
   )
 }
