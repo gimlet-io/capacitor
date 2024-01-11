@@ -19,64 +19,32 @@ const lockIcon = (
 
 function Service(props) {
   const { service, alerts, kustomization, gitRepository, capacitorClient, store } = props;
-  let reduxState = store.getState();
-  const [showDescribe, setShowDescribe] = useState(false)
-  const [showLogs, setShowLogs] = useState(false)
   const deployment = service.deployment;
-  const svc = service.svc.metadata.namespace + "/" + service.svc.metadata.name
-  const [logs, setLogs] = useState(reduxState.podLogs[svc]);
-  store.subscribe(() =>  setLogs([...reduxState.podLogs[svc] ?? []]));
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
-  const describeDeployment = () => {
-    return capacitorClient.describeDeployment(deployment.metadata.namespace, deployment.metadata.name)
-  }
-
-  const streamPodLogs = () => {
-    capacitorClient.podLogsRequest(service.svc.metadata.namespace, service.svc.metadata.name)
-  }
-
-  const stopLogsHandler = () => {
-    setShowLogs(false);
-    capacitorClient.stopPodLogsRequest(service.svc.metadata.namespace, service.svc.metadata.name);
-    store.dispatch({
-      type: ACTION_CLEAR_PODLOGS, payload: {
-        pod: service.svc.metadata.namespace + "/" + service.svc.metadata.name
-      }
-    });
-  }
-
   return (
     <>
-      {showDescribe &&
-        <Modal setShowModal={setShowDescribe} fetchData={describeDeployment} />
-      }
-      {showLogs &&
-        <PodLogsModal stopHandler={stopLogsHandler} logs={logs} />
-      }
       <div className="w-full flex items-center justify-between space-x-6 bg-white pb-6 rounded-lg border border-neutral-300 shadow-lg">
         <div className="flex-1">
           <h3 className="flex text-lg font-bold rounded p-4">
             <span className="cursor-pointer">{service.svc.metadata.name}</span>
-            <>
             <div className="flex items-center ml-auto space-x-2">
-              { deployment &&
-              <>
-              <button onClick={() => {setShowLogs(true); streamPodLogs()}}
-                className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded"
-                >
-                Logs
-              </button>
-              <button onClick={() => setShowDescribe(true)}
-                className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
-                Describe
-              </button>
-              </>
+              {deployment &&
+                <>
+                  <Logs
+                    capacitorClient={capacitorClient}
+                    store={store}
+                    service={service.svc}
+                  />
+                  <Describe
+                    capacitorClient={capacitorClient}
+                    deployment={deployment}
+                  />
+                </>
               }
             </div>
-            </>
           </h3>
           <div>
             <div className="grid grid-cols-12 mt-4 px-4">
@@ -223,6 +191,82 @@ function Service(props) {
 
 export default Service;
 
+function Logs(props) {
+  const { capacitorClient, store, service } = props;
+  let reduxState = store.getState();
+  const [showModal, setShowModal] = useState(false)
+  const svc = service.metadata.namespace + "/" + service.metadata.name
+  const [logs, setLogs] = useState(reduxState.podLogs[svc]);
+
+  store.subscribe(() => setLogs([...reduxState.podLogs[svc] ?? []]));
+
+  const streamPodLogs = () => {
+    capacitorClient.podLogsRequest(service.metadata.namespace, service.metadata.name)
+  }
+
+  const stopLogsHandler = () => {
+    setShowModal(false);
+    capacitorClient.stopPodLogsRequest(service.metadata.namespace, service.metadata.name);
+    store.dispatch({
+      type: ACTION_CLEAR_PODLOGS, payload: {
+        pod: service.metadata.namespace + "/" + service.metadata.name
+      }
+    });
+  }
+
+  return (
+    <>
+      {showModal &&
+        <Modal stopHandler={stopLogsHandler}>
+          {logs ?
+            logs.map((line, idx) => <p key={idx} className={`font-mono text-xs ${line.color}`}>{line.content}</p>)
+            :
+            <SkeletonLoader />
+          }
+        </Modal>
+      }
+      <button onClick={() => {
+        setShowModal(true);
+        streamPodLogs()
+      }}
+        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded"
+      >
+        Logs
+      </button>
+    </>
+  )
+}
+
+function Describe(props) {
+  const { capacitorClient, deployment } = props;
+  const [details, setDetails] = useState(null)
+  const [showModal, setShowModal] = useState(false)
+
+  const describeDeployment = () => {
+    capacitorClient.describeDeployment(deployment.metadata.namespace, deployment.metadata.name)
+      .then(data => setDetails(data))
+  }
+
+  return (
+    <>
+      {showModal &&
+        <Modal stopHandler={() => setShowModal(false)}>
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
+            {details ?? <SkeletonLoader />}
+          </code>
+        </Modal>
+      }
+      <button onClick={() => {
+        setShowModal(true);
+        describeDeployment()
+      }}
+        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
+        Describe
+      </button>
+    </>
+  )
+}
+
 function Pod(props) {
   const {pod} = props;
 
@@ -306,22 +350,29 @@ function secrets(pods, namespace, capacitorClient) {
 
 function ConfigMap({ name, namespace, capacitorClient }) {
   const [showModal, setShowModal] = useState(false);
+  const [details, setDetails] = useState(null);
 
   const describeConfigmap = () => {
-    return capacitorClient.describeConfigmap(namespace, name)
+    capacitorClient.describeConfigmap(namespace, name)
+      .then(data => setDetails(data))
   }
 
   return (
     <>
       <button
         className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          setShowModal(true);
+          describeConfigmap()
+        }}
       >
         <div className='text-center mx-auto w-6'>{documentIcon}</div>
         {name}
       </button>
       {showModal &&
-        <Modal setShowModal={setShowModal} fetchData={describeConfigmap} />
+        <Modal stopHandler={() => setShowModal(false)}>
+          {details ?? <SkeletonLoader />}
+        </Modal>
       }
     </>
   );
@@ -329,71 +380,36 @@ function ConfigMap({ name, namespace, capacitorClient }) {
 
 function Secret({ name, namespace, capacitorClient }) {
   const [showModal, setShowModal] = useState(false);
+  const [details, setDetails] = useState(null);
 
   const describeSecret = () => {
-    return capacitorClient.describeSecret(namespace, name)
+    capacitorClient.describeSecret(namespace, name)
+      .then(data => setDetails(data))
   }
 
   return (
     <>
       <button
         className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          setShowModal(true);
+          describeSecret()
+        }}
       >
         <div className='text-center mx-auto w-6'>{lockIcon}</div>
         {name}
       </button>
       {showModal &&
-        <Modal setShowModal={setShowModal} fetchData={describeSecret} />
+        <Modal stopHandler={() => setShowModal(false)}>
+          {details ?? <SkeletonLoader />}
+        </Modal>
       }
     </>
   );
 }
 
 function Modal(props) {
-  const { setShowModal, fetchData } = props;
-  const [data, setData] = useState(null)
-
-  useEffect(() => {
-    fetchData().then(data => setData(data));
-
-    document.body.style.overflow = 'hidden';
-    document.body.style.paddingRight = '15px';
-    return () => { document.body.style.overflow = 'unset'; document.body.style.paddingRight = '0px' }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div
-      className="fixed flex inset-0 z-10 bg-gray-500 bg-opacity-75"
-      onClick={() => setShowModal(false)}
-    >
-      <div className="flex self-center items-center justify-center w-full p-8 h-4/5">
-        <div className="transform flex flex-col overflow-hidden bg-slate-600 rounded-xl h-4/5 max-h-full w-4/5 pt-8"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="absolute top-0 right-0 p-1.5">
-            <button
-              className="rounded-md inline-flex text-gray-200 hover:text-gray-500 focus:outline-none"
-              onClick={() => setShowModal(false)}
-            >
-              <span className="sr-only">Close</span>
-              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg">
-            <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
-              {data ?? <SkeletonLoader />}
-            </code>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PodLogsModal(props) {
-  const { stopHandler, logs } = props;
+  const { stopHandler, children } = props;
   const logsEndRef = useRef(null);
 
   useEffect(() => {
@@ -405,7 +421,7 @@ function PodLogsModal(props) {
 
   useEffect(() => {
     logsEndRef.current.scrollIntoView();
-  }, [logs]);
+  }, [children]);
 
   return (
     <div
@@ -425,12 +441,8 @@ function PodLogsModal(props) {
               <XMarkIcon className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
-          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg">
-            {logs ?
-              logs.map((line, idx) => <p key={idx} className={`font-mono text-xs ${line.color}`}>{line.content}</p>)
-              :
-              <SkeletonLoader />
-            }
+          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg font-normal">
+            {children}
             <p ref={logsEndRef} />
           </div>
         </div>
