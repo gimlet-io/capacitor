@@ -432,15 +432,17 @@ function CopyBtn({ title, textToCopy }) {
   };
 
   return (
-    <button
-      onClick={copyToClipboard}
-      className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
-      {title}
+    <div>
       {copied &&
-      <span className="absolute right-2/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
-        Copied
-      </span>
-    }
-    </button>
+        <span className="absolute select-none right-1/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
+          Copied
+        </span>
+      }
+      <button
+        onClick={copyToClipboard}
+        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
+        {title}
+      </button>
+    </div>
   );
 }
