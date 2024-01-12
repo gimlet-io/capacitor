@@ -371,7 +371,9 @@ function ConfigMap({ name, namespace, capacitorClient }) {
       </button>
       {showModal &&
         <Modal stopHandler={() => setShowModal(false)}>
-          {details ?? <SkeletonLoader />}
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
+            {details ?? <SkeletonLoader />}
+          </code>
         </Modal>
       }
     </>
@@ -401,7 +403,9 @@ function Secret({ name, namespace, capacitorClient }) {
       </button>
       {showModal &&
         <Modal stopHandler={() => setShowModal(false)}>
-          {details ?? <SkeletonLoader />}
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
+            {details ?? <SkeletonLoader />}
+          </code>
         </Modal>
       }
     </>
