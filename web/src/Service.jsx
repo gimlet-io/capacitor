@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Timeline from './Timeline';
 import { RevisionWidget, ReadyWidget } from './FluxState';
 import jp from 'jsonpath';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -23,18 +22,15 @@ function Service(props) {
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
-  const containerPort = jp.query(deployment, '$.spec.template.spec.containers[0].ports[0].containerPort')
+  const svcPort = service.svc.spec.ports[0].port
   let hostPort = "<host-port>"
-  let appPort = "<app-port>"
-  if (containerPort) {
-    appPort = containerPort[0] ?? 80;
-
-    if (appPort < 99) {
-      hostPort = "100" + appPort
-    } else if (appPort < 999) {
-      hostPort = "10" + appPort
+  if (svcPort) {
+    if (svcPort < 99) {
+      hostPort = "100" + svcPort
+    } else if (svcPort < 999) {
+      hostPort = "10" + svcPort
     } else {
-      hostPort = appPort
+      hostPort = svcPort
     }
 
     if (hostPort === "10080") { // Connections to HTTP, HTTPS or FTP servers on port 10080 will fail. This is a mitigation for the NAT Slipstream 2.0 attack.
@@ -166,7 +162,7 @@ function Service(props) {
                     <div className='absolute right-0 top-0'>
                       <CopyBtn
                         title='Port-forward command'
-                        textToCopy={`kubectl port-forward deploy/${deployment.metadata.name} -n ${deployment.metadata.namespace} ${hostPort}:${appPort}`}
+                        textToCopy={`kubectl port-forward deploy/${deployment.metadata.name} -n ${deployment.metadata.namespace} ${hostPort}:${svcPort}`}
                       />
                     </div>
                     </div>
@@ -184,7 +180,7 @@ function Service(props) {
                       </p>
                       ) : null
                     }
-                    {containerPort &&
+                    {svcPort &&
                         <>
                           <a href={'http://127.0.0.1:' + hostPort} target="_blank" rel="noopener noreferrer">http://127.0.0.1:{hostPort}
                             <svg xmlns="http://www.w3.org/2000/svg"
