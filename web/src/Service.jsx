@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RevisionWidget, ReadyWidget } from './FluxState';
+import { RevisionWidget, ReadyWidget, HelmStatusWidget } from './FluxState';
 import jp from 'jsonpath';
 import { Logs } from './Logs'
 import { Describe } from './Describe'
@@ -19,7 +19,7 @@ const lockIcon = (
 );
 
 function Service(props) {
-  const { service, alerts, kustomization, gitRepository, capacitorClient, store } = props;
+  const { service, alerts, kustomization, gitRepository, helmRelease, capacitorClient, store } = props;
   const deployment = service.deployment;
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
@@ -213,6 +213,15 @@ function Service(props) {
                     <div className="ml-2"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
                   </div>
                 </div>
+                { helmRelease &&
+                <div>
+                  <p className="text-base text-neutral-600">Helm Status</p>
+                  <div className="flex text-sm text-neutral-600">
+                    <div className="ml-4"><HelmStatusWidget helmRelease={helmRelease} /></div>
+                    <div className="ml-4">({helmRelease.metadata.namespace}/{helmRelease.metadata.name})</div>
+                  </div>
+                </div>
+                }
               </div>
             </div>
           </div>
@@ -251,7 +260,7 @@ function Pod(props) {
   }
 
   return (
-    <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.metadata.name} - ${pod.status}`}>
+    <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.metadata.name} - ${pod.status.phase}`}>
       {pod.status.phase}
     </span>
   );
