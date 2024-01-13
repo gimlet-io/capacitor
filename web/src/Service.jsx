@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RevisionWidget, ReadyWidget } from './FluxState';
 import jp from 'jsonpath';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { Logs } from './Logs'
+import { Describe } from './Describe'
+import { SkeletonLoader } from './SkeletonLoader'
+import { Modal } from './Modal'
 
 const documentIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
@@ -16,7 +19,7 @@ const lockIcon = (
 );
 
 function Service(props) {
-  const { service, alerts, kustomization, gitRepository, capacitorClient } = props;
+  const { service, alerts, kustomization, gitRepository, capacitorClient, store } = props;
   const deployment = service.deployment;
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
@@ -44,23 +47,21 @@ function Service(props) {
         <div className="flex-1">
           <h3 className="flex text-lg font-bold rounded p-4">
             <span className="cursor-pointer">{service.svc.metadata.name}</span>
-            <>
             <div className="flex items-center ml-auto space-x-2">
-              { deployment &&
-              <>
-              <button
-                className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded"
-                >
-                Logs
-              </button>
-              <button
-                className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
-                Describe
-              </button>
-              </>
+              {deployment &&
+                <>
+                  <Logs
+                    capacitorClient={capacitorClient}
+                    store={store}
+                    service={service.svc}
+                  />
+                  <Describe
+                    capacitorClient={capacitorClient}
+                    deployment={deployment}
+                  />
+                </>
               }
             </div>
-            </>
           </h3>
           <div>
             <div className="grid grid-cols-12 mt-4 px-4">
@@ -306,22 +307,31 @@ function secrets(pods, namespace, capacitorClient) {
 
 function ConfigMap({ name, namespace, capacitorClient }) {
   const [showModal, setShowModal] = useState(false);
+  const [details, setDetails] = useState(null);
 
   const describeConfigmap = () => {
-    return capacitorClient.describeConfigmap(namespace, name)
+    capacitorClient.describeConfigmap(namespace, name)
+      .then(data => setDetails(data))
   }
 
   return (
     <>
       <button
         className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          setShowModal(true);
+          describeConfigmap()
+        }}
       >
         <div className='text-center mx-auto w-6'>{documentIcon}</div>
         {name}
       </button>
       {showModal &&
-        <Modal setShowModal={setShowModal} fetchData={describeConfigmap} />
+        <Modal stopHandler={() => setShowModal(false)}>
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
+            {details ?? <SkeletonLoader />}
+          </code>
+        </Modal>
       }
     </>
   );
@@ -329,84 +339,34 @@ function ConfigMap({ name, namespace, capacitorClient }) {
 
 function Secret({ name, namespace, capacitorClient }) {
   const [showModal, setShowModal] = useState(false);
+  const [details, setDetails] = useState(null);
 
   const describeSecret = () => {
-    return capacitorClient.describeSecret(namespace, name)
+    capacitorClient.describeSecret(namespace, name)
+      .then(data => setDetails(data))
   }
 
   return (
     <>
       <button
         className="block text-neutral-500 hover:text-black mt-2 text-xs font-mono px-1"
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          setShowModal(true);
+          describeSecret()
+        }}
       >
         <div className='text-center mx-auto w-6'>{lockIcon}</div>
         {name}
       </button>
       {showModal &&
-        <Modal setShowModal={setShowModal} fetchData={describeSecret} />
+        <Modal stopHandler={() => setShowModal(false)}>
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
+            {details ?? <SkeletonLoader />}
+          </code>
+        </Modal>
       }
     </>
   );
-}
-
-function Modal(props) {
-  const { setShowModal, fetchData } = props;
-  const [data, setData] = useState(null)
-
-  useEffect(() => {
-    fetchData().then(data => setData(data));
-
-    document.body.style.overflow = 'hidden';
-    document.body.style.paddingRight = '15px';
-    return () => { document.body.style.overflow = 'unset'; document.body.style.paddingRight = '0px' }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div
-      className="fixed flex inset-0 z-10 bg-gray-500 bg-opacity-75"
-      onClick={() => setShowModal(false)}
-    >
-      <div className="flex self-center items-center justify-center w-full p-8 h-4/5">
-        <div className="transform flex flex-col overflow-hidden bg-slate-600 rounded-xl h-4/5 max-h-full w-4/5 pt-8"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="absolute top-0 right-0 p-1.5">
-            <button
-              className="rounded-md inline-flex text-gray-200 hover:text-gray-500 focus:outline-none"
-              onClick={() => setShowModal(false)}
-            >
-              <span className="sr-only">Close</span>
-              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg">
-            <code className='flex whitespace-pre items-center font-mono text-sm p-2 text-yellow-100 rounded'>
-              {data ?? <SkeletonLoader />}
-            </code>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const SkeletonLoader = () => {
-  return (
-    <div className="w-full">
-      <div className="animate-pulse flex space-x-4">
-        <div className="flex-1 space-y-3 py-1">
-          <div className="h-2 bg-slate-700 rounded"></div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-2 bg-slate-700 rounded col-span-2"></div>
-            <div className="h-2 bg-slate-700 rounded col-span-1"></div>
-          </div>
-          <div className="h-2 bg-slate-700 rounded"></div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function CopyBtn({ title, textToCopy }) {
@@ -430,7 +390,7 @@ function CopyBtn({ title, textToCopy }) {
   return (
     <div>
       {copied &&
-        <span className="absolute select-none right-1/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
+        <span className="absolute select-none -right-1/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
           Copied
         </span>
       }

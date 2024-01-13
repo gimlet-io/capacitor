@@ -5,6 +5,7 @@ import (
 
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	"github.com/gimlet-io/capacitor/pkg/k8s"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,7 +65,7 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 
 	for idx, service := range services {
 		for _, deployment := range deploymentsInNamespaces[service.Svc.Namespace] {
-			if selectorsMatch(deployment.Spec.Selector.MatchLabels, service.Svc.Spec.Selector) {
+			if k8s.SelectorsMatch(deployment.Spec.Selector.MatchLabels, service.Svc.Spec.Selector) {
 				services[idx].Deployment = &deployment
 			}
 		}
@@ -77,55 +78,13 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 	for idx, service := range services {
 		services[idx].Pods = []v1.Pod{}
 		for _, pod := range pods.Items {
-			if labelsMatchSelectors(pod.ObjectMeta.Labels, service.Svc.Spec.Selector) {
+			if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, service.Svc.Spec.Selector) {
 				services[idx].Pods = append(services[idx].Pods, pod)
 			}
 		}
 	}
 
 	return services, nil
-}
-
-func selectorsMatch(first map[string]string, second map[string]string) bool {
-	if len(first) != len(second) {
-		return false
-	}
-
-	for k, v := range first {
-		if v2, ok := second[k]; ok {
-			if v != v2 {
-				return false
-			}
-		} else {
-			return false
-		}
-	}
-
-	for k2, v2 := range second {
-		if v, ok := first[k2]; ok {
-			if v2 != v {
-				return false
-			}
-		} else {
-			return false
-		}
-	}
-
-	return true
-}
-
-func labelsMatchSelectors(labels map[string]string, selectors map[string]string) bool {
-	for k2, v2 := range selectors {
-		if v, ok := labels[k2]; ok {
-			if v2 != v {
-				return false
-			}
-		} else {
-			return false
-		}
-	}
-
-	return true
 }
 
 func inventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {

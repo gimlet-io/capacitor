@@ -23,6 +23,7 @@ const Services = memo(function Services(props) {
             kustomization={kustomization}
             gitRepository={gitRepository}
             capacitorClient={capacitorClient}
+            store={store}
           />
         )
       })}

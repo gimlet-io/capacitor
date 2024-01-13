@@ -5,7 +5,10 @@ import (
 	"net/http"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
+	"github.com/gimlet-io/capacitor/pkg/logs"
+	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
+	apps_v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -95,4 +98,57 @@ func describeSecret(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(output))
+}
+
+func describeDeployment(w http.ResponseWriter, r *http.Request) {
+	config, _ := r.Context().Value("config").(*rest.Config)
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+
+	describer, ok := describe.DescriberFor(schema.GroupKind{Group: apps_v1.GroupName, Kind: "Deployment"}, config)
+	if !ok {
+		logrus.Errorf("could not get describer for deployment")
+		return
+	}
+
+	output, err := describer.Describe(namespace, name, describe.DescriberSettings{ShowEvents: true, ChunkSize: 500})
+	if err != nil {
+		logrus.Errorf("could not get output of describer: %s", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(output))
+}
+
+func streamLogs(w http.ResponseWriter, r *http.Request) {
+	namespace := r.URL.Query().Get("namespace")
+	svc := r.URL.Query().Get("serviceName")
+	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
+	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
+	client, _ := r.Context().Value("client").(*kubernetes.Clientset)
+	clientHub, _ := r.Context().Value("clientHub").(*streaming.ClientHub)
+
+	go logs.Logs(
+		client,
+		dynamicClient,
+		namespace,
+		svc,
+		clientHub,
+		runningLogStreams,
+	)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
+}
+
+func stopLogs(w http.ResponseWriter, r *http.Request) {
+	namespace := r.URL.Query().Get("namespace")
+	svc := r.URL.Query().Get("serviceName")
+	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
+
+	runningLogStreams.Stop(namespace, svc)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
 }
