@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { RevisionWidget, ReadyWidget } from './FluxState';
 import jp from 'jsonpath';
 import { Logs } from './Logs'
