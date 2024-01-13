@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gimlet-io/capacitor/pkg/flux"
+	"github.com/gimlet-io/capacitor/pkg/logs"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -18,7 +18,7 @@ func SetupRouter(
 	dynamicClient *dynamic.DynamicClient,
 	config *rest.Config,
 	clientHub *streaming.ClientHub,
-	runningLogStreams *flux.RunningLogStreams,
+	runningLogStreams *logs.RunningLogStreams,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.WithValue("dynamicClient", dynamicClient))
@@ -35,8 +35,8 @@ func SetupRouter(
 	r.Get("/api/describeConfigmap", describeConfigmap)
 	r.Get("/api/describeSecret", describeSecret)
 	r.Get("/api/describeDeployment", describeDeployment)
-	r.Get("/api/podLogs", podLogs)
-	r.Get("/api/stopPodLogs", stopPodLogs)
+	r.Get("/api/logs", streamLogs)
+	r.Get("/api/stopLogs", stopLogs)
 	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {
 		streaming.ServeWs(clientHub, w, r)
 	})

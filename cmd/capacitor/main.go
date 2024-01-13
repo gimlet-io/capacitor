@@ -10,7 +10,7 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/api"
 	"github.com/gimlet-io/capacitor/pkg/controllers"
-	"github.com/gimlet-io/capacitor/pkg/flux"
+	"github.com/gimlet-io/capacitor/pkg/logs"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/dynamic"
@@ -39,7 +39,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	runningLogStreams := flux.NewRunningLogStreams()
+	runningLogStreams := logs.NewRunningLogStreams()
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)

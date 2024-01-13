@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
+	"github.com/gimlet-io/capacitor/pkg/logs"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	apps_v1 "k8s.io/api/apps/v1"
@@ -120,18 +121,15 @@ func describeDeployment(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(output))
 }
 
-func podLogs(w http.ResponseWriter, r *http.Request) {
+func streamLogs(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
 	svc := r.URL.Query().Get("serviceName")
-	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*flux.RunningLogStreams)
+	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
 	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
 	client, _ := r.Context().Value("client").(*kubernetes.Clientset)
 	clientHub, _ := r.Context().Value("clientHub").(*streaming.ClientHub)
 
-	stopCh := make(chan int)
-	runningLogStreams.Regsiter(stopCh, namespace, svc)
-
-	go flux.PodLogs(
+	go logs.Logs(
 		client,
 		dynamicClient,
 		namespace,
@@ -144,12 +142,12 @@ func podLogs(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{}"))
 }
 
-func stopPodLogs(w http.ResponseWriter, r *http.Request) {
+func stopLogs(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
 	svc := r.URL.Query().Get("serviceName")
-	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*flux.RunningLogStreams)
+	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
 
-	go runningLogStreams.Stop(namespace, svc)
+	runningLogStreams.Stop(namespace, svc)
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("{}"))

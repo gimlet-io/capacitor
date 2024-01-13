@@ -1,4 +1,4 @@
-package flux
+package logs
 
 import "sync"
 
@@ -13,12 +13,15 @@ func NewRunningLogStreams() *RunningLogStreams {
 	}
 }
 
-func (l *RunningLogStreams) Regsiter(channel chan int, namespace string, serviceName string) {
-	pod := namespace + "/" + serviceName
+func (l *RunningLogStreams) register(namespace string, serviceName string) chan int {
+	svc := namespace + "/" + serviceName
+	stopCh := make(chan int)
 
 	l.lock.Lock()
-	l.runningLogStreams[pod] = channel
+	l.runningLogStreams[svc] = stopCh
 	l.lock.Unlock()
+
+	return stopCh
 }
 
 func (l *RunningLogStreams) Stop(namespace string, serviceName string) {
