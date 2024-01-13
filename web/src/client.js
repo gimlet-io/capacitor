@@ -11,6 +11,16 @@ export default class CapacitorClient {
 
   getServices = () => this.get('/api/services');
 
+  describeConfigmap = (namespace, name) => this.get(`/api/describeConfigmap?namespace=${namespace}&name=${name}`);
+
+  describeSecret = (namespace, name) => this.get(`/api/describeSecret?namespace=${namespace}&name=${name}`);
+
+  describeDeployment = (namespace, name) => this.get(`/api/describeDeployment?namespace=${namespace}&name=${name}`);
+
+  podLogsRequest = (namespace, svc) => this.get(`/api/logs?namespace=${namespace}&serviceName=${svc}`);
+
+  stopPodLogsRequest = (namespace, svc) => this.get(`/api/stopLogs?namespace=${namespace}&serviceName=${svc}`);
+
   get = async (path) => {
     try {
       const { data } = await axios.get(path, {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/api"
 	"github.com/gimlet-io/capacitor/pkg/controllers"
+	"github.com/gimlet-io/capacitor/pkg/logs"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/dynamic"
@@ -38,6 +39,8 @@ func main() {
 		panic(err.Error())
 	}
 
+	runningLogStreams := logs.NewRunningLogStreams()
+
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
@@ -51,7 +54,7 @@ func main() {
 	helmReleaseController := controllers.HelmReleaseController(dynamicClient, clientHub)
 	go helmReleaseController.Run(1, stopCh)
 
-	r := api.SetupRouter(client, dynamicClient, clientHub)
+	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {
 		err = http.ListenAndServe(":9000", r)
 		if err != nil {
