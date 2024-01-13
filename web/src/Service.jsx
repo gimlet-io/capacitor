@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RevisionWidget, ReadyWidget } from './FluxState';
 import jp from 'jsonpath';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { ACTION_CLEAR_PODLOGS } from './redux';
+import { Logs } from './Logs'
+import { Describe } from './Describe'
+import { SkeletonLoader } from './SkeletonLoader'
+import { Modal } from './Modal'
 
 const documentIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
@@ -222,82 +224,6 @@ function Service(props) {
 
 export default Service;
 
-function Logs(props) {
-  const { capacitorClient, store, service } = props;
-  let reduxState = store.getState();
-  const [showModal, setShowModal] = useState(false)
-  const svc = service.metadata.namespace + "/" + service.metadata.name
-  const [logs, setLogs] = useState(reduxState.podLogs[svc]);
-
-  store.subscribe(() => setLogs([...reduxState.podLogs[svc] ?? []]));
-
-  const streamPodLogs = () => {
-    capacitorClient.podLogsRequest(service.metadata.namespace, service.metadata.name)
-  }
-
-  const stopLogsHandler = () => {
-    setShowModal(false);
-    capacitorClient.stopPodLogsRequest(service.metadata.namespace, service.metadata.name);
-    store.dispatch({
-      type: ACTION_CLEAR_PODLOGS, payload: {
-        pod: service.metadata.namespace + "/" + service.metadata.name
-      }
-    });
-  }
-
-  return (
-    <>
-      {showModal &&
-        <Modal stopHandler={stopLogsHandler}>
-          {logs ?
-            logs.map((line, idx) => <p key={idx} className={`font-mono text-xs ${line.color}`}>{line.content}</p>)
-            :
-            <SkeletonLoader />
-          }
-        </Modal>
-      }
-      <button onClick={() => {
-        setShowModal(true);
-        streamPodLogs()
-      }}
-        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded"
-      >
-        Logs
-      </button>
-    </>
-  )
-}
-
-function Describe(props) {
-  const { capacitorClient, deployment } = props;
-  const [details, setDetails] = useState(null)
-  const [showModal, setShowModal] = useState(false)
-
-  const describeDeployment = () => {
-    capacitorClient.describeDeployment(deployment.metadata.namespace, deployment.metadata.name)
-      .then(data => setDetails(data))
-  }
-
-  return (
-    <>
-      {showModal &&
-        <Modal stopHandler={() => setShowModal(false)}>
-          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
-            {details ?? <SkeletonLoader />}
-          </code>
-        </Modal>
-      }
-      <button onClick={() => {
-        setShowModal(true);
-        describeDeployment()
-      }}
-        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
-        Describe
-      </button>
-    </>
-  )
-}
-
 function Pod(props) {
   const {pod} = props;
 
@@ -443,72 +369,6 @@ function Secret({ name, namespace, capacitorClient }) {
   );
 }
 
-function Modal(props) {
-  const { stopHandler, children } = props;
-  const logsEndRef = useRef(null);
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    document.body.style.paddingRight = '15px';
-    return () => { document.body.style.overflow = 'unset'; document.body.style.paddingRight = '0px' }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    logsEndRef.current.scrollIntoView();
-  }, [children]);
-
-  return (
-    <div
-      className="fixed flex inset-0 z-10 bg-gray-500 bg-opacity-75"
-      onClick={stopHandler}
-    >
-      <div className="flex self-center items-center justify-center w-full p-8 h-4/5">
-        <div className="transform flex flex-col overflow-hidden bg-slate-600 rounded-xl h-4/5 max-h-full w-4/5 pt-8"
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="absolute top-0 right-0 p-1.5">
-            <button
-              className="rounded-md inline-flex text-gray-200 hover:text-gray-500 focus:outline-none"
-              onClick={stopHandler}
-            >
-              <span className="sr-only">Close</span>
-              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg font-normal">
-            {children}
-            <p ref={logsEndRef} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const SkeletonLoader = () => {
-  return (
-    <div className="w-full max-w-4xl animate-pulse space-y-3">
-      <div className="h-2 bg-slate-700 rounded w-1/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-2/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-3/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-4/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-4/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-3/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-2/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-1/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-2/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-2/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-1/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-1/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-1/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-1/6"></div>
-      <div className="h-2 bg-slate-700 rounded w-2/5"></div>
-      <div className="h-2 bg-slate-700 rounded w-3/5"></div>
-    </div>
-  )
-}
-
 function CopyBtn({ title, textToCopy }) {
   const [copied, setCopied] = useState(false);
 
@@ -530,7 +390,7 @@ function CopyBtn({ title, textToCopy }) {
   return (
     <div>
       {copied &&
-        <span className="absolute select-none right-1/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
+        <span className="absolute select-none -right-1/4 -top-8 z-10 py-1 px-2 bg-gray-900 text-xs font-medium text-white rounded-lg shadow-sm dark:bg-slate-700">
           Copied
         </span>
       }
