@@ -102,11 +102,11 @@ export function HelmReleases(props) {
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><ReadyWidget gitRepository={helmRelease}/></span>
+                <span className="block font-medium text-neutral-700"><HelmStatusWidget helmRelease={helmRelease}/></span>
                 <span className="block text-neutral-600 field">{message}</span>
               </div>
               <div className="col-span-5">
-                <div className="font-medium text-neutral-700"><RevisionWidget kustomization={helmRelease} gitRepository={helmRelease} /></div>
+                <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={helmRelease} /></div>
                 {/* { !ready && */}
                 <span className="block field text-yellow-500">Attempted applying {lastAttemptedHash.slice(0, 8)} at {dateLabel}</span>
                 {/* } */}
@@ -200,15 +200,24 @@ export function HelmStatusWidget(props) {
   const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');
   const ready = readyConditions.includes("True")
 
-  const version = helmRelease.status.history[0]
-
   const label = ready ? "Installed" : "Not Ready"
 
   return (
     <span className="relative">
       <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
       <span>{label}</span>
-      <span className='ml-2 font-mono'>{version.chartName}@{version.chartVersion}</span>
+    </span>
+  )
+}
+
+export function HelmRevisionWidget(props) {
+  const { helmRelease } = props
+
+  const version = helmRelease.status.history[0]
+
+  return (
+    <span className="block field">
+      <span>{version.chartName}@{version.chartVersion}</span>
     </span>
   )
 }

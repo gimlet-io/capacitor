@@ -218,6 +218,7 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Helm Status</p>
                   <div className="flex text-sm text-neutral-600">
                     <div className="ml-4"><HelmStatusWidget helmRelease={helmRelease} /></div>
+                    <div className="ml-4">({helmRelease.metadata.namespace}/{helmRelease.metadata.name})</div>
                   </div>
                 </div>
                 }
