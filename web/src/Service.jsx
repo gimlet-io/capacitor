@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RevisionWidget, ReadyWidget } from './FluxState';
+import { RevisionWidget, ReadyWidget, HelmStatusWidget } from './FluxState';
 import jp from 'jsonpath';
 import { Logs } from './Logs'
 import { Describe } from './Describe'
@@ -213,6 +213,14 @@ function Service(props) {
                     <div className="ml-2"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
                   </div>
                 </div>
+                { helmRelease &&
+                <div>
+                  <p className="text-base text-neutral-600">Helm Status</p>
+                  <div className="flex text-sm text-neutral-600">
+                    <div className="ml-4"><HelmStatusWidget helmRelease={helmRelease} /></div>
+                  </div>
+                </div>
+                }
               </div>
             </div>
           </div>

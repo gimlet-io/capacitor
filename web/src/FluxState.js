@@ -187,7 +187,28 @@ export function ReadyWidget(props) {
   return (
     <span className="relative">
       <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
-      <span >{label}</span>
+      <span>{label}</span>
+    </span>
+  )
+}
+
+export function HelmStatusWidget(props) {
+  const { helmRelease } = props
+
+  console.log(helmRelease)
+
+  const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');
+  const ready = readyConditions.includes("True")
+
+  const version = helmRelease.status.history[0]
+
+  const label = ready ? "Installed" : "Not Ready"
+
+  return (
+    <span className="relative">
+      <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
+      <span>{label}</span>
+      <span className='ml-2 font-mono'>{version.chartName}@{version.chartVersion}</span>
     </span>
   )
 }
