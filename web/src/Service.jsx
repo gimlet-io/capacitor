@@ -25,9 +25,9 @@ function Service(props) {
   const svcPort = service.svc.spec.ports[0].port
   let hostPort = "<host-port>"
   if (svcPort) {
-    if (svcPort < 99) {
+    if (svcPort <= 99) {
       hostPort = "100" + svcPort
-    } else if (svcPort < 999) {
+    } else if (svcPort <= 999) {
       hostPort = "10" + svcPort
     } else {
       hostPort = svcPort
