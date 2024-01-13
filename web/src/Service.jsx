@@ -19,7 +19,7 @@ const lockIcon = (
 );
 
 function Service(props) {
-  const { service, alerts, kustomization, gitRepository, capacitorClient, store } = props;
+  const { service, alerts, kustomization, gitRepository, helmRelease, capacitorClient, store } = props;
   const deployment = service.deployment;
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
@@ -251,7 +251,7 @@ function Pod(props) {
   }
 
   return (
-    <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.metadata.name} - ${pod.status}`}>
+    <span className={`inline-block mr-1 mt-2 shadow-lg ${color} ${pulsar} font-bold px-2 cursor-default`} title={`${pod.metadata.name} - ${pod.status.phase}`}>
       {pod.status.phase}
     </span>
   );

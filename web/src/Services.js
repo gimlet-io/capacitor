@@ -12,7 +12,12 @@ const Services = memo(function Services(props) {
   return (
     <>
       {filteredServices.map((service) => {
-        const kustomization = findServiceInInventory(fluxState.kustomizations, service)
+        const helmRelease = fluxState.helmReleases.find(hr => hr.metadata.name === service.helmRelease)
+
+        const kustomization = helmRelease
+         ? findHelmReleaseInventory(fluxState.kustomizations, helmRelease)
+         : findServiceInInventory(fluxState.kustomizations, service)
+
         const gitRepository = fluxState.gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
 
         return (
@@ -22,6 +27,7 @@ const Services = memo(function Services(props) {
             alerts={[]}
             kustomization={kustomization}
             gitRepository={gitRepository}
+            helmRelease={helmRelease}
             capacitorClient={capacitorClient}
             store={store}
           />
@@ -38,6 +44,19 @@ const findServiceInInventory = (kustomizations, service) => {
 
   for (const k of kustomizations) {
     const inInventory = k.status.inventory.entries.find((elem) => elem.id === serviceKey)
+    if (inInventory) {
+      return k
+    }
+  }
+
+  return undefined
+}
+
+const findHelmReleaseInventory = (kustomizations, helmRelease) => {
+  const key = `${helmRelease.metadata.namespace}_${helmRelease.metadata.name}_helm.toolkit.fluxcd.io_HelmRelease`
+
+  for (const k of kustomizations) {
+    const inInventory = k.status.inventory.entries.find((elem) => elem.id === key)
     if (inInventory) {
       return k
     }

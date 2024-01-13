@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 
-	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/gimlet-io/capacitor/pkg/k8s"
@@ -51,9 +51,9 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 
 	services := []Service{}
 	for _, release := range helmReleases {
-		resources, err := helmStatusWithResources(release.Name)
+		resources, err := helmStatusWithResources(release.Spec.ReleaseName)
 		if err != nil {
-			logrus.Warnf("could not get helm status with resources info: %s", err.Error())
+			logrus.Warnf("could not get helm status for %s: %s", release.Spec.ReleaseName, err.Error())
 			continue
 		}
 
@@ -73,7 +73,8 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 				}
 
 				services = append(services, Service{
-					Svc: svc,
+					Svc:         svc,
+					HelmRelease: release.Name,
 				})
 			}
 		}
@@ -179,8 +180,8 @@ func inventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {
 	return inventory, nil
 }
 
-func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) {
-	releases := []helmv2beta2.HelmRelease{}
+func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta1.HelmRelease, error) {
+	releases := []helmv2beta1.HelmRelease{}
 
 	helmReleases, err := dc.Resource(helmReleaseGVR).
 		Namespace("").
@@ -191,7 +192,7 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) 
 
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv2beta2.HelmRelease
+		var helmRelease helmv2beta1.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
@@ -277,7 +278,7 @@ func State(dc *dynamic.DynamicClient) (*FluxState, error) {
 	}
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv2beta2.HelmRelease
+		var helmRelease helmv2beta1.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
