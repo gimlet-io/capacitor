@@ -40,8 +40,7 @@ const Footer = memo(function Footer(props) {
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
                   { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
                   { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
-                  { name: 'Flux', href: '#' },
-                  { name: 'Flux Logs', href: '#' },
+                  { name: 'Flux Runtime', href: '#' },
                 ]}
                 selectedMenu={handlerSelect}
                 selected={selected}

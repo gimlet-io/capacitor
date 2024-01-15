@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import jp from 'jsonpath'
-import { formatDistance, parse } from "date-fns";
+import { formatDistance, format, parse } from "date-fns";
 
 function FluxState(props) {
   const { store } = props
@@ -140,11 +140,6 @@ export function GitRepositories(props){
     <div className="grid gap-y-4 grid-cols-1">
       {
         gitRepositories?.map(gitRepository => {
-          const message = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].message');
-          const revision = gitRepository.status.artifact.revision
-          const hash = revision.slice(revision.indexOf(':') + 1);
-          const url = gitRepository.spec.url.slice(gitRepository.spec.url.indexOf('@') + 1)
-
           return (
             <div 
               className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
@@ -159,15 +154,10 @@ export function GitRepositories(props){
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><ReadyWidget gitRepository={gitRepository}/></span>
-                <span className="block text-neutral-600 field">{message}</span>
+                <ReadyWidget gitRepository={gitRepository} displayMessage={true}/>
               </div>
               <div className="col-span-5">
-                <span className="block field font-medium text-neutral-700">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
-                  <span className="pl-1"><a href={`https://${url}/commit/${hash}`} target="_blank" rel="noopener noreferrer">{hash.slice(0, 8)}</a></span>
-                </span>
-                <span className="block field text-neutral-600">{url}</span>
+                <ArtifactWidget gitRepository={gitRepository} displayMessage={true}/>
               </div>
             </div>
           )
@@ -178,24 +168,66 @@ export function GitRepositories(props){
 }
 
 export function ReadyWidget(props) {
-  const { gitRepository } = props
-  const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")].status');
-  const ready = readyConditions.includes("True")
+  const { gitRepository, displayMessage } = props
+  const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")]');
+  const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
 
-  const label = ready ? "Ready" : "Not Ready"
+  const ready = readyCondition && readyConditions[0].status === "True" 
+  const readyLabel = ready ? "Ready" : "Not Ready"
+
+  const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
+  const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+  const readyTransitionTimeLabel = formatDistance(parsed, new Date());
+  const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
 
   return (
-    <span className="relative">
-      <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
-      <span>{label}</span>
-    </span>
+    <div className="relative">
+      <div className='font-medium text-neutral-700'>
+        <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
+        <span>{readyLabel}</span>
+        {readyCondition &&
+        <span title={exactDate}> {readyTransitionTimeLabel} ago</span>
+        }
+      </div>
+      { displayMessage && readyCondition &&
+      <div className="block text-neutral-600 field">
+        {readyCondition.message}
+      </div>
+      }
+    </div>
+
+  )
+}
+
+export function ArtifactWidget(props) {
+  const { gitRepository, displayMessage } = props
+  const artifact = gitRepository.status.artifact
+
+  const revision = artifact.revision
+  const hash = revision.slice(revision.indexOf(':') + 1);
+  const url = gitRepository.spec.url.slice(gitRepository.spec.url.indexOf('@') + 1)
+
+  const parsed = Date.parse(artifact.lastUpdateTime, "yyyy-MM-dd'T'HH:mm:ss");
+  const comitTimeLabel = formatDistance(parsed, new Date());
+  const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
+
+  return (
+    <>
+    <div className="field font-medium text-neutral-700">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
+      <span className="pl-1">
+        <a href={`https://${url}/commit/${hash}`} target="_blank" rel="noopener noreferrer">
+        {hash.slice(0, 8)} committed <span title={exactDate}> {comitTimeLabel} ago</span>
+        </a>
+      </span>
+    </div>
+    <span className="block field text-neutral-600"><a href={`https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a></span>
+    </>
   )
 }
 
 export function HelmStatusWidget(props) {
   const { helmRelease } = props
-
-  console.log(helmRelease)
 
   const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');
   const ready = readyConditions.includes("True")
