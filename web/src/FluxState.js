@@ -62,21 +62,11 @@ export function HelmReleases(props) {
     <div className="grid gap-y-4 grid-cols-1">
       {
         helmReleases?.map(helmRelease => {
-          const message = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].message');
-
-          const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');
-          const ready = readyConditions.includes("True")
-
-          const lastAttemptedRevision = helmRelease.status.lastAppliedRevision;
-          const lastAttemptedHash = lastAttemptedRevision ? lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1) : "";
-
-          const parsed = parse(helmRelease.status.lastHandledReconcileAt, "yyyy-MM-dd'T'HH:mm:ssXXXXXXXXX", new Date());
-          const dateLabel = "TODO"//formatDistance(parsed, new Date());
-
+          console.log(helmRelease)
           return (
             <div
               className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
-              key={`${helmRelease.metadata.namespace}/${helmRelease.metadata.name}`}
+              key={`hr-${helmRelease.metadata.namespace}/${helmRelease.metadata.name}`}
               >
               <div className="col-span-2">
                 <span className="block font-medium text-black">
@@ -87,11 +77,10 @@ export function HelmReleases(props) {
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><ReadyWidget resource={helmRelease} label="Installed" /></span>
-                <span className="block text-neutral-600 field">{message}</span>
+                <span className="block"><ReadyWidget resource={helmRelease} displayMessage={true} label="Installed" /></span>
               </div>
               <div className="col-span-5">
-                <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={helmRelease} /></div>
+                <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={helmRelease} withHistory={true} /></div>
               </div>
             </div>
           )
@@ -236,14 +225,59 @@ export function ArtifactWidget(props) {
 }
 
 export function HelmRevisionWidget(props) {
-  const { helmRelease } = props
+  const { helmRelease, withHistory } = props
 
   const version = helmRelease.status.history[0]
+  const appliedRevision = helmRelease.status.lastAppliedRevision
+  const lastAttemptedRevision = helmRelease.status.lastAttemptedRevision
+
+  const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")]');
+  const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
 
   return (
-    <span className="block field">
-      <span>{version.chartName}@{version.chartVersion}</span>
+    <>
+    { !ready &&
+      <span className='bg-orange-400'>
+        <span>Last Attempted: </span>
+        <span>{lastAttemptedRevision}@{version.chartName}</span>
+      </span>
+    }
+    <span className={`block ${ready ? '' : 'font-normal text-neutral-600'} field`}>
+      <span>Currently Installed: </span>
+      <span>{appliedRevision}@{version.chartName}</span>
     </span>
+    { withHistory &&
+    <div className='pt-1 text-sm'>
+      {helmRelease.status.history.map((release) => {
+        const current = release.status === "deployed"
+
+        let statusLabel = ""
+        if (release.status === "deployed") {
+          statusLabel = "was deployed"
+        } else if (release.status === "superseded") {
+          statusLabel = "was deployed, now superseded"
+        } else if (release.status === "failed") {
+          statusLabel = "failed to deploy"
+        }
+
+        const deployTime = release.lastDeployed
+        const parsed = Date.parse(deployTime, "yyyy-MM-dd'T'HH:mm:ss");
+        const deployTimeLabel = formatDistance(parsed, new Date());
+        const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
+
+        return (
+          <p className={`${current ? "font-normal text-neutral-500" : "font-normal text-neutral-500"}`}>
+            <span>{release.chartVersion}@{release.chartName}</span>
+            <span title={exactDate} className='pl-1'>{deployTimeLabel} ago</span>
+            <span className='pl-1'>{statusLabel}</span>
+          </p>
+        )
+        })
+      }
+    </div>
+    }
+    </>
+
   )
 }
 

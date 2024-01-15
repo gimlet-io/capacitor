@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RevisionWidget, ReadyWidget } from './FluxState';
+import { RevisionWidget, ReadyWidget, HelmRevisionWidget } from './FluxState';
 import jp from 'jsonpath';
 import { Logs } from './Logs'
 import { Describe } from './Describe'
@@ -218,7 +218,7 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Helm Status</p>
                   <div className="flex text-sm text-neutral-600">
                     <div className="ml-4"><ReadyWidget resource={helmRelease} label="Installed" /></div>
-                    <div className="ml-4">({helmRelease.metadata.namespace}/{helmRelease.metadata.name})</div>
+                    <div className="ml-2"><HelmRevisionWidget helmRelease={helmRelease}/></div>
                   </div>
                 </div>
                 }
