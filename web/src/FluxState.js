@@ -58,9 +58,7 @@ export function Kustomizations(props){
               </div>
               <div className="col-span-5">
                 <div className="font-medium text-neutral-700"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
-                {/* { !ready && */}
-                <span className="block field text-yellow-500">Attempted applying {lastAttemptedHash.slice(0, 8)} at {dateLabel}</span>
-                {/* } */}
+                <span className='font-mono rounded bg-gray-100 px-1'>{kustomization.spec.path}</span>
               </div>
             </div>
           )
