@@ -41,7 +41,7 @@ export function Kustomizations(props){
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block"><ReadyWidget gitRepository={kustomization} displayMessage={true}/></span>
+                <span className="block"><ReadyWidget resource={kustomization} displayMessage={true} label="Applied" /></span>
               </div>
               <div className="col-span-5">
                 <div className="font-medium text-neutral-700"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
@@ -87,14 +87,11 @@ export function HelmReleases(props) {
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><HelmStatusWidget helmRelease={helmRelease}/></span>
+                <span className="block font-medium text-neutral-700"><ReadyWidget resource={helmRelease} label="Installed" /></span>
                 <span className="block text-neutral-600 field">{message}</span>
               </div>
               <div className="col-span-5">
                 <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={helmRelease} /></div>
-                {/* { !ready && */}
-                <span className="block field text-yellow-500">Attempted applying {lastAttemptedHash.slice(0, 8)} at {dateLabel}</span>
-                {/* } */}
               </div>
             </div>
           )
@@ -158,7 +155,7 @@ export function GitRepositories(props){
                 </span>
               </div>
               <div className="col-span-5">
-                <ReadyWidget gitRepository={gitRepository} displayMessage={true}/>
+                <ReadyWidget resource={gitRepository} displayMessage={true}/>
               </div>
               <div className="col-span-5">
                 <ArtifactWidget gitRepository={gitRepository} displayMessage={true}/>
@@ -172,12 +169,13 @@ export function GitRepositories(props){
 }
 
 export function ReadyWidget(props) {
-  const { gitRepository, displayMessage } = props
-  const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")]');
+  const { resource, displayMessage, label } = props
+
+  const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
   const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
 
   const ready = readyCondition && readyConditions[0].status === "True" 
-  const readyLabel = ready ? "Ready" : "Not Ready"
+  const readyLabel = ready ? label ? label : "Ready" : "Not Ready"
   const color = ready ? "bg-teal-400" : "bg-orange-400 animate-pulse"
   const messageColor = ready ? "text-neutral-600 field" : "bg-orange-400"
 
@@ -234,22 +232,6 @@ export function ArtifactWidget(props) {
       <a href={`https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a>
     </span>
     </>
-  )
-}
-
-export function HelmStatusWidget(props) {
-  const { helmRelease } = props
-
-  const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")].status');
-  const ready = readyConditions.includes("True")
-
-  const label = ready ? "Installed" : "Not Ready"
-
-  return (
-    <span className="relative">
-      <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
-      <span>{label}</span>
-    </span>
   )
 }
 
