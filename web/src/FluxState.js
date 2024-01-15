@@ -254,4 +254,36 @@ export function HelmRevisionWidget(props) {
   )
 }
 
+export function Summary(props) {
+  const { resources, label } = props;
+
+  if (!resources) {
+    return null;
+  }
+
+  const totalCount = resources.length
+  const readyCount = resources.filter(gitRepository => {
+    const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")]');
+    const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
+    return ready
+  }).length
+
+  const ready = readyCount === totalCount 
+  const readyLabel = ready ? "Ready" : "Not Ready"
+  const color = ready ? "bg-teal-400" : "bg-orange-400 animate-pulse"
+
+  return (
+    <>
+    <div>
+      <span className="font-bold text-neutral-700">{label}:</span>
+      <span className='relative text-neutral-700 ml-5'>
+        <span className={`absolute -left-4 top-1 rounded-full h-3 w-3 ${color} inline-block`}></span>
+        <span>{readyLabel}</span>
+      </span>
+      <span>({readyCount}/{totalCount})</span>
+    </div>
+    </>
+  )
+}
+
 export default FluxState;

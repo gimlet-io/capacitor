@@ -1,7 +1,6 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import React, { memo, useState, useCallback } from 'react';
-import { GitRepositories, Kustomizations, HelmReleases } from './FluxState';
-import jp from 'jsonpath'
+import { GitRepositories, Kustomizations, HelmReleases, Summary } from './FluxState';
 
 const Footer = memo(function Footer(props) {
   
@@ -85,37 +84,6 @@ const Footer = memo(function Footer(props) {
     </div>
   )
 })
-
-function Summary(props) {
-  const { resources, label } = props;
-
-  if (!resources) {
-    return null;
-  }
-
-  const totalCount = resources.length
-  const readyCount = resources.filter(gitRepository => {
-    const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")]');
-    const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
-    return ready
-  }).length
-
-  const ready = readyCount === totalCount 
-  const readyLabel = ready ? "Ready" : "Not Ready"
-
-  return (
-    <>
-    <div>
-      <span className="font-bold text-neutral-700">{label}:</span>
-      <span className='relative text-neutral-700 ml-5'>
-        <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
-        <span>{readyLabel}</span>
-      </span>
-      <span>({readyCount}/{totalCount})</span>
-    </div>
-    </>
-  )
-}
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
