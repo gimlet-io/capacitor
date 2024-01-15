@@ -25,18 +25,6 @@ export function Kustomizations(props){
     <div className="grid gap-y-4 grid-cols-1">
       {
         kustomizations?.map(kustomization => {
-          const message = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].message');
-
-          const readyConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")].status');
-          const ready = readyConditions.includes("True")
-
-          const lastAttemptedRevision = kustomization.status.lastAppliedRevision;
-          const lastAttemptedHash = lastAttemptedRevision ? lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1) : "";
-
-          const parsed = parse(kustomization.status.lastHandledReconcileAt, "yyyy-MM-dd'T'HH:mm:ssXXXXXXXXX", new Date());
-          const dateLabel = "TODO"//formatDistance(parsed, new Date());
-
-          const sourceIsGitRepository = kustomization.spec.sourceRef.kind === "GitRepository";
           const gitRepository = gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
 
           return (
@@ -53,12 +41,11 @@ export function Kustomizations(props){
                 </span>
               </div>
               <div className="col-span-5">
-                <span className="block font-medium text-neutral-700"><ReadyWidget gitRepository={kustomization}/></span>
-                <span className="block text-neutral-600 field">{message}</span>
+                <span className="block"><ReadyWidget gitRepository={kustomization} displayMessage={true}/></span>
               </div>
               <div className="col-span-5">
                 <div className="font-medium text-neutral-700"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
-                <span className='font-mono rounded bg-gray-100 px-1'>{kustomization.spec.path}</span>
+                <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{kustomization.spec.path}</span>
               </div>
             </div>
           )
@@ -119,15 +106,34 @@ export function HelmReleases(props) {
 
 export function RevisionWidget(props) {
   const { kustomization, gitRepository } = props
-  const revision = kustomization.status.lastAppliedRevision
-  const hash = revision ? revision.slice(revision.indexOf(':') + 1) : "";
+  const appliedRevision = kustomization.status.lastAppliedRevision
+  const appliedHash = appliedRevision ? appliedRevision.slice(appliedRevision.indexOf(':') + 1) : "";
+
+  const lastAttemptedRevision = kustomization.status.lastAttemptedRevision
+  const lastAttemptedHash = lastAttemptedRevision ? lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1) : "";
+
+  const readyConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")]');
+  const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
 
   return (
-    <span className="block field">
+    <>
+    { !ready &&
+      <span className='bg-orange-400'>
+        <span>Last Attempted: </span>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
+        <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{lastAttemptedHash.slice(0, 8)}</a></span>
+        <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
+      </span>
+    }
+    <span className={`block ${ready ? '' : 'font-normal text-neutral-600'} field`}>
+      { !ready &&
+      <span>Currently Applied: </span>
+      }
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
-      <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{hash.slice(0, 8)}</a></span>
+      <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{appliedHash.slice(0, 8)}</a></span>
       <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
     </span>
+    </>
   )
 }
 
@@ -200,12 +206,13 @@ export function ReadyWidget(props) {
 }
 
 export function ArtifactWidget(props) {
-  const { gitRepository, displayMessage } = props
+  const { gitRepository } = props
   const artifact = gitRepository.status.artifact
 
   const revision = artifact.revision
   const hash = revision.slice(revision.indexOf(':') + 1);
   const url = gitRepository.spec.url.slice(gitRepository.spec.url.indexOf('@') + 1)
+  const branch = gitRepository.spec.ref.branch
 
   const parsed = Date.parse(artifact.lastUpdateTime, "yyyy-MM-dd'T'HH:mm:ss");
   const comitTimeLabel = formatDistance(parsed, new Date());
@@ -221,7 +228,11 @@ export function ArtifactWidget(props) {
         </a>
       </span>
     </div>
-    <span className="block field text-neutral-600"><a href={`https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a></span>
+    <span className="block field text-neutral-600">
+      <span className='font-mono bg-gray-100 px-1 rounded'>{branch}</span>
+      <span className='px-1'>@</span>
+      <a href={`https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a>
+    </span>
     </>
   )
 }
