@@ -174,6 +174,8 @@ export function ReadyWidget(props) {
 
   const ready = readyCondition && readyConditions[0].status === "True" 
   const readyLabel = ready ? "Ready" : "Not Ready"
+  const color = ready ? "bg-teal-400" : "bg-orange-400 animate-pulse"
+  const messageColor = ready ? "text-neutral-600 field" : "bg-orange-400"
 
   const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
   const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
@@ -183,14 +185,14 @@ export function ReadyWidget(props) {
   return (
     <div className="relative">
       <div className='font-medium text-neutral-700'>
-        <span className="absolute -left-4 top-1 rounded-full h-3 w-3 bg-teal-400 inline-block"></span>
+        <span className={`absolute -left-4 top-1 rounded-full h-3 w-3 ${color} inline-block`}></span>
         <span>{readyLabel}</span>
         {readyCondition &&
         <span title={exactDate}> {readyTransitionTimeLabel} ago</span>
         }
       </div>
       { displayMessage && readyCondition &&
-      <div className="block text-neutral-600 field">
+      <div className={`block ${messageColor}`}>
         {readyCondition.message}
       </div>
       }
