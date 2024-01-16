@@ -268,14 +268,15 @@ function Pod(props) {
 
 function configMaps(pods, namespace, capacitorClient) {
   let configMaps = []
-  pods.forEach((pod) => {
-    const configMapNames = jp.query(pod, '$.spec.volumes[*].configMap.name');
-    configMaps.push(...configMapNames);
-  })
-  pods.forEach((pod) => {
-    const configMapNames = jp.query(pod, '$.spec.containers[*].envFrom[*].configMapRef.name');
-    configMaps.push(...configMapNames);
-  })
+
+  if (pods.length === 0) {
+    return null
+  }
+
+  const configMapNames = jp.query(pods[0], '$.spec.volumes[*].configMap.name');
+  configMaps.push(...configMapNames);
+  const configMapNames2 = jp.query(pods[0], '$.spec.containers[*].envFrom[*].configMapRef.name');
+  configMaps.push(...configMapNames2);
 
   if (configMaps.length === 0) {
     return null
@@ -292,14 +293,15 @@ function configMaps(pods, namespace, capacitorClient) {
 
 function secrets(pods, namespace, capacitorClient) {
   let secrets = []
-  pods.forEach((pod) => {
-    const secretNames = jp.query(pod, '$.spec.volumes[*].secret.secretName');
-    secrets.push(...secretNames)
-  })
-  pods.forEach((pod) => {
-    const configMapNames = jp.query(pod, '$.spec.containers[*].envFrom[*].secretRef.name');
-    secrets.push(...configMapNames);
-  })
+
+  if (pods.length === 0) {
+    return null
+  }
+
+  const secretNames = jp.query(pods[0], '$.spec.volumes[*].secret.secretName');
+  secrets.push(...secretNames)
+  const secretNames2 = jp.query(pods[0], '$.spec.containers[*].envFrom[*].secretRef.name');
+  secrets.push(...secretNames2);
 
   if (secrets.length === 0) {
     return null
