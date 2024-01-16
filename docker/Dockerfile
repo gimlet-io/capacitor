@@ -17,4 +17,4 @@ COPY --chown=capacitor:capacitor web/build ./web/build/
 USER capacitor
 
 EXPOSE 9000
-CMD ["/capacitor"]
+CMD ["/capacitor/capacitor"]
