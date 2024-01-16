@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capacitor
+  namespace: infrastructure
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capacitor
+rules:
+- apiGroups:
+    - networking.k8s.io
+    - apps
+    - ""
+    - source.toolkit.fluxcd.io
+    - kustomize.toolkit.fluxcd.io
+    - helm.toolkit.fluxcd.io
+  resources:
+    - pods
+    - pods/log
+    - ingresses
+    - deployments
+    - services
+    - secrets
+    - events
+    - configmaps
+    - gitrepositories
+    - kustomizations
+    - helmreleases
+  verbs:
+    - get
+    - watch
+    - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capacitor
+subjects:
+  - kind: ServiceAccount
+    name: capacitor
+    namespace: infrastructure
+roleRef:
+  kind: ClusterRole
+  name: capacitor
+  apiGroup: rbac.authorization.k8s.io
