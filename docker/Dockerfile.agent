@@ -1,0 +1,21 @@
+FROM --platform=$TARGETPLATFORM alpine:3
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache bash openssh
+
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+ADD bin/${TARGETPLATFORM}/gimlet-agent /bin/gimlet-agent
+
+RUN addgroup -S gimlet-agent && adduser -S gimlet-agent -G gimlet-agent
+
+ADD docker/dashboard/known_hosts /etc/ssh/ssh_known_hosts
+
+RUN mkdir /var/lib/gimlet-agent
+RUN chown gimlet-agent:gimlet-agent /var/lib/gimlet-agent
+
+USER gimlet-agent
+WORKDIR /var/lib/gimlet-agent
+
+CMD ["/bin/gimlet-agent"]
