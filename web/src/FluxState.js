@@ -109,8 +109,8 @@ export function RevisionWidget(props) {
   fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
   const stalled = fiveMinutesAgo > parsed
 
-  const reconcilingConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Reconciling")]');
-  const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+  // const reconcilingConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Reconciling")]');
+  // const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
   // const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
   return (
