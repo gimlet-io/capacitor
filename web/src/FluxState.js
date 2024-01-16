@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import jp from 'jsonpath'
-import { formatDistance, format, parse } from "date-fns";
+import { formatDistance, format } from "date-fns";
 
 function FluxState(props) {
   const { store } = props
@@ -111,7 +111,7 @@ export function RevisionWidget(props) {
 
   const reconcilingConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Reconciling")]');
   const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
-  const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
+  // const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
   return (
     <>
@@ -119,7 +119,7 @@ export function RevisionWidget(props) {
       <span className='bg-orange-400'>
         <span>Last Attempted: </span>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
-        <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{lastAttemptedHash.slice(0, 8)}</a></span>
+        <span className="pl-1"><a href="https://gimlet.io" target="_blank" rel="noopener noreferrer">{lastAttemptedHash.slice(0, 8)}</a></span>
         <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
       </span>
     }
@@ -128,7 +128,7 @@ export function RevisionWidget(props) {
       <span>Currently Applied: </span>
       }
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
-      <span className="pl-1"><a href="#" target="_blank" rel="noopener noreferrer">{appliedHash.slice(0, 8)}</a></span>
+      <span className="pl-1"><a href="https://gimlet.io" target="_blank" rel="noopener noreferrer">{appliedHash.slice(0, 8)}</a></span>
       <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
     </span>
     </>
@@ -251,7 +251,7 @@ export function HelmRevisionWidget(props) {
 
   const version = helmRelease.status.history[0]
   const appliedRevision = helmRelease.status.lastAppliedRevision
-  const lastAttemptedRevision = helmRelease.status.lastAttemptedRevision
+  // const lastAttemptedRevision = helmRelease.status.lastAttemptedRevision
 
   const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")]');
   const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined

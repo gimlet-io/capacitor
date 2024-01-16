@@ -19,7 +19,7 @@ const lockIcon = (
 );
 
 function Service(props) {
-  const { service, alerts, kustomization, gitRepository, helmRelease, capacitorClient, store } = props;
+  const { service, kustomization, gitRepository, helmRelease, capacitorClient, store } = props;
   const deployment = service.deployment;
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
