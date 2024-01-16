@@ -41,7 +41,7 @@ function FilterInput(props) {
   const [active, setActive] = useState(false)
   const [property, setProperty] = useState("")
   const [value, setValue] = useState("")
-  const properties=["Service", "Namespace", "Owner", "Domain"]
+  const properties=["Service", "Namespace", "Domain"]
   const { addFilter, filterValueByProperty } = props;
 	const inputRef = useRef(null);
 
