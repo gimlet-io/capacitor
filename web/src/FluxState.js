@@ -92,6 +92,7 @@ export function HelmReleases(props) {
 
 export function RevisionWidget(props) {
   const { kustomization, gitRepository } = props
+
   const appliedRevision = kustomization.status.lastAppliedRevision
   const appliedHash = appliedRevision ? appliedRevision.slice(appliedRevision.indexOf(':') + 1) : "";
 
@@ -99,11 +100,22 @@ export function RevisionWidget(props) {
   const lastAttemptedHash = lastAttemptedRevision ? lastAttemptedRevision.slice(lastAttemptedRevision.indexOf(':') + 1) : "";
 
   const readyConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Ready")]');
-  const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
+  const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
+  const ready = readyCondition && readyConditions[0].status === "True"
+
+  const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
+  const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+  const fiveMinutesAgo = new Date();
+  fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+  const stalled = fiveMinutesAgo > parsed
+
+  const reconcilingConditions = jp.query(kustomization.status, '$..conditions[?(@.type=="Reconciling")]');
+  const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+  const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
   return (
     <>
-    { !ready &&
+    { !ready && stalled &&
       <span className='bg-orange-400'>
         <span>Last Attempted: </span>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
@@ -162,29 +174,39 @@ export function ReadyWidget(props) {
 
   const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
   const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
-
-  const ready = readyCondition && readyConditions[0].status === "True" 
-  const readyLabel = ready ? label ? label : "Ready" : "Not Ready"
-  const color = ready ? "bg-teal-400" : "bg-orange-400 animate-pulse"
-  const messageColor = ready ? "text-neutral-600 field" : "bg-orange-400"
+  const ready = readyCondition && readyConditions[0].status === "True"
 
   const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
   const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
   const readyTransitionTimeLabel = formatDistance(parsed, new Date());
   const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
+  const fiveMinutesAgo = new Date();
+  fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+  const stalled = fiveMinutesAgo > parsed
+
+  const reconcilingConditions = jp.query(resource.status, '$..conditions[?(@.type=="Reconciling")]');
+  const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+  const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
+
+  const color = ready ? "bg-teal-400" : reconciling && !stalled ? "bg-blue-400 animate-pulse" : "bg-orange-400 animate-pulse"
+  const statusLabel = ready ? label ? label : "Ready" : reconciling && !stalled ? "Reconciling" : "Error"
+  const messageColor = ready ? "text-neutral-600 field" : reconciling && !stalled ? "text-neutral-600" : "bg-orange-400"
 
   return (
     <div className="relative">
       <div className='font-medium text-neutral-700'>
         <span className={`absolute -left-4 top-1 rounded-full h-3 w-3 ${color} inline-block`}></span>
-        <span>{readyLabel}</span>
+        <span>{statusLabel}</span>
         {readyCondition &&
         <span title={exactDate}> {readyTransitionTimeLabel} ago</span>
         }
       </div>
       { displayMessage && readyCondition &&
       <div className={`block ${messageColor}`}>
-        {readyCondition.message}
+        { reconciling &&
+        <p>{reconcilingCondition.message}</p>
+        }
+        <p>{readyCondition.message}</p>
       </div>
       }
     </div>
@@ -232,17 +254,35 @@ export function HelmRevisionWidget(props) {
   const lastAttemptedRevision = helmRelease.status.lastAttemptedRevision
 
   const readyConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Ready")]');
-  const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
+  const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
+  const ready = readyConditions.length === 1 && readyConditions[0].status === "True"
+
+  const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
+  const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+  const fiveMinutesAgo = new Date();
+  fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+  const stalled = fiveMinutesAgo > parsed
+
+  const reconcilingConditions = jp.query(helmRelease.status, '$..conditions[?(@.type=="Reconciling")]');
+  const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+  const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
   return (
     <>
-    { !ready &&
-      <span className='bg-orange-400'>
-        <span>Last Attempted: </span>
-        <span>{lastAttemptedRevision}@{version.chartName}</span>
+    { !ready && reconciling && !stalled &&
+      <span>
+        <span>Attempting: </span>
+        <span>{helmRelease.spec.chart.spec.version}@{helmRelease.spec.chart.spec.chart}</span>
       </span>
     }
-    <span className={`block ${ready ? '' : 'font-normal text-neutral-600'} field`}>
+    { !ready && stalled &&
+      <span className='bg-orange-400'>
+        <span>Last Attempted: </span>
+        {/* <span>{lastAttemptedRevision}@{version.chartName}</span> */}
+        <span>{helmRelease.spec.chart.spec.version}@{helmRelease.spec.chart.spec.chart}</span>
+      </span>
+    }
+    <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
       <span>Currently Installed: </span>
       <span>{appliedRevision}@{version.chartName}</span>
     </span>
@@ -289,15 +329,38 @@ export function Summary(props) {
   }
 
   const totalCount = resources.length
-  const readyCount = resources.filter(gitRepository => {
-    const readyConditions = jp.query(gitRepository.status, '$..conditions[?(@.type=="Ready")]');
-    const ready = readyConditions.length === 1 && readyConditions[0].status === "True" 
+  const readyCount = resources.filter(resourece => {
+    const readyConditions = jp.query(resourece.status, '$..conditions[?(@.type=="Ready")]');
+    const ready = readyConditions.length === 1 && readyConditions[0].status === "True"
     return ready
   }).length
+  const reconcilingCount = resources.filter(resourece => {
+    const readyConditions = jp.query(resourece.status, '$..conditions[?(@.type=="Reconciling")]');
+    const ready = readyConditions.length === 1 && readyConditions[0].status === "True"
+    return ready
+  }).length
+  const stalledCount = resources.filter(resourece => {
+    const readyConditions = jp.query(resourece.status, '$..conditions[?(@.type=="Ready")]');
+    const ready = readyConditions.length === 1 && readyConditions[0].status === "True"
+    if (ready) {
+      return false
+    }
 
-  const ready = readyCount === totalCount 
-  const readyLabel = ready ? "Ready" : "Not Ready"
-  const color = ready ? "bg-teal-400" : "bg-orange-400 animate-pulse"
+    const readyTransitionTime = readyConditions.length === 1 ? readyConditions[0].lastTransitionTime : undefined
+    const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+
+    const fiveMinutesAgo = new Date();
+    fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+    const stalled = fiveMinutesAgo > parsed
+
+    return stalled
+  }).length
+
+  const ready = readyCount === totalCount
+  const reconciling = reconcilingCount > 0
+  const stalled = stalledCount > 0
+  const readyLabel = ready ? "Ready" : reconciling && !stalled ? "Reconciling" : "Error"
+  const color = ready ? "bg-teal-400" : reconciling && !stalled ? "bg-blue-400 animate-pulse" : "bg-orange-400 animate-pulse"
 
   return (
     <>
