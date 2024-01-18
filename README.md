@@ -64,10 +64,10 @@ Capacitor wants to be more than a tool that displays Flux's CRDs in tables. Capa
 
 ## Roadmap
 
-  - Flux CRD data ("sync state") backend
-  - Flux CRD data ("sync state") frontend
-  - UI for kubernetes resources deployed by Flux
-  - Quick actions: logs, events, describe, port-forward
+  - DONE: Flux CRD data ("sync state") backend
+  - DONE: Flux CRD data ("sync state") frontend
+  - DONE: UI for kubernetes resources deployed by Flux
+  - DONE: Quick actions: logs, events, describe, port-forward
   - Displaying Errors
   - Error notifications
   - Support for environments
