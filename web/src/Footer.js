@@ -50,7 +50,7 @@ const Footer = memo(function Footer(props) {
       {expanded &&
         <div className="flex w-full h-full">
           <div>
-            <div className="w-48 px-4 border-r border-neutral-300">
+            <div className="w-56 px-4 border-r border-neutral-300">
               <SideBar
                 navigation={[
                   { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
