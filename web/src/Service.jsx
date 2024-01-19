@@ -75,7 +75,7 @@ function Service(props) {
                   }
                 </div>
                 {(configMapWidgets || secretWidgets) &&
-                <div>
+                <div className='text-base text-neutral-600'>
                   <p className="text-base text-neutral-600">Dependencies</p>
                   <div className='grid grid-cols-4 gap-2'>
                     {configMapWidgets}
@@ -283,11 +283,11 @@ function configMaps(pods, namespace, capacitorClient) {
   }
 
   return (
-    <div className='block text-base text-neutral-600'>
+    <>
       {configMaps.map(configMap => {
         return <ConfigMap key={configMap} name={configMap} namespace={namespace} capacitorClient={capacitorClient} />
       })}
-    </div>
+    </>
   )
 }
 
@@ -308,11 +308,11 @@ function secrets(pods, namespace, capacitorClient) {
   }
 
   return (
-    <div className='text-base text-neutral-600'>
+    <>
       {secrets.map(secret => {
         return <Secret key={secret} name={secret} namespace={namespace} capacitorClient={capacitorClient} />
       })}
-    </div>
+    </>
   )
 }
 

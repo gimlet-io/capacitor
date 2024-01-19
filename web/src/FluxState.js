@@ -62,7 +62,6 @@ export function HelmReleases(props) {
     <div className="grid gap-y-4 grid-cols-1">
       {
         helmReleases?.map(helmRelease => {
-          console.log(helmRelease)
           return (
             <div
               className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
