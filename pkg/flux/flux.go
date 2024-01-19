@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
@@ -95,7 +96,11 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 		if item.GroupKind.Kind == "Service" {
 			svc, err := c.CoreV1().Services(item.Namespace).Get(context.TODO(), item.Name, metav1.GetOptions{})
 			if err != nil {
-				return nil, err
+				if strings.Contains(err.Error(), "not found") {
+					continue
+				} else {
+					return nil, err
+				}
 			}
 
 			services = append(services, Service{
