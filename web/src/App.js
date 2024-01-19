@@ -6,7 +6,7 @@ import { rootReducer } from './redux';
 import Footer from "./Footer";
 import FilterBar from "./FilterBar";
 import Services from "./Services";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -17,6 +17,21 @@ function App() {
 
   const store = createStore(rootReducer);
   const [filters, setFilters] = useState(JSON.parse(localStorage.getItem("filters")) ?? [])
+  const [expanded, setExpanded] = useState(false);
+  const [selected, setSelected] = useState('Kustomizations');
+  const [targetReference, setTargetReference] = useState("")
+
+  const handleNavigationSelect = useCallback((selectedNav, ref) => {
+    setExpanded(true)
+    setSelected(selectedNav);
+    setTargetReference(ref)
+  },
+    [setSelected, setTargetReference]
+  )
+
+  const handleToggle = () => {
+    setExpanded(!expanded)
+  }
 
   useEffect(() => {
     localStorage.setItem("filters", JSON.stringify(filters));
@@ -58,10 +73,22 @@ function App() {
         />
       </div>
       <div className="grid grid-cols-1 gap-y-4 pb-32">
-        <Services capacitorClient={capacitorClient} store={store} filters={filters} />
+        <Services
+          capacitorClient={capacitorClient}
+          store={store}
+          filters={filters}
+          handleNavigationSelect={handleNavigationSelect}
+        />
       </div>
     </div>
-    <Footer store={store} />
+    <Footer
+      store={store}
+      expanded={expanded}
+      selected={selected}
+      targetReference={targetReference}
+      handleToggle={handleToggle}
+      handleNavigationSelect={handleNavigationSelect}
+    />
     </>
   );
 }

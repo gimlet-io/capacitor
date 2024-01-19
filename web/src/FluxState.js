@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import jp from 'jsonpath'
 import { formatDistance, format } from "date-fns";
 
@@ -17,81 +17,105 @@ function FluxState(props) {
 }
 
 export function Kustomizations(props){
-  const { fluxState } = props
+  const { fluxState, targetReference, handleNavigationSelect } = props
   const kustomizations = fluxState.kustomizations;
   const gitRepositories = fluxState.gitRepositories
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        kustomizations?.map(kustomization => {
-          const gitRepository = gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
-
-          return (
-            <div
-              className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
-              key={`${kustomization.metadata.namespace}/${kustomization.metadata.name}`}
-              >
-              <div className="col-span-2">
-                <span className="block font-medium text-black">
-                  {kustomization.metadata.name}
-                </span>
-                <span className="block text-neutral-600">
-                  {kustomization.metadata.namespace}
-                </span>
-              </div>
-              <div className="col-span-5">
-                <span className="block"><ReadyWidget resource={kustomization} displayMessage={true} label="Applied" /></span>
-              </div>
-              <div className="col-span-5">
-                <div className="font-medium text-neutral-700"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} /></div>
-                <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{kustomization.spec.path}</span>
-              </div>
-            </div>
-          )
-        })
+        kustomizations?.map(kustomization => <Kustomization item={kustomization} gitRepositories={gitRepositories} handleNavigationSelect={handleNavigationSelect} targetReference={targetReference} />)
       }
+    </div>
+  )
+}
+
+function Kustomization(props) {
+  const { item, gitRepositories, targetReference, handleNavigationSelect } = props;
+  const ref = useRef(null);
+  const [highlight, setHighlight] = useState(false)
+
+  useEffect(() => {
+    setHighlight(targetReference === item.metadata.name);
+    if (targetReference === item.metadata.name) {
+      ref.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [item.metadata.name, targetReference]);
+
+  const gitRepository = gitRepositories.find((g) => g.metadata.name === item.spec.sourceRef.name)
+
+  return (
+    <div
+      className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
+      key={`${item.metadata.namespace}/${item.metadata.name}`}
+      >
+      <div className="col-span-2">
+        <span className="block font-medium text-black">
+          {item.metadata.name}
+        </span>
+        <span className="block text-neutral-600">
+          {item.metadata.namespace}
+        </span>
+      </div>
+      <div className="col-span-5">
+        <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Applied" /></span>
+      </div>
+      <div className="col-span-5">
+        <div className="font-medium text-neutral-700"><RevisionWidget kustomization={item} gitRepository={gitRepository} handleNavigationSelect={handleNavigationSelect} /></div>
+        <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{item.spec.path}</span>
+      </div>
     </div>
   )
 }
 
 export function HelmReleases(props) {
-  const { helmReleases } = props
+  const { helmReleases, targetReference, handleNavigationSelect } = props
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        helmReleases?.map(helmRelease => {
-          console.log(helmRelease)
-          return (
-            <div
-              className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
-              key={`hr-${helmRelease.metadata.namespace}/${helmRelease.metadata.name}`}
-              >
-              <div className="col-span-2">
-                <span className="block font-medium text-black">
-                  {helmRelease.metadata.name}
-                </span>
-                <span className="block text-neutral-600">
-                  {helmRelease.metadata.namespace}
-                </span>
-              </div>
-              <div className="col-span-5">
-                <span className="block"><ReadyWidget resource={helmRelease} displayMessage={true} label="Installed" /></span>
-              </div>
-              <div className="col-span-5">
-                <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={helmRelease} withHistory={true} /></div>
-              </div>
-            </div>
-          )
-        })
-      }
+        helmReleases?.map(helmRelease => <HelmRelease item={helmRelease} handleNavigationSelect={handleNavigationSelect} targetReference={targetReference} />)}
     </div>
   )
 }
 
+function HelmRelease(props) {
+  const { item, targetReference, handleNavigationSelect } = props;
+  const ref = useRef(null);
+  const [highlight, setHighlight] = useState(false)
+
+  useEffect(() => {
+    setHighlight(targetReference === item.metadata.name);
+    if (targetReference === item.metadata.name) {
+      ref.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [item.metadata.name, targetReference]);
+
+  return (
+    <div
+      ref={ref}
+      className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
+      key={`hr-${item.metadata.namespace}/${item.metadata.name}`}
+    >
+      <div className="col-span-2">
+        <span className="block font-medium text-black">
+          {item.metadata.name}
+        </span>
+        <span className="block text-neutral-600">
+          {item.metadata.namespace}
+        </span>
+      </div>
+      <div className="col-span-5">
+        <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Installed" /></span>
+      </div>
+      <div className="col-span-5">
+        <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
+      </div>
+    </div>)
+}
+
 export function RevisionWidget(props) {
-  const { kustomization, gitRepository } = props
+  const { kustomization, gitRepository, handleNavigationSelect } = props
 
   const appliedRevision = kustomization.status.lastAppliedRevision
   const appliedHash = appliedRevision ? appliedRevision.slice(appliedRevision.indexOf(':') + 1) : "";
@@ -120,7 +144,9 @@ export function RevisionWidget(props) {
         <span>Last Attempted: </span>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
         <span className="pl-1"><a href="https://gimlet.io" target="_blank" rel="noopener noreferrer">{lastAttemptedHash.slice(0, 8)}</a></span>
-        <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
+        <NavigationButton handleNavigation={() => handleNavigationSelect("Kustomizations", gitRepository.metadata.name)}>
+          &nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})
+        </NavigationButton>
       </span>
     }
     <span className={`block ${ready ? '' : 'font-normal text-neutral-600'} field`}>
@@ -129,42 +155,58 @@ export function RevisionWidget(props) {
       }
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
       <span className="pl-1"><a href="https://gimlet.io" target="_blank" rel="noopener noreferrer">{appliedHash.slice(0, 8)}</a></span>
-      <span>&nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})</span>
+      <NavigationButton handleNavigation={() => handleNavigationSelect("Kustomizations", gitRepository.metadata.name)}>
+        &nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})
+      </NavigationButton>
     </span>
     </>
   )
 }
 
 export function GitRepositories(props){
-  const { gitRepositories } = props
+  const { gitRepositories, targetReference } = props
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        gitRepositories?.map(gitRepository => {
-          return (
-            <div 
-              className="rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"
-              key={`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`}
-              >
-              <div className="col-span-2">
-                <span className="block font-medium text-black">
-                  {gitRepository.metadata.name}
-                </span>
-                <span className="block text-neutral-600">
-                  {gitRepository.metadata.namespace}
-                </span>
-              </div>
-              <div className="col-span-5">
-                <ReadyWidget resource={gitRepository} displayMessage={true}/>
-              </div>
-              <div className="col-span-5">
-                <ArtifactWidget gitRepository={gitRepository} displayMessage={true}/>
-              </div>
-            </div>
-          )
-        })
+        gitRepositories?.map(gitRepository => <GitRepository item={gitRepository} targetReference={targetReference} />)
       }
+    </div>
+  )
+}
+
+function GitRepository(props) {
+  const { item, targetReference } = props;
+  const ref = useRef(null);
+  const [highlight, setHighlight] = useState(false)
+
+  useEffect(() => {
+    setHighlight(targetReference === item.metadata.name);
+    if (targetReference === item.metadata.name) {
+      ref.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [item.metadata.name, targetReference]);
+
+  return (
+    <div
+      ref={ref}
+      className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
+      key={`${item.metadata.namespace}/${item.metadata.name}`}
+      >
+      <div className="col-span-2">
+        <span className="block font-medium text-black">
+          {item.metadata.name}
+        </span>
+        <span className="block text-neutral-600">
+          {item.metadata.namespace}
+        </span>
+      </div>
+      <div className="col-span-5">
+        <ReadyWidget resource={item} displayMessage={true}/>
+      </div>
+      <div className="col-span-5">
+        <ArtifactWidget gitRepository={item} displayMessage={true}/>
+      </div>
     </div>
   )
 }
@@ -247,7 +289,7 @@ export function ArtifactWidget(props) {
 }
 
 export function HelmRevisionWidget(props) {
-  const { helmRelease, withHistory } = props
+  const { helmRelease, withHistory, handleNavigationSelect } = props
 
   const version = helmRelease.status.history[0]
   const appliedRevision = helmRelease.status.lastAppliedRevision
@@ -284,7 +326,9 @@ export function HelmRevisionWidget(props) {
     }
     <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
       <span>Currently Installed: </span>
-      <span>{appliedRevision}@{version.chartName}</span>
+      <NavigationButton handleNavigation={() => handleNavigationSelect("Helm Releases", helmRelease.metadata.name)}>
+        {appliedRevision}@{version.chartName}
+      </NavigationButton>
     </span>
     { withHistory &&
     <div className='pt-1 text-sm'>
@@ -306,7 +350,7 @@ export function HelmRevisionWidget(props) {
         const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
 
         return (
-          <p className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
+          <p key={`${release.chartVersion}@${release.chartName}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
             <span>{release.chartVersion}@{release.chartName}</span>
             <span title={exactDate} className='pl-1'>{deployTimeLabel} ago</span>
             <span className='pl-1'>{statusLabel}</span>
@@ -320,6 +364,15 @@ export function HelmRevisionWidget(props) {
 
   )
 }
+
+function NavigationButton(props) {
+  const {handleNavigation, children} = props;
+  return (
+    <button className="hover:text-neutral-700" onClick={handleNavigation}>
+      <span>{children}</span>
+    </button>
+  );
+};
 
 export function Summary(props) {
   const { resources, label } = props;
