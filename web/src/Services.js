@@ -43,6 +43,10 @@ const findServiceInInventory = (kustomizations, service) => {
   const serviceKey = `${service.svc.metadata.namespace}_${service.svc.metadata.name}__Service`
 
   for (const k of kustomizations) {
+    if (!k.status.inventory) {
+      continue
+    }
+
     const inInventory = k.status.inventory.entries.find((elem) => elem.id === serviceKey)
     if (inInventory) {
       return k
