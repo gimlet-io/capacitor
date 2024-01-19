@@ -249,7 +249,7 @@ export function ArtifactWidget(props) {
 export function HelmRevisionWidget(props) {
   const { helmRelease, withHistory } = props
 
-  const version = helmRelease.status.history[0]
+  const version = helmRelease.status.history ? helmRelease.status.history[0] : undefined
   const appliedRevision = helmRelease.status.lastAppliedRevision
   // const lastAttemptedRevision = helmRelease.status.lastAttemptedRevision
 
@@ -284,11 +284,11 @@ export function HelmRevisionWidget(props) {
     }
     <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
       <span>Currently Installed: </span>
-      <span>{appliedRevision}@{version.chartName}</span>
+      <span>{appliedRevision}@{version && version.chartName}</span>
     </span>
     { withHistory &&
     <div className='pt-1 text-sm'>
-      {helmRelease.status.history.map((release) => {
+      {helmRelease.status.history && helmRelease.status.history.map((release) => {
         const current = release.status === "deployed"
 
         let statusLabel = ""
