@@ -324,7 +324,7 @@ function TimeLabel(props) {
   useEffect(() => {
     const interval = setInterval(() => {
       setLabel(formatDistance(date, new Date()));
-    }, 1000);
+    }, 60 * 1000);
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
