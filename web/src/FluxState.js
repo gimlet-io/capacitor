@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { Kustomization } from './Kustomization.jsx'
 import { ReadyWidget } from './ReadyWidget'
 import { TimeLabel } from './TimeLabel'
-import { NavigationButton } from './NavigationButton'
 
 function FluxState(props) {
   const { store } = props
@@ -218,9 +217,7 @@ export function HelmRevisionWidget(props) {
     }
     <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
       <span>Currently Installed: </span>
-      <NavigationButton handleNavigation={() => handleNavigationSelect("Helm Releases", helmRelease.metadata.name)}>
         {appliedRevision}@{version && version.chartName}
-      </NavigationButton>
     </span>
     { withHistory &&
     <div className='pt-1 text-sm'>
