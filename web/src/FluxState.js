@@ -266,6 +266,11 @@ export function Summary(props) {
     const ready = readyConditions.length === 1 && readyConditions[0].status === "True"
     return ready
   }).length
+  const dependencyNotReadyCount = resources.filter(resourece => {
+    const readyConditions = jp.query(resourece.status, '$..conditions[?(@.type=="Ready")]');
+    const dependencyNotReady = readyConditions.length === 1 && readyConditions[0].reason === "DependencyNotReady"
+    return dependencyNotReady
+  }).length
   const reconcilingCount = resources.filter(resourece => {
     const readyConditions = jp.query(resourece.status, '$..conditions[?(@.type=="Reconciling")]');
     const ready = readyConditions.length === 1 && readyConditions[0].status === "True"
@@ -289,7 +294,7 @@ export function Summary(props) {
   }).length
 
   const ready = readyCount === totalCount
-  const reconciling = reconcilingCount > 0
+  const reconciling = reconcilingCount > 0 || dependencyNotReadyCount > 0
   const stalled = stalledCount > 0
   const readyLabel = ready ? "Ready" : reconciling && !stalled ? "Reconciling" : "Error"
   const color = ready ? "bg-teal-400" : reconciling && !stalled ? "bg-blue-400 animate-pulse" : "bg-orange-400 animate-pulse"
