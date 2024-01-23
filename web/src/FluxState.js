@@ -180,7 +180,7 @@ export function ArtifactWidget(props) {
 }
 
 export function HelmRevisionWidget(props) {
-  const { helmRelease, withHistory, handleNavigationSelect } = props
+  const { helmRelease, withHistory } = props
 
   const version = helmRelease.status.history ? helmRelease.status.history[0] : undefined
   const appliedRevision = helmRelease.status.lastAppliedRevision

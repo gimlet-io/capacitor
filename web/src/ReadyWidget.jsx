@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useRef } from 'react';
 import jp from 'jsonpath'
 import { format } from "date-fns";
 import { TimeLabel } from './TimeLabel'
