@@ -55,7 +55,7 @@ function Service(props) {
                   <Logs
                     capacitorClient={capacitorClient}
                     store={store}
-                    service={service.svc}
+                    deployment={deployment}
                   />
                   <Describe
                     capacitorClient={capacitorClient}

@@ -40,8 +40,8 @@ function podLogsReceived(state, event) {
   const pod = event.pod + "/" + event.container;
   assignContainerTextColors(state, pod)
 
-  if (!state.podLogs[event.svc]) {
-    state.podLogs[event.svc] = [];
+  if (!state.podLogs[event.deployment]) {
+    state.podLogs[event.deployment] = [];
   }
 
   const line = {
@@ -49,8 +49,8 @@ function podLogsReceived(state, event) {
     timestamp: new Date(event.timestamp),
     content: `[${pod}] ${event.message}`
   };
-  state.podLogs[event.svc].push(line);
-  state.podLogs[event.svc].sort((a, b) => a.timestamp - b.timestamp);
+  state.podLogs[event.deployment].push(line);
+  state.podLogs[event.deployment].sort((a, b) => a.timestamp - b.timestamp);
 
   return state;
 }

@@ -128,7 +128,7 @@ func describeDeployment(w http.ResponseWriter, r *http.Request) {
 
 func streamLogs(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
-	svc := r.URL.Query().Get("serviceName")
+	deployment := r.URL.Query().Get("deploymentName")
 	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
 	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
 	client, _ := r.Context().Value("client").(*kubernetes.Clientset)
@@ -138,7 +138,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		client,
 		dynamicClient,
 		namespace,
-		svc,
+		deployment,
 		clientHub,
 		runningLogStreams,
 	)
@@ -149,10 +149,10 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 
 func stopLogs(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
-	svc := r.URL.Query().Get("serviceName")
+	deployment := r.URL.Query().Get("deploymentName")
 	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
 
-	runningLogStreams.Stop(namespace, svc)
+	runningLogStreams.Stop(namespace, deployment)
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("{}"))

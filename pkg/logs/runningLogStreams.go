@@ -13,21 +13,21 @@ func NewRunningLogStreams() *RunningLogStreams {
 	}
 }
 
-func (l *RunningLogStreams) register(namespace string, serviceName string) chan int {
-	svc := namespace + "/" + serviceName
+func (l *RunningLogStreams) register(namespace string, deploymentName string) chan int {
+	deployment := namespace + "/" + deploymentName
 	stopCh := make(chan int)
 
 	l.lock.Lock()
-	l.runningLogStreams[svc] = stopCh
+	l.runningLogStreams[deployment] = stopCh
 	l.lock.Unlock()
 
 	return stopCh
 }
 
-func (l *RunningLogStreams) Stop(namespace string, serviceName string) {
+func (l *RunningLogStreams) Stop(namespace string, deploymentName string) {
 	l.lock.Lock()
-	for svc, stopCh := range l.runningLogStreams {
-		if svc == namespace+"/"+serviceName {
+	for deployment, stopCh := range l.runningLogStreams {
+		if deployment == namespace+"/"+deploymentName {
 			stopCh <- 0
 		}
 	}
