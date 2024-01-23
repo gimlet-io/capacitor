@@ -42,8 +42,6 @@ export function Kustomizations(props){
   )
 }
 
-
-
 export function HelmReleases(props) {
   const { helmReleases, targetReference, handleNavigationSelect } = props
 
