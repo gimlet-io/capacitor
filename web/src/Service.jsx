@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { RevisionWidget, ReadyWidget, HelmRevisionWidget } from './FluxState';
+import { HelmRevisionWidget } from './FluxState';
+import { ReadyWidget } from './ReadyWidget';
+import { RevisionWidget } from './Kustomization'
 import jp from 'jsonpath';
 import { Logs } from './Logs'
 import { Describe } from './Describe'

@@ -57,7 +57,7 @@ const Footer = memo(function Footer(props) {
 
           <div className="w-full px-4 overflow-x-hidden overflow-y-scroll">
             <div className="w-full max-w-6xl mx-auto flex-col h-full">
-              <div className="pb-24">
+              <div className="pb-24 pt-2">
               { selected === "Kustomizations" &&
                 <Kustomizations fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
               }
