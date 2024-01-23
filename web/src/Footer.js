@@ -1,11 +1,10 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import React, { memo, useState } from 'react';
 import { GitRepositories, Kustomizations, HelmReleases, Summary } from './FluxState';
+import { CompactServices } from './Services';
 
 const Footer = memo(function Footer(props) {
-  
-  const { store, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
-
+  const { store, capacitorClient, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setFluxState(store.getState().fluxState))
 
@@ -47,7 +46,7 @@ const Footer = memo(function Footer(props) {
                   { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
                   { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
-                  { name: 'Flux Runtime', href: '#' },
+                  { name: 'Flux Runtime', href: '#', count: fluxState.fluxServices.length },
                 ]}
                 selectedMenu={handleNavigationSelect}
                 selected={selected}
@@ -66,6 +65,9 @@ const Footer = memo(function Footer(props) {
               }
               { selected === "Sources" &&
                 <GitRepositories gitRepositories={fluxState.gitRepositories} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
+              }
+              { selected === "Flux Runtime" &&
+                <CompactServices capacitorClient={capacitorClient} store={store} services={fluxState.fluxServices} />
               }
               </div>
             </div>

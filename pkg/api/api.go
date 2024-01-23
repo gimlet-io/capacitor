@@ -18,8 +18,9 @@ import (
 
 func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
 	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
+	client, _ := r.Context().Value("client").(*kubernetes.Clientset)
 
-	fluxState, err := flux.State(dynamicClient)
+	fluxState, err := flux.State(client, dynamicClient)
 	if err != nil {
 		logrus.Errorf(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

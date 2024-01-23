@@ -12,6 +12,7 @@ type FluxState struct {
 	GitRepositories []sourcev1.GitRepository        `json:"gitRepositories"`
 	Kustomizations  []kustomizationv1.Kustomization `json:"kustomizations"`
 	HelmReleases    []helmv2beta1.HelmRelease       `json:"helmReleases"`
+	FluxServices    []Service                       `json:"fluxServices"`
 }
 
 type Service struct {

@@ -1,5 +1,6 @@
 import React, { memo, useState } from 'react';
 import Service from "./Service";
+import { CompactService } from './Service';
 
 const Services = memo(function Services(props) {
   const { capacitorClient, store, filters, handleNavigationSelect } = props
@@ -39,6 +40,34 @@ const Services = memo(function Services(props) {
 })
 
 export default Services;
+
+export const CompactServices = memo(function CompactServices(props) {
+  const { capacitorClient, store, services } = props
+  const [fluxState, setFluxState] = useState(store.getState().fluxState);
+  store.subscribe(() => setFluxState(store.getState().fluxState));
+
+  return (
+    <div className="grid gap-y-4 grid-cols-1">
+      {
+        services?.map((service) => {
+          const kustomization = findServiceInInventory(fluxState.kustomizations, service)
+          const gitRepository = fluxState.gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
+
+          return (
+            <CompactService
+              key={`${service.svc.metadata.namespace}/${service.svc.metadata.name}`}
+              service={service}
+              kustomization={kustomization}
+              gitRepository={gitRepository}
+              capacitorClient={capacitorClient}
+              store={store}
+            />
+          )
+        })
+      }
+    </div>
+  )
+})
 
 const findServiceInInventory = (kustomizations, service) => {
   const serviceKey = `${service.svc.metadata.namespace}_${service.svc.metadata.name}__Service`

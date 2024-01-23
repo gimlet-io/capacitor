@@ -82,6 +82,7 @@ function App() {
       </div>
     </div>
     <Footer
+      capacitorClient={capacitorClient}
       store={store}
       expanded={expanded}
       selected={selected}

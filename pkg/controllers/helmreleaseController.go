@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 var helmReleaseResource = schema.GroupVersionResource{
@@ -17,6 +18,7 @@ var helmReleaseResource = schema.GroupVersionResource{
 }
 
 func HelmReleaseController(
+	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
 ) *Controller {
@@ -31,7 +33,7 @@ func HelmReleaseController(
 			case "update":
 				fallthrough
 			case "delete":
-				fluxState, err := flux.State(dynamicClient)
+				fluxState, err := flux.State(client, dynamicClient)
 				if err != nil {
 					panic(err.Error())
 				}
