@@ -131,7 +131,8 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 	for idx, service := range services {
 		for _, deployment := range deploymentsInNamespaces[service.Svc.Namespace] {
 			if k8s.SelectorsMatch(deployment.Spec.Selector.MatchLabels, service.Svc.Spec.Selector) {
-				services[idx].Deployment = &deployment
+				d := deployment
+				services[idx].Deployment = &d
 			}
 		}
 	}
