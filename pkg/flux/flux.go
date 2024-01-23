@@ -358,39 +358,39 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 
 func fluxServicesWithDetails(c *kubernetes.Clientset) ([]Service, error) {
 	services := []Service{}
-	svc, err := c.CoreV1().Services("flux-system").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, service := range svc.Items {
-		services = append(services, Service{
-			Svc: service,
-		})
-	}
-
 	deployments, err := c.AppsV1().Deployments("flux-system").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
+	for _, d := range deployments.Items {
+		deployment := d
+		services = append(services, Service{
+			Deployment: &deployment,
+		})
+	}
+
+	svc, err := c.CoreV1().Services("flux-system").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
 	for idx, service := range services {
-		for _, d := range deployments.Items {
-			if k8s.SelectorsMatch(d.Spec.Selector.MatchLabels, service.Svc.Spec.Selector) {
-				deployment := d
-				services[idx].Deployment = &deployment
+		for _, s := range svc.Items {
+			if k8s.SelectorsMatch(service.Deployment.Spec.Selector.MatchLabels, s.Spec.Selector) {
+				services[idx].Svc = s
 			}
 		}
 	}
 
-	pods, err := c.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	pods, err := c.CoreV1().Pods("flux-system").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	for idx, service := range services {
 		services[idx].Pods = []v1.Pod{}
 		for _, pod := range pods.Items {
-			if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, service.Svc.Spec.Selector) {
+			if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, service.Deployment.Spec.Selector.MatchLabels) {
 				services[idx].Pods = append(services[idx].Pods, pod)
 			}
 		}

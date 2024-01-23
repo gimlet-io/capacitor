@@ -241,24 +241,25 @@ function Service(props) {
 export default Service;
 
 export function CompactService(props) {
-  const { service, kustomization, gitRepository, capacitorClient, store } = props;
+  const { service, capacitorClient, store } = props;
+  const deployment = service.deployment;
 
   return (
     <div className="w-full flex items-center justify-between space-x-6 bg-white pb-6 rounded-lg border border-neutral-300 shadow-lg">
       <div className="flex-1">
         <h3 className="flex text-lg font-bold rounded p-4">
-          <span className="cursor-pointer">{service.svc.metadata.name}</span>
+          <span className="cursor-pointer">{deployment.metadata.name}</span>
           <div className="flex items-center ml-auto space-x-2">
-            {service.deployment &&
+            {deployment &&
               <>
                 <Logs
                   capacitorClient={capacitorClient}
                   store={store}
-                  service={service.svc}
+                  deployment={deployment}
                 />
                 <Describe
                   capacitorClient={capacitorClient}
-                  deployment={service.deployment}
+                  deployment={deployment}
                 />
               </>
             }
@@ -266,7 +267,7 @@ export function CompactService(props) {
         </h3>
         <div>
           <div className="grid grid-cols-12 mt-4 px-4">
-            <div className="col-span-5 border-r space-y-4">
+            <div className="col-span-5 space-y-4">
               <div>
                 <p className="text-base text-neutral-600">Pods</p>
                 {
@@ -274,16 +275,6 @@ export function CompactService(props) {
                     <Pod key={pod.metadata.name} pod={pod} />
                   ))
                 }
-              </div>
-            </div>
-            <div className="col-span-7 space-y-4 pl-2">
-              {service.deployment &&
-                <div>
-                  <ReadyWidget resource={gitRepository} displayMessage={true} />
-                </div>
-              }
-              <div>
-                <span className="block"><ReadyWidget resource={kustomization} displayMessage={true} label="Applied" /></span>
               </div>
             </div>
           </div>

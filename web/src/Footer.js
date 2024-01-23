@@ -1,7 +1,6 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import React, { memo, useState } from 'react';
-import { GitRepositories, Kustomizations, HelmReleases, Summary } from './FluxState';
-import { CompactServices } from './Services';
+import { GitRepositories, Kustomizations, HelmReleases, CompactServices, Summary } from './FluxState';
 
 const Footer = memo(function Footer(props) {
   const { store, capacitorClient, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
