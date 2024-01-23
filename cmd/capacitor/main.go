@@ -56,7 +56,7 @@ func main() {
 
 	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {
-		err = http.ListenAndServe(":9001", r)
+		err = http.ListenAndServe(":9000", r)
 		if err != nil {
 			panic(err)
 		}
