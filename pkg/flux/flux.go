@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
+	"time"
 
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
@@ -87,32 +87,43 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, error) {
 	services := []Service{}
 
+	t0 := time.Now().UnixMilli()
 	inventory, err := inventory(dc)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("inventory: %d", time.Now().UnixMilli()-t0)
 
+	t0 = time.Now().UnixMilli()
+	servicesInNamespaces := map[string][]v1.Service{}
 	for _, item := range inventory {
 		if item.GroupKind.Kind == "Service" {
-			svc, err := c.CoreV1().Services(item.Namespace).Get(context.TODO(), item.Name, metav1.GetOptions{})
-			if err != nil {
-				if strings.Contains(err.Error(), "not found") {
-					continue
-				} else {
+			if _, ok := servicesInNamespaces[item.Namespace]; !ok {
+				services, err := c.CoreV1().Services(item.Namespace).List(context.TODO(), metav1.ListOptions{})
+				if err != nil {
 					return nil, err
 				}
+				servicesInNamespaces[item.Namespace] = services.Items
 			}
 
-			services = append(services, Service{
-				Svc: *svc,
-			})
+			for _, svc := range servicesInNamespaces[item.Namespace] {
+				if svc.ObjectMeta.Namespace == item.Namespace &&
+					svc.ObjectMeta.Name == item.Name {
+					services = append(services, Service{
+						Svc: svc,
+					})
+				}
+			}
 		}
 	}
+	fmt.Printf("services: %d", time.Now().UnixMilli()-t0)
 
+	t0 = time.Now().UnixMilli()
 	helmServices, err := helmServices(dc)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("helm services: %d", time.Now().UnixMilli()-t0)
 
 	services = append(services, helmServices...)
 
