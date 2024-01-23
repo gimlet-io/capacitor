@@ -2,6 +2,34 @@
 
 A general purpose UI for FluxCD.
 
+## Installation
+
+### Kubernetes maninfests
+
+```
+kubectl create namespace infrastructure
+
+kubectl apply -f https://raw.githubusercontent.com/gimlet-io/capacitor/main/deploy/k8s/rbac.yaml
+kubectl apply -f https://raw.githubusercontent.com/gimlet-io/capacitor/main/deploy/k8s/manifest.yaml
+
+kubectl port-forward svc/capacitor -n infrastructure 9000:9000
+```
+
+### Helm
+
+```
+kubectl create namespace infrastructure
+
+kubectl apply -f https://raw.githubusercontent.com/gimlet-io/capacitor/main/deploy/k8s/rbac.yaml
+
+helm repo add onechart https://chart.onechart.dev
+
+helm upgrade -i capacitor -n infrastructure onechart/onechart -f https://raw.githubusercontent.com/gimlet-io/capacitor/main/deploy/helm/onechart-helm-values.yaml
+
+kubectl port-forward svc/capacitor -n infrastructure 9000:9000
+```
+
+
 ## Why
 
 FluxCD is an amazing backend for all things gitops.
@@ -36,10 +64,10 @@ Capacitor wants to be more than a tool that displays Flux's CRDs in tables. Capa
 
 ## Roadmap
 
-  - Flux CRD data ("sync state") backend
-  - Flux CRD data ("sync state") frontend
-  - UI for kubernetes resources deployed by Flux
-  - Quick actions: logs, events, describe, port-forward
+  - DONE: Flux CRD data ("sync state") backend
+  - DONE: Flux CRD data ("sync state") frontend
+  - DONE: UI for kubernetes resources deployed by Flux
+  - DONE: Quick actions: logs, events, describe, port-forward
   - Displaying Errors
   - Error notifications
   - Support for environments
