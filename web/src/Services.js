@@ -2,7 +2,7 @@ import React, { memo, useState } from 'react';
 import Service from "./Service";
 
 const Services = memo(function Services(props) {
-  const { capacitorClient, store, filters } = props
+  const { capacitorClient, store, filters, handleNavigationSelect } = props
   const [services, setServices] = useState(store.getState().services);
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setServices(store.getState().services))
@@ -30,6 +30,7 @@ const Services = memo(function Services(props) {
             helmRelease={helmRelease}
             capacitorClient={capacitorClient}
             store={store}
+            handleNavigationSelect={handleNavigationSelect}
           />
         )
       })}
