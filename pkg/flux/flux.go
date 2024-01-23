@@ -14,6 +14,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
+	rspb "helm.sh/helm/v3/pkg/release"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,33 +52,63 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 	}
 
 	services := []Service{}
+
+	actionConfig := action.Configuration{}
+	actionConfig.Init(cli.New().RESTClientGetter(), "", "", nil)
+	releases, err := actionConfig.Releases.ListReleases()
+	if err != nil {
+		return nil, err
+	}
+
+	serviceResourceList := kube.ResourceList{}
 	for _, release := range helmReleases {
-		resources, err := helmStatusWithResources(release.Spec.ReleaseName)
+		serviceList, err := helmStatusWithResources(releases, release.Spec.ReleaseName, release.Namespace)
 		if err != nil {
 			logrus.Warnf("could not get helm status for %s: %s", release.Spec.ReleaseName, err.Error())
 			continue
 		}
 
-		if objs, found := resources["v1/Service"]; found {
-			svc := v1.Service{}
-			for _, obj := range objs {
-				unstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-				if err != nil {
-					logrus.Warnf("could not convert to unstructured: %s", err.Error())
-					continue
-				}
+		for _, i := range serviceList {
+			serviceResourceList.Append(i)
+		}
+	}
 
-				err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &svc)
-				if err != nil {
-					logrus.Warnf("could not convert from unstructured: %s", err.Error())
-					continue
-				}
+	kubeClient, ok := actionConfig.KubeClient.(kube.InterfaceResources)
+	if !ok {
+		return nil, fmt.Errorf("unable to get kubeClient with interface InterfaceResources")
+	}
 
-				services = append(services, Service{
-					Svc:         svc,
-					HelmRelease: release.Name,
-				})
+	resources, err := kubeClient.Get(serviceResourceList, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if objs, found := resources["v1/Service"]; found {
+		svc := v1.Service{}
+		for _, obj := range objs {
+			unstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+			if err != nil {
+				logrus.Warnf("could not convert to unstructured: %s", err.Error())
+				continue
 			}
+
+			err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &svc)
+			if err != nil {
+				logrus.Warnf("could not convert from unstructured: %s", err.Error())
+				continue
+			}
+
+			var helmReleaseName string
+			for label, value := range svc.ObjectMeta.Labels {
+				if label == "helm.toolkit.fluxcd.io/name" {
+					helmReleaseName = value
+				}
+			}
+
+			services = append(services, Service{
+				Svc:         svc,
+				HelmRelease: helmReleaseName,
+			})
 		}
 	}
 
@@ -221,31 +252,42 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta1.HelmRelease, error) 
 	return releases, nil
 }
 
-func helmStatusWithResources(releaseName string) (map[string][]runtime.Object, error) {
+func helmStatusWithResources(
+	releases []*rspb.Release,
+	releaseName string,
+	namespace string,
+) (kube.ResourceList, error) {
+	var release *rspb.Release
+	version := -1
+	for _, r := range releases {
+		if r.Namespace == namespace && r.Name == releaseName {
+			if r.Version > version {
+				release = r
+				version = r.Version
+			}
+		}
+	}
+	if release == nil {
+		return nil, fmt.Errorf("could not find helm release %s", releaseName)
+	}
+
 	actionConfig := action.Configuration{}
 	actionConfig.Init(cli.New().RESTClientGetter(), "", "", nil)
 
-	r, err := actionConfig.Releases.Last(releaseName)
+	resources, err := actionConfig.KubeClient.Build(bytes.NewBufferString(release.Manifest), false)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeClient, ok := actionConfig.KubeClient.(kube.InterfaceResources)
-	if !ok {
-		return nil, fmt.Errorf("unable to get kubeClient with interface InterfaceResources")
+	services := kube.ResourceList{}
+	for _, r := range resources {
+		gvk := r.Object.GetObjectKind().GroupVersionKind()
+		if gvk.Version == "v1" && gvk.Kind == "Service" {
+			services.Append(r)
+		}
 	}
 
-	resources, err := actionConfig.KubeClient.Build(bytes.NewBufferString(r.Manifest), false)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := kubeClient.Get(resources, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return services, nil
 }
 
 func State(dc *dynamic.DynamicClient) (*FluxState, error) {
