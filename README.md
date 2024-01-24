@@ -2,6 +2,9 @@
 
 A general purpose UI for FluxCD.
 
+![Screenshot 2024-01-24 at 14-11-07 Capacitor](https://github.com/gimlet-io/capacitor/assets/4289031/b79056f0-7383-45f6-9b4a-a04376ba152b)
+
+
 ## Installation
 
 ### Kubernetes maninfests
@@ -29,7 +32,6 @@ helm upgrade -i capacitor -n infrastructure onechart/onechart -f https://raw.git
 kubectl port-forward svc/capacitor -n infrastructure 9000:9000
 ```
 
-
 ## Why
 
 FluxCD is an amazing backend for all things gitops.
@@ -41,9 +43,6 @@ Capacitor's goal is to level the field: providing a UI option for Flux users tha
 ## Built in public
 
 The vision: [https://www.youtube.com/watch?v=LaDRRDvsRAs](https://www.youtube.com/watch?v=LaDRRDvsRAs)
-
-![image](https://github.com/gimlet-io/capacitor/assets/4289031/81ca9de2-9fe0-44e7-ac7a-f7e1878f999f)
-
 
 Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
 
@@ -61,6 +60,13 @@ Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
 ## Philosophy
 
 Capacitor wants to be more than a tool that displays Flux's CRDs in tables. Capacitor wants to provide contextualized information for developers to best operate their applications.
+
+## Screenshots
+
+<img src="https://github.com/gimlet-io/capacitor/assets/4289031/597d066c-7db1-4f28-91f4-c7ee5d4af722" width="500">
+<img src="https://github.com/gimlet-io/capacitor/assets/4289031/cf025e03-1c45-4db0-8ee1-cf102dc24468" width="500">
+<img src="https://github.com/gimlet-io/capacitor/assets/4289031/effe04d9-b76f-4fc4-b83d-769164bb23aa" width="500">
+<img src="https://github.com/gimlet-io/capacitor/assets/4289031/8493d215-2969-49b2-a433-e0ab4c18437e" width="500">
 
 ## Roadmap
 
