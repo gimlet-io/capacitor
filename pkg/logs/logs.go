@@ -20,11 +20,11 @@ func Logs(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	namespace string,
-	serviceName string,
+	deploymentName string,
 	clientHub *streaming.ClientHub,
 	runningLogStreams *RunningLogStreams,
 ) {
-	pods, err := pods(client, namespace, serviceName)
+	pods, err := pods(client, namespace, deploymentName)
 	if err != nil {
 		logrus.Warnf("could not get pods to stream logs: %v", err)
 		return
@@ -33,13 +33,13 @@ func Logs(
 	for _, pod := range pods {
 		containers := podContainers(pod.Spec)
 		for _, container := range containers {
-			go streamLogs(client, namespace, pod.Name, container.Name, serviceName, clientHub, runningLogStreams)
+			go streamLogs(client, namespace, pod.Name, container.Name, deploymentName, clientHub, runningLogStreams)
 		}
 	}
 }
 
-func pods(client *kubernetes.Clientset, namespace string, serviceName string) ([]v1.Pod, error) {
-	svc, err := client.CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+func pods(client *kubernetes.Clientset, namespace string, deploymentName string) ([]v1.Pod, error) {
+	deployment, err := client.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func pods(client *kubernetes.Clientset, namespace string, serviceName string) ([
 
 	pods := []v1.Pod{}
 	for _, pod := range podsInNamespace.Items {
-		if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, svc.Spec.Selector) {
+		if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, deployment.Spec.Selector.MatchLabels) {
 			pods = append(pods, pod)
 		}
 	}
@@ -71,7 +71,7 @@ func streamLogs(
 	namespace string,
 	pod string,
 	containerName string,
-	serviceName string,
+	deploymentName string,
 	clientHub *streaming.ClientHub,
 	runningLogStreams *RunningLogStreams,
 ) {
@@ -91,7 +91,7 @@ func streamLogs(
 	}
 	defer podLogs.Close()
 
-	stopCh := runningLogStreams.register(namespace, serviceName)
+	stopCh := runningLogStreams.register(namespace, deploymentName)
 
 	go func() {
 		<-stopCh
@@ -105,11 +105,11 @@ func streamLogs(
 		for _, chunk := range chunks {
 			timestamp, message := parseMessage(chunk)
 			payload := streaming.PodLogMessage{
-				Timestamp: timestamp,
-				Container: containerName,
-				Pod:       pod,
-				Svc:       namespace + "/" + serviceName,
-				Message:   message,
+				Timestamp:  timestamp,
+				Container:  containerName,
+				Pod:        pod,
+				Deployment: namespace + "/" + deploymentName,
+				Message:    message,
 			}
 
 			msgBytes, err := json.Marshal(streaming.Envelope{
@@ -135,6 +135,10 @@ func chunks(str string, size int) []string {
 
 func parseMessage(chunk string) (string, string) {
 	parts := strings.SplitN(chunk, " ", 2)
+
+	if len(parts) != 2 {
+		return "", parts[0]
+	}
 
 	return parts[0], parts[1]
 }

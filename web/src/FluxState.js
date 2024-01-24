@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import jp from 'jsonpath'
 import { format } from "date-fns";
 import { Kustomization } from './Kustomization.jsx'
 import { ReadyWidget } from './ReadyWidget'
 import { TimeLabel } from './TimeLabel'
+import { CompactService } from './Service.jsx';
 
 function FluxState(props) {
   const { store } = props
@@ -147,6 +148,27 @@ function GitRepository(props) {
     </div>
   )
 }
+
+export const CompactServices = memo(function CompactServices(props) {
+  const { capacitorClient, store, services } = props
+
+  return (
+    <div className="grid gap-y-4 grid-cols-1">
+      {
+        services?.map((service) => {
+          return (
+            <CompactService
+              key={`${service.deployment.metadata.namespace}/${service.deployment.metadata.name}`}
+              service={service}
+              capacitorClient={capacitorClient}
+              store={store}
+            />
+          )
+        })
+      }
+    </div>
+  )
+})
 
 export function ArtifactWidget(props) {
   const { gitRepository } = props
