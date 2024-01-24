@@ -2,7 +2,7 @@
 
 A general purpose UI for FluxCD.
 
-![Screenshot 2024-01-24 at 14-11-07 Capacitor](https://github.com/gimlet-io/capacitor/assets/4289031/b79056f0-7383-45f6-9b4a-a04376ba152b)
+![Capacitor - Services](https://github.com/gimlet-io/capacitor/assets/4289031/b79056f0-7383-45f6-9b4a-a04376ba152b)
 
 
 ## Installation
@@ -63,10 +63,10 @@ Capacitor wants to be more than a tool that displays Flux's CRDs in tables. Capa
 
 ## Screenshots
 
-<img src="https://github.com/gimlet-io/capacitor/assets/4289031/597d066c-7db1-4f28-91f4-c7ee5d4af722" width="500">
-<img src="https://github.com/gimlet-io/capacitor/assets/4289031/cf025e03-1c45-4db0-8ee1-cf102dc24468" width="500">
-<img src="https://github.com/gimlet-io/capacitor/assets/4289031/effe04d9-b76f-4fc4-b83d-769164bb23aa" width="500">
-<img src="https://github.com/gimlet-io/capacitor/assets/4289031/8493d215-2969-49b2-a433-e0ab4c18437e" width="500">
+<img alt="Kustomizations" src="https://github.com/gimlet-io/capacitor/assets/4289031/597d066c-7db1-4f28-91f4-c7ee5d4af722" width="450">
+<img alt="Capacitor - Error handling" src="https://github.com/gimlet-io/capacitor/assets/4289031/cf025e03-1c45-4db0-8ee1-cf102dc24468" width="450">
+<img alt="Capacitor - Helm Releases" src="https://github.com/gimlet-io/capacitor/assets/4289031/effe04d9-b76f-4fc4-b83d-769164bb23aa" width="450">
+<img alt="Capacitor - Service logs" src="https://github.com/gimlet-io/capacitor/assets/4289031/8493d215-2969-49b2-a433-e0ab4c18437e" width="450">
 
 ## Roadmap
 
