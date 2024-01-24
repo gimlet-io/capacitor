@@ -17,6 +17,8 @@ export default class CapacitorClient {
 
   describeDeployment = (namespace, name) => this.get(`/api/describeDeployment?namespace=${namespace}&name=${name}`);
 
+  describePod = (namespace, name) => this.get(`/api/describePod?namespace=${namespace}&name=${name}`);
+
   podLogsRequest = (namespace, svc) => this.get(`/api/logs?namespace=${namespace}&serviceName=${svc}`);
 
   stopPodLogsRequest = (namespace, svc) => this.get(`/api/stopLogs?namespace=${namespace}&serviceName=${svc}`);
