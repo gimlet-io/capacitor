@@ -60,6 +60,7 @@ function Service(props) {
                   <Describe
                     capacitorClient={capacitorClient}
                     deployment={deployment}
+                    pods={service.pods}
                   />
                 </>
               }
