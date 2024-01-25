@@ -22,7 +22,6 @@ export function Describe(props) {
       {showModal &&
         <Modal
           stopHandler={() => setShowModal(false)}
-          deployment={deployment.metadata.name}
           navBar={
             <DescribeNav
               deployment={deployment}
