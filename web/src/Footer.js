@@ -1,11 +1,9 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import React, { memo, useState } from 'react';
-import { GitRepositories, Kustomizations, HelmReleases, Summary } from './FluxState';
+import { GitRepositories, Kustomizations, HelmReleases, CompactServices, Summary } from './FluxState';
 
 const Footer = memo(function Footer(props) {
-  
-  const { store, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
-
+  const { store, capacitorClient, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setFluxState(store.getState().fluxState))
 
@@ -47,7 +45,7 @@ const Footer = memo(function Footer(props) {
                   { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
                   { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
-                  { name: 'Flux Runtime', href: '#' },
+                  { name: 'Flux Runtime', href: '#', count: fluxState.fluxServices.length },
                 ]}
                 selectedMenu={handleNavigationSelect}
                 selected={selected}
@@ -56,7 +54,7 @@ const Footer = memo(function Footer(props) {
           </div>
 
           <div className="w-full px-4 overflow-x-hidden overflow-y-scroll">
-            <div className="w-full max-w-6xl mx-auto flex-col h-full">
+            <div className="w-full max-w-7xl mx-auto flex-col h-full">
               <div className="pb-24 pt-2">
               { selected === "Kustomizations" &&
                 <Kustomizations fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
@@ -66,6 +64,9 @@ const Footer = memo(function Footer(props) {
               }
               { selected === "Sources" &&
                 <GitRepositories gitRepositories={fluxState.gitRepositories} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
+              }
+              { selected === "Flux Runtime" &&
+                <CompactServices capacitorClient={capacitorClient} store={store} services={fluxState.fluxServices} />
               }
               </div>
             </div>

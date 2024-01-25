@@ -290,10 +290,12 @@ func helmStatusWithResources(
 	return services, nil
 }
 
-func State(dc *dynamic.DynamicClient) (*FluxState, error) {
+func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, error) {
 	fluxState := &FluxState{
 		GitRepositories: []sourcev1.GitRepository{},
 		Kustomizations:  []kustomizationv1.Kustomization{},
+		HelmReleases:    []helmv2beta1.HelmRelease{},
+		FluxServices:    []Service{},
 	}
 
 	gitRepositories, err := dc.Resource(gitRepositoryGVR).
@@ -345,5 +347,54 @@ func State(dc *dynamic.DynamicClient) (*FluxState, error) {
 		fluxState.HelmReleases = append(fluxState.HelmReleases, helmRelease)
 	}
 
+	fluxServices, err := fluxServicesWithDetails(c)
+	if err != nil {
+		return nil, err
+	}
+	fluxState.FluxServices = fluxServices
+
 	return fluxState, nil
+}
+
+func fluxServicesWithDetails(c *kubernetes.Clientset) ([]Service, error) {
+	services := []Service{}
+	deployments, err := c.AppsV1().Deployments("flux-system").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, d := range deployments.Items {
+		deployment := d
+		services = append(services, Service{
+			Deployment: &deployment,
+		})
+	}
+
+	svc, err := c.CoreV1().Services("flux-system").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for idx, service := range services {
+		for _, s := range svc.Items {
+			if k8s.SelectorsMatch(service.Deployment.Spec.Selector.MatchLabels, s.Spec.Selector) {
+				services[idx].Svc = s
+			}
+		}
+	}
+
+	pods, err := c.CoreV1().Pods("flux-system").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for idx, service := range services {
+		services[idx].Pods = []v1.Pod{}
+		for _, pod := range pods.Items {
+			if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, service.Deployment.Spec.Selector.MatchLabels) {
+				services[idx].Pods = append(services[idx].Pods, pod)
+			}
+		}
+	}
+
+	return services, nil
 }

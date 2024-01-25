@@ -47,11 +47,11 @@ func main() {
 	clientHub := streaming.NewClientHub()
 	go clientHub.Run()
 
-	gitRepositoryController := controllers.GitRepositoryController(dynamicClient, clientHub)
+	gitRepositoryController := controllers.GitRepositoryController(client, dynamicClient, clientHub)
 	go gitRepositoryController.Run(1, stopCh)
-	kustomizationController := controllers.KustomizeController(dynamicClient, clientHub)
+	kustomizationController := controllers.KustomizeController(client, dynamicClient, clientHub)
 	go kustomizationController.Run(1, stopCh)
-	helmReleaseController := controllers.HelmReleaseController(dynamicClient, clientHub)
+	helmReleaseController := controllers.HelmReleaseController(client, dynamicClient, clientHub)
 	go helmReleaseController.Run(1, stopCh)
 
 	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)

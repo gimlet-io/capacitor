@@ -4,23 +4,23 @@ import { Modal } from './Modal'
 import { SkeletonLoader } from './SkeletonLoader'
 
 export function Logs(props) {
-  const { capacitorClient, store, service } = props;
+  const { capacitorClient, store, deployment } = props;
   let reduxState = store.getState();
   const [showModal, setShowModal] = useState(false)
-  const svc = service.metadata.namespace + "/" + service.metadata.name
-  const [logs, setLogs] = useState(reduxState.podLogs[svc]);
-  store.subscribe(() => setLogs([...reduxState.podLogs[svc] ?? []]));
+  const deploymentName = deployment.metadata.namespace + "/" + deployment.metadata.name
+  const [logs, setLogs] = useState(reduxState.podLogs[deploymentName]);
+  store.subscribe(() => setLogs([...reduxState.podLogs[deploymentName] ?? []]));
 
   const streamPodLogs = () => {
-    capacitorClient.podLogsRequest(service.metadata.namespace, service.metadata.name)
+    capacitorClient.podLogsRequest(deployment.metadata.namespace, deployment.metadata.name)
   }
 
   const stopLogsHandler = () => {
     setShowModal(false);
-    capacitorClient.stopPodLogsRequest(service.metadata.namespace, service.metadata.name);
+    capacitorClient.stopPodLogsRequest(deployment.metadata.namespace, deployment.metadata.name);
     store.dispatch({
       type: ACTION_CLEAR_PODLOGS, payload: {
-        pod: service.metadata.namespace + "/" + service.metadata.name
+        pod: deployment.metadata.namespace + "/" + deployment.metadata.name
       }
     });
   }
