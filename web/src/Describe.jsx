@@ -6,7 +6,6 @@ export function Describe(props) {
   const { capacitorClient, deployment, pods } = props;
   const [details, setDetails] = useState(null)
   const [showModal, setShowModal] = useState(false)
-  const [selected, setSelected] = useState(deployment.metadata.name)
 
   const describeDeployment = () => {
     capacitorClient.describeDeployment(deployment.metadata.namespace, deployment.metadata.name)
@@ -18,40 +17,21 @@ export function Describe(props) {
       .then(data => setDetails(data))
   }
 
-  
-
   return (
     <>
       {showModal &&
         <Modal
-          stopHandler={() => { setShowModal(false); setSelected(deployment.metadata.name) }}
+          stopHandler={() => setShowModal(false)}
           deployment={deployment.metadata.name}
+          navBar={
+            <DescribeNav
+              deployment={deployment}
+              pods={pods}
+              describeDeployment={describeDeployment}
+              describePod={describePod}
+            />}
         >
-          <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true" className="fixed flex overflow-x-auto whitespace-nowrap inset-x-0 top-8 bg-slate-600 text-yellow-100 font-medium text-sm">
-            <button
-              className={`${deployment.metadata.name === selected ? 'bg-slate-500 text-yellow-50' : 'hover:bg-slate-500'} group flex gap-x-3 px-2 py-1 text-sm leading-6 rounded-t-md`}
-              onClick={() => {
-                describeDeployment();
-                setSelected(deployment.metadata.name)
-              }}
-            >
-              Describe from {deployment.metadata.name}
-            </button>
-            {
-              pods?.map((pod) => (
-                <button key={pod.metadata.name}
-                  className={`${pod.metadata.name === selected ? 'bg-slate-500 text-yellow-50' : 'hover:bg-slate-500'} group flex gap-x-3 px-2 py-1 text-sm leading-6 rounded-t-md`}
-                  onClick={() => {
-                    describePod(pod.metadata.namespace, pod.metadata.name);
-                    setSelected(pod.metadata.name)
-                  }}
-                >
-                  Describe from {pod.metadata.name}
-                </button>
-              ))
-            }
-          </div>
-          <code className='flex whitespace-pre items-center font-mono text-xs p-2 pt-10 text-yellow-100 rounded'>
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
             {details ?? <SkeletonLoader />}
           </code>
         </Modal>
@@ -64,5 +44,40 @@ export function Describe(props) {
         Describe
       </button>
     </>
+  )
+}
+
+function DescribeNav(props) {
+  const { deployment, pods, describeDeployment, describePod } = props;
+  const [selected, setSelected] = useState(deployment.metadata.name)
+
+  return (
+    <div className="grid grid-cols-3">
+      <button
+        title={deployment.metadata.name}
+        className={`${deployment.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} truncate m-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+        onClick={() => {
+          describeDeployment();
+          setSelected(deployment.metadata.name)
+        }}
+      >
+        deployment
+      </button>
+      {
+        pods?.map((pod) => (
+          <button
+            key={pod.metadata.name}
+            title={pod.metadata.name}
+            className={`${pod.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} truncate m-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+            onClick={() => {
+              describePod(pod.metadata.namespace, pod.metadata.name);
+              setSelected(pod.metadata.name)
+            }}
+          >
+            {pod.metadata.name}
+          </button>
+        ))
+      }
+    </div>
   )
 }
