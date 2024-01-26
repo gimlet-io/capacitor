@@ -49,7 +49,7 @@ function Service(props) {
         <div className="flex-1">
           <h3 className="flex text-lg font-bold rounded p-4">
             <span className="cursor-pointer">{service.svc.metadata.name}</span>
-            <div className="flex items-center ml-auto space-x-2">
+            <div className="flex items-center ml-auto">
               {deployment &&
                 <>
                   <Logs

@@ -50,7 +50,7 @@ export function Logs(props) {
         setShowModal(true);
         streamPodLogs()
       }}
-        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded"
+        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
       >
         Logs
       </button>
