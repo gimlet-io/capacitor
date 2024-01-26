@@ -35,6 +35,7 @@ func SetupRouter(
 	r.Get("/api/describeConfigmap", describeConfigmap)
 	r.Get("/api/describeSecret", describeSecret)
 	r.Get("/api/describeDeployment", describeDeployment)
+	r.Get("/api/describePod", describePod)
 	r.Get("/api/logs", streamLogs)
 	r.Get("/api/stopLogs", stopLogs)
 	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {

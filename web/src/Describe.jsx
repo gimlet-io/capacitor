@@ -3,7 +3,7 @@ import { SkeletonLoader } from './SkeletonLoader'
 import { Modal } from './Modal'
 
 export function Describe(props) {
-  const { capacitorClient, deployment } = props;
+  const { capacitorClient, deployment, pods } = props;
   const [details, setDetails] = useState(null)
   const [showModal, setShowModal] = useState(false)
 
@@ -12,10 +12,24 @@ export function Describe(props) {
       .then(data => setDetails(data))
   }
 
+  const describePod = (podNamespace, podName) => {
+    capacitorClient.describePod(podNamespace, podName)
+      .then(data => setDetails(data))
+  }
+
   return (
     <>
       {showModal &&
-        <Modal stopHandler={() => setShowModal(false)}>
+        <Modal
+          stopHandler={() => setShowModal(false)}
+          navBar={
+            <DescribeNav
+              deployment={deployment}
+              pods={pods}
+              describeDeployment={describeDeployment}
+              describePod={describePod}
+            />}
+        >
           <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
             {details ?? <SkeletonLoader />}
           </code>
@@ -29,5 +43,40 @@ export function Describe(props) {
         Describe
       </button>
     </>
+  )
+}
+
+function DescribeNav(props) {
+  const { deployment, pods, describeDeployment, describePod } = props;
+  const [selected, setSelected] = useState(deployment.metadata.name)
+
+  return (
+    <div className="flex flex-wrap items-center overflow-auto mx-4 space-x-1">
+      <button
+        title={deployment.metadata.name}
+        className={`${deployment.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+        onClick={() => {
+          describeDeployment();
+          setSelected(deployment.metadata.name)
+        }}
+      >
+        Deployment
+      </button>
+      {
+        pods?.map((pod) => (
+          <button
+            key={pod.metadata.name}
+            title={pod.metadata.name}
+            className={`${pod.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+            onClick={() => {
+              describePod(pod.metadata.namespace, pod.metadata.name);
+              setSelected(pod.metadata.name)
+            }}
+          >
+            {pod.metadata.name}
+          </button>
+        ))
+      }
+    </div>
   )
 }

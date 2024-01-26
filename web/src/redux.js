@@ -47,7 +47,8 @@ function podLogsReceived(state, event) {
   const line = {
     color: state.textColors[pod],
     timestamp: new Date(event.timestamp),
-    content: `[${pod}] ${event.message}`
+    content: `[${pod}] ${event.message}`,
+    pod: pod
   };
   state.podLogs[event.deployment].push(line);
   state.podLogs[event.deployment].sort((a, b) => a.timestamp - b.timestamp);

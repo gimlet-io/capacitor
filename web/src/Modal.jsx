@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 export function Modal(props) {
-  const { stopHandler, children } = props;
+  const { stopHandler, navBar, children } = props;
   const logsEndRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +34,7 @@ export function Modal(props) {
               <XMarkIcon className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
+          <nav>{navBar}</nav>
           <div className="h-full relative overflow-y-auto p-4 bg-slate-800 rounded-b-lg font-normal">
             {children}
             <p ref={logsEndRef} />
