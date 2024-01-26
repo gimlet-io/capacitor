@@ -56,6 +56,7 @@ function Service(props) {
                     capacitorClient={capacitorClient}
                     store={store}
                     deployment={deployment}
+                    containers={podContainers(service.pods)}
                   />
                   <Describe
                     capacitorClient={capacitorClient}
@@ -257,6 +258,7 @@ export function CompactService(props) {
                   capacitorClient={capacitorClient}
                   store={store}
                   deployment={deployment}
+                  containers={podContainers(service.pods)}
                 />
                 <Describe
                   capacitorClient={capacitorClient}
@@ -316,6 +318,26 @@ function Pod(props) {
       {pod.status.phase}
     </span>
   );
+}
+
+function podContainers(pods) {
+  const containers = [];
+
+  pods.forEach((pod) => {
+    const podName = jp.query(pod, '$.metadata.name')[0];
+
+    const initContainerNames = jp.query(pod, '$.spec.initContainers[*].name');
+    initContainerNames.forEach((initContainerName) => {
+      containers.push(`${podName}/${initContainerName}`);
+    });
+
+    const containerNames = jp.query(pod, '$.spec.containers[*].name');
+    containerNames.forEach((containerName) => {
+      containers.push(`${podName}/${containerName}`);
+    });
+  });
+
+  return containers;
 }
 
 function configMaps(pods, namespace, capacitorClient) {
