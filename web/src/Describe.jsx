@@ -51,23 +51,23 @@ function DescribeNav(props) {
   const [selected, setSelected] = useState(deployment.metadata.name)
 
   return (
-    <div className="grid grid-cols-3">
+    <div className="flex flex-wrap items-center overflow-auto mx-4 space-x-1">
       <button
         title={deployment.metadata.name}
-        className={`${deployment.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} truncate m-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+        className={`${deployment.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
         onClick={() => {
           describeDeployment();
           setSelected(deployment.metadata.name)
         }}
       >
-        deployment
+        Deployment
       </button>
       {
         pods?.map((pod) => (
           <button
             key={pod.metadata.name}
             title={pod.metadata.name}
-            className={`${pod.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} truncate m-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+            className={`${pod.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
             onClick={() => {
               describePod(pod.metadata.namespace, pod.metadata.name);
               setSelected(pod.metadata.name)

@@ -10,7 +10,7 @@ export function Logs(props) {
   const deploymentName = deployment.metadata.namespace + "/" + deployment.metadata.name
   const [logs, setLogs] = useState(reduxState.podLogs[deploymentName]);
   store.subscribe(() => setLogs([...reduxState.podLogs[deploymentName] ?? []]));
-  const [selected, setSelected] = useState(containers[0])
+  const [selected, setSelected] = useState("")
 
   const streamPodLogs = () => {
     capacitorClient.podLogsRequest(deployment.metadata.namespace, deployment.metadata.name)
@@ -40,7 +40,7 @@ export function Logs(props) {
           }
         >
           {logs ?
-            logs.filter(line => line.pod === selected).map((line, idx) => <p key={idx} className='font-mono text-xs text-yellow-100'>{line.content}</p>)
+            logs.filter(line => line.pod.includes(selected)).map((line, idx) => <p key={idx} className={`font-mono text-xs ${line.color}`}>{line.content}</p>)
             :
             <SkeletonLoader />
           }
@@ -62,13 +62,21 @@ function LogsNav(props) {
   const { containers, selected, setSelected } = props;
 
   return (
-    <div className="grid grid-cols-3">
+    <div className="flex flex-wrap items-center overflow-auto mx-4 space-x-1">
+      <button
+        className={`${"" === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+        onClick={() => {
+          setSelected("")
+        }}
+      >
+        All pods
+      </button>
       {
         containers?.map((container) => (
           <button
             key={container}
             title={container}
-            className={`${container === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} truncate m-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+            className={`${container === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
             onClick={() => {
               setSelected(container)
             }}
