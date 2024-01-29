@@ -30,9 +30,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	kstatus "sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,13 +77,26 @@ func NewReconcileCommand(resource string) *reconcileCommand {
 	return nil
 }
 
-func (r *reconcileCommand) Run(kubeClient client.WithWatch, namespace, name string) {
+func (r *reconcileCommand) Run(config *rest.Config, namespace, name string) {
+	scheme := apiruntime.NewScheme()
+	sourcev1.AddToScheme(scheme)
+	kustomizationv1.AddToScheme(scheme)
+	helmv2.AddToScheme(scheme)
+
+	kubeClient, err := client.NewWithWatch(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		logrus.Errorf("kubernetes client initialization failed: %s", err)
+		return
+	}
+
 	namespacedName := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
 
-	err := kubeClient.Get(context.TODO(), namespacedName, r.object.asClientObject())
+	err = kubeClient.Get(context.TODO(), namespacedName, r.object.asClientObject())
 	if err != nil {
 		logrus.Error(err)
 		return
