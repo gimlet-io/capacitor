@@ -4,17 +4,22 @@ import (
 	"encoding/json"
 	"net/http"
 
+	helmv2 "github.com/fluxcd/helm-controller/api/v2beta1"
+	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/logs"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/describe"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +180,32 @@ func stopLogs(w http.ResponseWriter, r *http.Request) {
 	runningLogStreams, _ := r.Context().Value("runningLogStreams").(*logs.RunningLogStreams)
 
 	runningLogStreams.Stop(namespace, deployment)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
+}
+
+func reconcile(w http.ResponseWriter, r *http.Request) {
+	resource := r.URL.Query().Get("resource")
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+	config, _ := r.Context().Value("config").(*rest.Config)
+
+	scheme := apiruntime.NewScheme()
+	sourcev1.AddToScheme(scheme)
+	kustomizationv1.AddToScheme(scheme)
+	helmv2.AddToScheme(scheme)
+	kubeClient, err := client.NewWithWatch(config, client.Options{
+		Scheme: scheme,
+	})
+	if err != nil {
+		logrus.Errorf("kubernetes client initialization failed: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	reconcileCommand := flux.NewReconcileCommand(resource)
+	go reconcileCommand.Run(kubeClient, namespace, name)
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("{}"))
