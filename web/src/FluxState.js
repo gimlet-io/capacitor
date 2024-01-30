@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import jp from 'jsonpath'
 import { format } from "date-fns";
 import { Kustomization } from './Kustomization.jsx'
@@ -25,10 +25,18 @@ export function Kustomizations(props){
   const kustomizations = fluxState.kustomizations;
   const gitRepositories = fluxState.gitRepositories
 
+  const sortedKustomizations = useMemo(() => {
+    if (!kustomizations) {
+      return null;
+    }
+
+    return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [kustomizations]);
+
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        kustomizations?.map(kustomization =>
+        sortedKustomizations?.map(kustomization =>
           <Kustomization
             key={kustomization.metadata.namespace + kustomization.metadata.name}
             capacitorClient={capacitorClient}
@@ -46,10 +54,18 @@ export function Kustomizations(props){
 export function HelmReleases(props) {
   const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
 
+  const sortedHelmReleases = useMemo(() => {
+    if (!helmReleases) {
+      return null;
+    }
+
+    return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [helmReleases]);
+
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        helmReleases?.map(helmRelease =>
+        sortedHelmReleases?.map(helmRelease =>
           <HelmRelease
             key={"hr-"+ helmRelease.metadata.namespace + helmRelease.metadata.name}
             capacitorClient={capacitorClient}
@@ -107,10 +123,18 @@ function HelmRelease(props) {
 export function GitRepositories(props){
   const { capacitorClient, gitRepositories, targetReference } = props
 
+  const sortedGitRepositories = useMemo(() => {
+    if (!gitRepositories) {
+      return null;
+    }
+
+    return [...gitRepositories].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [gitRepositories]);
+
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        gitRepositories?.map(gitRepository =>
+        sortedGitRepositories?.map(gitRepository =>
           <GitRepository
             key={"source-"+ gitRepository.metadata.namespace + gitRepository.metadata.name}  
             capacitorClient={capacitorClient}
