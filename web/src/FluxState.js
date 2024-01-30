@@ -301,7 +301,7 @@ export function HelmRevisionWidget(props) {
         const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
 
         return (
-          <p key={`${release.chartVersion}@${release.chartName}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
+          <p key={`${release.chartVersion}@${release.chartName}:${release.digest}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
             <span>{release.chartVersion}@{release.chartName}</span>
             <TimeLabel title={exactDate} date={parsed} className='pl-1' />
             <span className='pl-1'>{statusLabel}</span>
