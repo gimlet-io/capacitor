@@ -23,6 +23,8 @@ export default class CapacitorClient {
 
   stopPodLogsRequest = (namespace, deployment) => this.get(`/api/stopLogs?namespace=${namespace}&deploymentName=${deployment}`);
 
+  reconcile = (resource, namespace, name) => this.post(`/api/reconcile?resource=${resource}&namespace=${namespace}&name=${name}`);
+
   get = async (path) => {
     try {
       const { data } = await axios.get(path, {

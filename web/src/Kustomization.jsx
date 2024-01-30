@@ -4,7 +4,7 @@ import jp from 'jsonpath'
 import { NavigationButton } from './NavigationButton'
 
 export function Kustomization(props) {
-  const { item, gitRepositories, targetReference, handleNavigationSelect } = props;
+  const { capacitorClient, item, gitRepositories, targetReference, handleNavigationSelect } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
@@ -30,10 +30,10 @@ export function Kustomization(props) {
           {item.metadata.namespace}
         </span>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-4">
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Applied" /></span>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-4">
         <div className="font-medium text-neutral-700">
           <RevisionWidget
             kustomization={item}
@@ -43,6 +43,13 @@ export function Kustomization(props) {
           />
         </div>
         <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{item.spec.path}</span>
+      </div>
+      <div className="grid-cols-2">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
+        >
+          Reconcile
+        </button>
       </div>
     </div>
   )

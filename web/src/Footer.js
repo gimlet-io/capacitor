@@ -57,13 +57,13 @@ const Footer = memo(function Footer(props) {
             <div className="w-full max-w-7xl mx-auto flex-col h-full">
               <div className="pb-24 pt-2">
               { selected === "Kustomizations" &&
-                <Kustomizations fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
+                <Kustomizations capacitorClient={capacitorClient} fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
               }
               { selected === "Helm Releases" &&
-                <HelmReleases helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
+                <HelmReleases capacitorClient={capacitorClient} helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
               }
               { selected === "Sources" &&
-                <GitRepositories gitRepositories={fluxState.gitRepositories} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
+                <GitRepositories capacitorClient={capacitorClient} gitRepositories={fluxState.gitRepositories} targetReference={targetReference} />
               }
               { selected === "Flux Runtime" &&
                 <CompactServices capacitorClient={capacitorClient} store={store} services={fluxState.fluxServices} />

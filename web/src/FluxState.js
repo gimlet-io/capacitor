@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import jp from 'jsonpath'
 import { format } from "date-fns";
 import { Kustomization } from './Kustomization.jsx'
@@ -21,16 +21,25 @@ function FluxState(props) {
 }
 
 export function Kustomizations(props){
-  const { fluxState, targetReference, handleNavigationSelect } = props
+  const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
   const kustomizations = fluxState.kustomizations;
   const gitRepositories = fluxState.gitRepositories
+
+  const sortedKustomizations = useMemo(() => {
+    if (!kustomizations) {
+      return null;
+    }
+
+    return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [kustomizations]);
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        kustomizations?.map(kustomization =>
+        sortedKustomizations?.map(kustomization =>
           <Kustomization
             key={kustomization.metadata.namespace + kustomization.metadata.name}
+            capacitorClient={capacitorClient}
             item={kustomization}
             gitRepositories={gitRepositories}
             handleNavigationSelect={handleNavigationSelect}
@@ -43,14 +52,23 @@ export function Kustomizations(props){
 }
 
 export function HelmReleases(props) {
-  const { helmReleases, targetReference, handleNavigationSelect } = props
+  const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
+
+  const sortedHelmReleases = useMemo(() => {
+    if (!helmReleases) {
+      return null;
+    }
+
+    return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [helmReleases]);
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        helmReleases?.map(helmRelease =>
+        sortedHelmReleases?.map(helmRelease =>
           <HelmRelease
             key={"hr-"+ helmRelease.metadata.namespace + helmRelease.metadata.name}
+            capacitorClient={capacitorClient}
             item={helmRelease}
             handleNavigationSelect={handleNavigationSelect}
             targetReference={targetReference}
@@ -61,7 +79,7 @@ export function HelmReleases(props) {
 }
 
 function HelmRelease(props) {
-  const { item, targetReference, handleNavigationSelect } = props;
+  const { capacitorClient, item, targetReference, handleNavigationSelect } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
@@ -86,24 +104,40 @@ function HelmRelease(props) {
           {item.metadata.namespace}
         </span>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-4">
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Installed" /></span>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-4">
         <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
+      </div>
+      <div className="grid-cols-2">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.reconcile("helmrelease", item.metadata.namespace, item.metadata.name)}
+        >
+          Reconcile
+        </button>
       </div>
     </div>)
 }
 
 export function GitRepositories(props){
-  const { gitRepositories, targetReference } = props
+  const { capacitorClient, gitRepositories, targetReference } = props
+
+  const sortedGitRepositories = useMemo(() => {
+    if (!gitRepositories) {
+      return null;
+    }
+
+    return [...gitRepositories].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [gitRepositories]);
 
   return (
     <div className="grid gap-y-4 grid-cols-1">
       {
-        gitRepositories?.map(gitRepository =>
+        sortedGitRepositories?.map(gitRepository =>
           <GitRepository
             key={"source-"+ gitRepository.metadata.namespace + gitRepository.metadata.name}  
+            capacitorClient={capacitorClient}
             item={gitRepository}
             targetReference={targetReference}
           />
@@ -114,7 +148,7 @@ export function GitRepositories(props){
 }
 
 function GitRepository(props) {
-  const { item, targetReference } = props;
+  const { capacitorClient, item, targetReference } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
@@ -139,11 +173,18 @@ function GitRepository(props) {
           {item.metadata.namespace}
         </span>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-4">
         <ReadyWidget resource={item} displayMessage={true}/>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-4">
         <ArtifactWidget gitRepository={item} displayMessage={true}/>
+      </div>
+      <div className="grid-cols-2">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.reconcile("source", item.metadata.namespace, item.metadata.name)}
+        >
+          Reconcile
+        </button>
       </div>
     </div>
   )
@@ -260,7 +301,7 @@ export function HelmRevisionWidget(props) {
         const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
 
         return (
-          <p key={`${release.chartVersion}@${release.chartName}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
+          <p key={`${release.chartVersion}@${release.chartName}:${release.digest}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
             <span>{release.chartVersion}@{release.chartName}</span>
             <TimeLabel title={exactDate} date={parsed} className='pl-1' />
             <span className='pl-1'>{statusLabel}</span>
