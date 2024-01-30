@@ -6,13 +6,16 @@ export function TimeLabel(props) {
   const [label, setLabel] = useState(formatDistance(date, new Date()));
 
   useEffect(() => {
+    setLabel(formatDistance(date, new Date()));
+  }, [date]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setLabel(formatDistance(date, new Date()));
     }, 60 * 1000);
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [date]);
 
   return (
     <span className={className} title={title}> {label} ago</span>
