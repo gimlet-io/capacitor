@@ -8,6 +8,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for creating the GitHub release
+      packages: write # Required for pushing to GitHub Container Registry
     steps:
     - name: 🛑 Cancel Previous Runs
       uses: styfle/cancel-workflow-action@0.9.1
@@ -67,3 +70,13 @@ jobs:
         push: true
         tags: |
           ghcr.io/gimlet-io/capacitor:${{ steps.version.outputs.version }}
+    - name: Set up Flux CLI
+      uses: fluxcd/flux2/action@v2.2.3
+    - name: Push manifests
+      run: |
+        flux push artifact \
+        oci://ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }} \
+        --path=deploy/k8s \
+        --source=${{ github.repositoryUrl }} \
+        --revision="${{ github.ref_name }}@sha1:${{ github.sha }}" \
+        --annotations='org.opencontainers.image.description=Capacitor install manifests for Flux'
