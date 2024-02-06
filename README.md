@@ -56,6 +56,8 @@ Capacitor is built currently by Gimlet.io founder Laszlo Fogas on live streams:
     - https://www.youtube.com/watch?v=LaDRRDvsRAs
 - 1700CET, 12th January - Where are we with Capacitor? Launch plans
     - https://www.linkedin.com/events/buildingauiforfluxcd-wherearewe7151493559815188481/comments/
+- 6th February - OCIRepository support
+    - https://www.youtube.com/watch?v=q_dUJk6UZw4
 
 ## Philosophy
 
