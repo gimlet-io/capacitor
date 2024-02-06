@@ -9,16 +9,24 @@ const Services = memo(function Services(props) {
   store.subscribe(() => setFluxState(store.getState().fluxState))
   const filteredServices = filterServices(services, filters)
 
+  if (!fluxState.kustomizations) {
+    return null
+  }
+
   return (
     <>
       {filteredServices.map((service) => {
-        const helmRelease = fluxState.helmReleases.find(hr => hr.metadata.name === service.helmRelease)
+        const helmRelease = fluxState.helmReleases?.find(hr => hr.metadata.name === service.helmRelease)
 
         const kustomization = helmRelease
          ? findHelmReleaseInventory(fluxState.kustomizations, helmRelease)
          : findServiceInInventory(fluxState.kustomizations, service)
 
-        const gitRepository = fluxState.gitRepositories.find((g) => g.metadata.name === kustomization.spec.sourceRef.name)
+        const sources = [];
+        sources.push(...fluxState.ociRepositories)
+        sources.push(...fluxState.gitRepositories)
+        sources.push(...fluxState.buckets)
+        const source = findSource(sources, kustomization.spec.sourceRef)
 
         return (
           <Service
@@ -26,7 +34,7 @@ const Services = memo(function Services(props) {
             service={service}
             alerts={[]}
             kustomization={kustomization}
-            gitRepository={gitRepository}
+            source={source}
             helmRelease={helmRelease}
             capacitorClient={capacitorClient}
             store={store}
@@ -38,10 +46,17 @@ const Services = memo(function Services(props) {
   )
 })
 
+function findSource(sources, sourceRef) {
+  return sources.find((r) => r.kind === sourceRef.kind && 
+    r.metadata.name === sourceRef.name)
+} 
+
 export default Services;
 
 const findServiceInInventory = (kustomizations, service) => {
   const serviceKey = `${service.svc.metadata.namespace}_${service.svc.metadata.name}__Service`
+
+  if (!kustomizations) return undefined
 
   for (const k of kustomizations) {
     if (!k.status.inventory) {

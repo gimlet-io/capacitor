@@ -26,6 +26,8 @@ rules:
     - events
     - configmaps
     - gitrepositories
+    - ocirepositories
+    - buckets
     - kustomizations
     - helmreleases
   verbs:

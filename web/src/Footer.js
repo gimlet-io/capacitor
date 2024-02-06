@@ -63,7 +63,7 @@ const Footer = memo(function Footer(props) {
                 <HelmReleases capacitorClient={capacitorClient} helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
               }
               { selected === "Sources" &&
-                <GitRepositories capacitorClient={capacitorClient} gitRepositories={fluxState.gitRepositories} targetReference={targetReference} />
+                <GitRepositories capacitorClient={capacitorClient} fluxState={fluxState} targetReference={targetReference} />
               }
               { selected === "Flux Runtime" &&
                 <CompactServices capacitorClient={capacitorClient} store={store} services={fluxState.fluxServices} />

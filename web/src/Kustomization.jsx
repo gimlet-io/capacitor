@@ -4,7 +4,7 @@ import jp from 'jsonpath'
 import { NavigationButton } from './NavigationButton'
 
 export function Kustomization(props) {
-  const { capacitorClient, item, gitRepositories, targetReference, handleNavigationSelect } = props;
+  const { capacitorClient, item, fluxState, targetReference, handleNavigationSelect } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
@@ -15,7 +15,12 @@ export function Kustomization(props) {
     }
   }, [item.metadata.name, targetReference]);
 
-  const gitRepository = gitRepositories.find((g) => g.metadata.name === item.spec.sourceRef.name)
+
+  const sources = [];
+  sources.push(...fluxState.ociRepositories)
+  sources.push(...fluxState.gitRepositories)
+  sources.push(...fluxState.buckets)
+  const source = findSource(sources, item.spec.sourceRef)
 
   return (
     <div
@@ -37,7 +42,7 @@ export function Kustomization(props) {
         <div className="font-medium text-neutral-700">
           <RevisionWidget
             kustomization={item}
-            gitRepository={gitRepository}
+            source={source}
             handleNavigationSelect={handleNavigationSelect}
             inFooter={true}
           />
@@ -55,8 +60,13 @@ export function Kustomization(props) {
   )
 }
 
+function findSource(sources, sourceRef) {
+  return sources.find((r) => r.kind === sourceRef.kind && 
+    r.metadata.name === sourceRef.name)
+} 
+
 export function RevisionWidget(props) {
-  const { kustomization, gitRepository, handleNavigationSelect, inFooter } = props
+  const { kustomization, source, handleNavigationSelect, inFooter } = props
 
   const appliedRevision = kustomization.status.lastAppliedRevision
   const appliedHash = appliedRevision ? appliedRevision.slice(appliedRevision.indexOf(':') + 1) : "";
@@ -78,7 +88,15 @@ export function RevisionWidget(props) {
   // const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
   // const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
-  const url = gitRepository.spec.url.slice(gitRepository.spec.url.indexOf('@') + 1)
+  if (source.kind === 'OCIRepository') {
+    return (<span>OCIRepository (TODO)</span>)
+  }
+
+  if (source.kind === 'Bucket') {
+    return (<span>Bucket (TODO)</span>)
+  }
+
+  const url = source.spec.url.slice(source.spec.url.indexOf('@') + 1)
 
   return (
     <>
@@ -91,8 +109,8 @@ export function RevisionWidget(props) {
             {lastAttemptedHash.slice(0, 8)}
           </a>
         </span>
-        <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", gitRepository.metadata.name)}>
-          &nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})
+        <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
+          &nbsp;({`${source.metadata.namespace}/${source.metadata.name}`})
         </NavigationButton>
       </span>
     }
@@ -106,8 +124,8 @@ export function RevisionWidget(props) {
           {appliedHash.slice(0, 8)}
         </a>
       </span>
-      <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", gitRepository.metadata.name)}>
-        &nbsp;({`${gitRepository.metadata.namespace}/${gitRepository.metadata.name}`})
+      <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
+        &nbsp;({`${source.metadata.namespace}/${source.metadata.name}`})
       </NavigationButton>
     </span>
     </>

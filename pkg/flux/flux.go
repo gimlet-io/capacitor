@@ -8,6 +8,7 @@ import (
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/gimlet-io/capacitor/pkg/k8s"
 	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
@@ -35,6 +36,18 @@ var (
 		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1",
 		Resource: "gitrepositories",
+	}
+
+	ociRepositoryGVR = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1beta2",
+		Resource: "ocirepositories",
+	}
+
+	bucketGVR = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1beta2",
+		Resource: "buckets",
 	}
 
 	helmReleaseGVR = schema.GroupVersionResource{
@@ -286,6 +299,8 @@ func helmStatusWithResources(
 func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, error) {
 	fluxState := &FluxState{
 		GitRepositories: []sourcev1.GitRepository{},
+		OCIRepositories: []sourcev1beta2.OCIRepository{},
+		Buckets:         []sourcev1beta2.Bucket{},
 		Kustomizations:  []kustomizationv1.Kustomization{},
 		HelmReleases:    []helmv2beta1.HelmRelease{},
 		FluxServices:    []Service{},
@@ -297,7 +312,6 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 	if err != nil {
 		return nil, err
 	}
-
 	for _, repo := range gitRepositories.Items {
 		unstructured := repo.UnstructuredContent()
 		var gitRepository sourcev1.GitRepository
@@ -306,6 +320,38 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 			return nil, err
 		}
 		fluxState.GitRepositories = append(fluxState.GitRepositories, gitRepository)
+	}
+
+	ociRepositories, err := dc.Resource(ociRepositoryGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, repo := range ociRepositories.Items {
+		unstructured := repo.UnstructuredContent()
+		var ociRepository sourcev1beta2.OCIRepository
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &ociRepository)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.OCIRepositories = append(fluxState.OCIRepositories, ociRepository)
+	}
+
+	buckets, err := dc.Resource(bucketGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, repo := range buckets.Items {
+		unstructured := repo.UnstructuredContent()
+		var bucket sourcev1beta2.Bucket
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &bucket)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.Buckets = append(fluxState.Buckets, bucket)
 	}
 
 	kustomizations, err := dc.Resource(kustomizationGVR).
