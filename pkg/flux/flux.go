@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
@@ -118,14 +117,11 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, error) {
 	services := []Service{}
 
-	t0 := time.Now().UnixMilli()
 	inventory, err := inventory(dc)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("inventory: %d", time.Now().UnixMilli()-t0)
 
-	t0 = time.Now().UnixMilli()
 	servicesInNamespaces := map[string][]v1.Service{}
 	for _, item := range inventory {
 		if item.GroupKind.Kind == "Service" {
@@ -147,14 +143,11 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 			}
 		}
 	}
-	fmt.Printf("services: %d", time.Now().UnixMilli()-t0)
 
-	t0 = time.Now().UnixMilli()
 	helmServices, err := helmServices(dc)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("helm services: %d", time.Now().UnixMilli()-t0)
 
 	services = append(services, helmServices...)
 
