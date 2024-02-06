@@ -7,7 +7,52 @@ A general purpose UI for FluxCD.
 
 ## Installation
 
-### Kubernetes maninfests
+### Flux
+
+Deploy the latest Capacitor release in the `flux-system` namespace
+by adding the following manifests to your Flux repository:
+
+```yaml
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: capacitor
+  namespace: flux-system
+spec:
+  interval: 12h
+  url: oci://ghcr.io/gimlet-io/capacitor-manifests
+  ref:
+    semver: ">=0.1.0-0"
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: capacitor
+  namespace: flux-system
+spec:
+  targetNamespace: flux-system
+  interval: 1h
+  retryInterval: 2m
+  timeout: 5m
+  wait: true
+  prune: true
+  path: "./"
+  sourceRef:
+    kind: OCIRepository
+    name: capacitor
+```
+
+Note that Flux will check for Capacitor releases every 12 hours and will 
+automatically deploy the new version if it is available.
+
+Access Capacitor UI with port-forwarding:
+
+```bash
+kubectl -n flux-system port-forward svc/capacitor 9000:9000
+```
+
+### Kubernetes manifests
 
 ```
 kubectl create namespace infrastructure
