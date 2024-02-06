@@ -33,7 +33,7 @@ export function Kustomizations(props){
   }, [kustomizations]);
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         sortedKustomizations?.map(kustomization =>
           <Kustomization
@@ -62,7 +62,7 @@ export function HelmReleases(props) {
   }, [helmReleases]);
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         sortedHelmReleases?.map(helmRelease =>
           <HelmRelease
@@ -134,7 +134,7 @@ export function GitRepositories(props){
   }, [sources]);
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         sortedSources?.map(source =>
           <Source
@@ -204,7 +204,7 @@ export const CompactServices = memo(function CompactServices(props) {
   const { capacitorClient, store, services } = props
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         services?.map((service) => {
           return (

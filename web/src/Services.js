@@ -56,8 +56,6 @@ export default Services;
 const findServiceInInventory = (kustomizations, service) => {
   const serviceKey = `${service.svc.metadata.namespace}_${service.svc.metadata.name}__Service`
 
-  if (!kustomizations) return undefined
-
   for (const k of kustomizations) {
     if (!k.status.inventory) {
       continue

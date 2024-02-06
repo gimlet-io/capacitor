@@ -39,7 +39,7 @@ export function Kustomization(props) {
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Applied" /></span>
       </div>
       <div className="col-span-4">
-        <div className="font-medium text-neutral-700">
+        <div className="font-medium text-neutral-700 field">
           <RevisionWidget
             kustomization={item}
             source={source}
@@ -47,14 +47,18 @@ export function Kustomization(props) {
             inFooter={true}
           />
         </div>
+        { source.kind !== 'OCIRepository' &&
         <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{item.spec.path}</span>
+        }
       </div>
       <div className="grid-cols-2">
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
-          onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
-        >
-          Reconcile
-        </button>
+        <div>
+          <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+            onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
+          >
+            Reconcile
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -88,15 +92,9 @@ export function RevisionWidget(props) {
   // const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
   // const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
-  if (source.kind === 'OCIRepository') {
-    return (<span>OCIRepository (TODO)</span>)
-  }
-
-  if (source.kind === 'Bucket') {
-    return (<span>Bucket (TODO)</span>)
-  }
-
   const url = source.spec.url.slice(source.spec.url.indexOf('@') + 1)
+
+  console.log(kustomization)
 
   return (
     <>
@@ -114,19 +112,28 @@ export function RevisionWidget(props) {
         </NavigationButton>
       </span>
     }
-    <span className={`block ${ready ? '' : 'font-normal text-neutral-600'} field`}>
+    <span className={`${ready ? '' : 'font-normal text-neutral-600'} field`}>
       { !ready &&
       <span>Currently Applied: </span>
       }
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
-      <span className="pl-1">
-        <a href={`https://${url}/commit/${appliedHash}`} target="_blank" rel="noopener noreferrer">
-          {appliedHash.slice(0, 8)}
-        </a>
-      </span>
+      { source.kind === 'OCIRepository' &&
       <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
-        &nbsp;({`${source.metadata.namespace}/${source.metadata.name}`})
+       {appliedRevision}
       </NavigationButton>
+      }
+      { source.kind !== 'OCIRepository' &&
+      <>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
+        <span className="pl-1">
+          <a href={`https://${url}/commit/${appliedHash}`} target="_blank" rel="noopener noreferrer">
+            {appliedHash.slice(0, 8)}
+          </a>
+        </span>
+        <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
+          &nbsp;({`${source.metadata.namespace}/${source.metadata.name}`})
+        </NavigationButton>
+      </>
+      }
     </span>
     </>
   )
