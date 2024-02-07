@@ -1,11 +1,22 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
-import React, { memo, useState } from 'react';
-import { GitRepositories, Kustomizations, HelmReleases, CompactServices, Summary } from './FluxState';
+import React, { memo, useMemo, useState } from 'react';
+import { Sources, Kustomizations, HelmReleases, CompactServices, Summary } from './FluxState';
 
 const Footer = memo(function Footer(props) {
   const { store, capacitorClient, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
   const [fluxState, setFluxState] = useState(store.getState().fluxState);
   store.subscribe(() => setFluxState(store.getState().fluxState))
+
+  const sources = useMemo(() => {
+    const sources = [];
+
+    if (fluxState.ociRepositories) {
+      sources.push(...fluxState.ociRepositories)
+      sources.push(...fluxState.gitRepositories)
+      sources.push(...fluxState.buckets)
+    }
+    return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [fluxState]);
 
   return (
     <div aria-labelledby="slide-over-title" role="dialog" aria-modal="true" className={`fixed inset-x-0 bottom-0 bg-neutral-200 border-t border-neutral-300 ${expanded ? 'h-4/5' : 'h-16'}`}>
@@ -16,7 +27,7 @@ const Footer = memo(function Footer(props) {
           { !expanded &&
           <>
           <div>
-            <Summary resources={fluxState.gitRepositories} label="SOURCES" />
+            <Summary resources={sources} label="SOURCES" />
           </div>
           <div>
             <Summary resources={fluxState.kustomizations} label="KUSTOMIZATIONS" />
@@ -42,7 +53,7 @@ const Footer = memo(function Footer(props) {
             <div className="w-56 px-4 border-r border-neutral-300">
               <SideBar
                 navigation={[
-                  { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
+                  { name: 'Sources', href: '#', count: sources.length },
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
                   { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
                   { name: 'Flux Runtime', href: '#', count: fluxState.fluxServices.length },
@@ -63,7 +74,7 @@ const Footer = memo(function Footer(props) {
                 <HelmReleases capacitorClient={capacitorClient} helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
               }
               { selected === "Sources" &&
-                <GitRepositories capacitorClient={capacitorClient} gitRepositories={fluxState.gitRepositories} targetReference={targetReference} />
+                <Sources capacitorClient={capacitorClient} fluxState={fluxState} targetReference={targetReference} />
               }
               { selected === "Flux Runtime" &&
                 <CompactServices capacitorClient={capacitorClient} store={store} services={fluxState.fluxServices} />

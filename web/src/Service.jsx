@@ -21,7 +21,7 @@ const lockIcon = (
 );
 
 function Service(props) {
-  const { service, kustomization, gitRepository, helmRelease, capacitorClient, store, handleNavigationSelect } = props;
+  const { service, kustomization, source, helmRelease, capacitorClient, store, handleNavigationSelect } = props;
   const deployment = service.deployment;
 
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
@@ -214,7 +214,7 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Sync</p>
                   <div className="flex text-sm text-neutral-600">
                     <div className="ml-4"><ReadyWidget resource={kustomization} label="Applied" /></div>
-                    <div className="ml-2"><RevisionWidget kustomization={kustomization} gitRepository={gitRepository} handleNavigationSelect={handleNavigationSelect} /></div>
+                    <div className="ml-2 field flex-1"><RevisionWidget kustomization={kustomization} source={source} handleNavigationSelect={handleNavigationSelect} /></div>
                   </div>
                 </div>
                 { helmRelease &&
@@ -269,7 +269,7 @@ export function CompactService(props) {
           </div>
         </h3>
         <div>
-          <div className="grid grid-cols-12 mt-4 px-4">
+          <div className="grid grid-cols-12 px-4">
             <div className="col-span-5 space-y-4">
               <div>
                 <p className="text-base text-neutral-600">Pods</p>

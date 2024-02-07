@@ -6,7 +6,7 @@ toolchain go1.21.5
 
 require (
 	github.com/fluxcd/helm-controller/api v0.37.2
-	github.com/fluxcd/pkg/apis/meta v1.2.0
+	github.com/fluxcd/pkg/apis/meta v1.3.0
 	helm.sh/helm/v3 v3.13.3
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
@@ -45,6 +45,7 @@ require (
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
+	github.com/fluxcd/pkg/apis/acl v0.1.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.2.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
@@ -108,7 +109,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.19.0 // indirect
 	go.opentelemetry.io/otel/trace v1.19.0 // indirect
 	go.starlark.net v0.0.0-20231121155337-90ade8b19d09 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
@@ -133,7 +134,7 @@ replace (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fluxcd/kustomize-controller/api v1.1.1
-	github.com/fluxcd/source-controller/api v1.2.2
+	github.com/fluxcd/source-controller/api v1.2.4
 	github.com/go-chi/chi v1.5.5
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -146,10 +147,10 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/net v0.19.0 // indirect
+	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/term v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect

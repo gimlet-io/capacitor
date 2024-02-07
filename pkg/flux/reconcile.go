@@ -25,6 +25,7 @@ import (
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/sirupsen/logrus"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,19 +68,33 @@ func NewReconcileCommand(resource string) *reconcileCommand {
 			groupVersion: helmv2.GroupVersion,
 			kind:         helmv2.HelmReleaseKind,
 		}
-	case "source":
+	case sourcev1.GitRepositoryKind:
 		return &reconcileCommand{
 			object:       gitRepositoryAdapter{&sourcev1.GitRepository{}},
 			groupVersion: sourcev1.GroupVersion,
 			kind:         sourcev1.GitRepositoryKind,
 		}
+	case sourcev1beta2.OCIRepositoryKind:
+		return &reconcileCommand{
+			object:       ociRepositoryAdapter{&sourcev1beta2.OCIRepository{}},
+			groupVersion: sourcev1beta2.GroupVersion,
+			kind:         sourcev1beta2.OCIRepositoryKind,
+		}
+	case sourcev1beta2.BucketKind:
+		return &reconcileCommand{
+			object:       bucketAdapter{&sourcev1beta2.Bucket{}},
+			groupVersion: sourcev1beta2.GroupVersion,
+			kind:         sourcev1beta2.BucketKind,
+		}
 	}
+
 	return nil
 }
 
 func (r *reconcileCommand) Run(config *rest.Config, namespace, name string) {
 	scheme := apiruntime.NewScheme()
 	sourcev1.AddToScheme(scheme)
+	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)
 	helmv2.AddToScheme(scheme)
 

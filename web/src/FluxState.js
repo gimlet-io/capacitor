@@ -14,7 +14,7 @@ function FluxState(props) {
 
   return (
     <div>
-      <GitRepositories gitRepositories={fluxState.gitRepositories} />
+      <Sources fluxState={fluxState} />
       <Kustomizations fluxState={fluxState} />
     </div>
   )
@@ -23,7 +23,6 @@ function FluxState(props) {
 export function Kustomizations(props){
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
   const kustomizations = fluxState.kustomizations;
-  const gitRepositories = fluxState.gitRepositories
 
   const sortedKustomizations = useMemo(() => {
     if (!kustomizations) {
@@ -34,14 +33,14 @@ export function Kustomizations(props){
   }, [kustomizations]);
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         sortedKustomizations?.map(kustomization =>
           <Kustomization
             key={kustomization.metadata.namespace + kustomization.metadata.name}
             capacitorClient={capacitorClient}
             item={kustomization}
-            gitRepositories={gitRepositories}
+            fluxState={fluxState}
             handleNavigationSelect={handleNavigationSelect}
             targetReference={targetReference}
           />
@@ -63,7 +62,7 @@ export function HelmReleases(props) {
   }, [helmReleases]);
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         sortedHelmReleases?.map(helmRelease =>
           <HelmRelease
@@ -107,11 +106,11 @@ function HelmRelease(props) {
       <div className="col-span-4">
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Installed" /></span>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-5">
         <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
       </div>
-      <div className="grid-cols-2">
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+      <div className="grid-cols-1 text-right">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile("helmrelease", item.metadata.namespace, item.metadata.name)}
         >
           Reconcile
@@ -120,25 +119,27 @@ function HelmRelease(props) {
     </div>)
 }
 
-export function GitRepositories(props){
-  const { capacitorClient, gitRepositories, targetReference } = props
+export function Sources(props){
+  const { capacitorClient, fluxState, targetReference } = props
 
-  const sortedGitRepositories = useMemo(() => {
-    if (!gitRepositories) {
-      return null;
+  const sortedSources = useMemo(() => {
+    const sources = [];
+    if (fluxState.ociRepositories) {
+      sources.push(...fluxState.ociRepositories)
+      sources.push(...fluxState.gitRepositories)
+      sources.push(...fluxState.buckets)
     }
-
-    return [...gitRepositories].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-  }, [gitRepositories]);
+    return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [fluxState]);
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
-        sortedGitRepositories?.map(gitRepository =>
-          <GitRepository
-            key={"source-"+ gitRepository.metadata.namespace + gitRepository.metadata.name}  
+        sortedSources?.map(source =>
+          <Source
+            key={"source-"+ source.metadata.namespace + source.metadata.name}  
             capacitorClient={capacitorClient}
-            item={gitRepository}
+            source={source}
             targetReference={targetReference}
           />
         )
@@ -147,41 +148,49 @@ export function GitRepositories(props){
   )
 }
 
-function GitRepository(props) {
-  const { capacitorClient, item, targetReference } = props;
+function Source(props) {
+  const { capacitorClient, source, targetReference } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
   useEffect(() => {
-    setHighlight(targetReference === item.metadata.name);
-    if (targetReference === item.metadata.name) {
+    setHighlight(targetReference === source.metadata.name);
+    if (targetReference === source.metadata.name) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [item.metadata.name, targetReference]);
+  }, [source.metadata.name, targetReference]);
 
   return (
     <div
       ref={ref}
       className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
-      key={`${item.metadata.namespace}/${item.metadata.name}`}
+      key={`${source.metadata.namespace}/${source.metadata.name}`}
       >
       <div className="col-span-2">
         <span className="block font-medium text-black">
-          {item.metadata.name}
+          {source.metadata.name}
         </span>
         <span className="block text-neutral-600">
-          {item.metadata.namespace}
+          {source.metadata.namespace}
         </span>
       </div>
       <div className="col-span-4">
-        <ReadyWidget resource={item} displayMessage={true}/>
+        <ReadyWidget resource={source} displayMessage={true}/>
       </div>
-      <div className="col-span-4">
-        <ArtifactWidget gitRepository={item} displayMessage={true}/>
+      <div className="col-span-5">
+        { source.kind === 'GitRepository' &&
+        <ArtifactWidget gitRepository={source} displayMessage={true}/>
+        }
+        { source.kind === 'OCIRepository' &&
+        <OCIArtifactWidget source={source} displayMessage={true}/>
+        }
+        { source.kind === 'Bucket' &&
+        <span>Bucket (TODO)</span>
+        }
       </div>
-      <div className="grid-cols-2">
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
-          onClick={() => capacitorClient.reconcile("source", item.metadata.namespace, item.metadata.name)}
+      <div className="grid-cols-1 text-right">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.reconcile(source.kind, source.metadata.namespace, source.metadata.name)}
         >
           Reconcile
         </button>
@@ -194,7 +203,7 @@ export const CompactServices = memo(function CompactServices(props) {
   const { capacitorClient, store, services } = props
 
   return (
-    <div className="grid gap-y-4 grid-cols-1">
+    <div className="space-y-4">
       {
         services?.map((service) => {
           return (
@@ -238,6 +247,26 @@ export function ArtifactWidget(props) {
       <span className='px-1'>@</span>
       <a href={`https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a>
     </span>
+    </>
+  )
+}
+
+export function OCIArtifactWidget(props) {
+  const { source } = props
+  const artifact = source.status.artifact
+
+  const parsed = Date.parse(artifact.lastUpdateTime, "yyyy-MM-dd'T'HH:mm:ss");
+  const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
+
+  return (
+    <>
+    <div className="field font-medium text-neutral-700">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z"/></svg>
+      <span className="pl-1">
+        {source.status.artifact.revision} <TimeLabel title={exactDate} date={parsed} />
+      </span>
+    </div>
+    <span className="block field text-neutral-600">{source.spec.url}</span>
     </>
   )
 }
