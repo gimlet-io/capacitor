@@ -49,6 +49,10 @@ func main() {
 
 	gitRepositoryController := controllers.GitRepositoryController(client, dynamicClient, clientHub)
 	go gitRepositoryController.Run(1, stopCh)
+	ociRepositoryController := controllers.OciRepositoryController(client, dynamicClient, clientHub)
+	go ociRepositoryController.Run(1, stopCh)
+	bucketController := controllers.BucketController(client, dynamicClient, clientHub)
+	go bucketController.Run(1, stopCh)
 	kustomizationController := controllers.KustomizeController(client, dynamicClient, clientHub)
 	go kustomizationController.Run(1, stopCh)
 	helmReleaseController := controllers.HelmReleaseController(client, dynamicClient, clientHub)

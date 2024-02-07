@@ -9,7 +9,8 @@ const Footer = memo(function Footer(props) {
 
   const sources = useMemo(() => {
     const sources = [];
-    if (fluxState) {
+
+    if (fluxState.ociRepositories) {
       sources.push(...fluxState.ociRepositories)
       sources.push(...fluxState.gitRepositories)
       sources.push(...fluxState.buckets)
@@ -52,7 +53,7 @@ const Footer = memo(function Footer(props) {
             <div className="w-56 px-4 border-r border-neutral-300">
               <SideBar
                 navigation={[
-                  { name: 'Sources', href: '#', count: fluxState.gitRepositories.length },
+                  { name: 'Sources', href: '#', count: sources.length },
                   { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
                   { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
                   { name: 'Flux Runtime', href: '#', count: fluxState.fluxServices.length },

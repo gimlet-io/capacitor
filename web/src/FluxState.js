@@ -124,7 +124,7 @@ export function Sources(props){
 
   const sortedSources = useMemo(() => {
     const sources = [];
-    if (fluxState) {
+    if (fluxState.ociRepositories) {
       sources.push(...fluxState.ociRepositories)
       sources.push(...fluxState.gitRepositories)
       sources.push(...fluxState.buckets)
@@ -257,8 +257,6 @@ export function OCIArtifactWidget(props) {
 
   const parsed = Date.parse(artifact.lastUpdateTime, "yyyy-MM-dd'T'HH:mm:ss");
   const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
-
-  console.log(source)
 
   return (
     <>

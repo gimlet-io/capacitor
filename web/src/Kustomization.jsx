@@ -17,7 +17,7 @@ export function Kustomization(props) {
 
   const sources = useMemo(() => {
     const sources = [];
-    if (fluxState) {
+    if (fluxState.ociRepositories) {
       sources.push(...fluxState.ociRepositories)
       sources.push(...fluxState.gitRepositories)
       sources.push(...fluxState.buckets)
@@ -95,8 +95,6 @@ export function RevisionWidget(props) {
   // const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
   const url = source.spec.url.slice(source.spec.url.indexOf('@') + 1)
-
-  console.log(kustomization)
 
   return (
     <>
