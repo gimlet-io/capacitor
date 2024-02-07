@@ -38,7 +38,7 @@ export function Kustomization(props) {
       <div className="col-span-4">
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Applied" /></span>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-5">
         <div className="font-medium text-neutral-700 field">
           <RevisionWidget
             kustomization={item}
@@ -51,14 +51,12 @@ export function Kustomization(props) {
         <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{item.spec.path}</span>
         }
       </div>
-      <div className="grid-cols-2">
-        <div>
-          <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
-            onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
-          >
-            Reconcile
-          </button>
-        </div>
+      <div className="grid-cols-1 text-right">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
+        >
+          Reconcile
+        </button>
       </div>
     </div>
   )

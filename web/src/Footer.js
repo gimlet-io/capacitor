@@ -1,6 +1,6 @@
 import { ArrowDownIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import React, { memo, useState } from 'react';
-import { GitRepositories, Kustomizations, HelmReleases, CompactServices, Summary } from './FluxState';
+import { Sources, Kustomizations, HelmReleases, CompactServices, Summary } from './FluxState';
 
 const Footer = memo(function Footer(props) {
   const { store, capacitorClient, expanded, selected, targetReference, handleToggle, handleNavigationSelect } = props;
@@ -63,7 +63,7 @@ const Footer = memo(function Footer(props) {
                 <HelmReleases capacitorClient={capacitorClient} helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
               }
               { selected === "Sources" &&
-                <GitRepositories capacitorClient={capacitorClient} fluxState={fluxState} targetReference={targetReference} />
+                <Sources capacitorClient={capacitorClient} fluxState={fluxState} targetReference={targetReference} />
               }
               { selected === "Flux Runtime" &&
                 <CompactServices capacitorClient={capacitorClient} store={store} services={fluxState.fluxServices} />

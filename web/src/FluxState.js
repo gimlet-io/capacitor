@@ -14,7 +14,7 @@ function FluxState(props) {
 
   return (
     <div>
-      <GitRepositories fluxState={fluxState} />
+      <Sources fluxState={fluxState} />
       <Kustomizations fluxState={fluxState} />
     </div>
   )
@@ -106,11 +106,11 @@ function HelmRelease(props) {
       <div className="col-span-4">
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Installed" /></span>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-5">
         <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
       </div>
-      <div className="grid-cols-2">
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+      <div className="grid-cols-1 text-right">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile("helmrelease", item.metadata.namespace, item.metadata.name)}
         >
           Reconcile
@@ -119,7 +119,7 @@ function HelmRelease(props) {
     </div>)
 }
 
-export function GitRepositories(props){
+export function Sources(props){
   const { capacitorClient, fluxState, targetReference } = props
 
   const sources = [];
@@ -178,7 +178,7 @@ function Source(props) {
       <div className="col-span-4">
         <ReadyWidget resource={source} displayMessage={true}/>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-5">
         { source.kind === 'GitRepository' &&
         <ArtifactWidget gitRepository={source} displayMessage={true}/>
         }
@@ -189,8 +189,8 @@ function Source(props) {
         <span>Bucket (TODO)</span>
         }
       </div>
-      <div className="grid-cols-2">
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 mr-2 border border-neutral-300 rounded"
+      <div className="grid-cols-1 text-right">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile(source.kind, source.metadata.namespace, source.metadata.name)}
         >
           Reconcile
