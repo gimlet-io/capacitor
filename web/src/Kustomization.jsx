@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ReadyWidget } from './ReadyWidget'
 import jp from 'jsonpath'
 import { NavigationButton } from './NavigationButton'
@@ -15,11 +15,15 @@ export function Kustomization(props) {
     }
   }, [item.metadata.name, targetReference]);
 
-
-  const sources = [];
-  sources.push(...fluxState.ociRepositories)
-  sources.push(...fluxState.gitRepositories)
-  sources.push(...fluxState.buckets)
+  const sources = useMemo(() => {
+    const sources = [];
+    if (fluxState) {
+      sources.push(...fluxState.ociRepositories)
+      sources.push(...fluxState.gitRepositories)
+      sources.push(...fluxState.buckets)
+    }
+    return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+  }, [fluxState]);
   const source = findSource(sources, item.spec.sourceRef)
 
   return (
@@ -117,6 +121,7 @@ export function RevisionWidget(props) {
       { source.kind === 'OCIRepository' &&
       <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
        {appliedRevision}
+       <div className='text-left'>({`${source.metadata.namespace}/${source.metadata.name}`})</div>
       </NavigationButton>
       }
       { source.kind !== 'OCIRepository' &&

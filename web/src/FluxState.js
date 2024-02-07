@@ -122,16 +122,15 @@ function HelmRelease(props) {
 export function Sources(props){
   const { capacitorClient, fluxState, targetReference } = props
 
-  const sources = [];
-  if (fluxState) {
-    sources.push(...fluxState.ociRepositories)
-    sources.push(...fluxState.gitRepositories)
-    sources.push(...fluxState.buckets)
-  }
-
   const sortedSources = useMemo(() => {
+    const sources = [];
+    if (fluxState) {
+      sources.push(...fluxState.ociRepositories)
+      sources.push(...fluxState.gitRepositories)
+      sources.push(...fluxState.buckets)
+    }
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-  }, [sources]);
+  }, [fluxState]);
 
   return (
     <div className="space-y-4">
