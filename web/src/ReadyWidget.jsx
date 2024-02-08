@@ -49,14 +49,14 @@ export function ReadyWidget(props) {
         }
       </div>
       {displayMessage && readyCondition &&
-        <div className={`block ${messageColor}`}>
+        <div className={`${messageColor}`}>
           {reconciling &&
-            <p>{reconcilingCondition.message}</p>
+            <span title={reconcilingCondition.message}>{reconcilingCondition.message}</span>
           }
           {dependencyNotReady &&
-            <p>Dependency not ready</p>
+            <span>Dependency not ready</span>
           }
-          <p>{readyCondition.message}</p>
+          <span title={readyCondition.message}>{readyCondition.message}</span>
         </div>
       }
     </div>
