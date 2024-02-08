@@ -1,7 +1,7 @@
 package flux
 
 import (
-	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
@@ -14,7 +14,7 @@ type FluxState struct {
 	OCIRepositories []sourcev1beta2.OCIRepository   `json:"ociRepositories"`
 	Buckets         []sourcev1beta2.Bucket          `json:"buckets"`
 	Kustomizations  []kustomizationv1.Kustomization `json:"kustomizations"`
-	HelmReleases    []helmv2beta1.HelmRelease       `json:"helmReleases"`
+	HelmReleases    []helmv2beta2.HelmRelease       `json:"helmReleases"`
 	FluxServices    []Service                       `json:"fluxServices"`
 }
 

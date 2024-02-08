@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,7 +18,6 @@ import (
 )
 
 func main() {
-	fmt.Println("Connecting to Kubernetes..")
 	var kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	flag.Parse()
 
