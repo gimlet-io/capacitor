@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
@@ -18,6 +19,7 @@ import (
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -60,7 +62,10 @@ var (
 func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 	helmReleases, err := helmReleases(dc)
 	if err != nil {
-		return nil, err
+		if !strings.Contains(err.Error(), "the server could not find the requested resource") {
+			return nil, err
+		}
+		return []Service{}, nil
 	}
 
 	services := []Service{}
@@ -366,7 +371,10 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		helmReleases = &unstructured.UnstructuredList{}
+		if !strings.Contains(err.Error(), "the server could not find the requested resource") {
+			return nil, err
+		}
 	}
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
