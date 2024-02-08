@@ -110,16 +110,8 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 				continue
 			}
 
-			var helmReleaseName string
-			for label, value := range svc.ObjectMeta.Labels {
-				if label == "helm.toolkit.fluxcd.io/name" {
-					helmReleaseName = value
-				}
-			}
-
 			services = append(services, Service{
-				Svc:         svc,
-				HelmRelease: helmReleaseName,
+				Svc: svc,
 			})
 		}
 	}

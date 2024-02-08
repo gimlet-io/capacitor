@@ -19,8 +19,7 @@ type FluxState struct {
 }
 
 type Service struct {
-	Deployment  *apps_v1.Deployment `json:"deployment"`
-	Svc         v1.Service          `json:"svc"`
-	Pods        []v1.Pod            `json:"pods"`
-	HelmRelease string              `json:"helmRelease,omitempty"`
+	Deployment *apps_v1.Deployment `json:"deployment"`
+	Svc        v1.Service          `json:"svc"`
+	Pods       []v1.Pod            `json:"pods"`
 }

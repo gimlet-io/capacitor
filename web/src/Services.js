@@ -16,7 +16,10 @@ const Services = memo(function Services(props) {
   return (
     <>
       {filteredServices.map((service) => {
-        const helmRelease = fluxState.helmReleases?.find(hr => hr.metadata.name === service.helmRelease)
+        const helmRelease = fluxState.helmReleases?.find(hr => {
+          const helmReleaseLabel = service.svc.metadata.labels['helm.toolkit.fluxcd.io/name']
+          return hr.metadata.name == helmReleaseLabel
+        })
 
         const kustomization = helmRelease
          ? findHelmReleaseInventory(fluxState.kustomizations, helmRelease)
