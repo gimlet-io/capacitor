@@ -73,6 +73,9 @@ const findHelmReleaseInventory = (kustomizations, helmRelease) => {
   const key = `${helmRelease.metadata.namespace}_${helmRelease.metadata.name}_helm.toolkit.fluxcd.io_HelmRelease`
 
   for (const k of kustomizations) {
+    if (!k.status.inventory) {
+      continue
+    }
     const inInventory = k.status.inventory.entries.find((elem) => elem.id === key)
     if (inInventory) {
       return k
