@@ -21,7 +21,7 @@ func GitRepositoryController(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
-) *Controller {
+) (*Controller, error) {
 	return NewDynamicController(
 		"gitrepositories.source.toolkit.fluxcd.io",
 		dynamicClient,

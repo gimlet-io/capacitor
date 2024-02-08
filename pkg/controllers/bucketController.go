@@ -21,7 +21,7 @@ func BucketController(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
-) *Controller {
+) (*Controller, error) {
 	return NewDynamicController(
 		"buckets.source.toolkit.fluxcd.io",
 		dynamicClient,

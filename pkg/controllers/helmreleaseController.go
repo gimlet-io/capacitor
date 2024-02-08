@@ -21,7 +21,7 @@ func HelmReleaseController(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
-) *Controller {
+) (*Controller, error) {
 	return NewDynamicController(
 		"helmreleases.helm.toolkit.fluxcd.io",
 		dynamicClient,

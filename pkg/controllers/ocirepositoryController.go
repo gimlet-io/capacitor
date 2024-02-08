@@ -21,7 +21,7 @@ func OciRepositoryController(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
-) *Controller {
+) (*Controller, error) {
 	return NewDynamicController(
 		"ocirepositories.source.toolkit.fluxcd.io",
 		dynamicClient,

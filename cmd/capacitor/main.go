@@ -45,16 +45,16 @@ func main() {
 	clientHub := streaming.NewClientHub()
 	go clientHub.Run()
 
-	gitRepositoryController := controllers.GitRepositoryController(client, dynamicClient, clientHub)
-	go gitRepositoryController.Run(1, stopCh)
-	ociRepositoryController := controllers.OciRepositoryController(client, dynamicClient, clientHub)
-	go ociRepositoryController.Run(1, stopCh)
-	bucketController := controllers.BucketController(client, dynamicClient, clientHub)
-	go bucketController.Run(1, stopCh)
-	kustomizationController := controllers.KustomizeController(client, dynamicClient, clientHub)
-	go kustomizationController.Run(1, stopCh)
-	helmReleaseController := controllers.HelmReleaseController(client, dynamicClient, clientHub)
-	go helmReleaseController.Run(1, stopCh)
+	gitRepositoryController, err := controllers.GitRepositoryController(client, dynamicClient, clientHub)
+	runController(err, gitRepositoryController, stopCh)
+	ociRepositoryController, err := controllers.OciRepositoryController(client, dynamicClient, clientHub)
+	runController(err, ociRepositoryController, stopCh)
+	bucketController, err := controllers.BucketController(client, dynamicClient, clientHub)
+	runController(err, bucketController, stopCh)
+	kustomizationController, err := controllers.KustomizeController(client, dynamicClient, clientHub)
+	runController(err, kustomizationController, stopCh)
+	helmReleaseController, err := controllers.HelmReleaseController(client, dynamicClient, clientHub)
+	runController(err, helmReleaseController, stopCh)
 
 	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {
@@ -80,4 +80,12 @@ func main() {
 	logrus.Info("Initialized")
 	<-done
 	logrus.Info("Exiting")
+}
+
+func runController(err error, controller *controllers.Controller, stopCh chan struct{}) {
+	if err != nil {
+		logrus.Warn(err)
+	} else {
+		go controller.Run(1, stopCh)
+	}
 }
