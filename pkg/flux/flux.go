@@ -79,7 +79,7 @@ func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 
 	serviceResourceList := kube.ResourceList{}
 	for _, release := range helmReleases {
-		serviceList, err := helmStatusWithResources(releases, release.Spec.ReleaseName, release.Namespace)
+		serviceList, err := helmStatusWithResources(releases, release)
 		if err != nil {
 			logrus.Warnf("could not get helm status for %s: %s", release.Spec.ReleaseName, err.Error())
 			continue
@@ -257,13 +257,12 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) 
 
 func helmStatusWithResources(
 	releases []*rspb.Release,
-	releaseName string,
-	namespace string,
+	hr helmv2beta2.HelmRelease,
 ) (kube.ResourceList, error) {
 	var release *rspb.Release
 	version := -1
 	for _, r := range releases {
-		if r.Namespace == namespace && r.Name == releaseName {
+		if r.Namespace == hr.GetReleaseNamespace() && r.Name == hr.GetReleaseName() {
 			if r.Version > version {
 				release = r
 				version = r.Version
@@ -271,7 +270,7 @@ func helmStatusWithResources(
 		}
 	}
 	if release == nil {
-		return nil, fmt.Errorf("could not find helm release %s", releaseName)
+		return nil, fmt.Errorf("could not find helm release %s", hr.GetReleaseName())
 	}
 
 	actionConfig := action.Configuration{}
