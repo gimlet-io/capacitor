@@ -104,7 +104,7 @@ function HelmRelease(props) {
         </span>
       </div>
       <div className="col-span-4">
-        <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Installed" /></span>
+        <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Reconciled" /></span>
       </div>
       <div className="col-span-5">
         <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
@@ -320,7 +320,7 @@ export function HelmRevisionWidget(props) {
         if (release.status === "deployed") {
           statusLabel = "was deployed"
         } else if (release.status === "superseded") {
-          statusLabel = "was deployed, now superseded"
+          statusLabel = "was deployed"
         } else if (release.status === "failed") {
           statusLabel = "failed to deploy"
         }
@@ -332,8 +332,11 @@ export function HelmRevisionWidget(props) {
         return (
           <p key={`${release.chartVersion}@${release.chartName}:${release.digest}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
             <span>{release.chartVersion}@{release.chartName}</span>
-            <TimeLabel title={exactDate} date={parsed} className='pl-1' />
             <span className='pl-1'>{statusLabel}</span>
+            <TimeLabel title={exactDate} date={parsed} className='' />
+            { release.status === "superseded" &&
+             <span className='pl-1'>now superseded</span>
+            }
           </p>
         )
         })
