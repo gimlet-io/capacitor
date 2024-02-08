@@ -1,5 +1,6 @@
 import React, { memo, useState } from 'react';
 import Service from "./Service";
+import { findSource } from './utils';
 
 const Services = memo(function Services(props) {
   const { capacitorClient, store, filters, handleNavigationSelect } = props
@@ -29,7 +30,7 @@ const Services = memo(function Services(props) {
         sources.push(...fluxState.ociRepositories)
         sources.push(...fluxState.gitRepositories)
         sources.push(...fluxState.buckets)
-        const source = findSource(sources, kustomization.spec.sourceRef)
+        const source = findSource(sources, kustomization)
 
         return (
           <Service
@@ -48,11 +49,6 @@ const Services = memo(function Services(props) {
     </>
   )
 })
-
-function findSource(sources, sourceRef) {
-  return sources.find((r) => r.kind === sourceRef.kind && 
-    r.metadata.name === sourceRef.name)
-} 
 
 export default Services;
 

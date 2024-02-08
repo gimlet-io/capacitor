@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ReadyWidget } from './ReadyWidget'
 import jp from 'jsonpath'
 import { NavigationButton } from './NavigationButton'
+import { findSource } from './utils';
 
 export function Kustomization(props) {
   const { capacitorClient, item, fluxState, targetReference, handleNavigationSelect } = props;
@@ -65,17 +66,6 @@ export function Kustomization(props) {
     </div>
   )
 }
-
-function findSource(sources, reconciler) {
-  let namespace = reconciler.metadata.namespace
-  if (reconciler.spec.sourceRef.namespace) { // namespace is not mandatory
-    namespace = reconciler.spec.sourceRef.namespace
-  }
-
-  return sources.find((source) => source.kind === reconciler.spec.sourceRef.kind && 
-    source.metadata.name === reconciler.spec.sourceRef.name &&
-    source.metadata.namespace === namespace)
-} 
 
 export function RevisionWidget(props) {
   const { kustomization, source, handleNavigationSelect, inFooter } = props
