@@ -21,7 +21,7 @@ func KustomizeController(
 	client *kubernetes.Clientset,
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
-) *Controller {
+) (*Controller, error) {
 	return NewDynamicController(
 		"kustomizations.kustomize.toolkit.fluxcd.io",
 		dynamicClient,

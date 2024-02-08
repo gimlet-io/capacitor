@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -51,10 +52,16 @@ func NewDynamicController(
 	dynamicClient dynamic.Interface,
 	resource schema.GroupVersionResource,
 	eventHandler func(informerEvent Event, objectMeta metav1.ObjectMeta, obj interface{}) error,
-) *Controller {
+) (*Controller, error) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	var informerEvent Event
 	var err error
+
+	// check if resource is supported
+	_, err = dynamicClient.Resource(resource).Namespace("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("%s is not supported on this cluster: %s", name, err)
+	}
 
 	dynInformer := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
 	informer := dynInformer.ForResource(resource).Informer()
@@ -89,7 +96,7 @@ func NewDynamicController(
 		indexer:      informer.GetIndexer(),
 		queue:        queue,
 		eventHandler: eventHandler,
-	}
+	}, nil
 }
 
 // Event indicate the informerEvent
