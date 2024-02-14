@@ -16,7 +16,6 @@ if (typeof window !== 'undefined') {
 
 export default class StreamingBackend extends Component {
   componentDidMount() {
-    console.log("componentdid mount")
     console.log("Connecting to " + URL + '/ws/')
 
     this.ws = new WebSocket(URL + '/ws/');

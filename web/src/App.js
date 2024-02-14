@@ -21,10 +21,10 @@ function App() {
   const [selected, setSelected] = useState('Kustomizations');
   const [targetReference, setTargetReference] = useState("")
 
-  const handleNavigationSelect = useCallback((selectedNav, ref) => {
+  const handleNavigationSelect = useCallback((selectedNav, objectNs, objectName, objectKind) => {
     setExpanded(true)
     setSelected(selectedNav);
-    setTargetReference(ref)
+    setTargetReference({objectNs, objectName, objectKind})
   },
     [setSelected, setTargetReference]
   )

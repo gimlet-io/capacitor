@@ -223,11 +223,11 @@ function Service(props) {
                   <div className="flex text-sm text-neutral-600">
                     <div className="ml-4"><ReadyWidget resource={helmRelease} label="Installed" /></div>
                     <div
-                      onClick={() => handleNavigationSelect("Helm Releases", helmRelease.metadata.name)}
+                      onClick={() => handleNavigationSelect("Helm Releases", helmRelease.metadata.namespace, helmRelease.metadata.name)}
                       className="ml-1 cursor-pointer">
                         ({helmRelease.metadata.namespace}/{helmRelease.metadata.name})
                     </div>
-                    <div className="ml-4"><HelmRevisionWidget helmRelease={helmRelease} handleNavigationSelect={handleNavigationSelect} /></div>
+                    <div className="ml-4"><HelmRevisionWidget helmRelease={helmRelease} /></div>
                   </div>
                 </div>
                 }

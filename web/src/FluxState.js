@@ -83,11 +83,12 @@ function HelmRelease(props) {
   const [highlight, setHighlight] = useState(false)
 
   useEffect(() => {
-    setHighlight(targetReference === item.metadata.name);
-    if (targetReference === item.metadata.name) {
+    const matching = targetReference.objectNs === item.metadata.namespace && targetReference.objectName === item.metadata.name
+    setHighlight(matching);
+    if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [item.metadata.name, targetReference]);
+  }, [item.metadata, targetReference]);
 
   return (
     <div
@@ -154,11 +155,14 @@ function Source(props) {
   const [highlight, setHighlight] = useState(false)
 
   useEffect(() => {
-    setHighlight(targetReference === source.metadata.name);
-    if (targetReference === source.metadata.name) {
+    const matching = targetReference.objectNs === source.metadata.namespace &&
+      targetReference.objectName === source.metadata.name &&
+      targetReference.objectKind === source.kind
+    setHighlight(matching);
+    if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [source.metadata.name, targetReference]);
+  }, [source.metadata, targetReference]);
 
   return (
     <div

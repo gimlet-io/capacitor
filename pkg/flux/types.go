@@ -23,3 +23,13 @@ type Service struct {
 	Svc        v1.Service          `json:"svc"`
 	Pods       []v1.Pod            `json:"pods"`
 }
+
+type Event struct {
+	InvolvedObjectKind      string `json:"involvedObjectKind"`
+	InvolvedObjectNamespace string `json:"involvedObjectNamespace"`
+	InvolvedObject          string `json:"involvedObject"`
+	Type                    string `json:"type"`
+	Reason                  string `json:"reason"`
+	Message                 string `json:"message"`
+	LastSeen                string `json:"lastSeen"`
+}
