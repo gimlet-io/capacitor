@@ -29,7 +29,7 @@ function FluxEvents(props) {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {events.map((e) => (
-                <tr key={e.lastSeen}>
+                <tr key={e.lastSeen} className={e.type === "Warning" ? "bg-orange-400" : ""}>
                   <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
                     {e.lastSeen}
                   </td>

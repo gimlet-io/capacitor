@@ -170,7 +170,7 @@ var fluxKindMap = refMap{
 	imagev1.ImageRepositoryKind:      {gvk: imagev1.GroupVersion.WithKind(imagev1.ImageRepositoryKind)},
 }
 
-func ignoreEvent(e corev1.Event) bool {
+func IgnoreEvent(e corev1.Event) bool {
 	if !fluxKindMap.hasKind(e.InvolvedObject.Kind) {
 		return true
 	}

@@ -405,7 +405,7 @@ func Events(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Event, error)
 
 	var eventDTOs []Event
 	for _, item := range events.Items {
-		if ignoreEvent(item) {
+		if IgnoreEvent(item) {
 			continue
 		}
 

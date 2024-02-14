@@ -1,8 +1,9 @@
 package streaming
 
 const (
-	FLUX_STATE_RECEIVED string = "FLUX_STATE_RECEIVED"
-	POD_LOGS_RECEIVED   string = "POD_LOGS_RECEIVED"
+	FLUX_STATE_RECEIVED  string = "FLUX_STATE_RECEIVED"
+	FLUX_EVENTS_RECEIVED string = "FLUX_EVENTS_RECEIVED"
+	POD_LOGS_RECEIVED    string = "POD_LOGS_RECEIVED"
 )
 
 type Envelope struct {

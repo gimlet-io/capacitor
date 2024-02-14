@@ -162,7 +162,7 @@ function Source(props) {
     if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [source.metadata, targetReference]);
+  }, [source.metadata, source.kind, targetReference]);
 
   return (
     <div
