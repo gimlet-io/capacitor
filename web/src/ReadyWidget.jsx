@@ -45,7 +45,7 @@ export function ReadyWidget(props) {
         <span className={`absolute -left-4 top-1 rounded-full h-3 w-3 ${color} inline-block`}></span>
         <span>{statusLabel}</span>
         {readyCondition &&
-          <TimeLabel title={exactDate} date={parsed} />
+          <span className='ml-1'><TimeLabel title={exactDate} date={parsed} /> ago</span>
         }
       </div>
       {displayMessage && readyCondition &&

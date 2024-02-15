@@ -9,6 +9,8 @@ export default class CapacitorClient {
 
   getFluxState = () => this.get('/api/fluxState');
 
+  getFluxEvents = () => this.get('/api/fluxEvents');
+
   getServices = () => this.get('/api/services');
 
   describeConfigmap = (namespace, name) => this.get(`/api/describeConfigmap?namespace=${namespace}&name=${name}`);

@@ -133,7 +133,10 @@ replace (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/fluxcd/image-automation-controller/api v0.37.1
+	github.com/fluxcd/image-reflector-controller/api v0.31.2
 	github.com/fluxcd/kustomize-controller/api v1.1.1
+	github.com/fluxcd/notification-controller/api v1.2.4
 	github.com/fluxcd/source-controller/api v1.2.4
 	github.com/go-chi/chi v1.5.5
 	github.com/go-logr/logr v1.4.1 // indirect

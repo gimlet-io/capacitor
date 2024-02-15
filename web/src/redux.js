@@ -1,11 +1,13 @@
 export const initialState = {
   fluxState: {},
+  fluxEvents: {},
   services: [],
   podLogs: {},
   textColors: {},
 }
 
 export const ACTION_FLUX_STATE_RECEIVED = 'FLUX_STATE_RECEIVED';
+export const ACTION_FLUX_EVENTS_RECEIVED = 'FLUX_EVENTS_RECEIVED';
 export const ACTION_SERVICES_RECEIVED = 'SERVICES_RECEIVED';
 export const ACTION_POD_LOGS_RECEIVED = 'POD_LOGS_RECEIVED';
 export const ACTION_CLEAR_PODLOGS = 'CLEAR_POD_LOGS';
@@ -14,6 +16,8 @@ export function rootReducer(state = initialState, action) {
   switch (action.type) {
     case ACTION_FLUX_STATE_RECEIVED:
       return fluxStateReceived(state, action.payload)
+    case ACTION_FLUX_EVENTS_RECEIVED:
+      return fluxEventsReceived(state, action.payload)
     case ACTION_SERVICES_RECEIVED:
       return servicesReceived(state, action.payload)
     case ACTION_POD_LOGS_RECEIVED:
@@ -28,6 +32,11 @@ export function rootReducer(state = initialState, action) {
 
 function fluxStateReceived(state, payload) {
   state.fluxState = payload
+  return state
+}
+
+function fluxEventsReceived(state, payload) {
+  state.fluxEvents = payload
   return state
 }
 

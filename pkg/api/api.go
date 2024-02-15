@@ -40,6 +40,29 @@ func fluxStateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(fluxStateBytes)
 }
 
+func fluxEvents(w http.ResponseWriter, r *http.Request) {
+	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
+	client, _ := r.Context().Value("client").(*kubernetes.Clientset)
+
+	events, err := flux.Events(client, dynamicClient)
+	if err != nil {
+		logrus.Errorf(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("{}"))
+		return
+	}
+	fluxStateBytes, err := json.Marshal(events)
+	if err != nil {
+		logrus.Errorf(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("{}"))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(fluxStateBytes)
+}
+
 func servicesHandler(w http.ResponseWriter, r *http.Request) {
 	dynamicClient, _ := r.Context().Value("dynamicClient").(*dynamic.DynamicClient)
 	client, _ := r.Context().Value("client").(*kubernetes.Clientset)

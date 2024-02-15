@@ -27,7 +27,7 @@ func KustomizeController(
 		dynamicClient,
 		kustomzitionResource,
 		func(informerEvent Event, objectMeta metav1.ObjectMeta, obj interface{}) error {
-			switch informerEvent.EventType {
+			switch informerEvent.eventType {
 			case "create":
 				fallthrough
 			case "update":

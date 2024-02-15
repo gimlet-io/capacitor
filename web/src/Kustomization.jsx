@@ -10,8 +10,9 @@ export function Kustomization(props) {
   const [highlight, setHighlight] = useState(false)
 
   useEffect(() => {
-    setHighlight(targetReference === item.metadata.name);
-    if (targetReference === item.metadata.name) {
+    const matching = targetReference.objectNs === item.metadata.namespace && targetReference.objectName === item.metadata.name
+    setHighlight(matching);
+    if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [item.metadata.name, targetReference]);
@@ -92,6 +93,10 @@ export function RevisionWidget(props) {
 
   const url = source.spec.url.slice(source.spec.url.indexOf('@') + 1)
 
+  const navigationHandler = inFooter ?
+    () => handleNavigationSelect("Sources", source.metadata.namespace, source.metadata.name, source.kind) :
+    () => handleNavigationSelect("Kustomizations", kustomization.metadata.namespace, kustomization.metadata.name)
+
   return (
     <>
     { !ready && stalled &&
@@ -103,7 +108,7 @@ export function RevisionWidget(props) {
             {lastAttemptedHash.slice(0, 8)}
           </a>
         </span>
-        <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
+        <NavigationButton handleNavigation={navigationHandler}>
           &nbsp;({`${source.metadata.namespace}/${source.metadata.name}`})
         </NavigationButton>
       </span>
@@ -113,7 +118,7 @@ export function RevisionWidget(props) {
       <span>Currently Applied: </span>
       }
       { source.kind === 'OCIRepository' &&
-      <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
+      <NavigationButton handleNavigation={navigationHandler}>
        {appliedRevision}
        <div className='text-left'>({`${source.metadata.namespace}/${source.metadata.name}`})</div>
       </NavigationButton>
@@ -126,7 +131,7 @@ export function RevisionWidget(props) {
             {appliedHash.slice(0, 8)}
           </a>
         </span>
-        <NavigationButton handleNavigation={() => handleNavigationSelect(inFooter ? "Sources" : "Kustomizations", source.metadata.name)}>
+        <NavigationButton handleNavigation={navigationHandler}>
           &nbsp;({`${source.metadata.namespace}/${source.metadata.name}`})
         </NavigationButton>
       </>

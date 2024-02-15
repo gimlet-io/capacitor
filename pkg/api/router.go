@@ -31,6 +31,7 @@ func SetupRouter(
 		w.WriteHeader(http.StatusOK)
 	})
 	r.Get("/api/fluxState", fluxStateHandler)
+	r.Get("/api/fluxEvents", fluxEvents)
 	r.Get("/api/services", servicesHandler)
 	r.Get("/api/describeConfigmap", describeConfigmap)
 	r.Get("/api/describeSecret", describeSecret)

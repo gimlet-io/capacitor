@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 
 	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
@@ -392,6 +394,43 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 	fluxState.FluxServices = fluxServices
 
 	return fluxState, nil
+}
+
+func Events(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Event, error) {
+	events, err := c.CoreV1().Events("flux-system").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Sort(SortableEvents(events.Items))
+	slices.Reverse(events.Items)
+
+	var eventDTOs []Event
+	for _, item := range events.Items {
+		if IgnoreEvent(item) {
+			continue
+		}
+
+		var series *Series
+		if item.Series != nil {
+			series = &Series{Count: item.Series.Count, LastObservedTime: item.Series.LastObservedTime.Time}
+		}
+		eventDTOs = append(eventDTOs, Event{
+			InvolvedObjectKind:      item.InvolvedObject.Kind,
+			InvolvedObjectNamespace: item.Namespace,
+			InvolvedObject:          item.InvolvedObject.Name,
+			Type:                    item.Type,
+			Reason:                  item.Reason,
+			Message:                 item.Message,
+			EventTime:               item.EventTime.Time,
+			FirstTimestamp:          item.FirstTimestamp.Time,
+			LastTimestamp:           item.LastTimestamp.Time,
+			Count:                   item.Count,
+			Series:                  series,
+		})
+	}
+
+	return eventDTOs, nil
 }
 
 func fluxServicesWithDetails(c *kubernetes.Clientset) ([]Service, error) {

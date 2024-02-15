@@ -55,6 +55,8 @@ func main() {
 	runController(err, kustomizationController, stopCh)
 	helmReleaseController, err := controllers.HelmReleaseController(client, dynamicClient, clientHub)
 	runController(err, helmReleaseController, stopCh)
+	eventController, err := controllers.EventController(client, dynamicClient, clientHub)
+	runController(err, eventController, stopCh)
 
 	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {

@@ -1,6 +1,8 @@
 package flux
 
 import (
+	"time"
+
 	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -22,4 +24,24 @@ type Service struct {
 	Deployment *apps_v1.Deployment `json:"deployment"`
 	Svc        v1.Service          `json:"svc"`
 	Pods       []v1.Pod            `json:"pods"`
+}
+
+type Series struct {
+	Count            int32     `json:"count"`
+	LastObservedTime time.Time `json:"lastObservedTime"`
+}
+
+type Event struct {
+	InvolvedObjectKind      string `json:"involvedObjectKind"`
+	InvolvedObjectNamespace string `json:"involvedObjectNamespace"`
+	InvolvedObject          string `json:"involvedObject"`
+	Type                    string `json:"type"`
+	Reason                  string `json:"reason"`
+	Message                 string `json:"message"`
+
+	EventTime      time.Time `json:"eventTime"`
+	FirstTimestamp time.Time `json:"firstTimestamp"`
+	LastTimestamp  time.Time `json:"lastTimestamp"`
+	Count          int32     `json:"count"`
+	Series         *Series   `json:"series,omitempty"`
 }

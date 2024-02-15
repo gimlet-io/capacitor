@@ -83,11 +83,12 @@ function HelmRelease(props) {
   const [highlight, setHighlight] = useState(false)
 
   useEffect(() => {
-    setHighlight(targetReference === item.metadata.name);
-    if (targetReference === item.metadata.name) {
+    const matching = targetReference.objectNs === item.metadata.namespace && targetReference.objectName === item.metadata.name
+    setHighlight(matching);
+    if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [item.metadata.name, targetReference]);
+  }, [item.metadata, targetReference]);
 
   return (
     <div
@@ -154,11 +155,14 @@ function Source(props) {
   const [highlight, setHighlight] = useState(false)
 
   useEffect(() => {
-    setHighlight(targetReference === source.metadata.name);
-    if (targetReference === source.metadata.name) {
+    const matching = targetReference.objectNs === source.metadata.namespace &&
+      targetReference.objectName === source.metadata.name &&
+      targetReference.objectKind === source.kind
+    setHighlight(matching);
+    if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [source.metadata.name, targetReference]);
+  }, [source.metadata, source.kind, targetReference]);
 
   return (
     <div
@@ -333,7 +337,7 @@ export function HelmRevisionWidget(props) {
           <p key={`${release.chartVersion}@${release.chartName}:${release.digest}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
             <span>{release.chartVersion}@{release.chartName}</span>
             <span className='pl-1'>{statusLabel}</span>
-            <TimeLabel title={exactDate} date={parsed} className='' />
+            <TimeLabel title={exactDate} date={parsed} /> ago
             { release.status === "superseded" &&
              <span className='pl-1'>now superseded</span>
             }

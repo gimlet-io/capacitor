@@ -23,6 +23,7 @@ import (
 
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	log "github.com/sirupsen/logrus"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -47,6 +48,54 @@ type Controller struct {
 	eventHandler func(informerEvent Event, objectMeta metav1.ObjectMeta, obj interface{}) error
 }
 
+// NewController creates a new Controller.
+func NewController(
+	name string,
+	listWatcher cache.ListerWatcher,
+	objType converterRuntime.Object,
+	eventHandler func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error,
+) *Controller {
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	var informerEvent Event
+	var err error
+
+	// Bind the workqueue to a cache with the help of an informer. This way we make sure that
+	// whenever the cache is updated, the pod key is added to the workqueue.
+	// Note that when we finally process the item from the workqueue, we might see a newer version
+	// of the Pod than the version which was responsible for triggering the update.
+	indexer, informer := cache.NewIndexerInformer(listWatcher, objType, 0, cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			informerEvent.key, err = cache.MetaNamespaceKeyFunc(obj)
+			informerEvent.eventType = "create"
+			if err == nil {
+				queue.Add(informerEvent)
+			}
+		},
+		UpdateFunc: func(old interface{}, new interface{}) {
+			informerEvent.key, err = cache.MetaNamespaceKeyFunc(old)
+			informerEvent.eventType = "update"
+			if err == nil {
+				queue.Add(informerEvent)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			informerEvent.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			informerEvent.eventType = "delete"
+			if err == nil {
+				queue.Add(informerEvent)
+			}
+		},
+	}, cache.Indexers{})
+
+	return &Controller{
+		name:         name,
+		informer:     informer,
+		indexer:      indexer,
+		queue:        queue,
+		eventHandler: eventHandler,
+	}
+}
+
 func NewDynamicController(
 	name string,
 	dynamicClient dynamic.Interface,
@@ -68,22 +117,22 @@ func NewDynamicController(
 	informer.AddIndexers(cache.Indexers{})
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			informerEvent.Key, err = cache.MetaNamespaceKeyFunc(obj)
-			informerEvent.EventType = "create"
+			informerEvent.key, err = cache.MetaNamespaceKeyFunc(obj)
+			informerEvent.eventType = "create"
 			if err == nil {
 				queue.Add(informerEvent)
 			}
 		},
 		UpdateFunc: func(old interface{}, new interface{}) {
-			informerEvent.Key, err = cache.MetaNamespaceKeyFunc(old)
-			informerEvent.EventType = "update"
+			informerEvent.key, err = cache.MetaNamespaceKeyFunc(old)
+			informerEvent.eventType = "update"
 			if err == nil {
 				queue.Add(informerEvent)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			informerEvent.Key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			informerEvent.EventType = "delete"
+			informerEvent.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			informerEvent.eventType = "delete"
 			if err == nil {
 				queue.Add(informerEvent)
 			}
@@ -101,8 +150,8 @@ func NewDynamicController(
 
 // Event indicate the informerEvent
 type Event struct {
-	Key       string
-	EventType string
+	key       string
+	eventType string
 }
 
 func (c *Controller) processNextItem() bool {
@@ -116,9 +165,9 @@ func (c *Controller) processNextItem() bool {
 	// parallel.
 	defer c.queue.Done(informerEvent)
 
-	obj, _, err := c.indexer.GetByKey(informerEvent.(Event).Key)
+	obj, _, err := c.indexer.GetByKey(informerEvent.(Event).key)
 	if err != nil {
-		log.Errorf("Fetching object with key %s from store failed with %v", informerEvent.(Event).Key, err)
+		log.Errorf("Fetching object with key %s from store failed with %v", informerEvent.(Event).key, err)
 		return true
 	}
 
@@ -126,7 +175,7 @@ func (c *Controller) processNextItem() bool {
 
 	// don't process events from before agent start
 	// startup sends the complete cluster state upstream
-	if informerEvent.(Event).EventType == "create" &&
+	if informerEvent.(Event).eventType == "create" &&
 		objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() < 0 {
 		return true
 	}
