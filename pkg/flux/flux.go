@@ -409,6 +409,10 @@ func Events(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Event, error)
 			continue
 		}
 
+		var series *Series
+		if item.Series != nil {
+			series = &Series{Count: item.Series.Count, LastObservedTime: item.Series.LastObservedTime.Time}
+		}
 		eventDTOs = append(eventDTOs, Event{
 			InvolvedObjectKind:      item.InvolvedObject.Kind,
 			InvolvedObjectNamespace: item.Namespace,
@@ -416,7 +420,11 @@ func Events(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Event, error)
 			Type:                    item.Type,
 			Reason:                  item.Reason,
 			Message:                 item.Message,
-			LastSeen:                getLastSeen(item),
+			EventTime:               item.EventTime.Time,
+			FirstTimestamp:          item.FirstTimestamp.Time,
+			LastTimestamp:           item.LastTimestamp.Time,
+			Count:                   item.Count,
+			Series:                  series,
 		})
 	}
 

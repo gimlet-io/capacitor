@@ -337,7 +337,7 @@ export function HelmRevisionWidget(props) {
           <p key={`${release.chartVersion}@${release.chartName}:${release.digest}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
             <span>{release.chartVersion}@{release.chartName}</span>
             <span className='pl-1'>{statusLabel}</span>
-            <TimeLabel title={exactDate} date={parsed} className='' />
+            <TimeLabel title={exactDate} date={parsed} /> ago
             { release.status === "superseded" &&
              <span className='pl-1'>now superseded</span>
             }
