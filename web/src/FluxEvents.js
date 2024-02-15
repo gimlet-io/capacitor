@@ -89,14 +89,4 @@ function LastSeen(props) {
 	}
 }
 
-// // translateMicroTimestampSince returns the elapsed time since timestamp in
-// // human-readable approximation.
-// function translateMicroTimestampSince(timestamp) {
-// 	if (timestamp.IsZero()) {
-// 		return "<unknown>"
-// 	}
-
-// 	return duration.HumanDuration(time.Since(timestamp.Time))
-// }
-
 export default FluxEvents;
