@@ -15,7 +15,7 @@ export function Kustomization(props) {
     if (matching) {
       ref.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [item.metadata.name, targetReference]);
+  }, [item.metadata.name, item.metadata.namespace, targetReference]);
 
   const sources = useMemo(() => {
     const sources = [];
