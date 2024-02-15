@@ -24,6 +24,10 @@ func EventController(
 		eventListWatcher,
 		&v1.Event{},
 		func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error {
+			if _, ok := obj.(*v1.Event); !ok {
+				return nil
+			}
+
 			if flux.IgnoreEvent(*obj.(*v1.Event)) {
 				return nil
 			}
