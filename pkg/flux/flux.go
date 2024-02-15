@@ -397,7 +397,7 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 }
 
 func Events(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Event, error) {
-	events, err := c.CoreV1().Events("flux-system").List(context.TODO(), metav1.ListOptions{})
+	events, err := c.CoreV1().Events("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
