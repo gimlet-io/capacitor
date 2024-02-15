@@ -132,9 +132,5 @@ var fluxKindMap = refMap{
 }
 
 func IgnoreEvent(e corev1.Event) bool {
-	if !fluxKindMap.hasKind(e.InvolvedObject.Kind) {
-		return true
-	}
-
-	return false
+	return !fluxKindMap.hasKind(e.InvolvedObject.Kind)
 }

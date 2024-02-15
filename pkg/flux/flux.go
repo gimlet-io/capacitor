@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -402,6 +403,7 @@ func Events(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Event, error)
 	}
 
 	sort.Sort(SortableEvents(events.Items))
+	slices.Reverse(events.Items)
 
 	var eventDTOs []Event
 	for _, item := range events.Items {

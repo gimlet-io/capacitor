@@ -36,14 +36,14 @@ function FluxEvents(props) {
                   <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
                     <LastSeen event={e} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-700">
                     <NavigationButton handleNavigation={() => handleNavigationSelect(e.involvedObjectKind === "Kustomization" ? "Kustomizations" : "Sources", e.involvedObjectNamespace, e.involvedObject, e.involvedObjectKind)}>
                       {e.involvedObjectKind}: {e.involvedObjectNamespace}/{e.involvedObject}
                     </NavigationButton>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{e.type}</td>
-                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{e.reason}</td>
-                  <td className="px-3 py-4 text-sm text-gray-500">{e.message}</td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-700">{e.type}</td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-700">{e.reason}</td>
+                  <td className="px-3 py-4 text-sm text-gray-700">{e.message}</td>
                 </tr>
                 )
               })}
