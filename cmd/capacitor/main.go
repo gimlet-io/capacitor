@@ -57,6 +57,14 @@ func main() {
 	runController(err, helmReleaseController, stopCh)
 	eventController, err := controllers.EventController(client, dynamicClient, clientHub)
 	runController(err, eventController, stopCh)
+	deploymentController, err := controllers.DeploymentController(client, dynamicClient, clientHub)
+	runController(err, deploymentController, stopCh)
+	podController, err := controllers.PodController(client, dynamicClient, clientHub)
+	runController(err, podController, stopCh)
+	serviceController, err := controllers.ServiceController(client, dynamicClient, clientHub)
+	runController(err, serviceController, stopCh)
+	ingressController, err := controllers.IngressController(client, dynamicClient, clientHub)
+	runController(err, ingressController, stopCh)
 
 	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {
