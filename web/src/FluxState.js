@@ -5,7 +5,6 @@ import { Kustomization } from './Kustomization.jsx'
 import { ReadyWidget } from './ReadyWidget'
 import { TimeLabel } from './TimeLabel'
 import { CompactService } from './Service.jsx';
-import ResourceFilter from './ResourceFilter.jsx';
 
 function FluxState(props) {
   const { store } = props
@@ -23,7 +22,7 @@ function FluxState(props) {
 
 export function Kustomizations(props){
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
-  const [filterErrors, setFilterErrors] = useState(false)
+  const [filter, setFilter] = useState(false)
   const kustomizations = fluxState.kustomizations;
 
   const sortedKustomizations = useMemo(() => {
@@ -34,11 +33,15 @@ export function Kustomizations(props){
     return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [kustomizations]);
 
-  const filteredKustomizations = filterResources(sortedKustomizations, filterErrors)
+  const filteredKustomizations = filterResources(sortedKustomizations, filter)
 
   return (
     <div className="space-y-4">
-      <ResourceFilter changeHandler={setFilterErrors} />
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       {
         filteredKustomizations?.map(kustomization =>
           <Kustomization
@@ -57,7 +60,7 @@ export function Kustomizations(props){
 
 export function HelmReleases(props) {
   const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
-  const [filterErrors, setFilterErrors] = useState(false)
+  const [filter, setFilter] = useState(false)
   const sortedHelmReleases = useMemo(() => {
     if (!helmReleases) {
       return null;
@@ -66,11 +69,15 @@ export function HelmReleases(props) {
     return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [helmReleases]);
 
-  const filteredHelmReleases = filterResources(sortedHelmReleases, filterErrors)
+  const filteredHelmReleases = filterResources(sortedHelmReleases, filter)
 
   return (
     <div className="space-y-4">
-      <ResourceFilter changeHandler={setFilterErrors} />
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       {
         filteredHelmReleases?.map(helmRelease =>
           <HelmRelease
@@ -130,7 +137,7 @@ function HelmRelease(props) {
 
 export function Sources(props){
   const { capacitorClient, fluxState, targetReference } = props
-  const [filterErrors, setFilterErrors] = useState(false)
+  const [filter, setFilter] = useState(false)
   const sortedSources = useMemo(() => {
     const sources = [];
     if (fluxState.ociRepositories) {
@@ -141,11 +148,15 @@ export function Sources(props){
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
 
-  const filteredSources = filterResources(sortedSources, filterErrors)
+  const filteredSources = filterResources(sortedSources, filter)
 
   return (
     <div className="space-y-4">
-      <ResourceFilter changeHandler={setFilterErrors} />
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       {
         filteredSources?.map(source =>
           <Source

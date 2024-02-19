@@ -2,20 +2,23 @@ import { NavigationButton } from './NavigationButton'
 import { TimeLabel } from './TimeLabel'
 import { format } from "date-fns";
 import { useState } from 'react';
-import ResourceFilter from './ResourceFilter';
 
 function FluxEvents(props) {
   const { events, handleNavigationSelect } = props
-  const [filterWarningTypes, setFilterWarningTypes] = useState(false)
+  const [filter, setFilter] = useState(false)
 
   let filteredEvents = events;
-  if (filterWarningTypes) {
+  if (filter) {
     filteredEvents = filteredEvents.filter(e => e.type === "Warning")
   }
 
   return (
     <div className="space-y-4">
-      <ResourceFilter changeHandler={setFilterWarningTypes} />
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       <div className="flow-root bg-white p-4 rounded-lg">
         <div className="overflow-x-auto">
           <div className="inline-block min-w-full py-2 align-middle">
