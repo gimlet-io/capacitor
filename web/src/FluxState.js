@@ -5,7 +5,6 @@ import { Kustomization } from './Kustomization.jsx'
 import { ReadyWidget } from './ReadyWidget'
 import { TimeLabel } from './TimeLabel'
 import { CompactService } from './Service.jsx';
-import FilterBar from './FilterBar.js';
 import Dropdown from './Dropdown.jsx';
 
 function FluxState(props) {
@@ -24,7 +23,7 @@ function FluxState(props) {
 
 export function Kustomizations(props){
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
-  const [filters, setFilters] = useState(false)
+  const [filterErrors, setFilterErrors] = useState(false)
   const kustomizations = fluxState.kustomizations;
 
   const sortedKustomizations = useMemo(() => {
@@ -35,16 +34,11 @@ export function Kustomizations(props){
     return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [kustomizations]);
 
-  
-  const filteredKustomizations = filterResources(sortedKustomizations, filters, "Applied")
+  const filteredKustomizations = filterResources(sortedKustomizations, filterErrors)
 
   return (
     <div className="space-y-4">
-      <Dropdown
-        items={["Show All", "Show Errors"]}
-        value={"Filter"}
-        changeHandler={(selected) => setFilters(selected)}
-      />
+      <Dropdown changeHandler={setFilterErrors} />
       {
         filteredKustomizations?.map(kustomization =>
           <Kustomization
@@ -63,7 +57,7 @@ export function Kustomizations(props){
 
 export function HelmReleases(props) {
   const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
-  const [filters, setFilters] = useState(false)
+  const [filterErrors, setFilterErrors] = useState(false)
   const sortedHelmReleases = useMemo(() => {
     if (!helmReleases) {
       return null;
@@ -72,15 +66,11 @@ export function HelmReleases(props) {
     return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [helmReleases]);
 
-  const filteredHelmReleases = filterResources(sortedHelmReleases, filters, "Reconciled")
+  const filteredHelmReleases = filterResources(sortedHelmReleases, filterErrors)
 
   return (
     <div className="space-y-4">
-      <Dropdown
-        items={["Show All", "Show Errors"]}
-        value={"Filter"}
-        changeHandler={(selected) => setFilters(selected)}
-      />
+      <Dropdown changeHandler={setFilterErrors} />
       {
         filteredHelmReleases?.map(helmRelease =>
           <HelmRelease
@@ -140,7 +130,7 @@ function HelmRelease(props) {
 
 export function Sources(props){
   const { capacitorClient, fluxState, targetReference } = props
-  const [filters, setFilters] = useState(false)
+  const [filterErrors, setFilterErrors] = useState(false)
   const sortedSources = useMemo(() => {
     const sources = [];
     if (fluxState.ociRepositories) {
@@ -151,15 +141,11 @@ export function Sources(props){
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
 
-  const filteredSources = filterResources(sortedSources, filters, "Ready")
+  const filteredSources = filterResources(sortedSources, filterErrors)
 
   return (
     <div className="space-y-4">
-      <Dropdown
-        items={["Show All", "Show Errors"]}
-        value={"Filter"}
-        changeHandler={(selected) => setFilters(selected)}
-      />
+      <Dropdown changeHandler={setFilterErrors} />
       {
         filteredSources?.map(source =>
           <Source
@@ -174,41 +160,43 @@ export function Sources(props){
   )
 }
 
-function filterResources(sources, filters, label) {
-  let filteredSources = sources;
-  if (filters) {
-        filteredSources = filteredSources.filter(resource => {
-          const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
-          const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
-          const ready = readyCondition && readyConditions[0].status === "True"
+function filterResources(resources, filterErrors) {
+  let filteredResources = resources;
+  if (filterErrors) {
+    filteredResources = filteredResources.filter(resource => {
+      const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
+      const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
+      const ready = readyCondition && readyConditions[0].status === "True"
 
-          const dependencyNotReady = readyCondition && readyCondition.reason === "DependencyNotReady"
+      const dependencyNotReady = readyCondition && readyCondition.reason === "DependencyNotReady"
 
-          const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
-          const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
-          const fiveMinutesAgo = new Date();
-          fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
-          const stalled = fiveMinutesAgo > parsed
+      const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
+      const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+      const stalled = fiveMinutesAgo > parsed
 
-          const reconcilingConditions = jp.query(resource.status, '$..conditions[?(@.type=="Reconciling")]');
-          const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
-          const reconciling = reconcilingCondition && reconcilingCondition.status === "True"  
+      const reconcilingConditions = jp.query(resource.status, '$..conditions[?(@.type=="Reconciling")]');
+      const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+      const reconciling = reconcilingCondition && reconcilingCondition.status === "True"
 
-          const fetchFailedConditions = jp.query(resource.status, '$..conditions[?(@.type=="FetchFailed")]');
-          const fetchFailedCondition = fetchFailedConditions.length === 1 ? fetchFailedConditions[0] : undefined
-          const fetchFailed = fetchFailedCondition && fetchFailedCondition.status === "True"  
-        
-          let statusLabel = "";
-          const readyLabel = label ? label : "Ready"
-          if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket") {
-            statusLabel = fetchFailed ? "Error" : reconciling ?  "Reconciling" : ready ? readyLabel : "Error"
-          } else {
-            statusLabel = ready ? readyLabel : (reconciling || dependencyNotReady) && !stalled ? "Reconciling" : "Error"
-          }
-          return statusLabel === "Error"
-        })
+      const fetchFailedConditions = jp.query(resource.status, '$..conditions[?(@.type=="FetchFailed")]');
+      const fetchFailedCondition = fetchFailedConditions.length === 1 ? fetchFailedConditions[0] : undefined
+      const fetchFailed = fetchFailedCondition && fetchFailedCondition.status === "True"
+
+      if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket") {
+        return fetchFailed
       }
-  return filteredSources;
+
+      if (ready || ((reconciling || dependencyNotReady) && !stalled)) {
+        return false;
+      } else {
+        return true;
+      }
+    })
+  }
+
+  return filteredResources;
 }
 
 function Source(props) {
