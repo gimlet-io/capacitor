@@ -2,7 +2,7 @@ import { NavigationButton } from './NavigationButton'
 import { TimeLabel } from './TimeLabel'
 import { format } from "date-fns";
 import { useState } from 'react';
-import Dropdown from './Dropdown';
+import ResourceFilter from './ResourceFilter';
 
 function FluxEvents(props) {
   const { events, handleNavigationSelect } = props
@@ -15,7 +15,7 @@ function FluxEvents(props) {
 
   return (
     <div className="space-y-4">
-      <Dropdown changeHandler={setFilterWarningTypes} />
+      <ResourceFilter changeHandler={setFilterWarningTypes} />
       <div className="flow-root bg-white p-4 rounded-lg">
         <div className="overflow-x-auto">
           <div className="inline-block min-w-full py-2 align-middle">

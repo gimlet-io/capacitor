@@ -5,7 +5,7 @@ import { Kustomization } from './Kustomization.jsx'
 import { ReadyWidget } from './ReadyWidget'
 import { TimeLabel } from './TimeLabel'
 import { CompactService } from './Service.jsx';
-import Dropdown from './Dropdown.jsx';
+import ResourceFilter from './ResourceFilter.jsx';
 
 function FluxState(props) {
   const { store } = props
@@ -38,7 +38,7 @@ export function Kustomizations(props){
 
   return (
     <div className="space-y-4">
-      <Dropdown changeHandler={setFilterErrors} />
+      <ResourceFilter changeHandler={setFilterErrors} />
       {
         filteredKustomizations?.map(kustomization =>
           <Kustomization
@@ -70,7 +70,7 @@ export function HelmReleases(props) {
 
   return (
     <div className="space-y-4">
-      <Dropdown changeHandler={setFilterErrors} />
+      <ResourceFilter changeHandler={setFilterErrors} />
       {
         filteredHelmReleases?.map(helmRelease =>
           <HelmRelease
@@ -145,7 +145,7 @@ export function Sources(props){
 
   return (
     <div className="space-y-4">
-      <Dropdown changeHandler={setFilterErrors} />
+      <ResourceFilter changeHandler={setFilterErrors} />
       {
         filteredSources?.map(source =>
           <Source
