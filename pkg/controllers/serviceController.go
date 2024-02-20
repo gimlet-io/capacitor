@@ -18,7 +18,7 @@ func ServiceController(
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
 ) (*Controller, error) {
-	serviceListWatcher := cache.NewListWatchFromClient(client.AppsV1().RESTClient(), "services", v1.NamespaceAll, fields.Everything())
+	serviceListWatcher := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "services", v1.NamespaceAll, fields.Everything())
 	serviceController := NewController(
 		"service",
 		serviceListWatcher,
