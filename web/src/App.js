@@ -6,6 +6,7 @@ import { rootReducer } from './redux';
 import Footer from "./Footer";
 import FilterBar from "./FilterBar";
 import Services from "./Services";
+import ToastNotifications from "./ToastNotifications";
 import { useState, useEffect, useCallback } from "react";
 
 function App() {
@@ -62,6 +63,7 @@ function App() {
     <>
     <APIBackend capacitorClient={capacitorClient} store={store}/>
     <StreamingBackend capacitorClient={capacitorClient} store={store}/>
+    <ToastNotifications store={store} handleNavigationSelect={handleNavigationSelect} />
     <div className="max-w-6xl mx-auto">
       <div className="my-16">
         <FilterBar 
