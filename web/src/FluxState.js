@@ -22,6 +22,7 @@ function FluxState(props) {
 
 export function Kustomizations(props){
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
+  const [filter, setFilter] = useState(false)
   const kustomizations = fluxState.kustomizations;
 
   const sortedKustomizations = useMemo(() => {
@@ -32,10 +33,17 @@ export function Kustomizations(props){
     return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [kustomizations]);
 
+  const filteredKustomizations = filterResources(sortedKustomizations, filter)
+
   return (
     <div className="space-y-4">
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       {
-        sortedKustomizations?.map(kustomization =>
+        filteredKustomizations?.map(kustomization =>
           <Kustomization
             key={kustomization.metadata.namespace + kustomization.metadata.name}
             capacitorClient={capacitorClient}
@@ -52,7 +60,7 @@ export function Kustomizations(props){
 
 export function HelmReleases(props) {
   const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
-
+  const [filter, setFilter] = useState(false)
   const sortedHelmReleases = useMemo(() => {
     if (!helmReleases) {
       return null;
@@ -61,10 +69,17 @@ export function HelmReleases(props) {
     return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [helmReleases]);
 
+  const filteredHelmReleases = filterResources(sortedHelmReleases, filter)
+
   return (
     <div className="space-y-4">
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       {
-        sortedHelmReleases?.map(helmRelease =>
+        filteredHelmReleases?.map(helmRelease =>
           <HelmRelease
             key={"hr-"+ helmRelease.metadata.namespace + helmRelease.metadata.name}
             capacitorClient={capacitorClient}
@@ -122,7 +137,7 @@ function HelmRelease(props) {
 
 export function Sources(props){
   const { capacitorClient, fluxState, targetReference } = props
-
+  const [filter, setFilter] = useState(false)
   const sortedSources = useMemo(() => {
     const sources = [];
     if (fluxState.ociRepositories) {
@@ -133,10 +148,17 @@ export function Sources(props){
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
 
+  const filteredSources = filterResources(sortedSources, filter)
+
   return (
     <div className="space-y-4">
+      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilter(!filter)}
+      >
+        Filter errors
+      </button>
       {
-        sortedSources?.map(source =>
+        filteredSources?.map(source =>
           <Source
             key={"source-"+ source.metadata.namespace + source.metadata.name}  
             capacitorClient={capacitorClient}
@@ -147,6 +169,45 @@ export function Sources(props){
       }
     </div>
   )
+}
+
+function filterResources(resources, filterErrors) {
+  let filteredResources = resources;
+  if (filterErrors) {
+    filteredResources = filteredResources.filter(resource => {
+      const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
+      const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
+      const ready = readyCondition && readyConditions[0].status === "True"
+
+      const dependencyNotReady = readyCondition && readyCondition.reason === "DependencyNotReady"
+
+      const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
+      const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+      const stalled = fiveMinutesAgo > parsed
+
+      const reconcilingConditions = jp.query(resource.status, '$..conditions[?(@.type=="Reconciling")]');
+      const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+      const reconciling = reconcilingCondition && reconcilingCondition.status === "True"
+
+      const fetchFailedConditions = jp.query(resource.status, '$..conditions[?(@.type=="FetchFailed")]');
+      const fetchFailedCondition = fetchFailedConditions.length === 1 ? fetchFailedConditions[0] : undefined
+      const fetchFailed = fetchFailedCondition && fetchFailedCondition.status === "True"
+
+      if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket") {
+        return fetchFailed
+      }
+
+      if (ready || ((reconciling || dependencyNotReady) && !stalled)) {
+        return false;
+      } else {
+        return true;
+      }
+    })
+  }
+
+  return filteredResources;
 }
 
 function Source(props) {
