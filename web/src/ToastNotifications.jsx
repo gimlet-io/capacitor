@@ -12,7 +12,7 @@ function ToastNotifications(props) {
   const [dismissedFluxEvents, setDismissedFluxEvents] = useState(reduxState.dismissedFluxEvents);
   store.subscribe(() => setFluxEvents(reduxState.fluxEvents));
   store.subscribe(() => setDismissedFluxEvents(reduxState.dismissedFluxEvents));
-  console.log(dismissedFluxEvents)
+
   const warningEvents = fluxEvents.filter(e => e.type === "Warning" && !dismissedFluxEvents.some(de => isSameEvent(e, de))).slice(0, 3);
 
   const dismiss = (event) => {
@@ -34,6 +34,7 @@ function ToastNotifications(props) {
 
 function ToastElement(props) {
   const { event, index, dismiss, handleNavigationSelect } = props;
+  console.log(event)
   return (
     <Transition
       as="div"
@@ -51,7 +52,7 @@ function ToastElement(props) {
         <div key={index} className="rounded-md shadow-lg bg-orange-400" role="alert">
           <div className="flex p-4">
             <NavigationButton handleNavigation={() => handleNavigationSelect(event.involvedObjectKind === "Kustomization" ? "Kustomizations" : "Sources", event.involvedObjectNamespace, event.involvedObject, event.involvedObjectKind)}>
-              {event.message}
+              <span className='font-bold'>{event.involvedObjectKind} {event.involvedObjectNamespace}/{event.involvedObject}</span>: {event.message}
             </NavigationButton>
             <div className="ml-auto">
               <button
