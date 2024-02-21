@@ -1,5 +1,6 @@
 import * as podEventHandlers from './podEventHandlers';
 import * as deploymentEventHandlers from './deploymentEventHandlers';
+import * as ingressEventHandlers from './ingressEventHandlers';
 
 export const initialState = {
   fluxState: {},
@@ -22,6 +23,9 @@ export const ACTION_DEPLOYMENT_DELETED = "DEPLOYMENT_DELETED";
 export const ACTION_POD_CREATED = "POD_CREATED";
 export const ACTION_POD_UPDATED = "POD_UPDATED";
 export const ACTION_POD_DELETED = "POD_DELETED";
+export const ACTION_INGRESS_CREATED = "INGRESS_CREATED";
+export const ACTION_INGRESS_UPDATED = "INGRESS_UPDATED";
+export const ACTION_INGRESS_DELETED = "INGRESS_DELETED";
 
 export function rootReducer(state = initialState, action) {
   switch (action.type) {
@@ -49,6 +53,12 @@ export function rootReducer(state = initialState, action) {
       return podEventHandlers.podUpdated(state, action.payload)
     case ACTION_POD_DELETED:
       return podEventHandlers.podDeleted(state, action.payload)
+    case ACTION_INGRESS_CREATED:
+      return ingressEventHandlers.ingressCreated(state, action.payload);
+    case ACTION_INGRESS_UPDATED:
+      return ingressEventHandlers.ingressUpdated(state, action.payload);
+    case ACTION_INGRESS_DELETED:
+      return ingressEventHandlers.ingressDeleted(state, action.payload);
     default:
       console.log('Could not process redux event: ' + JSON.stringify(action));
       return state;

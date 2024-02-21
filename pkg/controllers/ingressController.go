@@ -3,7 +3,6 @@ package controllers
 import (
 	"encoding/json"
 
-	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
 	v1 "k8s.io/api/core/v1"
 	networking_v1 "k8s.io/api/networking/v1"
@@ -27,22 +26,32 @@ func IngressController(
 		func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error {
 			switch informerEvent.eventType {
 			case "create":
-				fallthrough
-			case "update":
-				fallthrough
-			case "delete":
-				services, err := flux.Services(client, dynamicClient)
-				if err != nil {
-					panic(err.Error())
-				}
-				servicesBytes, err := json.Marshal(streaming.Envelope{
-					Type:    streaming.SERVICES_RECEIVED,
-					Payload: services,
+				ingressBytes, err := json.Marshal(streaming.Envelope{
+					Type:    streaming.INGRESS_CREATED,
+					Payload: obj,
 				})
 				if err != nil {
 					panic(err.Error())
 				}
-				clientHub.Broadcast <- servicesBytes
+				clientHub.Broadcast <- ingressBytes
+			case "update":
+				ingressBytes, err := json.Marshal(streaming.Envelope{
+					Type:    streaming.INGRESS_UPDATED,
+					Payload: obj,
+				})
+				if err != nil {
+					panic(err.Error())
+				}
+				clientHub.Broadcast <- ingressBytes
+			case "delete":
+				ingressBytes, err := json.Marshal(streaming.Envelope{
+					Type:    streaming.INGRESS_DELETED,
+					Payload: informerEvent.key,
+				})
+				if err != nil {
+					panic(err.Error())
+				}
+				clientHub.Broadcast <- ingressBytes
 			}
 			return nil
 		})

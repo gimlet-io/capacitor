@@ -20,6 +20,7 @@ import (
 	rspb "helm.sh/helm/v3/pkg/release"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	networking_v1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -193,6 +194,23 @@ func Services(c *kubernetes.Clientset, dc *dynamic.DynamicClient) ([]Service, er
 		for _, pod := range pods.Items {
 			if k8s.LabelsMatchSelectors(pod.ObjectMeta.Labels, service.Svc.Spec.Selector) {
 				services[idx].Pods = append(services[idx].Pods, pod)
+			}
+		}
+	}
+
+	i, err := c.NetworkingV1().Ingresses("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for idx, service := range services {
+		services[idx].Ingresses = []networking_v1.Ingress{}
+		for _, ingress := range i.Items {
+			for _, rule := range ingress.Spec.Rules {
+				for _, path := range rule.HTTP.Paths {
+					if path.Backend.Service.Name == service.Svc.Name {
+						services[idx].Ingresses = append(services[idx].Ingresses, ingress)
+					}
+				}
 			}
 		}
 	}

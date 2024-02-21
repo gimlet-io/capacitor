@@ -9,6 +9,7 @@ import (
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	apps_v1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	networking_v1 "k8s.io/api/networking/v1"
 )
 
 type FluxState struct {
@@ -21,9 +22,10 @@ type FluxState struct {
 }
 
 type Service struct {
-	Deployment *apps_v1.Deployment `json:"deployment"`
-	Svc        v1.Service          `json:"svc"`
-	Pods       []v1.Pod            `json:"pods"`
+	Deployment *apps_v1.Deployment     `json:"deployment"`
+	Svc        v1.Service              `json:"svc"`
+	Pods       []v1.Pod                `json:"pods"`
+	Ingresses  []networking_v1.Ingress `json:"ingresses"`
 }
 
 type Series struct {

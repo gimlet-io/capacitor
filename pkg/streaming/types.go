@@ -12,6 +12,10 @@ const (
 	POD_CREATED string = "POD_CREATED"
 	POD_UPDATED string = "POD_UPDATED"
 	POD_DELETED string = "POD_DELETED"
+
+	INGRESS_CREATED string = "INGRESS_CREATED"
+	INGRESS_UPDATED string = "INGRESS_UPDATED"
+	INGRESS_DELETED string = "INGRESS_DELETED"
 )
 
 type Envelope struct {

@@ -23,7 +23,6 @@ export function podUpdated(state, payload) {
         if (pod.metadata.namespace + '/' + pod.metadata.name ===
           payload.metadata.namespace + '/' + payload.metadata.name) {
           services[serviceID].pods[podID] = payload;
-          console.log(payload.metadata.name + " pod updated");
         }
       })
     }
@@ -44,7 +43,6 @@ export function podDeleted(state, payload) {
     });
     if (toRemove !== undefined) {
       service.pods.splice(toRemove, 1);
-      console.log(payload + " pod deleted")
     }
   });
 
