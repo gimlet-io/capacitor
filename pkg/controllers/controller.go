@@ -173,13 +173,6 @@ func (c *Controller) processNextItem() bool {
 
 	objectMeta := getObjectMetaData(obj)
 
-	// don't process events from before agent start
-	// startup sends the complete cluster state upstream
-	if informerEvent.(Event).eventType == "create" &&
-		objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() < 0 {
-		return true
-	}
-
 	// Invoke the method containing the business logic
 	err = c.eventHandler(informerEvent.(Event), objectMeta, obj)
 	// Handle the error if something went wrong during the execution of the business logic

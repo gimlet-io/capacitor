@@ -1,6 +1,6 @@
 export function deploymentCreated(state, payload) {
   let services = [...state.services];
-  services.stacks.forEach((service, serviceID) => {
+  services.forEach((service, serviceID) => {
     if (!selectorsMatch(payload.spec.selector.matchLabels, service.svc.spec.selector)) {
       return;
     }

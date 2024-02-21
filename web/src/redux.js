@@ -1,6 +1,7 @@
 import * as podEventHandlers from './podEventHandlers';
 import * as deploymentEventHandlers from './deploymentEventHandlers';
 import * as ingressEventHandlers from './ingressEventHandlers';
+import * as serviceEventHandlers from './serviceEventHandlers';
 
 export const initialState = {
   fluxState: {},
@@ -17,12 +18,19 @@ export const ACTION_DISMISS_FLUX_EVENT = 'FLUX_EVENTS_DISMISSED';
 export const ACTION_SERVICES_RECEIVED = 'SERVICES_RECEIVED';
 export const ACTION_POD_LOGS_RECEIVED = 'POD_LOGS_RECEIVED';
 export const ACTION_CLEAR_PODLOGS = 'CLEAR_POD_LOGS';
+
 export const ACTION_DEPLOYMENT_CREATED = "DEPLOYMENT_CREATED";
 export const ACTION_DEPLOYMENT_UPDATED = "DEPLOYMENT_UPDATED";
 export const ACTION_DEPLOYMENT_DELETED = "DEPLOYMENT_DELETED";
+
 export const ACTION_POD_CREATED = "POD_CREATED";
 export const ACTION_POD_UPDATED = "POD_UPDATED";
 export const ACTION_POD_DELETED = "POD_DELETED";
+
+export const ACTION_SERVICE_CREATED = "SERVICE_CREATED";
+export const ACTION_SERVICE_UPDATED = "SERVICE_UPDATED";
+export const ACTION_SERVICE_DELETED = "SERVICE_DELETED";
+
 export const ACTION_INGRESS_CREATED = "INGRESS_CREATED";
 export const ACTION_INGRESS_UPDATED = "INGRESS_UPDATED";
 export const ACTION_INGRESS_DELETED = "INGRESS_DELETED";
@@ -59,6 +67,12 @@ export function rootReducer(state = initialState, action) {
       return ingressEventHandlers.ingressUpdated(state, action.payload);
     case ACTION_INGRESS_DELETED:
       return ingressEventHandlers.ingressDeleted(state, action.payload);
+    case ACTION_SERVICE_CREATED:
+      return serviceEventHandlers.serviceCreated(state, action.payload)
+    case ACTION_SERVICE_UPDATED:
+      return serviceEventHandlers.serviceUpdated(state, action.payload)
+    case ACTION_SERVICE_DELETED:
+      return serviceEventHandlers.serviceDeleted(state, action.payload)
     default:
       console.log('Could not process redux event: ' + JSON.stringify(action));
       return state;
