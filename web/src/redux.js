@@ -1,4 +1,6 @@
 import * as podEventHandlers from './podEventHandlers';
+import * as deploymentEventHandlers from './deploymentEventHandlers';
+
 export const initialState = {
   fluxState: {},
   fluxEvents: [],
@@ -14,6 +16,9 @@ export const ACTION_DISMISS_FLUX_EVENT = 'FLUX_EVENTS_DISMISSED';
 export const ACTION_SERVICES_RECEIVED = 'SERVICES_RECEIVED';
 export const ACTION_POD_LOGS_RECEIVED = 'POD_LOGS_RECEIVED';
 export const ACTION_CLEAR_PODLOGS = 'CLEAR_POD_LOGS';
+export const ACTION_DEPLOYMENT_CREATED = "DEPLOYMENT_CREATED";
+export const ACTION_DEPLOYMENT_UPDATED = "DEPLOYMENT_UPDATED";
+export const ACTION_DEPLOYMENT_DELETED = "DEPLOYMENT_DELETED";
 export const ACTION_POD_CREATED = "POD_CREATED";
 export const ACTION_POD_UPDATED = "POD_UPDATED";
 export const ACTION_POD_DELETED = "POD_DELETED";
@@ -32,6 +37,12 @@ export function rootReducer(state = initialState, action) {
         return podLogsReceived(state, action.payload)
     case ACTION_CLEAR_PODLOGS:
        return clearPodLogs(state, action.payload)
+    case ACTION_DEPLOYMENT_CREATED:
+      return deploymentEventHandlers.deploymentCreated(state, action.payload)
+    case ACTION_DEPLOYMENT_UPDATED:
+      return deploymentEventHandlers.deploymentUpdated(state, action.payload)
+    case ACTION_DEPLOYMENT_DELETED:
+      return deploymentEventHandlers.deploymentDeleted(state, action.payload)
     case ACTION_POD_CREATED:
       return podEventHandlers.podCreated(state, action.payload)
     case ACTION_POD_UPDATED:
