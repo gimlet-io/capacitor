@@ -173,7 +173,7 @@ func (c *Controller) processNextItem() bool {
 
 	objectMeta := getObjectMetaData(obj)
 
-	// don't process events from before agent start
+	// don't process events from before capacitor start
 	// startup sends the complete cluster state upstream
 	if informerEvent.(Event).eventType == "create" &&
 		objectMeta.CreationTimestamp.Sub(serverStartTime).Seconds() < 0 {
