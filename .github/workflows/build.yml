@@ -57,5 +57,5 @@ jobs:
         curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
         sudo mv cosign-linux-amd64 /usr/local/bin/cosign
         sudo chmod +x /usr/local/bin/cosign
-        cat secrets.COSIGNKEY | base64 -d > cosign.key
-        cosign sign --key=secrets.COSIGNKEY ghcr.io/gimlet-io/capacitor:v-cosign-test2@sha256:8a401a551dbc75d56ddfa8b878b919280eaf3404469ce8a8b5ca9b82dc48384d        
+        echo ${{ secrets.COSIGNKEY }} | base64 -d > cosign.key
+        cosign sign --key=cosign.key ghcr.io/gimlet-io/capacitor:v-cosign-test2@sha256:8a401a551dbc75d56ddfa8b878b919280eaf3404469ce8a8b5ca9b82dc48384d        
