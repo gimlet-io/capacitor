@@ -4,11 +4,13 @@ export function ingressCreated(state, payload) {
     payload.spec.rules.forEach(rule => {
       rule.http.paths.forEach(path => {
         if (path.backend.service.name === service.svc.metadata.name) {
-          if (service.ingresses === undefined) {
-            service.ingresses = [];
-          }
+          if (!serviceHasIngress(service, payload)) {
+            if (service.ingresses === undefined) {
+              service.ingresses = [];
+            }
 
-          service.ingresses.push(payload);
+            service.ingresses.push(payload);
+          }
         }
       })
     })
@@ -46,4 +48,19 @@ export function ingressDeleted(state, payload) {
 
   state.services = services
   return state
+}
+
+function serviceHasIngress(service, ingress) {
+  if (service.ingresses === undefined) {
+    return false;
+  }
+
+  for (let i of service.ingresses) {
+    if (i.metadata.namespace + '/' + i.metadata.name ===
+      ingress.metadata.namespace + '/' + ingress.metadata.name) {
+      return true;
+    }
+  }
+
+  return false;
 }
