@@ -15,7 +15,7 @@ export function serviceCreated(state, payload) {
 export function serviceUpdated(state, payload) {
   let services = [...state.services];
   services.forEach(service => {
-    if (service.metadata.namespace + '/' + service.metadata.name !==
+    if (service.svc.metadata.namespace + '/' + service.svc.metadata.name !==
       payload.metadata.namespace + '/' + payload.metadata.name) {
       return;
     }

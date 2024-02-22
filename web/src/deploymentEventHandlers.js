@@ -1,12 +1,12 @@
 export function deploymentCreated(state, payload) {
   let services = [...state.services];
-  services.forEach((service, serviceID) => {
+  services.forEach((service, serviceID, services) => {
     if (!selectorsMatch(payload.spec.selector.matchLabels, service.svc.spec.selector)) {
       return;
     }
 
     if (service.deployment === undefined) {
-      service[serviceID].deployment = payload;
+      services[serviceID].deployment = payload;
     }
   });
 
@@ -33,9 +33,9 @@ export function deploymentUpdated(state, payload) {
 
 export function deploymentDeleted(state, payload) {
   let services = [...state.services];
-  services.forEach((service, stackID, stacks) => {
-    if (service.deployment && service.deployment.namespace + '/' + service.deployment.name === payload) {
-      delete stacks[stackID].deployment;
+  services.forEach((service, serviceID, services) => {
+    if (service.deployment && service.deployment.metadata.namespace + '/' + service.deployment.metadata.name === payload) {
+      delete services[serviceID].deployment;
     }
   });
 
@@ -69,4 +69,6 @@ function selectorsMatch(first, second) {
       return false;
     }
   }
+
+  return true;
 }
