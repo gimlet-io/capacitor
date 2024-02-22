@@ -80,10 +80,4 @@ jobs:
         --source=${{ github.repositoryUrl }} \
         --revision="${{ github.ref_name }}@sha1:${{ github.sha }}" \
         --annotations='org.opencontainers.image.description=Capacitor install manifests for Flux'
-    - name: Sign manifests
-      run: |
-        curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
-        sudo mv cosign-linux-amd64 /usr/local/bin/cosign
-        sudo chmod +x /usr/local/bin/cosign
 
-        cosign sign --key=secrets.COSIGNKEY oci://ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }}
