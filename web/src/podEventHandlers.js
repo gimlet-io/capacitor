@@ -19,7 +19,7 @@ export function podUpdated(state, payload) {
   let services = [...state.services];
   services.forEach((service, serviceID, services) => {
     if (labelsMatchSelectors(payload.metadata.labels, service.svc.spec.selector)) {
-      service.pods.forEach((pod, podID) => {
+      service.pods && service.pods.forEach((pod, podID) => {
         if (pod.metadata.namespace + '/' + pod.metadata.name ===
           payload.metadata.namespace + '/' + payload.metadata.name) {
           services[serviceID].pods[podID] = payload;

@@ -25,18 +25,20 @@ func ServiceController(
 		func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error {
 			switch informerEvent.eventType {
 			case "create":
+				createdService := obj.(*v1.Service)
 				serviceBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.SERVICE_CREATED,
-					Payload: obj,
+					Payload: createdService,
 				})
 				if err != nil {
 					panic(err.Error())
 				}
 				clientHub.Broadcast <- serviceBytes
 			case "update":
+				service := obj.(*v1.Service)
 				serviceBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.SERVICE_UPDATED,
-					Payload: obj,
+					Payload: service,
 				})
 				if err != nil {
 					panic(err.Error())

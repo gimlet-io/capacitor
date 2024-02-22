@@ -25,18 +25,20 @@ func PodController(
 		func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error {
 			switch informerEvent.eventType {
 			case "create":
+				createdPod := obj.(*v1.Pod)
 				podBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.POD_CREATED,
-					Payload: obj,
+					Payload: createdPod,
 				})
 				if err != nil {
 					panic(err.Error())
 				}
 				clientHub.Broadcast <- podBytes
 			case "update":
+				pod := obj.(*v1.Pod)
 				podBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.POD_UPDATED,
-					Payload: obj,
+					Payload: pod,
 				})
 				if err != nil {
 					panic(err.Error())

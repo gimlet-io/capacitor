@@ -26,18 +26,20 @@ func IngressController(
 		func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error {
 			switch informerEvent.eventType {
 			case "create":
+				createdIngress := obj.(*networking_v1.Ingress)
 				ingressBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.INGRESS_CREATED,
-					Payload: obj,
+					Payload: createdIngress,
 				})
 				if err != nil {
 					panic(err.Error())
 				}
 				clientHub.Broadcast <- ingressBytes
 			case "update":
+				ingress := obj.(*networking_v1.Ingress)
 				ingressBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.INGRESS_UPDATED,
-					Payload: obj,
+					Payload: ingress,
 				})
 				if err != nil {
 					panic(err.Error())

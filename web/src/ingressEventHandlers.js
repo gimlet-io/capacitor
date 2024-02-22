@@ -20,23 +20,13 @@ export function ingressCreated(state, payload) {
 
 export function ingressUpdated(state, payload) {
   let services = [...state.services];
-  services.forEach(service => {
-    let url = "";
-    payload.spec.rules.forEach(rule => {
-      rule.http.paths.forEach(path => {
-        if (path.backend.service.name === service.svc.metadata.name) {
-          url = rule.host;
-        }
-      })
-    })
-
-    for (let i of service.ingresses) {
-      if ((i.metadata.namespace + '/' + i.metadata.name ===
-        payload.metadata.namespace + '/' + payload.metadata.name) &&
-        url !== "") {
-        i.url = url;
+  services.forEach((service, serviceID, services) => {
+    service.ingresses && service.ingresses.forEach((i, ingressID) => {
+      if (i.metadata.namespace + '/' + i.metadata.name ===
+        payload.metadata.namespace + '/' + payload.metadata.name) {
+        services[serviceID].ingresses[ingressID] = payload;
       }
-    };
+    });
   });
 
   state.services = services

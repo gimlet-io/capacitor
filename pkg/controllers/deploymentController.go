@@ -26,18 +26,20 @@ func DeploymentController(
 		func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error {
 			switch informerEvent.eventType {
 			case "create":
+				createdDeployment := obj.(*apps_v1.Deployment)
 				deploymentBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.DEPLOYMENT_CREATED,
-					Payload: obj,
+					Payload: createdDeployment,
 				})
 				if err != nil {
 					panic(err.Error())
 				}
 				clientHub.Broadcast <- deploymentBytes
 			case "update":
+				deployment := obj.(*apps_v1.Deployment)
 				deploymentBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.DEPLOYMENT_UPDATED,
-					Payload: obj,
+					Payload: deployment,
 				})
 				if err != nil {
 					panic(err.Error())
