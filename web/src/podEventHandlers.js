@@ -74,8 +74,8 @@ function serviceHasPod(service, pod) {
     if (servicePod.metadata.namespace + '/' + servicePod.metadata.name ===
       pod.metadata.namespace + '/' + pod.metadata.name) {
       return true;
+    }
   }
-}
 
-return false;
+  return false;
 }
