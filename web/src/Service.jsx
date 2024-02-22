@@ -172,8 +172,8 @@ function Service(props) {
                     </div>
                     </div>
                     {service.ingresses ? service.ingresses.map((ingress) =>
-                      <p key={`${ingress.namespace}/${ingress.name}`}>
-                        <a href={'https://' + ingress.url} target="_blank" rel="noopener noreferrer">{ingress.url}
+                      <p key={`${ingress.metadata.namespace}/${ingress.metadata.name}`}>
+                        <a href={'https://' + ingressURL(ingress, service)} target="_blank" rel="noopener noreferrer">{ingressURL(ingress, service)}
                         <svg xmlns="http://www.w3.org/2000/svg"
                           className="inline fill-current ml-1 h-4 w-4"
                           viewBox="0 0 24 24">
@@ -318,6 +318,18 @@ function Pod(props) {
       {pod.status.phase}
     </span>
   );
+}
+
+function ingressURL(ingress, service) {
+  let url = ""
+  ingress.spec.rules.forEach(rule => {
+    rule.http.paths.forEach(path => {
+      if (path.backend.service.name === service.svc.metadata.name) {
+        url = rule.host
+      }
+    })
+  })
+  return url;
 }
 
 function podContainers(pods) {
