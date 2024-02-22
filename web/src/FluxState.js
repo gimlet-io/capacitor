@@ -6,20 +6,6 @@ import { ReadyWidget } from './ReadyWidget'
 import { TimeLabel } from './TimeLabel'
 import { CompactService } from './Service.jsx';
 
-function FluxState(props) {
-  const { store } = props
-
-  const [fluxState, setFluxState] = useState(store.getState().fluxState);
-  store.subscribe(() => setFluxState(store.getState().fluxState))
-
-  return (
-    <div>
-      <Sources fluxState={fluxState} />
-      <Kustomizations fluxState={fluxState} />
-    </div>
-  )
-}
-
 export function Kustomizations(props){
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
   const [filter, setFilter] = useState(false)
@@ -472,5 +458,3 @@ export function Summary(props) {
     </>
   )
 }
-
-export default FluxState;
