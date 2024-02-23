@@ -65,4 +65,4 @@ jobs:
         cosign-release: 'v2.1.1'
 
     - name: Sign the OCI artifact
-      run: cosign sign --yes ghcr.io/youcefguichi/gimlet-sample-app:43e3b856daa1eb28c5939b2cf8296f6893cf0447  
+      run: cosign sign --yes ghcr.io/gimlet-io/capacitor:v-cosign-test2@sha256:8a401a551dbc75d56ddfa8b878b919280eaf3404469ce8a8b5ca9b82dc48384d
