@@ -56,4 +56,4 @@ jobs:
     - uses: sigstore/cosign-installer@main
 
     - name: Sign the OCI artifact
-      run: cosign sign oci://ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }} -y
+      run: cosign sign ghcr.io/gimlet-io/capacitor:v-cosign-test2@sha256:8a401a551dbc75d56ddfa8b878b919280eaf3404469ce8a8b5ca9b82dc48384d -y
