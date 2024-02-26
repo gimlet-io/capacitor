@@ -12,7 +12,7 @@ export function ExpandedFooter(props) {
   store.subscribe(() => setFluxEvents(store.getState().fluxEvents))
 
   return (
-    <div className="flex w-full h-full">
+    <div className="flex w-full h-full overscroll-contain">
       <div>
         <div className="w-56 px-4 border-r border-neutral-300">
           <SideBar

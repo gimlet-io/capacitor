@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { CompactService } from "./Service"
+import { CompactService } from "./CompactService"
 
 export const CompactServices = memo(function CompactServices(props) {
   const { capacitorClient, store, services } = props
