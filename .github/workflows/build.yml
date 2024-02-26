@@ -71,6 +71,8 @@ jobs:
         cosign-release: 'v2.1.1'
 
     - name: Sign the OCI artifact
+      env:
+        COSIGNKEY: ${{ secrets.COSIGNKEY }}
       run: |
-        echo ${{ secrets.COSIGNKEY }} | base64 -d > cosign.key
+        echo "$COSIGNKEY" | base64 -d > cosign.key
         cosign sign --key cosign.key  ghcr.io/gimlet-io/capacitor-manifests:v-cosign-test2 -y
