@@ -73,4 +73,4 @@ jobs:
     - name: Sign the OCI artifact
       run: |
         echo ${{ secrets.COSIGNKEY }} | base64 -d > cosign.key
-        cosign sign cosign.key --yes ghcr.io/gimlet-io/capacitor:v-cosign-test2
+        cosign sign cosign.key --yes ghcr.io/gimlet-io/capacitor-manifests:v-cosign-test2
