@@ -71,4 +71,6 @@ jobs:
         cosign-release: 'v2.1.1'
 
     - name: Sign the OCI artifact
-      run: cosign sign --yes ghcr.io/gimlet-io/capacitor:v-cosign-test2@sha256:8a401a551dbc75d56ddfa8b878b919280eaf3404469ce8a8b5ca9b82dc48384d
+      run: |
+        echo ${{ secrets.COSIGNKEY }} | base64 -d > cosign.key
+        cosign sign cosign.key --yes ghcr.io/gimlet-io/capacitor:v-cosign-test2
