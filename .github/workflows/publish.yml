@@ -65,6 +65,7 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.PAT }} # `PAT` is a secret that contains your Personal Access Token with `write:packages` scope
     - name: Build and push Gimlet image
+      id: build-and-push
       uses: docker/build-push-action@v4.2.1
       with:
         context: .
@@ -94,4 +95,4 @@ jobs:
         COSIGNKEY: ${{ secrets.COSIGNKEY }}
       run: |
         # keyless mode
-        cosign sign ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }} -y
+        cosign sign ghcr.io/gimlet-io/capacitor-manifests:${{ steps.build-and-push.outputs.digest }} -y
