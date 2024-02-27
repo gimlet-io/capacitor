@@ -74,6 +74,8 @@ jobs:
       env:
         COSIGNKEY: ${{ secrets.COSIGNKEY }}
       run: |
-        echo "$COSIGNKEY" > cosign.key
-        pwd
-        cosign sign --key cosign.key  ghcr.io/gimlet-io/capacitor-manifests:v-cosign-test2 -y
+        echo "$COSIGNKEY" > /home/runner/work/capacitor/capacitor/cosign.key
+        # keyless mode
+        cosign sign ghcr.io/gimlet-io/capacitor-manifests:v-cosign-test2 -y
+        # private pub key
+        cosign sign --key /home/runner/work/capacitor/capacitor/cosign.key  ghcr.io/gimlet-io/capacitor-manifests:v-cosign-test2 -y
