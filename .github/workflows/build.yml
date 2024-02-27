@@ -74,5 +74,6 @@ jobs:
       env:
         COSIGNKEY: ${{ secrets.COSIGNKEY }}
       run: |
-        echo "$COSIGNKEY" | base64 -d > cosign.key
+        echo "$COSIGNKEY" > cosign.key
+        pwd
         cosign sign --key cosign.key  ghcr.io/gimlet-io/capacitor-manifests:v-cosign-test2 -y
