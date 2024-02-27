@@ -43,11 +43,7 @@ jobs:
     - name: Dist
       run: make dist
       env:
-        VERSION: ${{ steps.version.outputs.version }}
-    - name: Setup User
-      run: |
-        git config --global user.email "git@gimlet.io"
-        git config --global user.name "Github Actions"   
+        VERSION: ${{ steps.version.outputs.version }} 
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -94,9 +90,7 @@ jobs:
       with:
         cosign-release: 'v2.1.1'
 
-    - name: Sign the OCI artifact
-      env:
-        COSIGNKEY: ${{ secrets.COSIGNKEY }}
+    - name: Sign oci artifacts
       run: |
         # keyless mode
         cosign sign ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }} -y
