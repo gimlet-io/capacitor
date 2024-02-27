@@ -95,4 +95,4 @@ jobs:
         COSIGNKEY: ${{ secrets.COSIGNKEY }}
       run: |
         # keyless mode
-        cosign sign ghcr.io/gimlet-io/capacitor-manifests:${{ steps.build-and-push.outputs.digest }} -y
+        cosign sign ghcr.io/gimlet-io/capacitor-manifests@${{ steps.build-and-push.outputs.digest }} -y
