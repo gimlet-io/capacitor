@@ -44,6 +44,10 @@ jobs:
       run: make dist
       env:
         VERSION: ${{ steps.version.outputs.version }}
+    - name: Setup User
+      run: |
+        git config --global user.email "git@gimlet.io"
+        git config --global user.name "Github Actions"   
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -62,7 +66,7 @@ jobs:
       uses: docker/login-action@v1
       with:
         registry: ghcr.io
-        username: ${{ github.repository_owner }}
+        username: ${{ github.actor }}
         password: ${{ secrets.PAT }} # `PAT` is a secret that contains your Personal Access Token with `write:packages` scope
     - name: Build and push Gimlet image
       id: build-and-push
@@ -95,4 +99,4 @@ jobs:
         COSIGNKEY: ${{ secrets.COSIGNKEY }}
       run: |
         # keyless mode
-        cosign sign ghcr.io/gimlet-io/capacitor-manifests@${{ steps.build-and-push.outputs.digest }} -y
+        cosign sign ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }} -y
