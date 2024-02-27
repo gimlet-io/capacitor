@@ -11,6 +11,9 @@ jobs:
     permissions:
       contents: write # Required for creating the GitHub release
       packages: write # Required for pushing to GitHub Container Registry
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
+      id-token: write
     steps:
     - name: 🛑 Cancel Previous Runs
       uses: styfle/cancel-workflow-action@0.9.1
@@ -81,3 +84,14 @@ jobs:
         --revision="${{ github.ref_name }}@sha1:${{ github.sha }}" \
         --annotations='org.opencontainers.image.description=Capacitor install manifests for Flux'
 
+    - name: Install cosign
+      uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06 #v3.1.1
+      with:
+        cosign-release: 'v2.1.1'
+
+    - name: Sign the OCI artifact
+      env:
+        COSIGNKEY: ${{ secrets.COSIGNKEY }}
+      run: |
+        # keyless mode
+        cosign sign ghcr.io/gimlet-io/capacitor-manifests:${{ steps.version.outputs.version }} -y
