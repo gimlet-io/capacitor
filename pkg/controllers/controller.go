@@ -23,9 +23,10 @@ import (
 
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	log "github.com/sirupsen/logrus"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	converterRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -53,7 +54,7 @@ func NewController(
 	name string,
 	listWatcher cache.ListerWatcher,
 	objType converterRuntime.Object,
-	eventHandler func(informerEvent Event, objectMeta meta_v1.ObjectMeta, obj interface{}) error,
+	eventHandler func(informerEvent Event, objectMeta metav1.ObjectMeta, obj interface{}) error,
 ) *Controller {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	var informerEvent Event
@@ -246,17 +247,17 @@ func (c *Controller) runWorker() {
 func getObjectMetaData(obj interface{}) metav1.ObjectMeta {
 	var objectMeta metav1.ObjectMeta
 
-	unstructuredObj, ok := obj.(*unstructured.Unstructured)
-	if !ok {
-		return objectMeta
+	switch object := obj.(type) {
+	case *sourcev1.GitRepository:
+		objectMeta = object.ObjectMeta
+	case *appsv1.Deployment:
+		objectMeta = object.ObjectMeta
+	case *v1.Service:
+		objectMeta = object.ObjectMeta
+	case *v1.Pod:
+		objectMeta = object.ObjectMeta
+	case *networkingv1.Ingress:
+		objectMeta = object.ObjectMeta
 	}
-	unstructured := unstructuredObj.UnstructuredContent()
-
-	var gitRepository sourcev1.GitRepository
-	err := converterRuntime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &gitRepository)
-	if err != nil {
-		return objectMeta
-	} else {
-		return gitRepository.ObjectMeta
-	}
+	return objectMeta
 }
