@@ -27,15 +27,18 @@ function Service(props) {
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
-  const svcPort = service.svc.spec.ports[0].port
+  let appPort = "<app-port>"
   let hostPort = "<host-port>"
-  if (svcPort) {
-    if (svcPort <= 99) {
-      hostPort = "100" + svcPort
-    } else if (svcPort <= 999) {
-      hostPort = "10" + svcPort
+  if (service.svc.spec.ports) {
+    const servicePorts = jp.query(service.svc.spec.ports, '$..[?(@.port)].port');
+    appPort = servicePorts.length === 1 ? servicePorts[0] : 80;
+
+    if (appPort <= 99) {
+      hostPort = "100" + appPort
+    } else if (appPort <= 999) {
+      hostPort = "10" + appPort
     } else {
-      hostPort = svcPort
+      hostPort = appPort
     }
 
     if (hostPort === "10080") { // Connections to HTTP, HTTPS or FTP servers on port 10080 will fail. This is a mitigation for the NAT Slipstream 2.0 attack.
@@ -167,7 +170,7 @@ function Service(props) {
                     <div className='absolute right-0 top-0'>
                       <CopyBtn
                         title='Port-forward command'
-                        textToCopy={`kubectl port-forward deploy/${deployment.metadata.name} -n ${deployment.metadata.namespace} ${hostPort}:${svcPort}`}
+                        textToCopy={`kubectl port-forward deploy/${deployment.metadata.name} -n ${deployment.metadata.namespace} ${hostPort}:${appPort}`}
                       />
                     </div>
                     </div>
@@ -185,7 +188,7 @@ function Service(props) {
                       </p>
                       ) : null
                     }
-                    {svcPort &&
+                    {service.svc.spec.ports &&
                         <>
                           <a href={'http://127.0.0.1:' + hostPort} target="_blank" rel="noopener noreferrer">http://127.0.0.1:{hostPort}
                             <svg xmlns="http://www.w3.org/2000/svg"
