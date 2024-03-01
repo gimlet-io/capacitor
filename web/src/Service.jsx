@@ -27,24 +27,8 @@ function Service(props) {
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
-  let appPort = "<app-port>"
-  let hostPort = "<host-port>"
-  if (service.svc.spec.ports) {
-    const servicePorts = jp.query(service.svc.spec.ports, '$..[?(@.port)].port');
-    appPort = servicePorts.length === 1 ? servicePorts[0] : 80;
-
-    if (appPort <= 99) {
-      hostPort = "100" + appPort
-    } else if (appPort <= 999) {
-      hostPort = "10" + appPort
-    } else {
-      hostPort = appPort
-    }
-
-    if (hostPort === "10080") { // Connections to HTTP, HTTPS or FTP servers on port 10080 will fail. This is a mitigation for the NAT Slipstream 2.0 attack.
-      hostPort = "10081"
-    }
-  }
+  const appPort = getAppPort(service.svc.spec.ports) ?? "<app-port>";
+  const hostPort = getHostPort(service.svc.spec.ports) ?? "<host-port>";
 
   return (
     <>
@@ -244,6 +228,41 @@ function Service(props) {
 }
 
 export default Service;
+
+export function getAppPort(ports) {
+  if (!ports) {
+    return
+  }
+
+  const servicePort = getServicePort(ports);
+  return `${servicePort}`;
+}
+
+export function getHostPort(ports) {
+  if (!ports) {
+    return
+  }
+
+  let servicePort = getServicePort(ports);
+
+  if (servicePort <= 99) {
+    if (servicePort === 80) {
+      return "10081" // Connections to HTTP, HTTPS or FTP servers on port 10080 will fail. This is a mitigation for the NAT Slipstream 2.0 attack.
+    }
+    return `100${servicePort}`
+  }
+
+  if (servicePort <= 999) {
+    return `10${servicePort}`
+  }
+
+  return `${servicePort}`;
+}
+
+function getServicePort(ports) {
+  const servicePorts = jp.query(ports, '$..[?(@.port)].port');
+  return servicePorts.length === 1 ? servicePorts[0] : 80;
+}
 
 export function Pod(props) {
   const {pod} = props;
