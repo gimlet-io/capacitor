@@ -21,7 +21,7 @@ import (
 	"context"
 	"time"
 
-	helmv2 "github.com/fluxcd/helm-controller/api/v2beta2"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -64,9 +64,9 @@ func NewReconcileCommand(resource string) *reconcileCommand {
 		}
 	case "helmrelease":
 		return &reconcileCommand{
-			object:       helmReleaseAdapter{&helmv2.HelmRelease{}},
-			groupVersion: helmv2.GroupVersion,
-			kind:         helmv2.HelmReleaseKind,
+			object:       helmReleaseAdapter{&helmv2beta1.HelmRelease{}},
+			groupVersion: helmv2beta1.GroupVersion,
+			kind:         helmv2beta1.HelmReleaseKind,
 		}
 	case sourcev1.GitRepositoryKind:
 		return &reconcileCommand{
@@ -96,7 +96,7 @@ func (r *reconcileCommand) Run(config *rest.Config, namespace, name string) {
 	sourcev1.AddToScheme(scheme)
 	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)
-	helmv2.AddToScheme(scheme)
+	helmv2beta1.AddToScheme(scheme)
 
 	kubeClient, err := client.NewWithWatch(config, client.Options{
 		Scheme: scheme,
@@ -194,7 +194,7 @@ func requestReconciliation(
 		annotations[meta.ReconcileRequestAnnotation] = ts
 
 		// HelmRelease specific annotations to force a release.
-		if gvk.Kind == helmv2.HelmReleaseKind {
+		if gvk.Kind == helmv2beta1.HelmReleaseKind {
 			annotations["reconcile.fluxcd.io/forceAt"] = ts
 		}
 

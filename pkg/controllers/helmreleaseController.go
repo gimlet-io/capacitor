@@ -13,7 +13,7 @@ import (
 
 var helmReleaseResource = schema.GroupVersionResource{
 	Group:    "helm.toolkit.fluxcd.io",
-	Version:  "v2beta2",
+	Version:  "v2beta1",
 	Resource: "helmreleases",
 }
 

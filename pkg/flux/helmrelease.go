@@ -20,12 +20,12 @@ package flux
 import (
 	"fmt"
 
-	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type helmReleaseAdapter struct {
-	*helmv2beta2.HelmRelease
+	*helmv2beta1.HelmRelease
 }
 
 func (h helmReleaseAdapter) asClientObject() client.Object {
