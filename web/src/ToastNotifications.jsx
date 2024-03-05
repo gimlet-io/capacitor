@@ -25,7 +25,7 @@ function ToastNotifications(props) {
     <div className="fixed top-0 inset-x-0 z-50 text-center text-gray-700 text-sm space-y-2 max-w-7xl mx-auto py-2">
       {warningEvents.map((e, index) => {
         return (
-          <ToastElement event={e} index={index} dismiss={dismiss} handleNavigationSelect={handleNavigationSelect} />
+          <ToastElement key={index} event={e} index={index} dismiss={dismiss} handleNavigationSelect={handleNavigationSelect} />
         )
       })}
     </div>
@@ -34,7 +34,6 @@ function ToastNotifications(props) {
 
 function ToastElement(props) {
   const { event, index, dismiss, handleNavigationSelect } = props;
-  console.log(event)
   return (
     <Transition
       as="div"
