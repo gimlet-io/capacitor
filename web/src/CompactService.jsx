@@ -24,6 +24,7 @@ export function CompactService(props) {
                 <Describe
                   capacitorClient={capacitorClient}
                   deployment={deployment}
+                  pods={service.pods}
                 />
               </>
             }

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
@@ -57,7 +57,7 @@ var (
 
 	helmReleaseGVR = schema.GroupVersionResource{
 		Group:    "helm.toolkit.fluxcd.io",
-		Version:  "v2beta2",
+		Version:  "v2beta1",
 		Resource: "helmreleases",
 	}
 )
@@ -251,8 +251,8 @@ func inventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {
 	return inventory, nil
 }
 
-func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) {
-	releases := []helmv2beta2.HelmRelease{}
+func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta1.HelmRelease, error) {
+	releases := []helmv2beta1.HelmRelease{}
 
 	helmReleases, err := dc.Resource(helmReleaseGVR).
 		Namespace("").
@@ -263,7 +263,7 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) 
 
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv2beta2.HelmRelease
+		var helmRelease helmv2beta1.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
@@ -277,7 +277,7 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) 
 
 func helmStatusWithResources(
 	releases []*rspb.Release,
-	hr helmv2beta2.HelmRelease,
+	hr helmv2beta1.HelmRelease,
 ) (kube.ResourceList, error) {
 	var release *rspb.Release
 	version := -1
@@ -318,7 +318,7 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		OCIRepositories: []sourcev1beta2.OCIRepository{},
 		Buckets:         []sourcev1beta2.Bucket{},
 		Kustomizations:  []kustomizationv1.Kustomization{},
-		HelmReleases:    []helmv2beta2.HelmRelease{},
+		HelmReleases:    []helmv2beta1.HelmRelease{},
 		FluxServices:    []Service{},
 	}
 
@@ -397,7 +397,7 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 	}
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv2beta2.HelmRelease
+		var helmRelease helmv2beta1.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
