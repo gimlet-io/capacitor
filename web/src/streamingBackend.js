@@ -6,9 +6,9 @@ if (typeof window !== 'undefined') {
   URL = protocol + '://' + window.location.hostname;
 
   let port = window.location.port
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    port = 9000
-  }
+  // if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  //   port = 9000
+  // }
   if (port && port !== '') {
     URL = URL + ':' + port
   }
