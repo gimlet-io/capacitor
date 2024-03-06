@@ -5,6 +5,7 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -35,14 +36,16 @@ func HelmReleaseController(
 			case "delete":
 				fluxState, err := flux.State(client, dynamicClient)
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				fluxStateBytes, err := json.Marshal(streaming.Envelope{
 					Type:    streaming.FLUX_STATE_RECEIVED,
 					Payload: fluxState,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- fluxStateBytes
 			}

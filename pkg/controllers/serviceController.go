@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/gimlet-io/capacitor/pkg/streaming"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -31,7 +32,8 @@ func ServiceController(
 					Payload: createdService,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- serviceBytes
 			case "update":
@@ -41,7 +43,8 @@ func ServiceController(
 					Payload: service,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- serviceBytes
 			case "delete":
@@ -50,7 +53,8 @@ func ServiceController(
 					Payload: informerEvent.key,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- serviceBytes
 			}

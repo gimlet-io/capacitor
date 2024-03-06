@@ -74,6 +74,9 @@ export function rootReducer(state = initialState, action) {
     case ACTION_SERVICE_DELETED:
       return serviceEventHandlers.serviceDeleted(state, action.payload)
     default:
+      if (action.type && action.type.startsWith('@@redux/INIT')) { // Ignoring Redux ActionTypes.INIT action
+        return state
+      }
       console.log('Could not process redux event: ' + JSON.stringify(action));
       return state;
   }

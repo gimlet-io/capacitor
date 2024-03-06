@@ -280,6 +280,7 @@ export function Pod(props) {
       color = 'bg-blue-300';
       pulsar = 'animate-pulse';
       break;
+    case 'Succeeded':
     case 'Terminating':
       color = 'bg-neutral-500';
       pulsar = 'animate-pulse';

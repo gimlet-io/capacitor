@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/gimlet-io/capacitor/pkg/streaming"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking_v1 "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,8 @@ func IngressController(
 					Payload: createdIngress,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- ingressBytes
 			case "update":
@@ -42,7 +44,8 @@ func IngressController(
 					Payload: ingress,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- ingressBytes
 			case "delete":
@@ -51,7 +54,8 @@ func IngressController(
 					Payload: informerEvent.key,
 				})
 				if err != nil {
-					panic(err.Error())
+					logrus.Warnf("could not marshal event: %s", err)
+					return nil
 				}
 				clientHub.Broadcast <- ingressBytes
 			}

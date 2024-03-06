@@ -5,6 +5,7 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -42,7 +43,8 @@ func EventController(
 				Payload: events,
 			})
 			if err != nil {
-				panic(err.Error())
+				logrus.Warnf("could not marshal event: %s", err)
+				return nil
 			}
 			clientHub.Broadcast <- eventBytes
 			return nil
