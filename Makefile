@@ -8,6 +8,9 @@ format:
 test:
 	go test -timeout 60s $(shell go list ./...)
 
+test-ui:
+	(cd web; npm install; npm run test)
+
 .PHONY: build
 build:
 	CGO_ENABLED=0 go build -ldflags $(LDFLAGS) -o build/capacitor github.com/gimlet-io/capacitor/cmd/capacitor
