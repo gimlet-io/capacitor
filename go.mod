@@ -1,8 +1,6 @@
 module github.com/gimlet-io/capacitor
 
-go 1.21
-
-toolchain go1.21.5
+go 1.22
 
 require (
 	github.com/fluxcd/helm-controller/api v0.37.4
