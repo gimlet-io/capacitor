@@ -197,6 +197,7 @@ function Service(props) {
                   </div>
                 </div>
                 } */}
+                { kustomization && source &&
                 <div>
                   <p className="text-base text-neutral-600">Sync</p>
                   <div className="flex text-sm text-neutral-600">
@@ -204,6 +205,7 @@ function Service(props) {
                     <div className="ml-2 field flex-1"><RevisionWidget kustomization={kustomization} source={source} handleNavigationSelect={handleNavigationSelect} /></div>
                   </div>
                 </div>
+                }
                 { helmRelease &&
                 <div>
                   <p className="text-base text-neutral-600">Helm Status</p>

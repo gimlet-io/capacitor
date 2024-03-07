@@ -1,6 +1,10 @@
 import jp from 'jsonpath'
 
 export function findSource(sources, reconciler) {
+  if (!reconciler) { // HelmReleases can be applied on the cluster manually => no reconciler
+    return undefined
+  }
+
   let namespace = reconciler.metadata.namespace
   if (reconciler.spec.sourceRef.namespace) { // namespace is not mandatory
     namespace = reconciler.spec.sourceRef.namespace
