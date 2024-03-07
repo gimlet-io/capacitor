@@ -225,6 +225,9 @@ func inventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			return nil, fmt.Errorf("capacitor requires kustomize.toolkit.fluxcd.io/v1: %s", err)
+		}
 		return nil, err
 	}
 	for _, k := range kustomizations.Items {
@@ -326,6 +329,9 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			return nil, fmt.Errorf("capacitor requires source.toolkit.fluxcd.io/v1: %s", err)
+		}
 		return nil, err
 	}
 	for _, repo := range gitRepositories.Items {
