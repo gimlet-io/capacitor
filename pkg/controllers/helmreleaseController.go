@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
@@ -14,6 +15,12 @@ import (
 
 var helmReleaseResource = schema.GroupVersionResource{
 	Group:    "helm.toolkit.fluxcd.io",
+	Version:  "v2beta2",
+	Resource: "helmreleases",
+}
+
+var helmReleaseResourceV2beta1 = schema.GroupVersionResource{
+	Group:    "helm.toolkit.fluxcd.io",
 	Version:  "v2beta1",
 	Resource: "helmreleases",
 }
@@ -23,10 +30,18 @@ func HelmReleaseController(
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
 ) (*Controller, error) {
+	resource := helmReleaseResource
+	// check if v2beta2 is supported
+	_, err := dynamicClient.Resource(resource).Namespace("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		// try and possibly fail (helm-controller is not mandatory) with v2beta1
+		resource = helmReleaseResourceV2beta1
+	}
+
 	return NewDynamicController(
 		"helmreleases.helm.toolkit.fluxcd.io",
 		dynamicClient,
-		helmReleaseResource,
+		resource,
 		func(informerEvent Event, objectMeta metav1.ObjectMeta, obj interface{}) error {
 			switch informerEvent.eventType {
 			case "create":

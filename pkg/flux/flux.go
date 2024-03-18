@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
@@ -57,6 +57,12 @@ var (
 
 	helmReleaseGVR = schema.GroupVersionResource{
 		Group:    "helm.toolkit.fluxcd.io",
+		Version:  "v2beta2",
+		Resource: "helmreleases",
+	}
+
+	helmReleaseGVRV2beta1 = schema.GroupVersionResource{
+		Group:    "helm.toolkit.fluxcd.io",
 		Version:  "v2beta1",
 		Resource: "helmreleases",
 	}
@@ -65,10 +71,7 @@ var (
 func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
 	helmReleases, err := helmReleases(dc)
 	if err != nil {
-		if !strings.Contains(err.Error(), "the server could not find the requested resource") {
-			return nil, err
-		}
-		return []Service{}, nil
+		return nil, err
 	}
 
 	services := []Service{}
@@ -254,19 +257,34 @@ func inventory(dc *dynamic.DynamicClient) ([]object.ObjMetadata, error) {
 	return inventory, nil
 }
 
-func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta1.HelmRelease, error) {
-	releases := []helmv2beta1.HelmRelease{}
+func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) {
+	releases := []helmv2beta2.HelmRelease{}
 
 	helmReleases, err := dc.Resource(helmReleaseGVR).
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			// let's try the deprecated v2beta1
+			helmReleases, err = dc.Resource(helmReleaseGVRV2beta1).
+				Namespace("").
+				List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				if strings.Contains(err.Error(), "the server could not find the requested resource") {
+					// helm-controller is not mandatory, ignore error
+					return releases, nil
+				} else {
+					return nil, err
+				}
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv2beta1.HelmRelease
+		var helmRelease helmv2beta2.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
@@ -280,7 +298,7 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta1.HelmRelease, error) 
 
 func helmStatusWithResources(
 	releases []*rspb.Release,
-	hr helmv2beta1.HelmRelease,
+	hr helmv2beta2.HelmRelease,
 ) (kube.ResourceList, error) {
 	var release *rspb.Release
 	version := -1
@@ -322,7 +340,7 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		OCIRepositories: []sourcev1beta2.OCIRepository{},
 		Buckets:         []sourcev1beta2.Bucket{},
 		Kustomizations:  []kustomizationv1.Kustomization{},
-		HelmReleases:    []helmv2beta1.HelmRelease{},
+		HelmReleases:    []helmv2beta2.HelmRelease{},
 		FluxServices:    []Service{},
 	}
 
@@ -397,14 +415,26 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		helmReleases = &unstructured.UnstructuredList{}
-		if !strings.Contains(err.Error(), "the server could not find the requested resource") {
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			// let's try the deprecated v2beta1
+			helmReleases, err = dc.Resource(helmReleaseGVRV2beta1).
+				Namespace("").
+				List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				if !strings.Contains(err.Error(), "the server could not find the requested resource") {
+					return nil, err
+				} else {
+					// helm-controller is not mandatory, ignore error
+					helmReleases = &unstructured.UnstructuredList{}
+				}
+			}
+		} else {
 			return nil, err
 		}
 	}
 	for _, h := range helmReleases.Items {
 		unstructured := h.UnstructuredContent()
-		var helmRelease helmv2beta1.HelmRelease
+		var helmRelease helmv2beta2.HelmRelease
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRelease)
 		if err != nil {
 			return nil, err
