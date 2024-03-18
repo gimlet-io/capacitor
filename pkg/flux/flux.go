@@ -297,8 +297,9 @@ func helmStatusWithResources(
 	}
 
 	actionConfig := action.Configuration{}
-	actionConfig.Init(cli.New().RESTClientGetter(), "", "", nil)
-
+	envSettings := cli.New()
+	envSettings.SetNamespace(hr.GetReleaseNamespace())
+	actionConfig.Init(envSettings.RESTClientGetter(), "", "", nil)
 	resources, err := actionConfig.KubeClient.Build(bytes.NewBufferString(release.Manifest), false)
 	if err != nil {
 		return nil, err
