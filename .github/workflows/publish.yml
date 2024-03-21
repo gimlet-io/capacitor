@@ -43,7 +43,7 @@ jobs:
     - name: Dist
       run: make dist
       env:
-        VERSION: ${{ steps.version.outputs.version }} 
+        VERSION: ${{ steps.version.outputs.version }}
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -84,12 +84,10 @@ jobs:
         --source=${{ github.repositoryUrl }} \
         --revision="${{ github.ref_name }}@sha1:${{ github.sha }}" \
         --annotations='org.opencontainers.image.description=Capacitor install manifests for Flux'
-
     - name: Install cosign
       uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06 #v3.1.1
       with:
         cosign-release: 'v2.1.1'
-
     - name: Sign oci artifacts
       run: |
         # keyless mode
