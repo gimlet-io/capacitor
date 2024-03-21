@@ -23,12 +23,12 @@ spec:
   interval: 12h
   url: oci://ghcr.io/gimlet-io/capacitor-manifests
   ref:
-    tag: v-cosign-test5
+    semver: ">=0.1.0"
   verify:
     provider: cosign
     matchOIDCIdentity:
       - issuer: "https://token.actions.githubusercontent.com"
-        subject: "https://github.com/gimlet-io/capacitor" 
+        subject: "^https://github.com/gimlet-io/capacitor.*$" 
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
