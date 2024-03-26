@@ -61,6 +61,8 @@ kubectl -n flux-system port-forward svc/capacitor 9000:9000
 
 #### (Optional) Verify OCIRepository with Cosign
 
+This feature requires Flux v2.2.0.
+
 ```diff
 ---
 apiVersion: source.toolkit.fluxcd.io/v1beta2
