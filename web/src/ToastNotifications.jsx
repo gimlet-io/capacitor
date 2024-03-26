@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { ACTION_DISMISS_FLUX_EVENT } from './redux';
+import { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Transition } from '@headlessui/react'
 import { NavigationButton } from './NavigationButton';
@@ -9,23 +8,33 @@ function ToastNotifications(props) {
 
   let reduxState = store.getState();
   const [fluxEvents, setFluxEvents] = useState(reduxState.fluxEvents);
-  const [dismissedFluxEvents, setDismissedFluxEvents] = useState(reduxState.dismissedFluxEvents);
+  const [dismissed, setDismissed] = useState(JSON.parse(localStorage.getItem("dismissed")) ?? [])
   store.subscribe(() => setFluxEvents(reduxState.fluxEvents));
-  store.subscribe(() => setDismissedFluxEvents(reduxState.dismissedFluxEvents));
 
-  const warningEvents = fluxEvents.filter(e => e.type === "Warning" && !dismissedFluxEvents.some(de => isSameEvent(e, de))).slice(0, 3);
+  useEffect(() => {
+    localStorage.setItem("dismissed", JSON.stringify(dismissed));
+  }, [dismissed]);
+
+  useEffect(() => {
+    setDismissed(dismissed.filter(d => {
+      const parsed = Date.parse(d.firstTimestamp, "yyyy-MM-dd'T'HH:mm:ss");
+      const day = 24 * 60 * 60 * 1000;
+      return (Date.now() - parsed) < day
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const dismiss = (event) => {
-    store.dispatch({
-      type: ACTION_DISMISS_FLUX_EVENT, payload: event
-    });
+    setDismissed([...dismissed, event]);
   }
+
+  const warningEvents = fluxEvents.filter(e => e.type === "Warning" && !dismissed.some(d => isSameEvent(e, d))).slice(0, 3);
 
   return (
     <div className="fixed top-0 inset-x-0 z-50 text-center text-gray-700 text-sm space-y-2 max-w-7xl mx-auto py-2">
       {warningEvents.map((e, index) => {
         return (
-          <ToastElement key={index} event={e} index={index} dismiss={dismiss} handleNavigationSelect={handleNavigationSelect} />
+          <ToastElement key={index} event={e} dismiss={dismiss} handleNavigationSelect={handleNavigationSelect} />
         )
       })}
     </div>
@@ -33,7 +42,7 @@ function ToastNotifications(props) {
 }
 
 function ToastElement(props) {
-  const { event, index, dismiss, handleNavigationSelect } = props;
+  const { event, dismiss, handleNavigationSelect } = props;
   return (
     <Transition
       as="div"
@@ -48,10 +57,10 @@ function ToastElement(props) {
         leaveFrom="opacity-100 translate-y-0"
         leaveTo="opacity-0 -translate-y-12"
       >
-        <div key={index} className="rounded-md shadow-lg bg-orange-400" role="alert">
+        <div className="rounded-md shadow-lg bg-orange-400" role="alert">
           <div className="flex p-4">
             <NavigationButton handleNavigation={() => handleNavigationSelect(event.involvedObjectKind === "Kustomization" ? "Kustomizations" : "Sources", event.involvedObjectNamespace, event.involvedObject, event.involvedObjectKind)}>
-              <span className='font-bold'>{event.involvedObjectKind} {event.involvedObjectNamespace}/{event.involvedObject}</span>: {event.message}
+              <p className="break-all line-clamp-3"><span className='font-bold'>{event.involvedObjectKind} {event.involvedObjectNamespace}/{event.involvedObject}</span>: {event.message}</p>
             </NavigationButton>
             <div className="ml-auto">
               <button

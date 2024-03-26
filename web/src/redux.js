@@ -6,7 +6,6 @@ import * as serviceEventHandlers from './serviceEventHandlers';
 export const initialState = {
   fluxState: {},
   fluxEvents: [],
-  dismissedFluxEvents: [],
   services: [],
   podLogs: {},
   textColors: {},
@@ -14,7 +13,6 @@ export const initialState = {
 
 export const ACTION_FLUX_STATE_RECEIVED = 'FLUX_STATE_RECEIVED';
 export const ACTION_FLUX_EVENTS_RECEIVED = 'FLUX_EVENTS_RECEIVED';
-export const ACTION_DISMISS_FLUX_EVENT = 'FLUX_EVENTS_DISMISSED';
 export const ACTION_SERVICES_RECEIVED = 'SERVICES_RECEIVED';
 export const ACTION_POD_LOGS_RECEIVED = 'POD_LOGS_RECEIVED';
 export const ACTION_CLEAR_PODLOGS = 'CLEAR_POD_LOGS';
@@ -41,8 +39,6 @@ export function rootReducer(state = initialState, action) {
       return fluxStateReceived(state, action.payload)
     case ACTION_FLUX_EVENTS_RECEIVED:
       return fluxEventsReceived(state, action.payload)
-    case ACTION_DISMISS_FLUX_EVENT:
-      return dismissFluxEvent(state, action.payload)
     case ACTION_SERVICES_RECEIVED:
       return servicesReceived(state, action.payload)
     case ACTION_POD_LOGS_RECEIVED:
@@ -89,11 +85,6 @@ function fluxStateReceived(state, payload) {
 
 function fluxEventsReceived(state, payload) {
   state.fluxEvents = payload
-  return state
-}
-
-function dismissFluxEvent(state, payload) {
-  state.dismissedFluxEvents = [...state.dismissedFluxEvents, payload]
   return state
 }
 
