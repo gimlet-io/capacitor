@@ -7,6 +7,8 @@ A general purpose UI for FluxCD.
 
 ## Installation
 
+Capacitor requires Flux v2.0.0.
+
 ### Flux
 
 Deploy the latest Capacitor release in the `flux-system` namespace
@@ -55,6 +57,44 @@ Access Capacitor UI with port-forwarding:
 
 ```bash
 kubectl -n flux-system port-forward svc/capacitor 9000:9000
+```
+
+#### (Optional) Verify OCIRepository with Cosign
+
+```diff
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: capacitor
+  namespace: flux-system
+spec:
+  interval: 12h
+  url: oci://ghcr.io/gimlet-io/capacitor-manifests
+  ref:
+    semver: ">=0.1.0"
++  verify:
++    provider: cosign
++    matchOIDCIdentity:
++      - issuer: "https://token.actions.githubusercontent.com"
++        subject: "^https://github.com/gimlet-io/capacitor.*$" 
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: capacitor
+  namespace: flux-system
+spec:
+  targetNamespace: flux-system
+  interval: 1h
+  retryInterval: 2m
+  timeout: 5m
+  wait: true
+  prune: true
+  path: "./"
+  sourceRef:
+    kind: OCIRepository
+    name: capacitor
 ```
 
 ### Kubernetes manifests
