@@ -44,6 +44,18 @@ func (obj helmReleaseAdapter) setSuspended() {
 	obj.HelmRelease.Spec.Suspend = true
 }
 
+func (obj helmReleaseAdapter) setUnsuspended() {
+	obj.HelmRelease.Spec.Suspend = false
+}
+
+func (obj helmReleaseAdapter) getObservedGeneration() int64 {
+	return obj.HelmRelease.Status.ObservedGeneration
+}
+
+func (obj helmReleaseAdapter) isStatic() bool {
+	return false
+}
+
 func (obj helmReleaseAdapter) lastHandledReconcileRequest() string {
 	return obj.Status.GetLastHandledReconcileRequest()
 }
@@ -65,5 +77,9 @@ func (h helmReleaseListAdapter) len() int {
 }
 
 func (a helmReleaseListAdapter) item(i int) suspendable {
+	return &helmReleaseAdapter{&a.HelmReleaseList.Items[i]}
+}
+
+func (a helmReleaseListAdapter) resumeItem(i int) resumable {
 	return &helmReleaseAdapter{&a.HelmReleaseList.Items[i]}
 }

@@ -46,6 +46,18 @@ func (obj gitRepositoryAdapter) setSuspended() {
 	obj.GitRepository.Spec.Suspend = true
 }
 
+func (obj gitRepositoryAdapter) setUnsuspended() {
+	obj.GitRepository.Spec.Suspend = false
+}
+
+func (obj gitRepositoryAdapter) getObservedGeneration() int64 {
+	return obj.GitRepository.Status.ObservedGeneration
+}
+
+func (obj gitRepositoryAdapter) isStatic() bool {
+	return false
+}
+
 func (obj gitRepositoryAdapter) lastHandledReconcileRequest() string {
 	return obj.Status.GetLastHandledReconcileRequest()
 }
@@ -70,6 +82,10 @@ func (a gitRepositoryListAdapter) item(i int) suspendable {
 	return &gitRepositoryAdapter{&a.GitRepositoryList.Items[i]}
 }
 
+func (a gitRepositoryListAdapter) resumeItem(i int) resumable {
+	return &gitRepositoryAdapter{&a.GitRepositoryList.Items[i]}
+}
+
 type ociRepositoryAdapter struct {
 	*sourcev1beta2.OCIRepository
 }
@@ -88,6 +104,18 @@ func (obj ociRepositoryAdapter) isSuspended() bool {
 
 func (obj ociRepositoryAdapter) setSuspended() {
 	obj.OCIRepository.Spec.Suspend = true
+}
+
+func (obj ociRepositoryAdapter) setUnsuspended() {
+	obj.OCIRepository.Spec.Suspend = false
+}
+
+func (obj ociRepositoryAdapter) getObservedGeneration() int64 {
+	return obj.OCIRepository.Status.ObservedGeneration
+}
+
+func (obj ociRepositoryAdapter) isStatic() bool {
+	return false
 }
 
 func (obj ociRepositoryAdapter) lastHandledReconcileRequest() string {
@@ -114,6 +142,10 @@ func (a ociRepositoryListAdapter) item(i int) suspendable {
 	return &ociRepositoryAdapter{&a.OCIRepositoryList.Items[i]}
 }
 
+func (a ociRepositoryListAdapter) resumeItem(i int) resumable {
+	return &ociRepositoryAdapter{&a.OCIRepositoryList.Items[i]}
+}
+
 type bucketAdapter struct {
 	*sourcev1beta2.Bucket
 }
@@ -132,6 +164,18 @@ func (obj bucketAdapter) isSuspended() bool {
 
 func (obj bucketAdapter) setSuspended() {
 	obj.Bucket.Spec.Suspend = true
+}
+
+func (obj bucketAdapter) setUnsuspended() {
+	obj.Bucket.Spec.Suspend = false
+}
+
+func (obj bucketAdapter) getObservedGeneration() int64 {
+	return obj.Bucket.Status.ObservedGeneration
+}
+
+func (obj bucketAdapter) isStatic() bool {
+	return false
 }
 
 func (obj bucketAdapter) lastHandledReconcileRequest() string {
@@ -155,5 +199,9 @@ func (a bucketListAdapter) len() int {
 }
 
 func (a bucketListAdapter) item(i int) suspendable {
+	return &bucketAdapter{&a.BucketList.Items[i]}
+}
+
+func (a bucketListAdapter) resumeItem(i int) resumable {
 	return &bucketAdapter{&a.BucketList.Items[i]}
 }

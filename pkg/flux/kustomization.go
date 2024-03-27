@@ -44,6 +44,18 @@ func (obj kustomizationAdapter) setSuspended() {
 	obj.Kustomization.Spec.Suspend = true
 }
 
+func (obj kustomizationAdapter) setUnsuspended() {
+	obj.Kustomization.Spec.Suspend = false
+}
+
+func (obj kustomizationAdapter) getObservedGeneration() int64 {
+	return obj.Kustomization.Status.ObservedGeneration
+}
+
+func (obj kustomizationAdapter) isStatic() bool {
+	return false
+}
+
 func (obj kustomizationAdapter) lastHandledReconcileRequest() string {
 	return obj.Status.GetLastHandledReconcileRequest()
 }
@@ -65,5 +77,9 @@ func (a kustomizationListAdapter) len() int {
 }
 
 func (a kustomizationListAdapter) item(i int) suspendable {
+	return &kustomizationAdapter{&a.KustomizationList.Items[i]}
+}
+
+func (a kustomizationListAdapter) resumeItem(i int) resumable {
 	return &kustomizationAdapter{&a.KustomizationList.Items[i]}
 }

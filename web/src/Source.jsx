@@ -46,11 +46,16 @@ export function Source(props) {
           <span>Bucket (TODO)</span>
         }
       </div>
-      <div className="grid-cols-1 text-right space-y-2">
+      <div className="grid grid-cols-1 text-right space-y-1">
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.suspend(source.kind, source.metadata.namespace, source.metadata.name)}
         >
           Suspend
+        </button>
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.resume(source.kind, source.metadata.namespace, source.metadata.name)}
+        >
+          Resume
         </button>
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile(source.kind, source.metadata.namespace, source.metadata.name)}

@@ -101,7 +101,6 @@ func (s *suspendCommand) Run(config *rest.Config, namespace, name string) {
 	kustomizationv1.AddToScheme(scheme)
 	helmv2beta1.AddToScheme(scheme)
 
-	//TODO log.SetLogger(...) was never called; logs will not be displayed.
 	kubeClient, err := client.NewWithWatch(config, client.Options{
 		Scheme: scheme,
 	})
