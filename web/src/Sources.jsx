@@ -11,6 +11,8 @@ export function Sources(props) {
       sources.push(...fluxState.ociRepositories)
       sources.push(...fluxState.gitRepositories)
       sources.push(...fluxState.buckets)
+      sources.push(...fluxState.helmRepositories)
+      sources.push(...fluxState.helmCharts)
     }
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
