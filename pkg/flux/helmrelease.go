@@ -32,8 +32,16 @@ func (h helmReleaseAdapter) asClientObject() client.Object {
 	return h.HelmRelease
 }
 
+func (h helmReleaseAdapter) deepCopyClientObject() client.Object {
+	return h.HelmRelease.DeepCopy()
+}
+
 func (obj helmReleaseAdapter) isSuspended() bool {
 	return obj.HelmRelease.Spec.Suspend
+}
+
+func (obj helmReleaseAdapter) setSuspended() {
+	obj.HelmRelease.Spec.Suspend = true
 }
 
 func (obj helmReleaseAdapter) lastHandledReconcileRequest() string {
@@ -42,4 +50,20 @@ func (obj helmReleaseAdapter) lastHandledReconcileRequest() string {
 
 func (obj helmReleaseAdapter) successMessage() string {
 	return fmt.Sprintf("applied revision %s", obj.Status.LastAppliedRevision)
+}
+
+type helmReleaseListAdapter struct {
+	*helmv2beta1.HelmReleaseList
+}
+
+func (h helmReleaseListAdapter) asClientList() client.ObjectList {
+	return h.HelmReleaseList
+}
+
+func (h helmReleaseListAdapter) len() int {
+	return len(h.HelmReleaseList.Items)
+}
+
+func (a helmReleaseListAdapter) item(i int) suspendable {
+	return &helmReleaseAdapter{&a.HelmReleaseList.Items[i]}
 }

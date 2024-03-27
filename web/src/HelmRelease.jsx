@@ -35,7 +35,12 @@ export function HelmRelease(props) {
       <div className="col-span-5">
         <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
       </div>
-      <div className="grid-cols-1 text-right">
+      <div className="grid-cols-1 text-right space-y-2">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.suspend("helmrelease", item.metadata.namespace, item.metadata.name)}
+        >
+          Suspend
+        </button>
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile("helmrelease", item.metadata.namespace, item.metadata.name)}
         >

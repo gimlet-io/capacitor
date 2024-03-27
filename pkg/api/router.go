@@ -39,6 +39,7 @@ func SetupRouter(
 	r.Get("/api/describePod", describePod)
 	r.Get("/api/logs", streamLogs)
 	r.Get("/api/stopLogs", stopLogs)
+	r.Post("/api/suspend", suspend)
 	r.Post("/api/reconcile", reconcile)
 	r.Get("/ws/", func(w http.ResponseWriter, r *http.Request) {
 		streaming.ServeWs(clientHub, w, r)

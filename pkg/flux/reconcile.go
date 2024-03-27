@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -92,7 +91,7 @@ func NewReconcileCommand(resource string) *reconcileCommand {
 }
 
 func (r *reconcileCommand) Run(config *rest.Config, namespace, name string) {
-	scheme := apiruntime.NewScheme()
+	scheme := runtime.NewScheme()
 	sourcev1.AddToScheme(scheme)
 	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)

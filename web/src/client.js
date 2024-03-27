@@ -25,6 +25,8 @@ export default class CapacitorClient {
 
   stopPodLogsRequest = (namespace, deployment) => this.get(`/api/stopLogs?namespace=${namespace}&deploymentName=${deployment}`);
 
+  suspend = (resource, namespace, name) => this.post(`/api/suspend?resource=${resource}&namespace=${namespace}&name=${name}`);
+
   reconcile = (resource, namespace, name) => this.post(`/api/reconcile?resource=${resource}&namespace=${namespace}&name=${name}`);
 
   get = async (path) => {

@@ -57,7 +57,12 @@ export function Kustomization(props) {
         <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{item.spec.path}</span>
         }
       </div>
-      <div className="grid-cols-1 text-right">
+      <div className="grid-cols-1 text-right space-y-2">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
+          onClick={() => capacitorClient.suspend("kustomization", item.metadata.namespace, item.metadata.name)}
+        >
+          Suspend
+        </button>
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
         >
