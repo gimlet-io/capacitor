@@ -13,12 +13,14 @@ import (
 )
 
 type FluxState struct {
-	GitRepositories []sourcev1.GitRepository        `json:"gitRepositories"`
-	OCIRepositories []sourcev1beta2.OCIRepository   `json:"ociRepositories"`
-	Buckets         []sourcev1beta2.Bucket          `json:"buckets"`
-	Kustomizations  []kustomizationv1.Kustomization `json:"kustomizations"`
-	HelmReleases    []helmv2beta2.HelmRelease       `json:"helmReleases"`
-	FluxServices    []Service                       `json:"fluxServices"`
+	GitRepositories  []sourcev1.GitRepository        `json:"gitRepositories"`
+	OCIRepositories  []sourcev1beta2.OCIRepository   `json:"ociRepositories"`
+	Buckets          []sourcev1beta2.Bucket          `json:"buckets"`
+	Kustomizations   []kustomizationv1.Kustomization `json:"kustomizations"`
+	HelmReleases     []helmv2beta2.HelmRelease       `json:"helmReleases"`
+	HelmRepositories []sourcev1beta2.HelmRepository  `json:"helmRepositories"`
+	HelmCharts       []sourcev1beta2.HelmChart       `json:"helmCharts"`
+	FluxServices     []Service                       `json:"fluxServices"`
 }
 
 type Service struct {

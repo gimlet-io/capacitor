@@ -66,6 +66,18 @@ var (
 		Version:  "v2beta1",
 		Resource: "helmreleases",
 	}
+
+	helmRepositoryGVR = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1beta2",
+		Resource: "helmrepositories",
+	}
+
+	helmChartGVR = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1beta2",
+		Resource: "helmcharts",
+	}
 )
 
 func helmServices(dc *dynamic.DynamicClient) ([]Service, error) {
@@ -336,12 +348,14 @@ func helmStatusWithResources(
 
 func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, error) {
 	fluxState := &FluxState{
-		GitRepositories: []sourcev1.GitRepository{},
-		OCIRepositories: []sourcev1beta2.OCIRepository{},
-		Buckets:         []sourcev1beta2.Bucket{},
-		Kustomizations:  []kustomizationv1.Kustomization{},
-		HelmReleases:    []helmv2beta2.HelmRelease{},
-		FluxServices:    []Service{},
+		GitRepositories:  []sourcev1.GitRepository{},
+		OCIRepositories:  []sourcev1beta2.OCIRepository{},
+		Buckets:          []sourcev1beta2.Bucket{},
+		Kustomizations:   []kustomizationv1.Kustomization{},
+		HelmReleases:     []helmv2beta2.HelmRelease{},
+		HelmRepositories: []sourcev1beta2.HelmRepository{},
+		HelmCharts:       []sourcev1beta2.HelmChart{},
+		FluxServices:     []Service{},
 	}
 
 	gitRepositories, err := dc.Resource(gitRepositoryGVR).
@@ -440,6 +454,38 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 			return nil, err
 		}
 		fluxState.HelmReleases = append(fluxState.HelmReleases, helmRelease)
+	}
+
+	helmRepositories, err := dc.Resource(helmRepositoryGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range helmRepositories.Items {
+		unstructured := h.UnstructuredContent()
+		var helmRepository sourcev1beta2.HelmRepository
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmRepository)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.HelmRepositories = append(fluxState.HelmRepositories, helmRepository)
+	}
+
+	helmCharts, err := dc.Resource(helmChartGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range helmCharts.Items {
+		unstructured := h.UnstructuredContent()
+		var helmChart sourcev1beta2.HelmChart
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &helmChart)
+		if err != nil {
+			return nil, err
+		}
+		fluxState.HelmCharts = append(fluxState.HelmCharts, helmChart)
 	}
 
 	fluxServices, err := fluxServicesWithDetails(c)

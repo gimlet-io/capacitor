@@ -29,7 +29,7 @@ export function ReadyWidget(props) {
 
   var [color,statusLabel,messageColor] = ['','','']
   const readyLabel = label ? label : "Ready"
-  if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket") {
+  if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket" || resource.kind === "HelmRepository" || resource.kind === "HelmChart") {
     color = fetchFailed ? "bg-orange-400 animate-pulse" : reconciling ? "bg-blue-400 animate-pulse" : ready ? "bg-teal-400" : "bg-orange-400 animate-pulse"
     statusLabel = fetchFailed ? "Error" : reconciling ?  "Reconciling" : ready ? readyLabel : "Error"
     messageColor = fetchFailed ? "bg-orange-400" : reconciling ?  "text-neutral-600" : ready ? "text-neutral-600 field" : "bg-orange-400"
