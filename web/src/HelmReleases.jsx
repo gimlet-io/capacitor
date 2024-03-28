@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { HelmRelease } from "./HelmRelease"
 import { filterResources } from './utils.js';
+import FilterBar from './FilterBar.js';
 
 export function HelmReleases(props) {
   const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
-  const [filter, setFilter] = useState(false)
+  const [filters, setFilters] = useState([])
   const sortedHelmReleases = useMemo(() => {
     if (!helmReleases) {
       return null;
@@ -13,15 +14,15 @@ export function HelmReleases(props) {
     return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [helmReleases]);
 
-  const filteredHelmReleases = filterResources(sortedHelmReleases, filter)
+  const filteredHelmReleases = filterResources(sortedHelmReleases, filters)
 
   return (
     <div className="space-y-4">
-      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
-        onClick={() => setFilter(!filter)}
-      >
-        Filter errors
-      </button>
+      <FilterBar
+        properties={["Name", "Namespace", "Errors"]}
+        filters={filters}
+        change={setFilters}
+      />
       {
         filteredHelmReleases?.map(helmRelease =>
           <HelmRelease
