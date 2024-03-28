@@ -38,27 +38,6 @@ function App() {
     localStorage.setItem("filters", JSON.stringify(filters));
   }, [filters]);
 
-  const addFilter = (filter) => {
-    setFilters([...filters, filter]);
-  }
-  
-  const filterValueByProperty = (property) => {
-    const filter = filters.find(f => f.property === property)
-    if (!filter) {
-      return ""
-    }
-  
-    return filter.value
-  }
-  
-  const deleteFilter = (filter) => {
-    setFilters(filters.filter(f => f.property !== filter.property))
-  }
-  
-  const resetFilters = () => {
-    setFilters([])
-  }
-
   return (
     <>
     <APIBackend capacitorClient={capacitorClient} store={store}/>
@@ -66,12 +45,10 @@ function App() {
     <ToastNotifications store={store} handleNavigationSelect={handleNavigationSelect} />
     <div className="max-w-6xl mx-auto">
       <div className="my-16">
-        <FilterBar 
+        <FilterBar
+          properties={["Service", "Namespace", "Domain"]}
           filters={filters}
-          addFilter={addFilter}
-          deleteFilter={deleteFilter}
-          resetFilters={resetFilters}
-          filterValueByProperty={filterValueByProperty}
+          change={setFilters}
         />
       </div>
       <div className="grid grid-cols-1 gap-y-4 pb-32">
