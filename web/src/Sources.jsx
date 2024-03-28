@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { filterResources } from './utils.js';
 import { Source } from "./Source"
+import FilterBar from "./FilterBar";
 
 export function Sources(props) {
   const { capacitorClient, fluxState, targetReference } = props
-  const [filter, setFilter] = useState(false)
+  const [filterErrors, setFilterErrors] = useState(false)
+  const [filters, setFilters] = useState([])
   const sortedSources = useMemo(() => {
     const sources = [];
     if (fluxState.ociRepositories) {
@@ -15,12 +17,17 @@ export function Sources(props) {
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
 
-  const filteredSources = filterResources(sortedSources, filter)
+  const filteredSources = filterResources(sortedSources, filters, filterErrors)
 
   return (
     <div className="space-y-4">
-      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
-        onClick={() => setFilter(!filter)}
+      <FilterBar
+        properties={["Name", "Namespace"]}
+        filters={filters}
+        change={setFilters}
+      />
+      <button className={(filterErrors ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
+        onClick={() => setFilterErrors(!filterErrors)}
       >
         Filter errors
       </button>

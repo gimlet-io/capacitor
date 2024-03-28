@@ -15,8 +15,20 @@ export function findSource(sources, reconciler) {
     source.metadata.namespace === namespace)
 }
 
-export function filterResources(resources, filterErrors) {
+export function filterResources(resources, filters, filterErrors) {
   let filteredResources = resources;
+  filters.forEach(filter => {
+    switch (filter.property) {
+      case 'Name':
+        filteredResources = filteredResources.filter(resource => resource.metadata.name.includes(filter.value))
+        break;
+      case 'Namespace':
+        filteredResources = filteredResources.filter(resource => resource.metadata.namespace.includes(filter.value))
+        break;
+      default:
+    }
+  })
+
   if (filterErrors) {
     filteredResources = filteredResources.filter(resource => {
       const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
