@@ -50,7 +50,7 @@ function Filter(props) {
   const { filter } = props;
   return (
     <span className="ml-1 text-blue-50 bg-blue-600 rounded-full pl-3 pr-1" aria-hidden="true">
-      <span>{filter.property}</span>: <span>{filter.value}</span>
+      <span>{filter.property}</span>{filter.property !== "Errors" && <span>: {filter.value}</span>}
       <span className="ml-1 px-1 bg-blue-400 rounded-full ">
         <XMarkIcon className="cursor-pointer text-white inline h-3 w-3" aria-hidden="true" onClick={() => props.deleteFilter(filter)}/>
       </span>
@@ -138,6 +138,11 @@ function FilterInput(props) {
                 key={p}
                 className="cursor-pointer hover:bg-blue-200"
                 onClick={() => {
+                  if (p === "Errors") {
+                    addFilter({ property: p, value: "true" })
+                    return
+                  }
+
                   setProperty(p);
                   setActive(false);
                 }}>

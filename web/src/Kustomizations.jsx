@@ -5,7 +5,6 @@ import FilterBar from './FilterBar.js';
 
 export function Kustomizations(props) {
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
-  const [filterErrors, setFilterErrors] = useState(false)
   const [filters, setFilters] = useState([])
   const kustomizations = fluxState.kustomizations;
 
@@ -17,20 +16,15 @@ export function Kustomizations(props) {
     return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [kustomizations]);
 
-  const filteredKustomizations = filterResources(sortedKustomizations, filters, filterErrors)
+  const filteredKustomizations = filterResources(sortedKustomizations, filters)
 
   return (
     <div className="space-y-4">
       <FilterBar
-        properties={["Name", "Namespace"]}
+        properties={["Name", "Namespace", "Errors"]}
         filters={filters}
         change={setFilters}
       />
-      <button className={(filterErrors ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
-        onClick={() => setFilterErrors(!filterErrors)}
-      >
-        Filter errors
-      </button>
       {
         filteredKustomizations?.map(kustomization =>
           <Kustomization
