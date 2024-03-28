@@ -45,6 +45,12 @@ export function Source(props) {
         {source.kind === 'Bucket' &&
           <span>Bucket (TODO)</span>
         }
+        {source.kind === 'HelmRepository' &&
+          <span>HelmRepository (TODO)</span>
+        }
+        {source.kind === 'HelmChart' &&
+          <span>HelmChart (TODO)</span>
+        }
       </div>
       <div className="grid-cols-1 text-right">
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
