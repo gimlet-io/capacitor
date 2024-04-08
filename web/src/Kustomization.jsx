@@ -30,7 +30,7 @@ export function Kustomization(props) {
 
   return (
     <div
-      className={`${highlight ? "ring-2 ring-indigo-600 ring-offset-2" : ""} ${item.spec.suspend ? "bg-neutral-400" : ""} rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow`}
+      className={`${highlight ? "ring-2 ring-indigo-600 ring-offset-2" : ""} rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow`}
       key={`${item.metadata.namespace}/${item.metadata.name}`}
     >
       <div className="col-span-2">

@@ -39,12 +39,19 @@ export function ReadyWidget(props) {
     messageColor = ready ? "text-neutral-600 field" : (reconciling || dependencyNotReady) && !stalled ? "text-neutral-600" : "bg-orange-400"
   }
 
+  const suspended = resource.spec.suspend
+
+  if (suspended) {
+    color = "bg-yellow-400"
+    statusLabel = "Suspended"
+  }
+
   return (
     <div className="relative">
       <div className='font-medium text-neutral-700'>
         <span className={`absolute -left-4 top-1 rounded-full h-3 w-3 ${color} inline-block`}></span>
         <span>{statusLabel}</span>
-        {readyCondition &&
+        {readyCondition && !suspended &&
           <span className='ml-1'><TimeLabel title={exactDate} date={parsed} /> ago</span>
         }
       </div>
