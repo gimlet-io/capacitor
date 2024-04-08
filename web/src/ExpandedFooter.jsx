@@ -39,7 +39,7 @@ export function ExpandedFooter(props) {
               <HelmReleases capacitorClient={client} helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
             }
             {selected === "Sources" &&
-              <Sources capacitorClient={client} fluxState={fluxState} targetReference={targetReference} />
+              <Sources capacitorClient={client} fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
             }
             {selected === "Flux Runtime" &&
               <CompactServices capacitorClient={client} store={store} services={fluxState.fluxServices} />

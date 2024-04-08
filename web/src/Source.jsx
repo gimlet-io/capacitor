@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ReadyWidget } from './ReadyWidget'
 import { ArtifactWidget } from './ArtifactWidget';
 import { OCIArtifactWidget } from './OCIArtifactWidget';
+import { HelmChartWidget } from './HelmChartWidget';
 
 export function Source(props) {
-  const { capacitorClient, source, targetReference } = props;
+  const { capacitorClient, source, targetReference, handleNavigationSelect } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
@@ -49,7 +50,7 @@ export function Source(props) {
           <span>HelmRepository (TODO)</span>
         }
         {source.kind === 'HelmChart' &&
-          <span>HelmChart (TODO)</span>
+          <HelmChartWidget source={source} displayMessage={true} handleNavigationSelect={handleNavigationSelect} />
         }
       </div>
       <div className="grid-cols-1 text-right">
