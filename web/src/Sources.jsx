@@ -1,29 +1,32 @@
 import React, { useState, useMemo } from 'react';
 import { filterResources } from './utils.js';
 import { Source } from "./Source"
+import FilterBar from "./FilterBar";
 
 export function Sources(props) {
-  const { capacitorClient, fluxState, targetReference } = props
-  const [filter, setFilter] = useState(false)
+  const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
+  const [filters, setFilters] = useState([])
   const sortedSources = useMemo(() => {
     const sources = [];
     if (fluxState.ociRepositories) {
       sources.push(...fluxState.ociRepositories)
       sources.push(...fluxState.gitRepositories)
       sources.push(...fluxState.buckets)
+      sources.push(...fluxState.helmRepositories)
+      sources.push(...fluxState.helmCharts)
     }
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
 
-  const filteredSources = filterResources(sortedSources, filter)
+  const filteredSources = filterResources(sortedSources, filters)
 
   return (
     <div className="space-y-4">
-      <button className={(filter ? "text-blue-50 bg-blue-600" : "bg-gray-50 text-gray-600") + " rounded-full px-3"}
-        onClick={() => setFilter(!filter)}
-      >
-        Filter errors
-      </button>
+      <FilterBar
+        properties={["Name", "Namespace", "Errors"]}
+        filters={filters}
+        change={setFilters}
+      />
       {
         filteredSources?.map(source =>
           <Source
@@ -31,6 +34,7 @@ export function Sources(props) {
             capacitorClient={capacitorClient}
             source={source}
             targetReference={targetReference}
+            handleNavigationSelect={handleNavigationSelect}
           />
         )
       }

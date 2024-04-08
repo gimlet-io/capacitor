@@ -205,3 +205,43 @@ func (a bucketListAdapter) item(i int) suspendable {
 func (a bucketListAdapter) resumeItem(i int) resumable {
 	return &bucketAdapter{&a.BucketList.Items[i]}
 }
+
+type helmRepositoryAdapter struct {
+	*sourcev1beta2.HelmRepository
+}
+
+func (a helmRepositoryAdapter) asClientObject() client.Object {
+	return a.HelmRepository
+}
+
+func (obj helmRepositoryAdapter) isSuspended() bool {
+	return obj.HelmRepository.Spec.Suspend
+}
+
+func (obj helmRepositoryAdapter) lastHandledReconcileRequest() string {
+	return obj.Status.GetLastHandledReconcileRequest()
+}
+
+func (obj helmRepositoryAdapter) successMessage() string {
+	return fmt.Sprintf("fetched revision %s", obj.Status.Artifact.Revision)
+}
+
+type helmChartAdapter struct {
+	*sourcev1beta2.HelmChart
+}
+
+func (a helmChartAdapter) asClientObject() client.Object {
+	return a.HelmChart
+}
+
+func (obj helmChartAdapter) isSuspended() bool {
+	return obj.HelmChart.Spec.Suspend
+}
+
+func (obj helmChartAdapter) lastHandledReconcileRequest() string {
+	return obj.Status.GetLastHandledReconcileRequest()
+}
+
+func (obj helmChartAdapter) successMessage() string {
+	return fmt.Sprintf("fetched revision %s", obj.Status.Artifact.Revision)
+}

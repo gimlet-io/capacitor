@@ -26,11 +26,6 @@ spec:
   url: oci://ghcr.io/gimlet-io/capacitor-manifests
   ref:
     semver: ">=0.1.0"
-  verify:
-    provider: cosign
-    matchOIDCIdentity:
-      - issuer: "https://token.actions.githubusercontent.com"
-        subject: "^https://github.com/gimlet-io/capacitor.*$" 
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

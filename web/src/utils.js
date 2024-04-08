@@ -15,41 +15,52 @@ export function findSource(sources, reconciler) {
     source.metadata.namespace === namespace)
 }
 
-export function filterResources(resources, filterErrors) {
+export function filterResources(resources, filters) {
   let filteredResources = resources;
-  if (filterErrors) {
-    filteredResources = filteredResources.filter(resource => {
-      const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
-      const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
-      const ready = readyCondition && readyConditions[0].status === "True"
+  filters.forEach(filter => {
+    switch (filter.property) {
+      case 'Name':
+        filteredResources = filteredResources.filter(resource => resource.metadata.name.includes(filter.value))
+        break;
+      case 'Namespace':
+        filteredResources = filteredResources.filter(resource => resource.metadata.namespace.includes(filter.value))
+        break;
+      case 'Errors':
+        filteredResources = filteredResources.filter(resource => {
+          const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
+          const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
+          const ready = readyCondition && readyConditions[0].status === "True"
 
-      const dependencyNotReady = readyCondition && readyCondition.reason === "DependencyNotReady"
+          const dependencyNotReady = readyCondition && readyCondition.reason === "DependencyNotReady"
 
-      const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
-      const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
-      const fiveMinutesAgo = new Date();
-      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
-      const stalled = fiveMinutesAgo > parsed
+          const readyTransitionTime = readyCondition ? readyCondition.lastTransitionTime : undefined
+          const parsed = Date.parse(readyTransitionTime, "yyyy-MM-dd'T'HH:mm:ss");
+          const fiveMinutesAgo = new Date();
+          fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+          const stalled = fiveMinutesAgo > parsed
 
-      const reconcilingConditions = jp.query(resource.status, '$..conditions[?(@.type=="Reconciling")]');
-      const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
-      const reconciling = reconcilingCondition && reconcilingCondition.status === "True"
+          const reconcilingConditions = jp.query(resource.status, '$..conditions[?(@.type=="Reconciling")]');
+          const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
+          const reconciling = reconcilingCondition && reconcilingCondition.status === "True"
 
-      const fetchFailedConditions = jp.query(resource.status, '$..conditions[?(@.type=="FetchFailed")]');
-      const fetchFailedCondition = fetchFailedConditions.length === 1 ? fetchFailedConditions[0] : undefined
-      const fetchFailed = fetchFailedCondition && fetchFailedCondition.status === "True"
+          const fetchFailedConditions = jp.query(resource.status, '$..conditions[?(@.type=="FetchFailed")]');
+          const fetchFailedCondition = fetchFailedConditions.length === 1 ? fetchFailedConditions[0] : undefined
+          const fetchFailed = fetchFailedCondition && fetchFailedCondition.status === "True"
 
-      if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket") {
-        return fetchFailed
-      }
+          if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket" || resource.kind === "HelmRepository" || resource.kind === "HelmChart") {
+            return fetchFailed
+          }
 
-      if (ready || ((reconciling || dependencyNotReady) && !stalled)) {
-        return false;
-      } else {
-        return true;
-      }
-    })
-  }
+          if (ready || ((reconciling || dependencyNotReady) && !stalled)) {
+            return false;
+          } else {
+            return true;
+          }
+        })
+        break;
+      default:
+    }
+  })
 
   return filteredResources;
 }
