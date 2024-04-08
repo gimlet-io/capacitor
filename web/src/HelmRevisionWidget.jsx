@@ -1,9 +1,10 @@
 import jp from 'jsonpath'
 import { format } from "date-fns";
 import { TimeLabel } from './TimeLabel'
+import { NavigationButton } from './NavigationButton'
 
 export function HelmRevisionWidget(props) {
-  const { helmRelease, withHistory } = props
+  const { helmRelease, withHistory, handleNavigationSelect } = props
 
   const version = helmRelease.status.history ? helmRelease.status.history[0] : undefined
   const appliedRevision = helmRelease.status.lastAppliedRevision
@@ -23,6 +24,10 @@ export function HelmRevisionWidget(props) {
   const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
   const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
+  const sourceRef = helmRelease.spec.chart.spec.sourceRef
+  const namespace = sourceRef.namespace ? sourceRef.namespace : helmRelease.metadata.namespace
+  const navigationHandler = () => handleNavigationSelect("Sources", namespace, sourceRef.name, sourceRef.kind)
+
   return (
     <>
       {!ready && reconciling && !stalled &&
@@ -40,7 +45,9 @@ export function HelmRevisionWidget(props) {
       }
       <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
         <span>Currently Installed: </span>
-        {appliedRevision}@{version && version.chartName}
+        <NavigationButton handleNavigation={navigationHandler}>
+          {appliedRevision}@{version && version.chartName}
+        </NavigationButton>
       </span>
       {withHistory &&
         <div className='pt-1 text-sm'>
@@ -64,9 +71,9 @@ export function HelmRevisionWidget(props) {
               <p key={`${release.chartVersion}@${release.chartName}:${release.digest}`} className={`${current ? "text-neutral-700" : "font-normal text-neutral-500"}`}>
                 <span>{release.chartVersion}@{release.chartName}</span>
                 <span className='pl-1'>{statusLabel}</span>
-                <TimeLabel title={exactDate} date={parsed} /> ago
+                <span className='pl-1'><TimeLabel title={exactDate} date={parsed} /> ago</span>
                 {release.status === "superseded" &&
-                  <span className='pl-1'>now superseded</span>
+                  <span>, now superseded</span>
                 }
               </p>
             )
