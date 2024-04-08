@@ -23,7 +23,7 @@ export function Source(props) {
   return (
     <div
       ref={ref}
-      className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
+      className={`${highlight ? "ring-2 ring-indigo-600 ring-offset-2" : ""} ${source.spec.suspend ? "bg-neutral-400" : ""} rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow`}
       key={`${source.kind}/${source.metadata.namespace}/${source.metadata.name}`}
     >
       <div className="col-span-2">
@@ -56,14 +56,17 @@ export function Source(props) {
       </div>
       <div className="grid grid-cols-1 text-right space-y-1">
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
-          onClick={() => capacitorClient.suspend(source.kind, source.metadata.namespace, source.metadata.name)}
+          onClick={() => {
+            if (source.spec.suspend) {
+              // eslint-disable-next-line no-restricted-globals
+              confirm(`Are you sure you want to resume ${source.metadata.name}?`) && capacitorClient.resume(source.kind, source.metadata.namespace, source.metadata.name);
+            } else {
+              // eslint-disable-next-line no-restricted-globals
+              confirm(`Are you sure you want to suspend ${source.metadata.name}?`) && capacitorClient.suspend(source.kind, source.metadata.namespace, source.metadata.name);
+            }
+          }}
         >
-          Suspend
-        </button>
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
-          onClick={() => capacitorClient.resume(source.kind, source.metadata.namespace, source.metadata.name)}
-        >
-          Resume
+          {source.spec.suspend ? "Resume" : "Suspend"}
         </button>
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile(source.kind, source.metadata.namespace, source.metadata.name)}

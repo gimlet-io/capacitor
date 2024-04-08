@@ -30,7 +30,7 @@ export function Kustomization(props) {
 
   return (
     <div
-      className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
+      className={`${highlight ? "ring-2 ring-indigo-600 ring-offset-2" : ""} ${item.spec.suspend ? "bg-neutral-400" : ""} rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow`}
       key={`${item.metadata.namespace}/${item.metadata.name}`}
     >
       <div className="col-span-2">
@@ -59,14 +59,17 @@ export function Kustomization(props) {
       </div>
       <div className="grid grid-cols-1 text-right space-y-1">
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
-          onClick={() => capacitorClient.suspend("kustomization", item.metadata.namespace, item.metadata.name)}
+          onClick={() => {
+            if (item.spec.suspend) {
+              // eslint-disable-next-line no-restricted-globals
+              confirm(`Are you sure you want to resume ${item.metadata.name}?`) && capacitorClient.resume("kustomization", item.metadata.namespace, item.metadata.name);
+            } else {
+              // eslint-disable-next-line no-restricted-globals
+              confirm(`Are you sure you want to suspend ${item.metadata.name}?`) && capacitorClient.suspend("kustomization", item.metadata.namespace, item.metadata.name);
+            }
+          }}
         >
-          Suspend
-        </button>
-        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
-          onClick={() => capacitorClient.resume("kustomization", item.metadata.namespace, item.metadata.name)}
-        >
-          Resume
+          {item.spec.suspend ? "Resume" : "Suspend"}
         </button>
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile("kustomization", item.metadata.namespace, item.metadata.name)}
