@@ -3,7 +3,7 @@ import { filterResources } from './utils.js';
 import { Source } from "./Source"
 
 export function Sources(props) {
-  const { capacitorClient, fluxState, targetReference } = props
+  const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
   const [filter, setFilter] = useState(false)
   const sortedSources = useMemo(() => {
     const sources = [];
@@ -11,6 +11,8 @@ export function Sources(props) {
       sources.push(...fluxState.ociRepositories)
       sources.push(...fluxState.gitRepositories)
       sources.push(...fluxState.buckets)
+      sources.push(...fluxState.helmRepositories)
+      sources.push(...fluxState.helmCharts)
     }
     return [...sources].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [fluxState]);
@@ -31,6 +33,7 @@ export function Sources(props) {
             capacitorClient={capacitorClient}
             source={source}
             targetReference={targetReference}
+            handleNavigationSelect={handleNavigationSelect}
           />
         )
       }
