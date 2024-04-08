@@ -86,6 +86,18 @@ func NewReconcileCommand(resource string) *reconcileCommand {
 			groupVersion: sourcev1beta2.GroupVersion,
 			kind:         sourcev1beta2.BucketKind,
 		}
+	case sourcev1beta2.HelmRepositoryKind:
+		return &reconcileCommand{
+			object:       helmRepositoryAdapter{&sourcev1beta2.HelmRepository{}},
+			groupVersion: sourcev1beta2.GroupVersion,
+			kind:         sourcev1beta2.HelmRepositoryKind,
+		}
+	case sourcev1beta2.HelmChartKind:
+		return &reconcileCommand{
+			object:       helmChartAdapter{&sourcev1beta2.HelmChart{}},
+			groupVersion: sourcev1beta2.GroupVersion,
+			kind:         sourcev1beta2.HelmChartKind,
+		}
 	}
 
 	return nil

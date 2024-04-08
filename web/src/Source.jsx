@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ReadyWidget } from './ReadyWidget'
 import { ArtifactWidget } from './ArtifactWidget';
 import { OCIArtifactWidget } from './OCIArtifactWidget';
+import { HelmChartWidget } from './HelmChartWidget';
+import { HelmRepositoryWidget } from './HelmRepositoryWidget';
 
 export function Source(props) {
-  const { capacitorClient, source, targetReference } = props;
+  const { capacitorClient, source, targetReference, handleNavigationSelect } = props;
   const ref = useRef(null);
   const [highlight, setHighlight] = useState(false)
 
@@ -22,7 +24,7 @@ export function Source(props) {
     <div
       ref={ref}
       className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
-      key={`${source.metadata.namespace}/${source.metadata.name}`}
+      key={`${source.kind}/${source.metadata.namespace}/${source.metadata.name}`}
     >
       <div className="col-span-2">
         <span className="block font-medium text-black">
@@ -44,6 +46,12 @@ export function Source(props) {
         }
         {source.kind === 'Bucket' &&
           <span>Bucket (TODO)</span>
+        }
+        {source.kind === 'HelmRepository' &&
+          <HelmRepositoryWidget source={source} displayMessage={true} />
+        }
+        {source.kind === 'HelmChart' &&
+          <HelmChartWidget source={source} displayMessage={true} handleNavigationSelect={handleNavigationSelect} />
         }
       </div>
       <div className="grid-cols-1 text-right">

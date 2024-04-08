@@ -47,7 +47,7 @@ export function filterResources(resources, filters) {
           const fetchFailedCondition = fetchFailedConditions.length === 1 ? fetchFailedConditions[0] : undefined
           const fetchFailed = fetchFailedCondition && fetchFailedCondition.status === "True"
 
-          if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket") {
+          if (resource.kind === 'GitRepository' || resource.kind === "OCIRepository" || resource.kind === "Bucket" || resource.kind === "HelmRepository" || resource.kind === "HelmChart") {
             return fetchFailed
           }
 
