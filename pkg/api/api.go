@@ -203,6 +203,32 @@ func stopLogs(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{}"))
 }
 
+func suspend(w http.ResponseWriter, r *http.Request) {
+	resource := r.URL.Query().Get("resource")
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+	config, _ := r.Context().Value("config").(*rest.Config)
+
+	reconcileCommand := flux.NewSuspendCommand(resource)
+	go reconcileCommand.Run(config, namespace, name)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
+}
+
+func resume(w http.ResponseWriter, r *http.Request) {
+	resource := r.URL.Query().Get("resource")
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+	config, _ := r.Context().Value("config").(*rest.Config)
+
+	reconcileCommand := flux.NewResumeCommand(resource)
+	go reconcileCommand.Run(config, namespace, name)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
+}
+
 func reconcile(w http.ResponseWriter, r *http.Request) {
 	resource := r.URL.Query().Get("resource")
 	namespace := r.URL.Query().Get("namespace")

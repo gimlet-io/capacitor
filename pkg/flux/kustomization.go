@@ -32,8 +32,28 @@ func (a kustomizationAdapter) asClientObject() client.Object {
 	return a.Kustomization
 }
 
+func (a kustomizationAdapter) deepCopyClientObject() client.Object {
+	return a.Kustomization.DeepCopy()
+}
+
 func (obj kustomizationAdapter) isSuspended() bool {
 	return obj.Kustomization.Spec.Suspend
+}
+
+func (obj kustomizationAdapter) setSuspended() {
+	obj.Kustomization.Spec.Suspend = true
+}
+
+func (obj kustomizationAdapter) setUnsuspended() {
+	obj.Kustomization.Spec.Suspend = false
+}
+
+func (obj kustomizationAdapter) getObservedGeneration() int64 {
+	return obj.Kustomization.Status.ObservedGeneration
+}
+
+func (obj kustomizationAdapter) isStatic() bool {
+	return false
 }
 
 func (obj kustomizationAdapter) lastHandledReconcileRequest() string {
@@ -42,4 +62,24 @@ func (obj kustomizationAdapter) lastHandledReconcileRequest() string {
 
 func (obj kustomizationAdapter) successMessage() string {
 	return fmt.Sprintf("applied revision %s", obj.Status.LastAppliedRevision)
+}
+
+type kustomizationListAdapter struct {
+	*kustomizationv1.KustomizationList
+}
+
+func (a kustomizationListAdapter) asClientList() client.ObjectList {
+	return a.KustomizationList
+}
+
+func (a kustomizationListAdapter) len() int {
+	return len(a.KustomizationList.Items)
+}
+
+func (a kustomizationListAdapter) item(i int) suspendable {
+	return &kustomizationAdapter{&a.KustomizationList.Items[i]}
+}
+
+func (a kustomizationListAdapter) resumeItem(i int) resumable {
+	return &kustomizationAdapter{&a.KustomizationList.Items[i]}
 }

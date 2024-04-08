@@ -23,7 +23,7 @@ export function Source(props) {
   return (
     <div
       ref={ref}
-      className={(highlight ? "ring-2 ring-indigo-600 ring-offset-2" : "") + " rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow"}
+      className={`${highlight ? "ring-2 ring-indigo-600 ring-offset-2" : ""} rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow`}
       key={`${source.kind}/${source.metadata.namespace}/${source.metadata.name}`}
     >
       <div className="col-span-2">
@@ -54,7 +54,20 @@ export function Source(props) {
           <HelmChartWidget source={source} displayMessage={true} handleNavigationSelect={handleNavigationSelect} />
         }
       </div>
-      <div className="grid-cols-1 text-right">
+      <div className="grid grid-cols-1 text-right space-y-1">
+        <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
+          onClick={() => {
+            if (source.spec.suspend) {
+              // eslint-disable-next-line no-restricted-globals
+              confirm(`Are you sure you want to resume ${source.metadata.name}?`) && capacitorClient.resume(source.kind, source.metadata.namespace, source.metadata.name);
+            } else {
+              // eslint-disable-next-line no-restricted-globals
+              confirm(`Are you sure you want to suspend ${source.metadata.name}?`) && capacitorClient.suspend(source.kind, source.metadata.namespace, source.metadata.name);
+            }
+          }}
+        >
+          {source.spec.suspend ? "Resume" : "Suspend"}
+        </button>
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() => capacitorClient.reconcile(source.kind, source.metadata.namespace, source.metadata.name)}
         >

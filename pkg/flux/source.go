@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+	sourcev1b2 "github.com/fluxcd/source-controller/api/v1beta2"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -33,8 +34,28 @@ func (a gitRepositoryAdapter) asClientObject() client.Object {
 	return a.GitRepository
 }
 
+func (a gitRepositoryAdapter) deepCopyClientObject() client.Object {
+	return a.GitRepository.DeepCopy()
+}
+
 func (obj gitRepositoryAdapter) isSuspended() bool {
 	return obj.GitRepository.Spec.Suspend
+}
+
+func (obj gitRepositoryAdapter) setSuspended() {
+	obj.GitRepository.Spec.Suspend = true
+}
+
+func (obj gitRepositoryAdapter) setUnsuspended() {
+	obj.GitRepository.Spec.Suspend = false
+}
+
+func (obj gitRepositoryAdapter) getObservedGeneration() int64 {
+	return obj.GitRepository.Status.ObservedGeneration
+}
+
+func (obj gitRepositoryAdapter) isStatic() bool {
+	return false
 }
 
 func (obj gitRepositoryAdapter) lastHandledReconcileRequest() string {
@@ -45,6 +66,26 @@ func (obj gitRepositoryAdapter) successMessage() string {
 	return fmt.Sprintf("fetched revision %s", obj.Status.Artifact.Revision)
 }
 
+type gitRepositoryListAdapter struct {
+	*sourcev1.GitRepositoryList
+}
+
+func (a gitRepositoryListAdapter) asClientList() client.ObjectList {
+	return a.GitRepositoryList
+}
+
+func (a gitRepositoryListAdapter) len() int {
+	return len(a.GitRepositoryList.Items)
+}
+
+func (a gitRepositoryListAdapter) item(i int) suspendable {
+	return &gitRepositoryAdapter{&a.GitRepositoryList.Items[i]}
+}
+
+func (a gitRepositoryListAdapter) resumeItem(i int) resumable {
+	return &gitRepositoryAdapter{&a.GitRepositoryList.Items[i]}
+}
+
 type ociRepositoryAdapter struct {
 	*sourcev1beta2.OCIRepository
 }
@@ -53,8 +94,28 @@ func (a ociRepositoryAdapter) asClientObject() client.Object {
 	return a.OCIRepository
 }
 
+func (a ociRepositoryAdapter) deepCopyClientObject() client.Object {
+	return a.OCIRepository.DeepCopy()
+}
+
 func (obj ociRepositoryAdapter) isSuspended() bool {
 	return obj.OCIRepository.Spec.Suspend
+}
+
+func (obj ociRepositoryAdapter) setSuspended() {
+	obj.OCIRepository.Spec.Suspend = true
+}
+
+func (obj ociRepositoryAdapter) setUnsuspended() {
+	obj.OCIRepository.Spec.Suspend = false
+}
+
+func (obj ociRepositoryAdapter) getObservedGeneration() int64 {
+	return obj.OCIRepository.Status.ObservedGeneration
+}
+
+func (obj ociRepositoryAdapter) isStatic() bool {
+	return false
 }
 
 func (obj ociRepositoryAdapter) lastHandledReconcileRequest() string {
@@ -65,6 +126,26 @@ func (obj ociRepositoryAdapter) successMessage() string {
 	return fmt.Sprintf("fetched revision %s", obj.Status.Artifact.Revision)
 }
 
+type ociRepositoryListAdapter struct {
+	*sourcev1b2.OCIRepositoryList
+}
+
+func (a ociRepositoryListAdapter) asClientList() client.ObjectList {
+	return a.OCIRepositoryList
+}
+
+func (a ociRepositoryListAdapter) len() int {
+	return len(a.OCIRepositoryList.Items)
+}
+
+func (a ociRepositoryListAdapter) item(i int) suspendable {
+	return &ociRepositoryAdapter{&a.OCIRepositoryList.Items[i]}
+}
+
+func (a ociRepositoryListAdapter) resumeItem(i int) resumable {
+	return &ociRepositoryAdapter{&a.OCIRepositoryList.Items[i]}
+}
+
 type bucketAdapter struct {
 	*sourcev1beta2.Bucket
 }
@@ -73,8 +154,28 @@ func (a bucketAdapter) asClientObject() client.Object {
 	return a.Bucket
 }
 
+func (a bucketAdapter) deepCopyClientObject() client.Object {
+	return a.Bucket.DeepCopy()
+}
+
 func (obj bucketAdapter) isSuspended() bool {
 	return obj.Bucket.Spec.Suspend
+}
+
+func (obj bucketAdapter) setSuspended() {
+	obj.Bucket.Spec.Suspend = true
+}
+
+func (obj bucketAdapter) setUnsuspended() {
+	obj.Bucket.Spec.Suspend = false
+}
+
+func (obj bucketAdapter) getObservedGeneration() int64 {
+	return obj.Bucket.Status.ObservedGeneration
+}
+
+func (obj bucketAdapter) isStatic() bool {
+	return false
 }
 
 func (obj bucketAdapter) lastHandledReconcileRequest() string {
@@ -83,6 +184,26 @@ func (obj bucketAdapter) lastHandledReconcileRequest() string {
 
 func (obj bucketAdapter) successMessage() string {
 	return fmt.Sprintf("fetched revision %s", obj.Status.Artifact.Revision)
+}
+
+type bucketListAdapter struct {
+	*sourcev1b2.BucketList
+}
+
+func (a bucketListAdapter) asClientList() client.ObjectList {
+	return a.BucketList
+}
+
+func (a bucketListAdapter) len() int {
+	return len(a.BucketList.Items)
+}
+
+func (a bucketListAdapter) item(i int) suspendable {
+	return &bucketAdapter{&a.BucketList.Items[i]}
+}
+
+func (a bucketListAdapter) resumeItem(i int) resumable {
+	return &bucketAdapter{&a.BucketList.Items[i]}
 }
 
 type helmRepositoryAdapter struct {
