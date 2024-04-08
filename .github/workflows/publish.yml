@@ -85,9 +85,9 @@ jobs:
         --revision="${{ github.ref_name }}@sha1:${{ github.sha }}" \
         --annotations='org.opencontainers.image.description=Capacitor install manifests for Flux'
     - name: Install cosign
-      uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06 #v3.1.1
-      with:
-        cosign-release: 'v2.1.1'
+      uses: sigstore/cosign-installer@v3.4.0
+    - name: Cosign version
+      run: cosign version
     - name: Sign oci artifacts
       run: |
         # keyless mode
