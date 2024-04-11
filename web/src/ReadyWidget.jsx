@@ -5,6 +5,10 @@ import { TimeLabel } from './TimeLabel'
 export function ReadyWidget(props) {
   const { resource, displayMessage, label } = props
 
+  if (resource.kind === "HelmRepository" && resource.spec.type === 'oci') {
+    return null
+  }
+
   const readyConditions = jp.query(resource.status, '$..conditions[?(@.type=="Ready")]');
   const readyCondition = readyConditions.length === 1 ? readyConditions[0] : undefined
   const ready = readyCondition && readyConditions[0].status === "True"
