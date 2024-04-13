@@ -9,7 +9,7 @@ test:
 	go test -timeout 60s $(shell go list ./...)
 
 test-ui:
-	(cd web; npm install; npm run test)
+	(cd web; npm ci; npm run test)
 
 .PHONY: build
 build:
@@ -23,7 +23,7 @@ dist:
 
 .PHONY: build-ui
 build-ui:
-	(cd web; npm install; npm run build)
+	(cd web; npm ci; npm run build)
 	rm -rf cmd/capacitor/web/build
 	mkdir -p cmd/capacitor/web/build
 	@cp -r web/build/* cmd/capacitor/web/build
