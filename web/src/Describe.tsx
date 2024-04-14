@@ -1,0 +1,91 @@
+import React, { useState } from 'react';
+import { SkeletonLoader } from './SkeletonLoader.tsx'
+import { Modal } from './Modal.tsx'
+import { Deployment } from 'kubernetes-types/apps/v1';
+import { Pod } from 'kubernetes-types/core/v1';
+import { useClient } from './context.tsx';
+
+export type DescribeProps = {
+  deployment: Deployment;
+  pods: Pod[];
+}
+
+export function Describe(props: DescribeProps) {
+  const { deployment, pods } = props;
+  const capacitorClient = useClient();
+  const [details, setDetails] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
+
+  const describeDeployment = () => {
+    capacitorClient.describeDeployment(deployment.metadata?.namespace, deployment.metadata?.name)
+      .then(data => setDetails(data))
+  }
+
+  const describePod = (podNamespace, podName) => {
+    capacitorClient.describePod(podNamespace, podName)
+      .then(data => setDetails(data))
+  }
+
+  return (
+    <>
+      {showModal &&
+        <Modal
+          stopHandler={() => setShowModal(false)}
+          navBar={
+            <DescribeNav
+              deployment={deployment}
+              pods={pods}
+              describeDeployment={describeDeployment}
+              describePod={describePod}
+            />}
+        >
+          <code className='flex whitespace-pre items-center font-mono text-xs p-2 text-yellow-100 rounded'>
+            {details ?? <SkeletonLoader />}
+          </code>
+        </Modal>
+      }
+      <button onClick={() => {
+        setShowModal(true);
+        describeDeployment()
+      }}
+        className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-4 border border-neutral-300 rounded">
+        Describe
+      </button>
+    </>
+  )
+}
+
+function DescribeNav(props) {
+  const { deployment, pods, describeDeployment, describePod } = props;
+  const [selected, setSelected] = useState(deployment.metadata.name)
+
+  return (
+    <div className="flex flex-wrap items-center overflow-auto mx-4 space-x-1">
+      <button
+        title={deployment.metadata.name}
+        className={`${deployment.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+        onClick={() => {
+          describeDeployment();
+          setSelected(deployment.metadata.name)
+        }}
+      >
+        Deployment
+      </button>
+      {
+        pods?.map((pod) => (
+          <button
+            key={pod.metadata.name}
+            title={pod.metadata.name}
+            className={`${pod.metadata.name === selected ? 'bg-white' : 'hover:bg-white bg-neutral-300'} my-2 inline-block rounded-full py-1 px-2 font-medium text-xs leading-tight text-neutral-700`}
+            onClick={() => {
+              describePod(pod.metadata.namespace, pod.metadata.name);
+              setSelected(pod.metadata.name)
+            }}
+          >
+            {pod.metadata.name}
+          </button>
+        ))
+      }
+    </div>
+  )
+}
