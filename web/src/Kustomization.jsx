@@ -104,7 +104,7 @@ export function RevisionWidget(props) {
   // const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
   // const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
-  const url = source.spec.url.slice(source.spec.url.indexOf('@') + 1)
+  const url = source.spec.url.slice(source.spec.url.indexOf('@') + 1).replace(/https?:\/\//g, '').replace(/\.git/g, '')
 
   const navigationHandler = inFooter ?
     () => handleNavigationSelect("Sources", source.metadata.namespace, source.metadata.name, source.kind) :
