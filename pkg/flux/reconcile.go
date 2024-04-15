@@ -21,6 +21,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bombsimon/logrusr/v4"
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	kstatus "sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type reconcileCommand struct {
@@ -108,6 +110,9 @@ func (r *reconcileCommand) Run(config *rest.Config, namespace, name string) {
 	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)
 	helmv2beta1.AddToScheme(scheme)
+
+	log := logrusr.New(logrus.New())
+	logf.SetLogger(log)
 
 	kubeClient, err := client.NewWithWatch(config, client.Options{
 		Scheme: scheme,
