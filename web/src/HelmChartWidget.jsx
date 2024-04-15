@@ -5,7 +5,7 @@ export function HelmChartWidget(props) {
 
   const sourceRef = source.spec.sourceRef
   const artifact = source.status.artifact
-  const revision = artifact.revision
+  const revision = artifact?.revision || 'unknown'
 
   const navigationHandler = () => handleNavigationSelect("Sources", source.metadata.namespace, sourceRef.name, sourceRef.kind)
 
