@@ -27,6 +27,7 @@ export function Source(props) {
       key={`${source.kind}/${source.metadata.namespace}/${source.metadata.name}`}
     >
       <div className="col-span-2">
+        <span className="block text-neutral-600 text-sm">{source.kind}</span>
         <span className="block font-medium text-black">
           {source.metadata.name}
         </span>
