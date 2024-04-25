@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Kustomization } from './Kustomization.jsx'
 import { filterResources } from './utils.js';
-import FilterBar from './FilterBar.js';
+import FilterBar from './FilterBar';
 
 export function Kustomizations(props) {
   const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
