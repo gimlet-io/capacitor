@@ -19,10 +19,10 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "craco start",
-    "build": "craco build",
-    "test": "craco test",
-    "test:coverage": "craco test --watchAll=false --coverage",
+    "start": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "test:coverage": "react-scripts --watchAll=false --coverage",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -45,6 +45,8 @@
   },
   "proxy": "http://127.0.0.1:9000",
   "devDependencies": {
-    "@craco/craco": "^7.1.0"
+    "@types/node": "^20.12.7",
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.2.10"
   }
 }
