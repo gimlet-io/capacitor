@@ -48,7 +48,10 @@
     "@vitejs/plugin-react": "^4.2.1",
     "@vitejs/plugin-react-swc": "^3.6.0",
     "@vitest/coverage-v8": "^1.5.1",
+    "eslint": "^8.57.0",
+    "eslint-config-react-app": "^7.0.1",
     "vite": "^5.2.10",
+    "vite-plugin-eslint": "^1.8.1",
     "vitest": "^1.5.1"
   }
 }
