@@ -1,3 +1,4 @@
+import { expect, test } from 'vitest'
 import {
   ACTION_FLUX_STATE_RECEIVED,
   ACTION_SERVICE_CREATED,
