@@ -22,7 +22,8 @@
     "start": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "test:coverage": "react-scripts --watchAll=false --coverage",
+    "test" : "react-scripts test",
+    "test:coverage": "react-scripts test --watchAll=false --coverage",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
