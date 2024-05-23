@@ -103,6 +103,45 @@ kubectl apply -f https://raw.githubusercontent.com/gimlet-io/capacitor/main/depl
 kubectl port-forward svc/capacitor -n flux-system 9000:9000
 ```
 
+For adding an `Ingress`, a Kubernetes `NetworkPolicy` is required.
+An example would be:
+
+```
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: capacitor-ingress
+  namespace: flux-system
+spec:
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+      - namespaceSelector: {}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: capacitor
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: capacitor-ingress
+  namespace: flux-system
+spec:
+  rules:
+    - host: gitops.example.com
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: capacitor
+                port:
+                  number: 9000
+```
+
 ### Helm
 
 ```
