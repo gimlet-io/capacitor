@@ -6,7 +6,7 @@ metadata:
   name: capacitor
   namespace: flux-system
   labels:
-    helm.sh/chart: onechart-0.63.0
+    helm.sh/chart: onechart-0.69.0
     app.kubernetes.io/name: onechart
     app.kubernetes.io/instance: capacitor
     app.kubernetes.io/managed-by: Helm
@@ -28,7 +28,7 @@ metadata:
   name: capacitor
   namespace: flux-system
   labels:
-    helm.sh/chart: onechart-0.63.0
+    helm.sh/chart: onechart-0.69.0
     app.kubernetes.io/name: onechart
     app.kubernetes.io/instance: capacitor
     app.kubernetes.io/managed-by: Helm
@@ -70,7 +70,17 @@ spec:
           requests:
             cpu: 200m
             memory: 200Mi
-        securityContext: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 101
+          runAsNonRoot: true
+          runAsUser: 100
+          seccompProfile:
+            type: RuntimeDefault
       initContainers: null
       securityContext:
         fsGroup: 999
