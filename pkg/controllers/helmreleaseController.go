@@ -15,6 +15,12 @@ import (
 
 var helmReleaseResource = schema.GroupVersionResource{
 	Group:    "helm.toolkit.fluxcd.io",
+	Version:  "v2",
+	Resource: "helmreleases",
+}
+
+var helmReleaseResourceV2beta2 = schema.GroupVersionResource{
+	Group:    "helm.toolkit.fluxcd.io",
 	Version:  "v2beta2",
 	Resource: "helmreleases",
 }
@@ -31,8 +37,14 @@ func HelmReleaseController(
 	clientHub *streaming.ClientHub,
 ) (*Controller, error) {
 	resource := helmReleaseResource
-	// check if v2beta2 is supported
+	// check if v2 is supported
 	_, err := dynamicClient.Resource(resource).Namespace("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		// try and possibly fail (helm-controller is not mandatory) with v2beta2
+		resource = helmReleaseResourceV2beta2
+	}
+
+	_, err = dynamicClient.Resource(resource).Namespace("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		// try and possibly fail (helm-controller is not mandatory) with v2beta1
 		resource = helmReleaseResourceV2beta1
