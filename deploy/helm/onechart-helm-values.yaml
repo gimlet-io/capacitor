@@ -8,3 +8,15 @@ probe:
 resources:
   ignoreLimits: true
 serviceAccount: capacitor
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
