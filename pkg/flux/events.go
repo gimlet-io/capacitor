@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	tf "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	helmv2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	autov1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
 	imagev1 "github.com/fluxcd/image-reflector-controller/api/v1beta2"
@@ -125,6 +126,7 @@ var fluxKindMap = refMap{
 	},
 	sourcev1.GitRepositoryKind:       {gvk: sourcev1.GroupVersion.WithKind(sourcev1.GitRepositoryKind)},
 	sourcev1b2.OCIRepositoryKind:     {gvk: sourcev1b2.GroupVersion.WithKind(sourcev1b2.OCIRepositoryKind)},
+	tf.TerraformKind:                 {gvk: tf.GroupVersion.WithKind(tf.TerraformKind)},
 	sourcev1b2.BucketKind:            {gvk: sourcev1b2.GroupVersion.WithKind(sourcev1b2.BucketKind)},
 	sourcev1b2.HelmRepositoryKind:    {gvk: sourcev1b2.GroupVersion.WithKind(sourcev1b2.HelmRepositoryKind)},
 	autov1.ImageUpdateAutomationKind: {gvk: autov1.GroupVersion.WithKind(autov1.ImageUpdateAutomationKind)},

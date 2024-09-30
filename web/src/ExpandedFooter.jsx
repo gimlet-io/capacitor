@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
-import { Kustomizations } from './Kustomizations';
-import { HelmReleases } from './HelmReleases';
-import FluxEvents from './FluxEvents';
-import { Sources } from './Sources';
-import { CompactServices } from './CompactServices';
+import React, { useState } from "react";
+import { Kustomizations } from "./Kustomizations";
+import { HelmReleases } from "./HelmReleases";
+import { TerraformResources } from "./TerraformResources";
+import FluxEvents from "./FluxEvents";
+import { Sources } from "./Sources";
+import { CompactServices } from "./CompactServices";
 
 export function ExpandedFooter(props) {
-  const { client, fluxState, sources, handleNavigationSelect, targetReference, selected, store } = props;
+  const {
+    client,
+    fluxState,
+    sources,
+    handleNavigationSelect,
+    targetReference,
+    selected,
+    store,
+  } = props;
 
   const [fluxEvents, setFluxEvents] = useState(store.getState().fluxEvents);
-  store.subscribe(() => setFluxEvents(store.getState().fluxEvents))
+  store.subscribe(() => setFluxEvents(store.getState().fluxEvents));
 
   return (
     <div className="flex w-full h-full overscroll-contain">
@@ -17,11 +26,24 @@ export function ExpandedFooter(props) {
         <div className="w-56 px-4 border-r border-neutral-300">
           <SideBar
             navigation={[
-              { name: 'Sources', href: '#', count: sources.length },
-              { name: 'Kustomizations', href: '#', count: fluxState.kustomizations.length },
-              { name: 'Helm Releases', href: '#', count: fluxState.helmReleases.length },
-              { name: 'Flux Runtime', href: '#', count: undefined },
-              { name: 'Flux Events', href: '#', count: undefined },
+              { name: "Sources", href: "#", count: sources.length },
+              {
+                name: "Kustomizations",
+                href: "#",
+                count: fluxState.kustomizations.length,
+              },
+              {
+                name: "Helm Releases",
+                href: "#",
+                count: fluxState.helmReleases.length,
+              },
+              {
+                name: "Terraform Resources",
+                href: "#",
+                count: fluxState.tfResources.length,
+              },
+              { name: "Flux Runtime", href: "#", count: undefined },
+              { name: "Flux Events", href: "#", count: undefined },
             ]}
             selectedMenu={handleNavigationSelect}
             selected={selected}
@@ -32,26 +54,56 @@ export function ExpandedFooter(props) {
       <div className="w-full px-4 overflow-x-hidden overflow-y-scroll">
         <div className="w-full max-w-7xl mx-auto flex-col h-full">
           <div className="pb-24 pt-2">
-            {selected === "Kustomizations" &&
-              <Kustomizations capacitorClient={client} fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
-            }
-            {selected === "Helm Releases" &&
-              <HelmReleases capacitorClient={client} helmReleases={fluxState.helmReleases} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
-            }
-            {selected === "Sources" &&
-              <Sources capacitorClient={client} fluxState={fluxState} targetReference={targetReference} handleNavigationSelect={handleNavigationSelect} />
-            }
-            {selected === "Flux Runtime" &&
-              <CompactServices capacitorClient={client} store={store} services={fluxState.fluxServices} />
-            }
-            {selected === "Flux Events" &&
-              <FluxEvents events={fluxEvents} handleNavigationSelect={handleNavigationSelect} />
-            }
+            {selected === "Kustomizations" && (
+              <Kustomizations
+                capacitorClient={client}
+                fluxState={fluxState}
+                targetReference={targetReference}
+                handleNavigationSelect={handleNavigationSelect}
+              />
+            )}
+            {selected === "Helm Releases" && (
+              <HelmReleases
+                capacitorClient={client}
+                helmReleases={fluxState.helmReleases}
+                targetReference={targetReference}
+                handleNavigationSelect={handleNavigationSelect}
+              />
+            )}
+            {selected === "Terraform Resources" && (
+              <TerraformResources
+                capacitorClient={client}
+                tfResources={fluxState.tfResources}
+                targetReference={targetReference}
+                handleNavigationSelect={handleNavigationSelect}
+              />
+            )}
+            {selected === "Sources" && (
+              <Sources
+                capacitorClient={client}
+                fluxState={fluxState}
+                targetReference={targetReference}
+                handleNavigationSelect={handleNavigationSelect}
+              />
+            )}
+            {selected === "Flux Runtime" && (
+              <CompactServices
+                capacitorClient={client}
+                store={store}
+                services={fluxState.fluxServices}
+              />
+            )}
+            {selected === "Flux Events" && (
+              <FluxEvents
+                events={fluxEvents}
+                handleNavigationSelect={handleNavigationSelect}
+              />
+            )}
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function SideBar(props) {
@@ -64,8 +116,12 @@ function SideBar(props) {
           <li key={item.name}>
             <a
               href={item.href}
-              className={classNames(item.name === selected ? 'bg-white text-black' : 'text-neutral-700 hover:bg-white hover:text-black',
-                  'group flex gap-x-3 p-2 pl-3 text-sm leading-6 rounded-md')}
+              className={classNames(
+                item.name === selected
+                  ? "bg-white text-black"
+                  : "text-neutral-700 hover:bg-white hover:text-black",
+                "group flex gap-x-3 p-2 pl-3 text-sm leading-6 rounded-md",
+              )}
               onClick={() => selectedMenu(item.name)}
             >
               {item.name}
@@ -83,8 +139,8 @@ function SideBar(props) {
       </ul>
     </nav>
   );
-};
+}
 
 function classNames(...classes) {
-  return classes.filter(Boolean).join(' ')
+  return classes.filter(Boolean).join(" ");
 }

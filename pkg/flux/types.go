@@ -3,6 +3,7 @@ package flux
 import (
 	"time"
 
+	tf "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -20,6 +21,7 @@ type FluxState struct {
 	HelmReleases     []helmv2beta2.HelmRelease       `json:"helmReleases"`
 	HelmRepositories []sourcev1beta2.HelmRepository  `json:"helmRepositories"`
 	HelmCharts       []sourcev1beta2.HelmChart       `json:"helmCharts"`
+	TfResources      []tf.Terraform                  `json:"tfResources"`
 	FluxServices     []Service                       `json:"fluxServices"`
 }
 

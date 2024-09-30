@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	tf "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	helmv2beta2 "github.com/fluxcd/helm-controller/api/v2beta2"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -47,6 +48,12 @@ var (
 		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1beta2",
 		Resource: "ocirepositories",
+	}
+
+	tfResourceGVR = schema.GroupVersionResource{
+		Group:    "infra.contrib.fluxcd.io",
+		Version:  "v1alpha2",
+		Resource: "terraforms",
 	}
 
 	bucketGVR = schema.GroupVersionResource{
@@ -355,6 +362,7 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		HelmReleases:     []helmv2beta2.HelmRelease{},
 		HelmRepositories: []sourcev1beta2.HelmRepository{},
 		HelmCharts:       []sourcev1beta2.HelmChart{},
+		TfResources:      []tf.Terraform{},
 		FluxServices:     []Service{},
 	}
 
@@ -391,6 +399,23 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 			return nil, err
 		}
 		fluxState.OCIRepositories = append(fluxState.OCIRepositories, ociRepository)
+	}
+
+	tfResources, err := dc.Resource(tfResourceGVR).
+		Namespace("").
+		List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range tfResources.Items {
+		unstructured := t.UnstructuredContent()
+		var tfResource tf.Terraform
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &tfResource)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Printf("TF RESOURCE %#v\n", tfResource)
+		fluxState.TfResources = append(fluxState.TfResources, tfResource)
 	}
 
 	buckets, err := dc.Resource(bucketGVR).
