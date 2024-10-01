@@ -3,19 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@headlessui/react": "^1.7.19",
-    "@heroicons/react": "^2.1.3",
-    "@testing-library/jest-dom": "^6.4.2",
-    "@testing-library/react": "^15.0.4",
+    "@headlessui/react": "^2.1.8",
+    "@heroicons/react": "^2.1.5",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
     "axios": "^1.6.8",
-    "date-fns": "^3.6.0",
+    "date-fns": "^4.1.0",
     "jsonpath": "^1.1.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "redux": "^5.0.1",
-    "tailwindcss": "^3.4.3",
-    "web-vitals": "^3.5.2"
+    "tailwindcss": "^3.4.13",
+    "web-vitals": "^4.2.3"
   },
   "scripts": {
     "start": "vite",
@@ -44,14 +44,13 @@
   },
   "proxy": "http://127.0.0.1:9000",
   "devDependencies": {
-    "@types/node": "^20.12.7",
-    "@vitejs/plugin-react": "^4.2.1",
-    "@vitejs/plugin-react-swc": "^3.6.0",
-    "@vitest/coverage-v8": "^1.5.1",
-    "eslint": "^8.57.0",
-    "eslint-config-react-app": "^7.0.1",
-    "vite": "^5.2.10",
+    "@types/node": "^22.7.4",
+    "@vitejs/plugin-react": "^4.3.2",
+    "@vitejs/plugin-react-swc": "^3.7.1",
+    "@vitest/coverage-v8": "^2.1.1",
+    "eslint": "^9.11.1",
+    "vite": "^5.4.8",
     "vite-plugin-eslint": "^1.8.1",
-    "vitest": "^1.5.1"
+    "vitest": "^2.1.1"
   }
 }

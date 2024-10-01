@@ -6,8 +6,8 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/logs"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
