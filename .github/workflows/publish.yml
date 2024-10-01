@@ -22,7 +22,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: 1.22.1
+        go-version: 1.23
     - name: ⬇️ Check out code into the Go module directory
       uses: actions/checkout@v3
       with:
