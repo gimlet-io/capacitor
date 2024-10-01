@@ -69,6 +69,8 @@ func main() {
 	runController(err, serviceController, stopCh)
 	ingressController, err := controllers.IngressController(client, dynamicClient, clientHub)
 	runController(err, ingressController, stopCh)
+	tfController, err := controllers.TfController(client, dynamicClient, clientHub)
+	runController(err, tfController, stopCh)
 
 	r := api.SetupRouter(client, dynamicClient, config, clientHub, runningLogStreams)
 	go func() {
