@@ -52,6 +52,7 @@ export function podDeleted(state, payload) {
 
 function labelsMatchSelectors(labels, selectors) {
   for (const [k2, v2] of Object.entries(selectors)) {
+    // eslint-disable-next-line no-prototype-builtins
     if (labels.hasOwnProperty(k2)) {
       let v = labels[k2];
       if (v2 !== v) {

@@ -44,11 +44,11 @@
   },
   "proxy": "http://127.0.0.1:9000",
   "devDependencies": {
-    "@types/node": "^20.12.7",
+    "@types/node": "^22.7.4",
     "@vitejs/plugin-react": "^4.3.2",
     "@vitejs/plugin-react-swc": "^3.7.1",
     "@vitest/coverage-v8": "^2.1.1",
-    "eslint": "^8.57.1",
+    "eslint": "^9.11.1",
     "eslint-config-react-app": "^7.0.1",
     "vite": "^5.4.8",
     "vite-plugin-eslint": "^1.8.1",

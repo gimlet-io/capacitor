@@ -49,6 +49,7 @@ function selectorsMatch(first, second) {
   }
 
   for (const [k, v] of Object.entries(first)) {
+    // eslint-disable-next-line no-prototype-builtins
     if (second.hasOwnProperty(k)) {
       let v2 = second[k];
       if (v !== v2) {
@@ -60,6 +61,7 @@ function selectorsMatch(first, second) {
   }
 
   for (const [k2, v2] of Object.entries(second)) {
+    // eslint-disable-next-line no-prototype-builtins
     if (first.hasOwnProperty(k2)) {
       let v = first[k2];
       if (v2 !== v) {
