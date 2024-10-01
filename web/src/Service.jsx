@@ -7,6 +7,8 @@ import { Logs } from './Logs'
 import { Describe } from './Describe'
 import { SkeletonLoader } from './SkeletonLoader'
 import { Modal } from './Modal'
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 const documentIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
@@ -202,7 +204,9 @@ function Service(props) {
                   <p className="text-base text-neutral-600">Sync</p>
                   <div className="flex text-sm text-neutral-600">
                     <div className="ml-4"><ReadyWidget resource={kustomization} label="Applied" /></div>
+                    <ErrorBoundary fallbackRender={fallbackRender}>
                     <div className="ml-2 field flex-1"><RevisionWidget kustomization={kustomization} source={source} handleNavigationSelect={handleNavigationSelect} /></div>
+                    </ErrorBoundary>
                   </div>
                 </div>
                 }

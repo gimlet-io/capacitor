@@ -8,6 +8,8 @@ import FilterBar from "./FilterBar";
 import Services from "./Services";
 import ToastNotifications from "./ToastNotifications";
 import { useState, useEffect, useCallback } from "react";
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 function App() {
   const capacitorClient = new CapacitorClient(
@@ -52,12 +54,14 @@ function App() {
         />
       </div>
       <div className="grid grid-cols-1 gap-y-4 pb-32">
+        <ErrorBoundary fallbackRender={fallbackRender}>
         <Services
           capacitorClient={capacitorClient}
           store={store}
           filters={filters}
           handleNavigationSelect={handleNavigationSelect}
         />
+        </ErrorBoundary>
       </div>
     </div>
     <Footer
