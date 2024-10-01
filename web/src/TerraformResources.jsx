@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { TerraformResource } from "./TerraformResource";
-import { filterResources } from "./utils.js";
-import FilterBar from "./FilterBar.js";
+import { filterResources } from "./utils";
+import FilterBar from "./FilterBar";
 
 export function TerraformResources(props) {
   const {
