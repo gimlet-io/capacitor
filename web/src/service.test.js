@@ -1,3 +1,4 @@
+import { expect, test } from 'vitest'
 import { getAppPort, getHostPort } from "./Service"
 
 test('should return undefined for app port', () => {

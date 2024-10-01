@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { HelmRelease } from "./HelmRelease"
 import { filterResources } from './utils.js';
-import FilterBar from './FilterBar.js';
+import FilterBar from './FilterBar';
 
 export function HelmReleases(props) {
   const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
