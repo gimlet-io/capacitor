@@ -38,7 +38,6 @@ export function TerraformResourceWidget(props) {
   const reconciling =
     reconcilingCondition && reconcilingConditions[0].status === "True";
 
-  console.log("TF", tfRelease);
   const sourceRef = tfRelease.spec.sourceRef;
   const namespace = sourceRef.namespace
     ? sourceRef.namespace

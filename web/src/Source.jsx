@@ -4,6 +4,8 @@ import { ArtifactWidget } from './ArtifactWidget';
 import { OCIArtifactWidget } from './OCIArtifactWidget';
 import { HelmChartWidget } from './HelmChartWidget';
 import { HelmRepositoryWidget } from './HelmRepositoryWidget';
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 export function Source(props) {
   const { capacitorClient, source, targetReference, handleNavigationSelect } = props;
@@ -39,6 +41,7 @@ export function Source(props) {
         <ReadyWidget resource={source} displayMessage={true} />
       </div>
       <div className="col-span-5">
+        <ErrorBoundary fallbackRender={fallbackRender}>
         {source.kind === 'GitRepository' &&
           <ArtifactWidget gitRepository={source} displayMessage={true} />
         }
@@ -54,6 +57,7 @@ export function Source(props) {
         {source.kind === 'HelmChart' &&
           <HelmChartWidget source={source} displayMessage={true} handleNavigationSelect={handleNavigationSelect} />
         }
+        </ErrorBoundary>
       </div>
       <div className="grid grid-cols-1 text-right space-y-1">
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"

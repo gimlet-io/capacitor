@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ReadyWidget } from "./ReadyWidget";
 import { TerraformResourceWidget } from "./TerraformResourceWidget";
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 export function TerraformResource(props) {
   const { capacitorClient, item, targetReference, handleNavigationSelect } =
@@ -24,6 +26,7 @@ export function TerraformResource(props) {
       className={`${highlight ? "ring-2 ring-indigo-600 ring-offset-2" : ""} rounded-md border border-neutral-300 p-4 grid grid-cols-12 gap-x-4 bg-white shadow`}
       key={`hr-${item.metadata.namespace}/${item.metadata.name}`}
     >
+      <ErrorBoundary fallbackRender={fallbackRender}>
       <div className="col-span-2">
         <span className="block font-medium text-black">
           {item.metadata.name}
@@ -32,6 +35,7 @@ export function TerraformResource(props) {
           {item.metadata.namespace}
         </span>
       </div>
+      </ErrorBoundary>
       <div className="col-span-4">
         <span className="block">
           <ReadyWidget
@@ -43,11 +47,13 @@ export function TerraformResource(props) {
       </div>
       <div className="col-span-5">
         <div className="font-medium text-neutral-700">
+          <ErrorBoundary fallbackRender={fallbackRender}>
           <TerraformResourceWidget
             tfRelease={item}
             withHistory={true}
             handleNavigationSelect={handleNavigationSelect}
           />
+          </ErrorBoundary>
         </div>
       </div>
       <div className="grid grid-cols-1 text-right space-y-1">

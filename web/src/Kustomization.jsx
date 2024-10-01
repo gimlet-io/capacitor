@@ -3,6 +3,8 @@ import { ReadyWidget } from './ReadyWidget'
 import jp from 'jsonpath'
 import { NavigationButton } from './NavigationButton'
 import { findSource } from './utils';
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 export function Kustomization(props) {
   const { capacitorClient, item, fluxState, targetReference, handleNavigationSelect } = props;
@@ -46,12 +48,14 @@ export function Kustomization(props) {
       </div>
       <div className="col-span-5">
         <div className="font-medium text-neutral-700 field">
+          <ErrorBoundary fallbackRender={fallbackRender}>
           <RevisionWidget
             kustomization={item}
             source={source}
             handleNavigationSelect={handleNavigationSelect}
             inFooter={true}
           />
+          </ErrorBoundary>
         </div>
         { source.kind !== 'OCIRepository' &&
         <span className='font-mono rounded text-neutral-600 bg-gray-100 px-1'>{item.spec.path}</span>

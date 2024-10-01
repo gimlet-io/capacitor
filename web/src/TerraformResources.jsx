@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { TerraformResource } from "./TerraformResource";
 import { filterResources } from "./utils";
 import FilterBar from "./FilterBar";
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 export function TerraformResources(props) {
   const {
@@ -30,6 +32,7 @@ export function TerraformResources(props) {
         filters={filters}
         change={setFilters}
       />
+      <ErrorBoundary fallbackRender={fallbackRender}>
       {filteredHelmReleases?.map((resource) => (
         <TerraformResource
           key={"hr-" + resource.metadata.namespace + resource.metadata.name}
@@ -39,6 +42,7 @@ export function TerraformResources(props) {
           targetReference={targetReference}
         />
       ))}
+      </ErrorBoundary>
     </div>
   );
 }

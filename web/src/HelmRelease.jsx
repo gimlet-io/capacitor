@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ReadyWidget } from './ReadyWidget'
 import { HelmRevisionWidget } from './HelmRevisionWidget';
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 export function HelmRelease(props) {
   const { capacitorClient, item, targetReference, handleNavigationSelect } = props;
@@ -33,7 +35,9 @@ export function HelmRelease(props) {
         <span className="block"><ReadyWidget resource={item} displayMessage={true} label="Reconciled" /></span>
       </div>
       <div className="col-span-5">
+        <ErrorBoundary fallbackRender={fallbackRender}>
         <div className="font-medium text-neutral-700"><HelmRevisionWidget helmRelease={item} withHistory={true} handleNavigationSelect={handleNavigationSelect} /></div>
+        </ErrorBoundary>
       </div>
       <div className="grid grid-cols-1 text-right space-y-1">
         <button className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
