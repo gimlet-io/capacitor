@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
 	"github.com/gimlet-io/capacitor/pkg/streaming"
@@ -29,7 +28,6 @@ func TfController(
 		dynamicClient,
 		tfResource,
 		func(informerEvent Event, objectMeta metav1.ObjectMeta, obj interface{}) error {
-			fmt.Println("GOT EVENT", informerEvent.eventType, informerEvent)
 			switch informerEvent.eventType {
 			case "create":
 				fallthrough

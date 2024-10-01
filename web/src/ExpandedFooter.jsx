@@ -38,7 +38,7 @@ export function ExpandedFooter(props) {
                 count: fluxState.helmReleases.length,
               },
               {
-                name: "Terraform Resources",
+                name: "Terraform",
                 href: "#",
                 count: fluxState.tfResources.length,
               },
@@ -70,7 +70,7 @@ export function ExpandedFooter(props) {
                 handleNavigationSelect={handleNavigationSelect}
               />
             )}
-            {selected === "Terraform Resources" && (
+            {selected === "Terraform" && (
               <TerraformResources
                 capacitorClient={client}
                 tfResources={fluxState.tfResources}

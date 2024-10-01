@@ -414,7 +414,6 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("TF RESOURCE %#v\n", tfResource)
 		fluxState.TfResources = append(fluxState.TfResources, tfResource)
 	}
 
