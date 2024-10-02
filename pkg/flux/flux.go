@@ -64,6 +64,12 @@ var (
 
 	helmReleaseGVR = schema.GroupVersionResource{
 		Group:    "helm.toolkit.fluxcd.io",
+		Version:  "v2",
+		Resource: "helmreleases",
+	}
+
+	helmReleaseGVRV2beta2 = schema.GroupVersionResource{
+		Group:    "helm.toolkit.fluxcd.io",
 		Version:  "v2beta2",
 		Resource: "helmreleases",
 	}
@@ -284,14 +290,24 @@ func helmReleases(dc *dynamic.DynamicClient) ([]helmv2beta2.HelmRelease, error) 
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		if strings.Contains(err.Error(), "the server could not find the requested resource") {
-			// let's try the deprecated v2beta1
-			helmReleases, err = dc.Resource(helmReleaseGVRV2beta1).
+			// let's try the deprecated v2beta2
+			helmReleases, err = dc.Resource(helmReleaseGVRV2beta2).
 				Namespace("").
 				List(context.TODO(), metav1.ListOptions{})
 			if err != nil {
 				if strings.Contains(err.Error(), "the server could not find the requested resource") {
-					// helm-controller is not mandatory, ignore error
-					return releases, nil
+					// let's try the deprecated v2beta1
+					helmReleases, err = dc.Resource(helmReleaseGVRV2beta1).
+						Namespace("").
+						List(context.TODO(), metav1.ListOptions{})
+					if err != nil {
+						if strings.Contains(err.Error(), "the server could not find the requested resource") {
+							// helm-controller is not mandatory, ignore error
+							return releases, nil
+						} else {
+							return nil, err
+						}
+					}
 				} else {
 					return nil, err
 				}
