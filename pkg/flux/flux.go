@@ -405,7 +405,12 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			// tofu-controller is not mandatory, ignore error
+			tfResources = &unstructured.UnstructuredList{}
+		} else {
+			return nil, err
+		}
 	}
 	for _, t := range tfResources.Items {
 		unstructured := t.UnstructuredContent()
