@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	tf "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
@@ -106,6 +107,12 @@ func NewResumeCommand(resource string) *resumeCommand {
 			groupVersion: sourcev1beta2.GroupVersion,
 			list:         bucketListAdapter{&sourcev1beta2.BucketList{}},
 		}
+	case tf.TerraformKind:
+		return &resumeCommand{
+			kind:         tf.TerraformKind,
+			groupVersion: tf.GroupVersion,
+			list:         &terraformListAdapter{&tf.TerraformList{}},
+		}
 	}
 
 	return nil
@@ -117,6 +124,7 @@ func (r *resumeCommand) Run(config *rest.Config, namespace, name string) {
 	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)
 	helmv2beta1.AddToScheme(scheme)
+	tf.AddToScheme(scheme)
 
 	kubeClient, err := client.NewWithWatch(config, client.Options{
 		Scheme: scheme,
