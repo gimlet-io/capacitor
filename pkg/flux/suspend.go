@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 
+	tf "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -89,6 +90,13 @@ func NewSuspendCommand(resource string) *suspendCommand {
 			object:       bucketAdapter{&sourcev1beta2.Bucket{}},
 			list:         bucketListAdapter{&sourcev1beta2.BucketList{}},
 		}
+	case tf.TerraformKind:
+		return &suspendCommand{
+			kind:         tf.TerraformKind,
+			groupVersion: tf.GroupVersion,
+			object:       &terraformAdapter{&tf.Terraform{}},
+			list:         &terraformListAdapter{&tf.TerraformList{}},
+		}
 	}
 
 	return nil
@@ -100,6 +108,7 @@ func (s *suspendCommand) Run(config *rest.Config, namespace, name string) {
 	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)
 	helmv2beta1.AddToScheme(scheme)
+	tf.AddToScheme(scheme)
 
 	kubeClient, err := client.NewWithWatch(config, client.Options{
 		Scheme: scheme,

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { ReadyWidget } from "./ReadyWidget";
 import { TerraformResourceWidget } from "./TerraformResourceWidget";
 import { ErrorBoundary } from "react-error-boundary";
-import { fallbackRender } from "./FallbackRender"
+import { fallbackRender } from "./FallbackRender";
 
 export function TerraformResource(props) {
   const { capacitorClient, item, targetReference, handleNavigationSelect } =
@@ -66,7 +66,7 @@ export function TerraformResource(props) {
                 `Are you sure you want to resume ${item.metadata.name}?`,
               ) &&
                 capacitorClient.resume(
-                  "helmrelease",
+                  "Terraform",
                   item.metadata.namespace,
                   item.metadata.name,
                 );
@@ -76,7 +76,7 @@ export function TerraformResource(props) {
                 `Are you sure you want to suspend ${item.metadata.name}?`,
               ) &&
                 capacitorClient.suspend(
-                  "helmrelease",
+                  "Terraform",
                   item.metadata.namespace,
                   item.metadata.name,
                 );
@@ -89,7 +89,7 @@ export function TerraformResource(props) {
           className="bg-transparent hover:bg-neutral-100 font-medium text-sm text-neutral-700 py-1 px-2 border border-neutral-300 rounded"
           onClick={() =>
             capacitorClient.reconcile(
-              "helmrelease",
+              "Terraform",
               item.metadata.namespace,
               item.metadata.name,
             )
