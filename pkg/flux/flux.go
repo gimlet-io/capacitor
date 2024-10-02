@@ -82,11 +82,23 @@ var (
 
 	helmRepositoryGVR = schema.GroupVersionResource{
 		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1",
+		Resource: "helmrepositories",
+	}
+
+	helmRepositoryGVRv1beta2 = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1beta2",
 		Resource: "helmrepositories",
 	}
 
 	helmChartGVR = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1",
+		Resource: "helmcharts",
+	}
+
+	helmChartGVRv1beta2 = schema.GroupVersionResource{
 		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1beta2",
 		Resource: "helmcharts",
@@ -505,7 +517,17 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			// let's try the deprecated v1beta2
+			helmRepositories, err = dc.Resource(helmRepositoryGVRv1beta2).
+				Namespace("").
+				List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 	for _, h := range helmRepositories.Items {
 		unstructured := h.UnstructuredContent()
@@ -521,7 +543,17 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			// let's try the deprecated v1beta2
+			helmCharts, err = dc.Resource(helmChartGVRv1beta2).
+				Namespace("").
+				List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 	for _, h := range helmCharts.Items {
 		unstructured := h.UnstructuredContent()
