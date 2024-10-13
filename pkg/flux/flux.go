@@ -58,6 +58,12 @@ var (
 
 	bucketGVR = schema.GroupVersionResource{
 		Group:    "source.toolkit.fluxcd.io",
+		Version:  "v1",
+		Resource: "buckets",
+	}
+
+	bucketGVR1beta2 = schema.GroupVersionResource{
+		Group:    "source.toolkit.fluxcd.io",
 		Version:  "v1beta2",
 		Resource: "buckets",
 	}
@@ -453,9 +459,21 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 	buckets, err := dc.Resource(bucketGVR).
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
+
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "the server could not find the requested resource") {
+			// let's try the deprecated v1beta2
+			buckets, err = dc.Resource(bucketGVR1beta2).
+				Namespace("").
+				List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
+
 	for _, repo := range buckets.Items {
 		unstructured := repo.UnstructuredContent()
 		var bucket sourcev1beta2.Bucket
