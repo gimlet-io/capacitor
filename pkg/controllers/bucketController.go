@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/gimlet-io/capacitor/pkg/flux"
@@ -14,6 +15,12 @@ import (
 
 var bucketResource = schema.GroupVersionResource{
 	Group:    "source.toolkit.fluxcd.io",
+	Version:  "v1",
+	Resource: "buckets",
+}
+
+var bucketResourceV1beta2 = schema.GroupVersionResource{
+	Group:    "source.toolkit.fluxcd.io",
 	Version:  "v1beta2",
 	Resource: "buckets",
 }
@@ -23,6 +30,13 @@ func BucketController(
 	dynamicClient *dynamic.DynamicClient,
 	clientHub *streaming.ClientHub,
 ) (*Controller, error) {
+	// check if v1 is supported
+	_, err := dynamicClient.Resource(bucketResource).Namespace("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		// try and possibly fail (bucket-controller is not mandatory) with v1beta2
+		bucketResource = bucketResourceV1beta2
+	}
+
 	return NewDynamicController(
 		"buckets.source.toolkit.fluxcd.io",
 		dynamicClient,
