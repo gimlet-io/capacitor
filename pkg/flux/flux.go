@@ -459,7 +459,6 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 	buckets, err := dc.Resource(bucketGVR).
 		Namespace("").
 		List(context.TODO(), metav1.ListOptions{})
-
 	if err != nil {
 		if strings.Contains(err.Error(), "the server could not find the requested resource") {
 			// let's try the deprecated v1beta2
@@ -473,7 +472,6 @@ func State(c *kubernetes.Clientset, dc *dynamic.DynamicClient) (*FluxState, erro
 			return nil, err
 		}
 	}
-
 	for _, repo := range buckets.Items {
 		unstructured := repo.UnstructuredContent()
 		var bucket sourcev1beta2.Bucket

@@ -33,7 +33,6 @@ func BucketController(
 	// check if v1 is supported
 	_, err := dynamicClient.Resource(bucketResource).Namespace("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		// try and possibly fail (bucket-controller is not mandatory) with v1beta2
 		bucketResource = bucketResourceV1beta2
 	}
 
