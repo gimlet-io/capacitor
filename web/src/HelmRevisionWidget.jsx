@@ -24,7 +24,8 @@ export function HelmRevisionWidget(props) {
   const reconcilingCondition = reconcilingConditions.length === 1 ? reconcilingConditions[0] : undefined
   const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
-  const sourceRef = helmRelease.spec.chart.spec.sourceRef
+  const sourceRef = helmRelease.spec.chart ? helmRelease.spec.chart.spec.sourceRef : helmRelease.spec.chartRef
+
   const namespace = sourceRef.namespace ? sourceRef.namespace : helmRelease.metadata.namespace
   const navigationHandler = () => handleNavigationSelect("Sources", namespace, sourceRef.name, sourceRef.kind)
 
