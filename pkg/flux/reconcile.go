@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/bombsimon/logrusr/v4"
+	tf "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustomizationv1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
@@ -99,6 +100,12 @@ func NewReconcileCommand(resource string) *reconcileCommand {
 			groupVersion: sourcev1beta2.GroupVersion,
 			kind:         sourcev1beta2.HelmChartKind,
 		}
+	case tf.TerraformKind:
+		return &reconcileCommand{
+			object:       terraformAdapter{&tf.Terraform{}},
+			groupVersion: tf.GroupVersion,
+			kind:         tf.TerraformKind,
+		}
 	}
 
 	return nil
@@ -110,6 +117,7 @@ func (r *reconcileCommand) Run(config *rest.Config, namespace, name string) {
 	sourcev1beta2.AddToScheme(scheme)
 	kustomizationv1.AddToScheme(scheme)
 	helmv2beta1.AddToScheme(scheme)
+	tf.AddToScheme(scheme)
 
 	log := logrusr.New(logrus.New())
 	logf.SetLogger(log)
