@@ -29,8 +29,8 @@ function Service(props) {
   const configMapWidgets = configMaps(service.pods, service.svc.metadata.namespace, capacitorClient)
   const secretWidgets = secrets(service.pods, service.svc.metadata.namespace, capacitorClient)
 
-  const appPort = getAppPort(service.svc.spec.ports) ?? "<app-port>";
-  const hostPort = getHostPort(service.svc.spec.ports) ?? "<host-port>";
+  const appPort = getAppPort(service.svc?.spec?.ports) ?? "<app-port>";
+  const hostPort = getHostPort(service.svc?.spec?.ports) ?? "<host-port>";
 
   return (
     <>
@@ -76,75 +76,6 @@ function Service(props) {
                   </div>
                 </div>
                 }
-                {/* <div>
-                  <p className="text-base text-neutral-600">Links</p>
-                  <div className="text-neutral-700 text-sm mt-2">
-                  <a
-                    className="text-neutral-600 hover:text-black"
-                    href="">
-                    Docs
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                      className="inline fill-current h-4 w-4"
-                      viewBox="0 0 24 24">
-                      <path d="M0 0h24v24H0z" fill="none" />
-                      <path
-                        d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-                    </svg>
-                  </a>
-                  <span className="px-2">|</span>
-                  <a
-                    className="text-neutral-600 hover:text-black" 
-                    href="">
-                    Logs
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                      className="inline fill-current h-4 w-4"
-                      viewBox="0 0 24 24">
-                      <path d="M0 0h24v24H0z" fill="none" />
-                      <path
-                        d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-                    </svg>
-                  </a>
-                  <span className="px-2">|</span>
-                  <a
-                    className="text-neutral-600 hover:text-black"
-                    href="">
-                    Metrics
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                      className="inline fill-current h-4 w-4"
-                      viewBox="0 0 24 24">
-                      <path d="M0 0h24v24H0z" fill="none" />
-                      <path
-                        d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-                    </svg>
-                  </a>
-                  <span className="px-2">|</span>
-                  <a
-                    className="text-neutral-600 hover:text-black"
-                    href="">
-                    Traces
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                      className="inline fill-current h-4 w-4"
-                      viewBox="0 0 24 24">
-                      <path d="M0 0h24v24H0z" fill="none" />
-                      <path
-                        d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-                    </svg>
-                  </a>
-                  <span className="px-2">|</span>
-                  <a
-                    className="text-neutral-600 hover:text-black"
-                    href="">
-                    Issues
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                      className="inline fill-current h-4 w-4"
-                      viewBox="0 0 24 24">
-                      <path d="M0 0h24v24H0z" fill="none" />
-                      <path
-                        d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-                    </svg>
-                  </a>
-                </div>
-                </div> */}
               </div>
               <div className="col-span-7 space-y-4 pl-2">
                 { deployment &&
@@ -174,7 +105,7 @@ function Service(props) {
                       </p>
                       ) : null
                     }
-                    {service.svc.spec.ports &&
+                    {service.svc?.spec?.ports &&
                         <>
                           <a href={'http://127.0.0.1:' + hostPort} target="_blank" rel="noopener noreferrer">http://127.0.0.1:{hostPort}
                             <svg xmlns="http://www.w3.org/2000/svg"
@@ -191,14 +122,6 @@ function Service(props) {
                   </div>
                 </div>
                 }
-                {/* { deployment &&
-                <div>
-                  <p className="text-base text-neutral-600">Health</p>
-                  <div className="text-neutral-900 text-sm">
-                    <Timeline alerts={alerts} />
-                  </div>
-                </div>
-                } */}
                 { kustomization && source &&
                 <div>
                   <p className="text-base text-neutral-600">Sync</p>
@@ -220,7 +143,9 @@ function Service(props) {
                       className="ml-1 cursor-pointer">
                         ({helmRelease.metadata.namespace}/{helmRelease.metadata.name})
                     </div>
+                    <ErrorBoundary fallbackRender={fallbackRender}>
                     <div className="ml-4"><HelmRevisionWidget helmRelease={helmRelease} /></div>
+                    </ErrorBoundary>
                   </div>
                 </div>
                 }

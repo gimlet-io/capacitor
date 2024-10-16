@@ -1,6 +1,8 @@
 import React, { memo, useState } from 'react';
 import Service from "./Service";
 import { findSource } from './utils';
+import { ErrorBoundary } from "react-error-boundary";
+import { fallbackRender } from "./FallbackRender"
 
 const Services = memo(function Services(props) {
   const { capacitorClient, store, filters, handleNavigationSelect } = props
@@ -33,17 +35,19 @@ const Services = memo(function Services(props) {
         const source = findSource(sources, kustomization)
 
         return (
-          <Service
-            key={`${service.svc.metadata.namespace}/${service.svc.metadata.name}`}
-            service={service}
-            alerts={[]}
-            kustomization={kustomization}
-            source={source}
-            helmRelease={helmRelease}
-            capacitorClient={capacitorClient}
-            store={store}
-            handleNavigationSelect={handleNavigationSelect}
-          />
+          <ErrorBoundary fallbackRender={fallbackRender}>
+            <Service
+              key={`${service.svc.metadata.namespace}/${service.svc.metadata.name}`}
+              service={service}
+              alerts={[]}
+              kustomization={kustomization}
+              source={source}
+              helmRelease={helmRelease}
+              capacitorClient={capacitorClient}
+              store={store}
+              handleNavigationSelect={handleNavigationSelect}
+            />
+          </ErrorBoundary>
         )
       })}
     </>
