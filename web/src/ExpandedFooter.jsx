@@ -32,17 +32,17 @@ export function ExpandedFooter(props) {
               {
                 name: "Kustomizations",
                 href: "#",
-                count: fluxState.kustomizations.length,
+                count: fluxState.kustomizations?.length,
               },
               {
                 name: "Helm Releases",
                 href: "#",
-                count: fluxState.helmReleases.length,
+                count: fluxState.helmReleases?.length,
               },
               {
                 name: "Terraform",
                 href: "#",
-                count: fluxState.tfResources.length,
+                count: fluxState.tfResources?.length,
               },
               { name: "Flux Runtime", href: "#", count: undefined },
               { name: "Flux Events", href: "#", count: undefined },
