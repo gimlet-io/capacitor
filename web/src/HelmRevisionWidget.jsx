@@ -33,15 +33,30 @@ export function HelmRevisionWidget(props) {
     <>
       {!ready && reconciling && !stalled &&
         <span>
-          <span>Attempting: </span>
+          {helmRelease.spec.chart &&
+          <>
+          <span>Reconciling new version: </span>
           <span>{helmRelease.spec.chart.spec.version}@{helmRelease.spec.chart.spec.chart}</span>
+          </>
+          }
+          {!helmRelease.spec.chart &&
+            <span>Reconciling new version..</span> // chartRef doesn't have version info
+          }
         </span>
       }
       {!ready && stalled &&
         <span className='bg-orange-400'>
+          {helmRelease.spec.chart &&
+          <>
           <span>Last Attempted: </span>
-          {/* <span>{lastAttemptedRevision}@{version.chartName}</span> */}
           <span>{helmRelease.spec.chart.spec.version}@{helmRelease.spec.chart.spec.chart}</span>
+          </>
+          }
+          {!helmRelease.spec.chart &&
+          <>
+            <span>Reconciliation stalled..</span>  // chartRef doesn't have version info
+          </>
+          }
         </span>
       }
       <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
