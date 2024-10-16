@@ -25,7 +25,6 @@ export function HelmRevisionWidget(props) {
   const reconciling = reconcilingCondition && reconcilingConditions[0].status === "True"
 
   const sourceRef = helmRelease.spec.chart ? helmRelease.spec.chart.spec.sourceRef : helmRelease.spec.chartRef
-
   const namespace = sourceRef.namespace ? sourceRef.namespace : helmRelease.metadata.namespace
   const navigationHandler = () => handleNavigationSelect("Sources", namespace, sourceRef.name, sourceRef.kind)
 
@@ -33,15 +32,28 @@ export function HelmRevisionWidget(props) {
     <>
       {!ready && reconciling && !stalled &&
         <span>
-          <span>Attempting: </span>
+          <span>Reconciling new version: </span>
+          <NavigationButton handleNavigation={navigationHandler}>
+          {helmRelease.spec.chart &&
           <span>{helmRelease.spec.chart.spec.version}@{helmRelease.spec.chart.spec.chart}</span>
+          }
+          {helmRelease.spec.chartRef &&
+          <span>{`${helmRelease.spec.chartRef.namespace}/${helmRelease.spec.chartRef.name}`}</span>
+          }
+          </NavigationButton>
         </span>
       }
       {!ready && stalled &&
         <span className='bg-orange-400'>
-          <span>Last Attempted: </span>
-          {/* <span>{lastAttemptedRevision}@{version.chartName}</span> */}
+          <span>Reconciliation stalled: </span>
+          <NavigationButton handleNavigation={navigationHandler}>
+          {helmRelease.spec.chart &&
           <span>{helmRelease.spec.chart.spec.version}@{helmRelease.spec.chart.spec.chart}</span>
+          }
+          {helmRelease.spec.chartRef &&
+          <span>{`${helmRelease.spec.chartRef.namespace}/${helmRelease.spec.chartRef.name}`}</span>
+          }
+          </NavigationButton>
         </span>
       }
       <span className={`block ${ready || reconciling ? '' : 'font-normal text-neutral-600'} field`}>
