@@ -7,7 +7,9 @@ export const App = () => {
     view: () => {
       return (
         <>
-          <h1>My Mithril App</h1>
+          <h1 className="text-3xl font-bold underline">
+            Hello world!
+          </h1>
         </>
       );
     },
