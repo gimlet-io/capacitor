@@ -7,11 +7,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "mithril": "^2.0.4"
+    "mithril": "^2.0.4",
+    "vite-plugin-eslint": "^1.8.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@types/mithril": "^2.0.8",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.3",
+    "globals": "^15.14.0",
     "typescript": "^4.4.3",
+    "typescript-eslint": "^8.18.2",
     "vite": "^2.6.2"
   }
 }
