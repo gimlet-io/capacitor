@@ -29,6 +29,10 @@ func SelectorsMatch(first map[string]string, second map[string]string) bool {
 }
 
 func LabelsMatchSelectors(labels map[string]string, selectors map[string]string) bool {
+	if len(selectors) == 0 {
+		return false
+	}
+
 	for k2, v2 := range selectors {
 		if v, ok := labels[k2]; ok {
 			if v2 != v {
