@@ -7,19 +7,25 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gimlet-io/capacitor/pkg/api"
-	"github.com/gimlet-io/capacitor/pkg/controllers"
-	"github.com/gimlet-io/capacitor/pkg/logs"
-	"github.com/gimlet-io/capacitor/pkg/streaming"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gimlet-io/capacitor/pkg/api"
+	"github.com/gimlet-io/capacitor/pkg/controllers"
+	"github.com/gimlet-io/capacitor/pkg/logs"
+	"github.com/gimlet-io/capacitor/pkg/streaming"
 )
 
 func main() {
 	var kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	var jsonLogs = flag.Bool("json", false, "enable JSON logging")
 	flag.Parse()
+
+	if *jsonLogs {
+		logrus.SetFormatter(&logrus.JSONFormatter{})
+	}
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
