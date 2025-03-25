@@ -13,12 +13,21 @@ export function ArtifactWidget(props) {
   const parsed = Date.parse(artifact.lastUpdateTime, "yyyy-MM-dd'T'HH:mm:ss");
   const exactDate = format(parsed, 'MMMM do yyyy, h:mm:ss a O')
 
+
+  const getURL = (url) => {
+    if (url.includes("gitlab") && url.includes(".git"))  {
+      return url.replace(".git", "/-")
+    }
+
+    return url
+  }
+
   return (
     <>
       <div className="field font-medium text-neutral-700">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h4 w-4 inline fill-current"><path d="M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H163.2C178 151 242.6 96 320 96s142 55 156.8 128H608c17.7 0 32 14.3 32 32s-14.3 32-32 32H476.8z" /></svg>
         <span className="pl-1">
-          <a href={`https://${url}/commit/${hash}`} target="_blank" rel="noopener noreferrer">
+          <a href={`https://${getURL(url)}/commit/${hash}`} target="_blank" rel="noopener noreferrer">
             {hash.slice(0, 8)} committed <TimeLabel title={exactDate} date={parsed} />
           </a>
         </span>
