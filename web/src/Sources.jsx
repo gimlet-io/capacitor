@@ -1,11 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { filterResources } from './utils.js';
 import { Source } from "./Source"
 import FilterBar from "./FilterBar";
 
-export function Sources(props) {
-  const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
-  const [filters, setFilters] = useState([])
+const getSourcesFilters = () => {
+  try {
+    return JSON.parse(localStorage.getItem("sourcesFilters")) || [];
+  } catch (error) {
+    return [];
+  }
+};
+
+export function Sources({ capacitorClient, fluxState, targetReference, handleNavigationSelect }) {
+  const [filters, setFilters] = useState(getSourcesFilters())
   const sortedSources = useMemo(() => {
     const sources = [];
     if (fluxState.ociRepositories) {
@@ -19,6 +26,10 @@ export function Sources(props) {
   }, [fluxState]);
 
   const filteredSources = filterResources(sortedSources, filters)
+
+  useEffect(() => {
+        localStorage.setItem("sourcesFilters", JSON.stringify(filters));
+      }, [JSON.stringify(filters)])
 
   return (
     <div className="space-y-4">

@@ -1,22 +1,34 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Kustomization } from './Kustomization.jsx'
 import { filterResources } from './utils.js';
 import FilterBar from './FilterBar';
 
-export function Kustomizations(props) {
-  const { capacitorClient, fluxState, targetReference, handleNavigationSelect } = props
-  const [filters, setFilters] = useState([])
+const getKustomizationFilters = () => {
+  try {
+    return JSON.parse(localStorage.getItem("kustomizationFilters")) || [];
+  } catch (error) {
+    return [];
+  }
+};
+
+
+export function Kustomizations({ capacitorClient, fluxState, targetReference, handleNavigationSelect }) {
+  const [filters, setFilters] = useState(getKustomizationFilters())
   const kustomizations = fluxState.kustomizations;
 
   const sortedKustomizations = useMemo(() => {
-    if (!kustomizations) {
-      return null;
-    }
+    if (!kustomizations) return null;
 
     return [...kustomizations].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [kustomizations]);
 
   const filteredKustomizations = filterResources(sortedKustomizations, filters)
+
+
+  useEffect(() => {
+    localStorage.setItem("kustomizationFilters", JSON.stringify(filters));
+  }, [JSON.stringify(filters)])
+
 
   return (
     <div className="space-y-4">

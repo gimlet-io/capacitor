@@ -1,20 +1,29 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { HelmRelease } from "./HelmRelease"
 import { filterResources } from './utils.js';
 import FilterBar from './FilterBar';
 
-export function HelmReleases(props) {
-  const { capacitorClient, helmReleases, targetReference, handleNavigationSelect } = props
-  const [filters, setFilters] = useState([])
+const getHelmReleasesFilters = () => {
+  try {
+    return JSON.parse(localStorage.getItem("helmReleasesFilters")) || [];
+  } catch (error) {
+    return [];
+  }
+};
+
+export function HelmReleases({ capacitorClient, helmReleases, targetReference, handleNavigationSelect }) {
+  const [filters, setFilters] = useState(getHelmReleasesFilters())
   const sortedHelmReleases = useMemo(() => {
-    if (!helmReleases) {
-      return null;
-    }
+    if (!helmReleases) return null;
 
     return [...helmReleases].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
   }, [helmReleases]);
 
   const filteredHelmReleases = filterResources(sortedHelmReleases, filters)
+
+    useEffect(() => {
+      localStorage.setItem("helmReleasesFilters", JSON.stringify(filters));
+    }, [JSON.stringify(filters)])
 
   return (
     <div className="space-y-4">

@@ -1,22 +1,22 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { TerraformResource } from "./TerraformResource";
 import { filterResources } from "./utils";
 import FilterBar from "./FilterBar";
 import { ErrorBoundary } from "react-error-boundary";
 import { fallbackRender } from "./FallbackRender"
 
-export function TerraformResources(props) {
-  const {
-    capacitorClient,
-    tfResources,
-    targetReference,
-    handleNavigationSelect,
-  } = props;
-  const [filters, setFilters] = useState([]);
+const getTerraformResourceFilters = () => {
+  try {
+    return JSON.parse(localStorage.getItem("terraformResourcesFilters")) || [];
+  } catch (error) {
+    return [];
+  }
+};
+
+export function TerraformResources({ capacitorClient, tfResources, targetReference, handleNavigationSelect}) {
+  const [filters, setFilters] = useState(getTerraformResourceFilters());
   const sortedHelmReleases = useMemo(() => {
-    if (!tfResources) {
-      return null;
-    }
+    if (!tfResources) return null;
 
     return [...tfResources].sort((a, b) =>
       a.metadata.name.localeCompare(b.metadata.name),
@@ -24,6 +24,10 @@ export function TerraformResources(props) {
   }, [tfResources]);
 
   const filteredHelmReleases = filterResources(sortedHelmReleases, filters);
+
+   useEffect(() => {
+        localStorage.setItem("terraformResourcesFilters", JSON.stringify(filters));
+  }, [JSON.stringify(filters)])
 
   return (
     <div className="space-y-4">
