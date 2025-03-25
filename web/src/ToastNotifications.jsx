@@ -37,6 +37,10 @@ function ToastNotifications(props) {
           <ToastElement key={index} event={e} dismiss={dismiss} handleNavigationSelect={handleNavigationSelect} />
         )
       })}
+      {warningEvents.length > 0 && 
+        <div style={{ textAlign: 'right'}}>
+          <button onClick={() => setFluxEvents([])} className="py-1 px-2 bg-gray-200 text-gray-400 rounded-full text-sm">Clear All</button>
+        </div>}
     </div>
   )
 }
