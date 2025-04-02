@@ -1,4 +1,4 @@
-import type { PodList, Pod, Container } from '../types.ts';
+import type { PodList, Pod, Container } from './types/k8s.ts';
 
 async function fetchPods() {
     try {

@@ -1,5 +1,5 @@
 (() => {
-  // public/app.ts
+  // src/app.ts
   async function fetchPods() {
     try {
       const response = await fetch("/api/v1/pods");
