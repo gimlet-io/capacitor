@@ -1,11 +1,41 @@
 (() => {
   // src/app.ts
+  var currentNamespace = "test";
   async function fetchResource(path) {
     const response = await fetch(path);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return response.json();
+  }
+  async function fetchNamespaces() {
+    try {
+      const response = await fetchResource("/k8s/api/v1/namespaces");
+      const select = document.getElementById("namespaceSelect");
+      if (select) {
+        select.innerHTML = response.items.map((ns) => `
+                    <option value="${ns.metadata.name}" 
+                            ${ns.metadata.name === currentNamespace ? "selected" : ""}>
+                        ${ns.metadata.name}
+                    </option>
+                `).join("");
+      }
+    } catch (error) {
+      console.error("Error fetching namespaces:", error);
+    }
+  }
+  function changeNamespace() {
+    const select = document.getElementById("namespaceSelect");
+    if (select) {
+      currentNamespace = select.value;
+      setupWatches();
+    }
+  }
+  function toggleSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar) {
+      sidebar.classList.toggle("collapsed");
+    }
   }
   function renderPods(pods) {
     return pods.map((pod) => `
@@ -59,9 +89,9 @@
   async function fetchAll() {
     try {
       const [pods, deployments, services] = await Promise.all([
-        fetchResource("/api/api/v1/pods"),
-        fetchResource("/api/apis/apps/v1/deployments"),
-        fetchResource("/api/api/v1/services")
+        fetchResource(`/k8s/api/v1/namespaces/${currentNamespace}/pods`),
+        fetchResource(`/k8s/apis/apps/v1/namespaces/${currentNamespace}/deployments`),
+        fetchResource(`/k8s/api/v1/namespaces/${currentNamespace}/services`)
       ]);
       const content = `
             <div class="resources-grid">
@@ -91,6 +121,98 @@
       }
     }
   }
-  fetchAll();
+  async function watchResource(path, onUpdate) {
+    const watchPath = `${path}?watch=true`;
+    try {
+      const response = await fetch(watchPath);
+      if (!response.body) {
+        throw new Error("No response body");
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const event = JSON.parse(line);
+              onUpdate(event);
+            } catch (e) {
+              console.error("Error parsing watch event:", e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Watch error:", error);
+      setTimeout(() => watchResource(path, onUpdate), 5e3);
+    }
+  }
+  async function setupWatches() {
+    await fetchAll();
+    const watches = [
+      {
+        path: `/k8s/api/v1/namespaces/${currentNamespace}/pods`,
+        type: "Pod",
+        callback: (event) => {
+          const pod = event.object;
+          console.log(`${event.type} Pod:`, {
+            name: pod.metadata.name,
+            phase: pod.status.phase,
+            containers: pod.spec.containers.map((c) => ({
+              name: c.name,
+              image: c.image
+            }))
+          });
+          clearTimeout(updateTimeout);
+          updateTimeout = setTimeout(fetchAll, 100);
+        }
+      },
+      {
+        path: `/k8s/apis/apps/v1/namespaces/${currentNamespace}/deployments`,
+        type: "Deployment",
+        callback: (event) => {
+          const deployment = event.object;
+          console.log(`${event.type} Deployment:`, {
+            name: deployment.metadata.name,
+            replicas: deployment.spec.replicas,
+            available: deployment.status.availableReplicas
+          });
+          clearTimeout(updateTimeout);
+          updateTimeout = setTimeout(fetchAll, 100);
+        }
+      },
+      {
+        path: `/k8s/api/v1/namespaces/${currentNamespace}/services`,
+        type: "Service",
+        callback: (event) => {
+          const service = event.object;
+          console.log(`${event.type} Service:`, {
+            name: service.metadata.name,
+            type: service.spec.type,
+            clusterIP: service.spec.clusterIP,
+            ports: service.spec.ports
+          });
+          clearTimeout(updateTimeout);
+          updateTimeout = setTimeout(fetchAll, 100);
+        }
+      }
+    ];
+    watches.forEach(({ path, callback }) => {
+      watchResource(path, (data) => callback(data));
+    });
+  }
+  var updateTimeout;
+  document.addEventListener("DOMContentLoaded", () => {
+    fetchNamespaces();
+    setupWatches();
+  });
   window.fetchAll = fetchAll;
+  window.changeNamespace = changeNamespace;
+  window.toggleSidebar = toggleSidebar;
 })();

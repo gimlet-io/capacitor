@@ -1,7 +1,8 @@
 {
   "tasks": {
     "dev": "deno run --watch main.ts",
-    "build": "deno run --allow-read --allow-write --allow-env --allow-run npm:esbuild src/app.ts --bundle --outfile=public/app.js"
+    "build": "deno run --allow-read --allow-write --allow-env --allow-run npm:esbuild src/app.ts --bundle --outfile=public/app.js",
+    "watch": "deno run --watch --allow-read --allow-write --allow-env --allow-run npm:esbuild src/app.ts --bundle --outfile=public/app.js"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1"

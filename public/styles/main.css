@@ -1,8 +1,7 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
+    margin: 0;
+    padding: 0;
 }
 
 .pod-list {
@@ -55,3 +54,79 @@ body {
 .deployment-item { border-left: 4px solid #3498db; }
 .service-item { border-left: 4px solid #2ecc71; }
 .pod-item { border-left: 4px solid #e74c3c; }
+
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    background: #f8f9fa;
+    padding: 0.5rem;
+    border-right: 1px solid #dee2e6;
+    width: 250px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+    width: 30px;
+}
+
+.sidebar.collapsed .filters {
+    display: none;
+}
+
+.sidebar-toggle {
+    background: #e9ecef;
+    border: none;
+    padding: 0.5rem;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-toggle:hover {
+    background: #dee2e6;
+}
+
+.namespace-select {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.watch-status {
+    color: #2ecc71;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.watch-status.error {
+    color: #e74c3c;
+    animation: none;
+}
