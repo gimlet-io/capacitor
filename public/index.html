@@ -6,38 +6,63 @@
     <title>Kubernetes Pods Viewer</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            max-width: 800px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-            line-height: 1.6;
         }
-        #result {
-            background-color: #f5f5f5;
-            padding: 15px;
+        .pod-list {
+            display: grid;
+            gap: 1rem;
+        }
+        .pod-item {
+            border: 1px solid #ddd;
+            padding: 1rem;
             border-radius: 4px;
-            margin-top: 20px;
-            white-space: pre-wrap;
         }
+        .status-Running { color: green; }
+        .status-Pending { color: orange; }
+        .status-Failed { color: red; }
     </style>
 </head>
 <body>
-    <h1>Kubernetes Pods Viewer</h1>
-    <button onclick="fetchPods()">Fetch Pods</button>
-    <div id="result"></div>
+    <h1>Kubernetes Pods</h1>
+    <button onclick="fetchPods()">Refresh Pods</button>
+    <div id="podList" class="pod-list"></div>
 
     <script>
         async function fetchPods() {
             try {
                 const response = await fetch('/api/v1/pods');
                 const data = await response.json();
-                console.log('Pods data:', data);
-                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                console.log('Raw pod data:', data);
+                
+                const podListElement = document.getElementById('podList');
+                podListElement.innerHTML = data.items.map(pod => `
+                    <div class="pod-item">
+                        <h3>${pod.metadata.namespace}/${pod.metadata.name}</h3>
+                        <p class="status-${pod.status.phase}">Status: ${pod.status.phase}</p>
+                        <p>Node: ${pod.spec.nodeName || 'Not assigned'}</p>
+                        <p>Pod IP: ${pod.status.podIP || 'No IP'}</p>
+                        <details>
+                            <summary>Containers (${pod.spec.containers.length})</summary>
+                            ${pod.spec.containers.map(container => `
+                                <div>
+                                    <strong>${container.name}</strong>: ${container.image}
+                                </div>
+                            `).join('')}
+                        </details>
+                    </div>
+                `).join('');
             } catch (error) {
                 console.error('Error fetching pods:', error);
-                document.getElementById('result').textContent = 'Error fetching pods: ' + error.message;
+                document.getElementById('podList').innerHTML = 
+                    `<div class="error">Error fetching pods: ${error.message}</div>`;
             }
         }
+
+        // Initial fetch
+        fetchPods();
     </script>
 </body>
 </html> 
