@@ -19,3 +19,39 @@ body {
 .status-Running { color: green; }
 .status-Pending { color: orange; }
 .status-Failed { color: red; }
+
+.resources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.resource-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.resource-section h2 {
+    margin-top: 0;
+    color: #2c3e50;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+}
+
+.resource-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.resource-item {
+    background: white;
+    padding: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.deployment-item { border-left: 4px solid #3498db; }
+.service-item { border-left: 4px solid #2ecc71; }
+.pod-item { border-left: 4px solid #e74c3c; }

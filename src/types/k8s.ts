@@ -90,4 +90,66 @@ export interface PodList {
     kind: string;
     metadata: ListMeta;
     items: Pod[];
+}
+
+export interface DeploymentSpec {
+    replicas?: number;
+    selector: {
+        matchLabels: { [key: string]: string };
+    };
+    template: {
+        metadata: ObjectMeta;
+        spec: PodSpec;
+    };
+}
+
+export interface DeploymentStatus {
+    availableReplicas: number;
+    readyReplicas: number;
+    replicas: number;
+    updatedReplicas: number;
+}
+
+export interface Deployment {
+    apiVersion: string;
+    kind: string;
+    metadata: ObjectMeta;
+    spec: DeploymentSpec;
+    status: DeploymentStatus;
+}
+
+export interface DeploymentList {
+    apiVersion: string;
+    kind: string;
+    metadata: ListMeta;
+    items: Deployment[];
+}
+
+export interface ServicePort {
+    name?: string;
+    protocol?: string;
+    port: number;
+    targetPort?: number | string;
+    nodePort?: number;
+}
+
+export interface ServiceSpec {
+    ports?: ServicePort[];
+    selector?: { [key: string]: string };
+    clusterIP?: string;
+    type?: string;
+}
+
+export interface Service {
+    apiVersion: string;
+    kind: string;
+    metadata: ObjectMeta;
+    spec: ServiceSpec;
+}
+
+export interface ServiceList {
+    apiVersion: string;
+    kind: string;
+    metadata: ListMeta;
+    items: Service[];
 } 
