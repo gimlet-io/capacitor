@@ -178,3 +178,19 @@ body {
 .resource-section.full-width {
     grid-column: 1 / -1;
 }
+
+.card-type-select {
+    width: 100%;
+    padding: 8px;
+    margin-top: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    font-size: 14px;
+}
+
+.card-type-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}

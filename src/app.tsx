@@ -3,7 +3,7 @@ import { render } from "solid-js/web";
 import { createSignal, createResource, createEffect, untrack} from "solid-js";
 import { PodList, DeploymentList, ServiceList } from "./components/index.ts";
 import type { Pod, Deployment, Service, ServiceWithResources } from "./types/k8s.ts";
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import { updateServiceMatchingResources } from "./utils/k8s.ts";
 
 function App() {
@@ -11,6 +11,7 @@ function App() {
   const [namespace, setNamespace] = createSignal<string>();
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
+  const [cardType, setCardType] = createSignal<'services' | 'deployments' | 'pods'>('services');
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
@@ -69,7 +70,7 @@ function App() {
         }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         console.log('Watch aborted:', path);
         return;
       }
@@ -186,18 +187,34 @@ function App() {
               )}
             </For>
           </select>
+          <select
+            class="card-type-select"
+            onChange={(e) => setCardType(e.currentTarget.value as 'services' | 'deployments' | 'pods')}
+          >
+            <option value="services" selected={cardType() === 'services'}>Service Cards</option>
+            <option value="deployments" selected={cardType() === 'deployments'}>Deployment Cards</option>
+            <option value="pods" selected={cardType() === 'pods'}>Pod Cards</option>
+          </select>
         </div>
       </aside>
       <main class="main-content">
         <h1>Kubernetes Resources</h1>
         <div class="controls">
-          <span class="watch-status" style={{ color: watchStatus() === "●" ? "green" : "red" }}>
+          <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" }}>
             {watchStatus()}
           </span>
         </div>
         <div class="resources-grid">
           <section class="resource-section full-width">
-            <ServiceList services={services()} />
+            <Show when={cardType() === 'services'}>
+              <ServiceList services={services()} />
+            </Show>
+            <Show when={cardType() === 'deployments'}>
+              <DeploymentList deployments={deployments()} pods={pods()} />
+            </Show>
+            <Show when={cardType() === 'pods'}>
+              <PodList pods={pods()} />
+            </Show>
           </section>
         </div>
       </main>

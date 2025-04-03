@@ -23,4 +23,13 @@ export const updateServiceMatchingResources = (service: Service, allPods: Pod[],
     matchingPods: getMatchingPods(service, allPods),
     matchingDeployments: getMatchingDeployments(service, allDeployments)
   };
+};
+
+export const getDeploymentMatchingPods = (deployment: Deployment, allPods: Pod[]) => {
+  if (!deployment.spec.selector.matchLabels) return [];
+  return allPods.filter(pod => 
+    Object.entries(deployment.spec.selector.matchLabels).every(([key, value]) => 
+      pod.metadata.labels?.[key] === value
+    )
+  );
 }; 
