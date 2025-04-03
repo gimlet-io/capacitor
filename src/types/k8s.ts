@@ -152,4 +152,9 @@ export interface ServiceList {
     kind: string;
     metadata: ListMeta;
     items: Service[];
+}
+
+export interface ServiceWithResources extends Service {
+  matchingPods: Pod[];
+  matchingDeployments: Deployment[];
 } 

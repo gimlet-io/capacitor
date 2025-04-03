@@ -2,8 +2,9 @@
 import { render } from "solid-js/web";
 import { createSignal, createResource, createEffect, untrack} from "solid-js";
 import { PodList, DeploymentList, ServiceList } from "./components/index.ts";
-import type { Pod, Deployment, Service } from "./types/k8s.ts";
+import type { Pod, Deployment, Service, ServiceWithResources } from "./types/k8s.ts";
 import { For } from "solid-js";
+import { updateServiceMatchingResources } from "./utils/k8s.ts";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
@@ -14,7 +15,7 @@ function App() {
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [deployments, setDeployments] = createSignal<Deployment[]>([]);
-  const [services, setServices] = createSignal<Service[]>([]);
+  const [services, setServices] = createSignal<ServiceWithResources[]>([]);
 
   const [namespaces] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
@@ -102,10 +103,16 @@ function App() {
         callback: (event: { type: string; object: Pod }) => {
           if (event.type === 'ADDED') {
             setPods(prev => [...prev, event.object]);
+            // Update services with matching pods
+            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
           } else if (event.type === 'MODIFIED') {
             setPods(prev => prev.map(p => p.metadata.name === event.object.metadata.name ? event.object : p));
+            // Update services with modified pod
+            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
           } else if (event.type === 'DELETED') {
             setPods(prev => prev.filter(p => p.metadata.name !== event.object.metadata.name));
+            // Remove deleted pod from services
+            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
           }
         }
       },
@@ -114,10 +121,16 @@ function App() {
         callback: (event: { type: string; object: Deployment }) => {
           if (event.type === 'ADDED') {
             setDeployments(prev => [...prev, event.object]);
+            // Update services with matching deployments
+            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
           } else if (event.type === 'MODIFIED') {
             setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? event.object : d));
+            // Update services with modified deployment
+            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
           } else if (event.type === 'DELETED') {
             setDeployments(prev => prev.filter(d => d.metadata.name !== event.object.metadata.name));
+            // Remove deleted deployment from services
+            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
           }
         }
       },
@@ -125,9 +138,13 @@ function App() {
         path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
         callback: (event: { type: string; object: Service }) => {
           if (event.type === 'ADDED') {
-            setServices(prev => [...prev, event.object]);
+            setServices(prev => [...prev, updateServiceMatchingResources(event.object, pods(), deployments())]);
           } else if (event.type === 'MODIFIED') {
-            setServices(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
+            setServices(prev => prev.map(s => 
+              s.metadata.name === event.object.metadata.name 
+                ? updateServiceMatchingResources(event.object, pods(), deployments())
+                : s
+            ));
           } else if (event.type === 'DELETED') {
             setServices(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
           }
@@ -187,11 +204,7 @@ function App() {
         <div class="resources-grid">
           <section class="resource-section full-width">
             <h2>Services</h2>
-            <ServiceList 
-              services={services() || []} 
-              pods={pods() || []}
-              deployments={deployments() || []}
-            />
+            <ServiceList services={services()} />
           </section>
         </div>
       </main>
