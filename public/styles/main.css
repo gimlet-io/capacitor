@@ -21,9 +21,9 @@ body {
 
 .resources-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 2rem;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1rem;
 }
 
 .resource-section {
@@ -41,19 +41,62 @@ body {
 
 .resource-list {
     display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
+    max-width: 100%;
 }
 
 .resource-item {
-    background: white;
+    background: var(--card-bg);
+    border-radius: 8px;
     padding: 1rem;
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    min-width: 0;
 }
 
 .deployment-item { border-left: 4px solid #3498db; }
-.service-item { border-left: 4px solid #2ecc71; }
-.pod-item { border-left: 4px solid #e74c3c; }
+.service-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.service-item h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.service-item p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.service-item details {
+    margin-top: 0.5rem;
+}
+
+.service-item details summary {
+    cursor: pointer;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.service-item .selectors {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.pod-item, .deployment-item {
+    background: var(--bg-secondary);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+}
 
 .layout {
     display: flex;
@@ -129,4 +172,8 @@ body {
 .watch-status.error {
     color: #e74c3c;
     animation: none;
+}
+
+.resource-section.full-width {
+    grid-column: 1 / -1;
 }

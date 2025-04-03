@@ -149,6 +149,12 @@ function App() {
     setupWatches(namespace());
   });
 
+  createEffect(() => {
+    console.log('Pods:', pods());
+    console.log('Deployments:', deployments());
+    console.log('Services:', services());
+  });
+
   return (
     <div class="layout">
       <aside class={`sidebar ${isSidebarCollapsed() ? 'collapsed' : ''}`} id="sidebar">
@@ -174,20 +180,18 @@ function App() {
       <main class="main-content">
         <h1>Kubernetes Resources</h1>
         <div class="controls">
-          <span id="watchStatus" class="watch-status">{watchStatus()}</span>
+          <span class="watch-status" style={{ color: watchStatus() === "●" ? "green" : "red" }}>
+            {watchStatus()}
+          </span>
         </div>
         <div class="resources-grid">
-          <section class="resource-section">
-            <h2>Pods</h2>
-            <PodList pods={pods() || []} />
-          </section>
-          <section class="resource-section">
-            <h2>Deployments</h2>
-            <DeploymentList deployments={deployments() || []} />
-          </section>
-          <section class="resource-section">
+          <section class="resource-section full-width">
             <h2>Services</h2>
-            <ServiceList services={services() || []} />
+            <ServiceList 
+              services={services() || []} 
+              pods={pods() || []}
+              deployments={deployments() || []}
+            />
           </section>
         </div>
       </main>

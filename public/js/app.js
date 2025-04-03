@@ -1264,116 +1264,144 @@ function cleanChildren(parent, current, marker, replacement) {
 }
 var RequestContext = Symbol();
 
-// src/components/PodList.tsx
+// src/components/ServiceList.tsx
 var _tmpl$ = /* @__PURE__ */ template(`<div class=resource-list>`);
-var _tmpl$2 = /* @__PURE__ */ template(`<div class="resource-item pod-item"><h3>/</h3><p>Status: </p><p>Node: </p><p>Pod IP: </p><details><summary>Containers (<!>)`);
-var _tmpl$3 = /* @__PURE__ */ template(`<div><strong></strong>: `);
-function PodList(props) {
+var _tmpl$2 = /* @__PURE__ */ template(`<div class="resource-item service-item"><h3>/</h3><p>Type: </p><p>Cluster IP: </p><details><summary>Service Selectors</summary><div class=selectors></div></details><details><summary>Ports</summary></details><details><summary>Matching Pods (<!>)</summary></details><details><summary>Matching Deployments (<!>)`);
+var _tmpl$3 = /* @__PURE__ */ template(`<div>: `);
+var _tmpl$4 = /* @__PURE__ */ template(`<div>No selectors defined`);
+var _tmpl$5 = /* @__PURE__ */ template(`<div>`);
+var _tmpl$6 = /* @__PURE__ */ template(`<strong>: `);
+var _tmpl$7 = /* @__PURE__ */ template(`<div class=pod-item><p>Name: </p><p>Status: </p><p>Node: </p><details><summary>Pod Labels</summary><div class=selectors></div></details><details><summary>Containers`);
+var _tmpl$8 = /* @__PURE__ */ template(`<div><p>Name: </p><p>Image: `);
+var _tmpl$9 = /* @__PURE__ */ template(`<div class=deployment-item><p>Name: </p><p>Replicas: </p><p>Available: </p><details><summary>Deployment Template Labels</summary><div class=selectors>`);
+function ServiceList(props) {
   return (() => {
     var _el$ = _tmpl$();
     insert(_el$, createComponent(For, {
       get each() {
-        return props.pods;
-      },
-      children: (pod) => (() => {
-        var _el$2 = _tmpl$2(), _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$3.nextSibling, _el$6 = _el$5.firstChild, _el$7 = _el$5.nextSibling, _el$8 = _el$7.firstChild, _el$9 = _el$7.nextSibling, _el$10 = _el$9.firstChild, _el$11 = _el$9.nextSibling, _el$12 = _el$11.firstChild, _el$13 = _el$12.firstChild, _el$15 = _el$13.nextSibling, _el$14 = _el$15.nextSibling;
-        insert(_el$3, () => pod.metadata.namespace, _el$4);
-        insert(_el$3, () => pod.metadata.name, null);
-        insert(_el$5, () => pod.status.phase, null);
-        insert(_el$7, () => pod.spec.nodeName || "Not assigned", null);
-        insert(_el$9, () => pod.status.podIP || "No IP", null);
-        insert(_el$12, () => pod.spec.containers.length, _el$15);
-        insert(_el$11, createComponent(For, {
-          get each() {
-            return pod.spec.containers;
-          },
-          children: (container) => (() => {
-            var _el$16 = _tmpl$3(), _el$17 = _el$16.firstChild, _el$18 = _el$17.nextSibling;
-            insert(_el$17, () => container.name);
-            insert(_el$16, () => container.image, null);
-            return _el$16;
-          })()
-        }), null);
-        createRenderEffect(() => className(_el$5, `status-${pod.status.phase}`));
-        return _el$2;
-      })()
-    }));
-    return _el$;
-  })();
-}
-
-// src/components/DeploymentList.tsx
-var _tmpl$4 = /* @__PURE__ */ template(`<div class=resource-list>`);
-var _tmpl$22 = /* @__PURE__ */ template(`<div class="resource-item deployment-item"><h3>/</h3><p>Replicas: <!>/</p><details><summary>Labels</summary><pre>`);
-function DeploymentList(props) {
-  return (() => {
-    var _el$ = _tmpl$4();
-    insert(_el$, createComponent(For, {
-      get each() {
-        return props.deployments;
-      },
-      children: (deployment) => (() => {
-        var _el$2 = _tmpl$22(), _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$3.nextSibling, _el$6 = _el$5.firstChild, _el$8 = _el$6.nextSibling, _el$7 = _el$8.nextSibling, _el$9 = _el$5.nextSibling, _el$10 = _el$9.firstChild, _el$11 = _el$10.nextSibling;
-        insert(_el$3, () => deployment.metadata.namespace, _el$4);
-        insert(_el$3, () => deployment.metadata.name, null);
-        insert(_el$5, () => deployment.status.readyReplicas || 0, _el$8);
-        insert(_el$5, () => deployment.spec.replicas || 0, null);
-        insert(_el$11, () => JSON.stringify(deployment.spec.selector.matchLabels, null, 2));
-        return _el$2;
-      })()
-    }));
-    return _el$;
-  })();
-}
-
-// src/components/ServiceList.tsx
-var _tmpl$5 = /* @__PURE__ */ template(`<div class=resource-list>`);
-var _tmpl$23 = /* @__PURE__ */ template(`<div class="resource-item service-item"><h3>/</h3><p>Type: </p><p>Cluster IP: </p><details><summary>Ports`);
-var _tmpl$32 = /* @__PURE__ */ template(`<div>`);
-var _tmpl$42 = /* @__PURE__ */ template(`<strong>: `);
-function ServiceList(props) {
-  return (() => {
-    var _el$ = _tmpl$5();
-    insert(_el$, createComponent(For, {
-      get each() {
         return props.services;
       },
-      children: (service) => (() => {
-        var _el$2 = _tmpl$23(), _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$3.nextSibling, _el$6 = _el$5.firstChild, _el$7 = _el$5.nextSibling, _el$8 = _el$7.firstChild, _el$9 = _el$7.nextSibling, _el$10 = _el$9.firstChild;
-        insert(_el$3, () => service.metadata.namespace, _el$4);
-        insert(_el$3, () => service.metadata.name, null);
-        insert(_el$5, () => service.spec.type || "ClusterIP", null);
-        insert(_el$7, () => service.spec.clusterIP || "None", null);
-        insert(_el$9, createComponent(For, {
-          get each() {
-            return service.spec.ports;
-          },
-          children: (port) => (() => {
-            var _el$11 = _tmpl$32();
-            insert(_el$11, (() => {
-              var _c$ = createMemo(() => !!port.name);
-              return () => _c$() && (() => {
-                var _el$12 = _tmpl$42(), _el$13 = _el$12.firstChild;
-                insert(_el$12, () => port.name, _el$13);
-                return _el$12;
-              })();
-            })(), null);
-            insert(_el$11, () => port.port, null);
-            insert(_el$11, () => port.targetPort ? ` \u2192 ${port.targetPort}` : "", null);
-            insert(_el$11, () => port.nodePort ? ` (NodePort: ${port.nodePort})` : "", null);
-            return _el$11;
-          })()
-        }), null);
-        return _el$2;
-      })()
+      children: (service) => {
+        const matchingPods = props.pods.filter((pod) => {
+          if (!service.spec.selector)
+            return false;
+          return Object.entries(service.spec.selector).every(([key, value]) => pod.metadata.labels?.[key] === value);
+        });
+        const matchingDeployments = props.deployments.filter((deployment) => {
+          if (!service.spec.selector)
+            return false;
+          return Object.entries(service.spec.selector).every(([key, value]) => deployment.spec.template.metadata.labels?.[key] === value);
+        });
+        console.log("Service:", service.metadata.name, {
+          pods: props.pods,
+          deployments: props.deployments
+        });
+        return (() => {
+          var _el$2 = _tmpl$2(), _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$3.nextSibling, _el$6 = _el$5.firstChild, _el$7 = _el$5.nextSibling, _el$8 = _el$7.firstChild, _el$9 = _el$7.nextSibling, _el$10 = _el$9.firstChild, _el$11 = _el$10.nextSibling, _el$12 = _el$9.nextSibling, _el$13 = _el$12.firstChild, _el$14 = _el$12.nextSibling, _el$15 = _el$14.firstChild, _el$16 = _el$15.firstChild, _el$18 = _el$16.nextSibling, _el$17 = _el$18.nextSibling, _el$19 = _el$14.nextSibling, _el$20 = _el$19.firstChild, _el$21 = _el$20.firstChild, _el$23 = _el$21.nextSibling, _el$22 = _el$23.nextSibling;
+          insert(_el$3, () => service.metadata.namespace, _el$4);
+          insert(_el$3, () => service.metadata.name, null);
+          insert(_el$5, () => service.spec.type || "ClusterIP", null);
+          insert(_el$7, () => service.spec.clusterIP || "None", null);
+          insert(_el$11, (() => {
+            var _c$ = createMemo(() => !!service.spec.selector);
+            return () => _c$() ? createComponent(For, {
+              get each() {
+                return Object.entries(service.spec.selector);
+              },
+              children: ([key, value]) => (() => {
+                var _el$24 = _tmpl$3(), _el$25 = _el$24.firstChild;
+                insert(_el$24, key, _el$25);
+                insert(_el$24, value, null);
+                return _el$24;
+              })()
+            }) : _tmpl$4();
+          })());
+          insert(_el$12, createComponent(For, {
+            get each() {
+              return service.spec.ports;
+            },
+            children: (port) => (() => {
+              var _el$27 = _tmpl$5();
+              insert(_el$27, (() => {
+                var _c$2 = createMemo(() => !!port.name);
+                return () => _c$2() && (() => {
+                  var _el$28 = _tmpl$6(), _el$29 = _el$28.firstChild;
+                  insert(_el$28, () => port.name, _el$29);
+                  return _el$28;
+                })();
+              })(), null);
+              insert(_el$27, () => port.port, null);
+              insert(_el$27, () => port.targetPort ? ` \u2192 ${port.targetPort}` : "", null);
+              insert(_el$27, () => port.nodePort ? ` (NodePort: ${port.nodePort})` : "", null);
+              return _el$27;
+            })()
+          }), null);
+          insert(_el$15, () => matchingPods.length, _el$18);
+          insert(_el$14, createComponent(For, {
+            each: matchingPods,
+            children: (pod) => (() => {
+              var _el$30 = _tmpl$7(), _el$31 = _el$30.firstChild, _el$32 = _el$31.firstChild, _el$33 = _el$31.nextSibling, _el$34 = _el$33.firstChild, _el$35 = _el$33.nextSibling, _el$36 = _el$35.firstChild, _el$37 = _el$35.nextSibling, _el$38 = _el$37.firstChild, _el$39 = _el$38.nextSibling, _el$40 = _el$37.nextSibling, _el$41 = _el$40.firstChild;
+              insert(_el$31, () => pod.metadata.name, null);
+              insert(_el$33, () => pod.status.phase, null);
+              insert(_el$35, () => pod.spec.nodeName, null);
+              insert(_el$39, createComponent(For, {
+                get each() {
+                  return Object.entries(pod.metadata.labels || {});
+                },
+                children: ([key, value]) => (() => {
+                  var _el$42 = _tmpl$3(), _el$43 = _el$42.firstChild;
+                  insert(_el$42, key, _el$43);
+                  insert(_el$42, value, null);
+                  return _el$42;
+                })()
+              }));
+              insert(_el$40, createComponent(For, {
+                get each() {
+                  return pod.spec.containers;
+                },
+                children: (container) => (() => {
+                  var _el$44 = _tmpl$8(), _el$45 = _el$44.firstChild, _el$46 = _el$45.firstChild, _el$47 = _el$45.nextSibling, _el$48 = _el$47.firstChild;
+                  insert(_el$45, () => container.name, null);
+                  insert(_el$47, () => container.image, null);
+                  return _el$44;
+                })()
+              }), null);
+              return _el$30;
+            })()
+          }), null);
+          insert(_el$20, () => matchingDeployments.length, _el$23);
+          insert(_el$19, createComponent(For, {
+            each: matchingDeployments,
+            children: (deployment) => (() => {
+              var _el$49 = _tmpl$9(), _el$50 = _el$49.firstChild, _el$51 = _el$50.firstChild, _el$52 = _el$50.nextSibling, _el$53 = _el$52.firstChild, _el$54 = _el$52.nextSibling, _el$55 = _el$54.firstChild, _el$56 = _el$54.nextSibling, _el$57 = _el$56.firstChild, _el$58 = _el$57.nextSibling;
+              insert(_el$50, () => deployment.metadata.name, null);
+              insert(_el$52, () => deployment.spec.replicas, null);
+              insert(_el$54, () => deployment.status.availableReplicas, null);
+              insert(_el$58, createComponent(For, {
+                get each() {
+                  return Object.entries(deployment.spec.template.metadata.labels || {});
+                },
+                children: ([key, value]) => (() => {
+                  var _el$59 = _tmpl$3(), _el$60 = _el$59.firstChild;
+                  insert(_el$59, key, _el$60);
+                  insert(_el$59, value, null);
+                  return _el$59;
+                })()
+              }));
+              return _el$49;
+            })()
+          }), null);
+          return _el$2;
+        })();
+      }
     }));
     return _el$;
   })();
 }
 
 // src/app.tsx
-var _tmpl$6 = /* @__PURE__ */ template(`<div class=layout><aside id=sidebar><button class=sidebar-toggle>\u2630</button><div class=filters><select class=namespace-select></select></div></aside><main class=main-content><h1>Kubernetes Resources</h1><div class=controls><span id=watchStatus class=watch-status></span></div><div class=resources-grid><section class=resource-section><h2>Pods</h2></section><section class=resource-section><h2>Deployments</h2></section><section class=resource-section><h2>Services`);
-var _tmpl$24 = /* @__PURE__ */ template(`<option>`);
+var _tmpl$10 = /* @__PURE__ */ template(`<div class=layout><aside id=sidebar><button class=sidebar-toggle>\u2630</button><div class=filters><select class=namespace-select></select></div></aside><main class=main-content><h1>Kubernetes Resources</h1><div class=controls><span class=watch-status></span></div><div class=resources-grid><section class="resource-section full-width"><h2>Services`);
+var _tmpl$22 = /* @__PURE__ */ template(`<option>`);
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
   const [namespace, setNamespace] = createSignal();
@@ -1506,8 +1534,13 @@ function App() {
   createEffect(() => {
     setupWatches(namespace());
   });
+  createEffect(() => {
+    console.log("Pods:", pods());
+    console.log("Deployments:", deployments());
+    console.log("Services:", services());
+  });
   return (() => {
-    var _el$ = _tmpl$6(), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.nextSibling, _el$5 = _el$4.firstChild, _el$6 = _el$2.nextSibling, _el$7 = _el$6.firstChild, _el$8 = _el$7.nextSibling, _el$9 = _el$8.firstChild, _el$10 = _el$8.nextSibling, _el$11 = _el$10.firstChild, _el$12 = _el$11.firstChild, _el$13 = _el$11.nextSibling, _el$14 = _el$13.firstChild, _el$15 = _el$13.nextSibling, _el$16 = _el$15.firstChild;
+    var _el$ = _tmpl$10(), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.nextSibling, _el$5 = _el$4.firstChild, _el$6 = _el$2.nextSibling, _el$7 = _el$6.firstChild, _el$8 = _el$7.nextSibling, _el$9 = _el$8.firstChild, _el$10 = _el$8.nextSibling, _el$11 = _el$10.firstChild, _el$12 = _el$11.firstChild;
     _el$3.$$click = toggleSidebar;
     _el$5.addEventListener("change", (e) => setNamespace(e.currentTarget.value));
     insert(_el$5, createComponent(For, {
@@ -1515,30 +1548,34 @@ function App() {
         return namespaces() || [];
       },
       children: (ns) => (() => {
-        var _el$17 = _tmpl$24();
-        _el$17.value = ns;
-        _el$17.selected = ns === "flux-system";
-        insert(_el$17, ns);
-        return _el$17;
+        var _el$13 = _tmpl$22();
+        _el$13.value = ns;
+        _el$13.selected = ns === "flux-system";
+        insert(_el$13, ns);
+        return _el$13;
       })()
     }));
     insert(_el$9, watchStatus);
-    insert(_el$11, createComponent(PodList, {
+    insert(_el$11, createComponent(ServiceList, {
+      get services() {
+        return services() || [];
+      },
       get pods() {
         return pods() || [];
-      }
-    }), null);
-    insert(_el$13, createComponent(DeploymentList, {
+      },
       get deployments() {
         return deployments() || [];
       }
     }), null);
-    insert(_el$15, createComponent(ServiceList, {
-      get services() {
-        return services() || [];
-      }
-    }), null);
-    createRenderEffect(() => className(_el$2, `sidebar ${isSidebarCollapsed() ? "collapsed" : ""}`));
+    createRenderEffect((_p$) => {
+      var _v$ = `sidebar ${isSidebarCollapsed() ? "collapsed" : ""}`, _v$2 = watchStatus() === "\u25CF" ? "green" : "red";
+      _v$ !== _p$.e && className(_el$2, _p$.e = _v$);
+      _v$2 !== _p$.t && ((_p$.t = _v$2) != null ? _el$9.style.setProperty("color", _v$2) : _el$9.style.removeProperty("color"));
+      return _p$;
+    }, {
+      e: void 0,
+      t: void 0
+    });
     return _el$;
   })();
 }
