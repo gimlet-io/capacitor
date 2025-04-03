@@ -9,7 +9,7 @@ export function ServiceList(props: {
       <For each={props.services}>
         {(service) => (
           <div class="resource-item service-item">
-            <h3>{service.metadata.namespace}/{service.metadata.name}</h3>
+            <h2>Service: {service.metadata.namespace}/{service.metadata.name}</h2>
             <p>Type: {service.spec.type || 'ClusterIP'}</p>
             <p>Cluster IP: {service.spec.clusterIP || 'None'}</p>
             

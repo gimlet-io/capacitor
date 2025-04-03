@@ -166,12 +166,6 @@ function App() {
     setupWatches(namespace());
   });
 
-  createEffect(() => {
-    console.log('Pods:', pods());
-    console.log('Deployments:', deployments());
-    console.log('Services:', services());
-  });
-
   return (
     <div class="layout">
       <aside class={`sidebar ${isSidebarCollapsed() ? 'collapsed' : ''}`} id="sidebar">
@@ -203,7 +197,6 @@ function App() {
         </div>
         <div class="resources-grid">
           <section class="resource-section full-width">
-            <h2>Services</h2>
             <ServiceList services={services()} />
           </section>
         </div>

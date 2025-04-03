@@ -23,7 +23,7 @@ body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
-    padding: 1rem;
+    /* padding: 1rem; */
 }
 
 .resource-section {
@@ -156,6 +156,7 @@ body {
     display: flex;
     align-items: center;
     gap: 1rem;
+    padding-bottom: 1rem;
 }
 
 .watch-status {
