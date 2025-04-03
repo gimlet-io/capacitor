@@ -1,8 +1,8 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { render } from "solid-js/web";
-import { createSignal, createResource, createEffect, untrack, createMemo} from "solid-js";
+import { createSignal, createResource, createEffect, untrack} from "solid-js";
 import { PodList, DeploymentList, ServiceList } from "./components/index.ts";
-import type { PodList as PodListType, DeploymentList as DeploymentListType, ServiceList as ServiceListType, Pod, Deployment, Service } from "./types/k8s.ts";
+import type { Pod, Deployment, Service } from "./types/k8s.ts";
 import { For } from "solid-js";
 
 function App() {
@@ -10,6 +10,11 @@ function App() {
   const [namespace, setNamespace] = createSignal<string>();
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
+
+  // Resource state
+  const [pods, setPods] = createSignal<Pod[]>([]);
+  const [deployments, setDeployments] = createSignal<Deployment[]>([]);
+  const [services, setServices] = createSignal<Service[]>([]);
 
   const [namespaces] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
@@ -32,25 +37,6 @@ function App() {
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed());
   };
-
-  const [pods] = createResource(namespace, async (ns) => {
-    const response = await fetch(`/k8s/api/v1/namespaces/${ns}/pods`);
-    const data: PodListType = await response.json();
-    return data.items;
-  });
-
-  const [deployments] = createResource(namespace, async (ns) => {
-    const response = await fetch(`/k8s/apis/apps/v1/namespaces/${ns}/deployments`);
-    const data: DeploymentListType = await response.json();
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return data.items;
-  });
-
-  const [services] = createResource(namespace, async (ns) => {
-    const response = await fetch(`/k8s/api/v1/namespaces/${ns}/services`);
-    const data: ServiceListType = await response.json();
-    return data.items;
-  });
 
   const watchResource = async (path: string, callback: (event: any) => void, controller: AbortController) => {
     try {
@@ -101,43 +87,45 @@ function App() {
       watchControllers().forEach(controller => controller.abort());
     });
 
+    // Clear existing resources
+    setPods([]);
+    setDeployments([]);
+    setServices([]);
+
     const watches = [
       {
         path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
         callback: (event: { type: string; object: Pod }) => {
-          console.log('Pod event:', event);
-          if (event.type === 'ADDED' || event.type === 'MODIFIED' || event.type === 'DELETED') {
-            console.log('Pod details:', {
-              name: event.object.metadata.name,
-              phase: event.object.status.phase,
-              containers: event.object.spec.containers.map(c => c.name)
-            });
+          if (event.type === 'ADDED') {
+            setPods(prev => [...prev, event.object]);
+          } else if (event.type === 'MODIFIED') {
+            setPods(prev => prev.map(p => p.metadata.name === event.object.metadata.name ? event.object : p));
+          } else if (event.type === 'DELETED') {
+            setPods(prev => prev.filter(p => p.metadata.name !== event.object.metadata.name));
           }
         }
       },
       {
         path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
         callback: (event: { type: string; object: Deployment }) => {
-          console.log('Deployment event:', event);
-          if (event.type === 'ADDED' || event.type === 'MODIFIED' || event.type === 'DELETED') {
-            console.log('Deployment details:', {
-              name: event.object.metadata.name,
-              replicas: event.object.spec.replicas,
-              availableReplicas: event.object.status.availableReplicas
-            });
+          if (event.type === 'ADDED') {
+            setDeployments(prev => [...prev, event.object]);
+          } else if (event.type === 'MODIFIED') {
+            setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? event.object : d));
+          } else if (event.type === 'DELETED') {
+            setDeployments(prev => prev.filter(d => d.metadata.name !== event.object.metadata.name));
           }
         }
       },
       {
         path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
         callback: (event: { type: string; object: Service }) => {
-          console.log('Service event:', event);
-          if (event.type === 'ADDED' || event.type === 'MODIFIED' || event.type === 'DELETED') {
-            console.log('Service details:', {
-              name: event.object.metadata.name,
-              type: event.object.spec.type,
-              clusterIP: event.object.spec.clusterIP
-            });
+          if (event.type === 'ADDED') {
+            setServices(prev => [...prev, event.object]);
+          } else if (event.type === 'MODIFIED') {
+            setServices(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
+          } else if (event.type === 'DELETED') {
+            setServices(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
           }
         }
       }

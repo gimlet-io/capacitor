@@ -1379,6 +1379,9 @@ function App() {
   const [namespace, setNamespace] = createSignal();
   const [watchStatus, setWatchStatus] = createSignal("\u25CF");
   const [watchControllers, setWatchControllers] = createSignal([]);
+  const [pods, setPods] = createSignal([]);
+  const [deployments, setDeployments] = createSignal([]);
+  const [services, setServices] = createSignal([]);
   const [namespaces] = createResource(async () => {
     const response = await fetch("/k8s/api/v1/namespaces");
     const data = await response.json();
@@ -1398,22 +1401,6 @@ function App() {
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed());
   };
-  const [pods] = createResource(namespace, async (ns) => {
-    const response = await fetch(`/k8s/api/v1/namespaces/${ns}/pods`);
-    const data = await response.json();
-    return data.items;
-  });
-  const [deployments] = createResource(namespace, async (ns) => {
-    const response = await fetch(`/k8s/apis/apps/v1/namespaces/${ns}/deployments`);
-    const data = await response.json();
-    await new Promise((resolve) => setTimeout(resolve, 2e3));
-    return data.items;
-  });
-  const [services] = createResource(namespace, async (ns) => {
-    const response = await fetch(`/k8s/api/v1/namespaces/${ns}/services`);
-    const data = await response.json();
-    return data.items;
-  });
   const watchResource = async (path, callback, controller) => {
     try {
       const response = await fetch(path, {
@@ -1465,40 +1452,40 @@ function App() {
       console.log("Controllers:", watchControllers());
       watchControllers().forEach((controller) => controller.abort());
     });
+    setPods([]);
+    setDeployments([]);
+    setServices([]);
     const watches = [{
       path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
       callback: (event) => {
-        console.log("Pod event:", event);
-        if (event.type === "ADDED" || event.type === "MODIFIED" || event.type === "DELETED") {
-          console.log("Pod details:", {
-            name: event.object.metadata.name,
-            phase: event.object.status.phase,
-            containers: event.object.spec.containers.map((c) => c.name)
-          });
+        if (event.type === "ADDED") {
+          setPods((prev) => [...prev, event.object]);
+        } else if (event.type === "MODIFIED") {
+          setPods((prev) => prev.map((p) => p.metadata.name === event.object.metadata.name ? event.object : p));
+        } else if (event.type === "DELETED") {
+          setPods((prev) => prev.filter((p) => p.metadata.name !== event.object.metadata.name));
         }
       }
     }, {
       path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
       callback: (event) => {
-        console.log("Deployment event:", event);
-        if (event.type === "ADDED" || event.type === "MODIFIED" || event.type === "DELETED") {
-          console.log("Deployment details:", {
-            name: event.object.metadata.name,
-            replicas: event.object.spec.replicas,
-            availableReplicas: event.object.status.availableReplicas
-          });
+        if (event.type === "ADDED") {
+          setDeployments((prev) => [...prev, event.object]);
+        } else if (event.type === "MODIFIED") {
+          setDeployments((prev) => prev.map((d) => d.metadata.name === event.object.metadata.name ? event.object : d));
+        } else if (event.type === "DELETED") {
+          setDeployments((prev) => prev.filter((d) => d.metadata.name !== event.object.metadata.name));
         }
       }
     }, {
       path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
       callback: (event) => {
-        console.log("Service event:", event);
-        if (event.type === "ADDED" || event.type === "MODIFIED" || event.type === "DELETED") {
-          console.log("Service details:", {
-            name: event.object.metadata.name,
-            type: event.object.spec.type,
-            clusterIP: event.object.spec.clusterIP
-          });
+        if (event.type === "ADDED") {
+          setServices((prev) => [...prev, event.object]);
+        } else if (event.type === "MODIFIED") {
+          setServices((prev) => prev.map((s) => s.metadata.name === event.object.metadata.name ? event.object : s));
+        } else if (event.type === "DELETED") {
+          setServices((prev) => prev.filter((s) => s.metadata.name !== event.object.metadata.name));
         }
       }
     }];
