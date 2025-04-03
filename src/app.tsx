@@ -46,6 +46,7 @@ function App() {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      setWatchStatus("●");
 
       while (true) {
         const { done, value } = await reader.read();
@@ -73,7 +74,10 @@ function App() {
       }
       console.error('Watch error:', error);
       setWatchStatus("○");
-      setTimeout(() => watchResource(path, callback, controller), 5000);
+      setTimeout(() => {
+        console.log('Restarting watch:', path);
+        watchResource(path, callback, controller)
+      }, 5000);
     }
   };
 

@@ -1411,6 +1411,7 @@ function App() {
         return;
       const decoder = new TextDecoder();
       let buffer = "";
+      setWatchStatus("\u25CF");
       while (true) {
         const {
           done,
@@ -1441,7 +1442,10 @@ function App() {
       }
       console.error("Watch error:", error);
       setWatchStatus("\u25CB");
-      setTimeout(() => watchResource(path, callback, controller), 5e3);
+      setTimeout(() => {
+        console.log("Restarting watch:", path);
+        watchResource(path, callback, controller);
+      }, 5e3);
     }
   };
   const setupWatches = (ns) => {
