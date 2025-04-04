@@ -194,3 +194,166 @@ body {
     border-color: #007bff;
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
+
+.kustomization-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #6f42c1;
+}
+
+.kustomization-item h2 {
+    color: #6f42c1;
+    border-bottom: 2px solid #6f42c1;
+}
+
+.condition {
+    padding: 8px;
+    margin: 4px 0;
+    border-radius: 4px;
+}
+
+.condition.true {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+}
+
+.condition.false {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+.condition.unknown {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+}
+
+.health-check {
+    padding: 8px;
+    margin: 4px 0;
+    background-color: #e9ecef;
+    border-radius: 4px;
+}
+
+.inventory-entry {
+    padding: 8px;
+    margin: 4px 0;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+.flux-source-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.flux-source-item h2 {
+    color: #6f42c1;
+    border-bottom: 2px solid #6f42c1;
+}
+
+.source-details {
+    padding: 8px;
+    margin: 8px 0;
+    background-color: #e9ecef;
+    border-radius: 4px;
+}
+
+.artifact {
+    padding: 8px;
+    margin: 8px 0;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+.artifact p {
+    margin: 4px 0;
+}
+
+.source-details ul {
+    margin: 4px 0;
+    padding-left: 16px;
+}
+
+.source-details li {
+    margin: 2px 0;
+}
+
+.flux-resources {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.flux-resources .resource-list {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.flux-resources h2 {
+    color: #6f42c1;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #6f42c1;
+}
+
+/* Kustomization card styles */
+.kustomization-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #6f42c1;
+}
+
+.kustomization-item h2 {
+    color: #6f42c1;
+    border-bottom: 2px solid #6f42c1;
+}
+
+/* Source card styles */
+.flux-source-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+/* OCI Repository */
+.flux-source-item[data-kind="OCIRepository"] {
+    border-left: 4px solid #20c997;
+}
+
+.flux-source-item[data-kind="OCIRepository"] h2 {
+    color: #20c997;
+    border-bottom: 2px solid #20c997;
+}
+
+/* Helm Repository */
+.flux-source-item[data-kind="HelmRepository"] {
+    border-left: 4px solid #fd7e14;
+}
+
+.flux-source-item[data-kind="HelmRepository"] h2 {
+    color: #fd7e14;
+    border-bottom: 2px solid #fd7e14;
+}
+
+/* Helm Chart */
+.flux-source-item[data-kind="HelmChart"] {
+    border-left: 4px solid #e83e8c;
+}
+
+.flux-source-item[data-kind="HelmChart"] h2 {
+    color: #e83e8c;
+    border-bottom: 2px solid #e83e8c;
+}
+
+/* Git Repository */
+.flux-source-item[data-kind="GitRepository"] {
+    border-left: 4px solid #17a2b8;
+}
+
+.flux-source-item[data-kind="GitRepository"] h2 {
+    color: #17a2b8;
+    border-bottom: 2px solid #17a2b8;
+}

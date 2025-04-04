@@ -1,22 +1,22 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { render } from "solid-js/web";
-import { createSignal, createResource, createEffect, untrack} from "solid-js";
-import { PodList, DeploymentList, ServiceList } from "./components/index.ts";
-import type { Pod, Deployment, Service, ServiceWithResources } from "./types/k8s.ts";
+import { createSignal, createResource, createEffect } from "solid-js";
+import { PodList, DeploymentList, ServiceList, FluxResourceList } from "./components/index.ts";
+import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source } from "./types/k8s.ts";
 import { For, Show } from "solid-js";
-import { updateServiceMatchingResources } from "./utils/k8s.ts";
+import { watchStatus, setupWatches } from "./watches.tsx";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
   const [namespace, setNamespace] = createSignal<string>();
-  const [watchStatus, setWatchStatus] = createSignal("●");
-  const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
-  const [cardType, setCardType] = createSignal<'services' | 'deployments' | 'pods'>('services');
+  const [cardType, setCardType] = createSignal<'services' | 'deployments' | 'pods' | 'fluxcd'>('services');
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [deployments, setDeployments] = createSignal<Deployment[]>([]);
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
+  const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
+  const [sources, setSources] = createSignal<Source[]>([]);
 
   const [namespaces] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
@@ -25,6 +25,7 @@ function App() {
     return nsList;
   });
 
+  // Set the default namespace or the first namespace if no namespace is selected
   createEffect(() => {
     if (!namespaces()) {
       return;
@@ -40,131 +41,18 @@ function App() {
     setIsSidebarCollapsed(!isSidebarCollapsed());
   };
 
-  const watchResource = async (path: string, callback: (event: any) => void, controller: AbortController) => {
-    try {
-      const response = await fetch(path, { signal: controller.signal });
-      const reader = response.body?.getReader();
-      if (!reader) return;
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      setWatchStatus("●");
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              const event = JSON.parse(line);
-              callback(event);
-            } catch (e) {
-              console.error('Error parsing watch event:', e);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Watch aborted:', path);
-        return;
-      }
-      console.error('Watch error:', error);
-      setWatchStatus("○");
-      setTimeout(() => {
-        console.log('Restarting watch:', path);
-        watchResource(path, callback, controller)
-      }, 5000);
-    }
-  };
-
-  const setupWatches = (ns: string | undefined) => {
-    if (!ns) return;
-    console.log('Setting up watches for namespace:', ns);
-
-    // Cancel existing watches
-    untrack(() => {
-      console.log('Controllers:', watchControllers());
-      watchControllers().forEach(controller => controller.abort());
-    });
-
-    // Clear existing resources
-    setPods([]);
-    setDeployments([]);
-    setServices([]);
-
-    const watches = [
-      {
-        path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
-        callback: (event: { type: string; object: Pod }) => {
-          if (event.type === 'ADDED') {
-            setPods(prev => [...prev, event.object]);
-            // Update services with matching pods
-            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-          } else if (event.type === 'MODIFIED') {
-            setPods(prev => prev.map(p => p.metadata.name === event.object.metadata.name ? event.object : p));
-            // Update services with modified pod
-            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-          } else if (event.type === 'DELETED') {
-            setPods(prev => prev.filter(p => p.metadata.name !== event.object.metadata.name));
-            // Remove deleted pod from services
-            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-          }
-        }
-      },
-      {
-        path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
-        callback: (event: { type: string; object: Deployment }) => {
-          if (event.type === 'ADDED') {
-            setDeployments(prev => [...prev, event.object]);
-            // Update services with matching deployments
-            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-          } else if (event.type === 'MODIFIED') {
-            setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? event.object : d));
-            // Update services with modified deployment
-            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-          } else if (event.type === 'DELETED') {
-            setDeployments(prev => prev.filter(d => d.metadata.name !== event.object.metadata.name));
-            // Remove deleted deployment from services
-            setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-          }
-        }
-      },
-      {
-        path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
-        callback: (event: { type: string; object: Service }) => {
-          if (event.type === 'ADDED') {
-            setServices(prev => [...prev, updateServiceMatchingResources(event.object, pods(), deployments())]);
-          } else if (event.type === 'MODIFIED') {
-            setServices(prev => prev.map(s => 
-              s.metadata.name === event.object.metadata.name 
-                ? updateServiceMatchingResources(event.object, pods(), deployments())
-                : s
-            ));
-          } else if (event.type === 'DELETED') {
-            setServices(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
-          }
-        }
-      }
-    ];
-
-    const controllers = watches.map( ({ path, callback }) => {
-      const controller = new AbortController();
-      watchResource(path, callback, controller);
-      return controller;
-    });
-
-    setWatchControllers(controllers);
-  };
-
   // Call setupWatches when namespace changes
   createEffect(() => {
-    setupWatches(namespace());
+    setupWatches(
+      namespace(),
+      pods,
+      setPods,
+      deployments,
+      setDeployments,
+      setServices,
+      setKustomizations,
+      setSources
+    );
   });
 
   return (
@@ -189,11 +77,12 @@ function App() {
           </select>
           <select
             class="card-type-select"
-            onChange={(e) => setCardType(e.currentTarget.value as 'services' | 'deployments' | 'pods')}
+            onChange={(e) => setCardType(e.currentTarget.value as 'services' | 'deployments' | 'pods' | 'fluxcd')}
           >
             <option value="services" selected={cardType() === 'services'}>Service Cards</option>
             <option value="deployments" selected={cardType() === 'deployments'}>Deployment Cards</option>
             <option value="pods" selected={cardType() === 'pods'}>Pod Cards</option>
+            <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD</option>
           </select>
         </div>
       </aside>
@@ -214,6 +103,11 @@ function App() {
             </Show>
             <Show when={cardType() === 'pods'}>
               <PodList pods={pods()} />
+            </Show>
+            <Show when={cardType() === 'fluxcd'}>
+              <div class="flux-resources">
+                <FluxResourceList kustomizations={kustomizations()} sources={sources()} />
+              </div>
             </Show>
           </section>
         </div>

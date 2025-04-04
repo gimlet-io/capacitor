@@ -157,4 +157,139 @@ export interface ServiceList {
 export interface ServiceWithResources extends Service {
   matchingPods: Pod[];
   matchingDeployments: Deployment[];
+}
+
+export interface Kustomization {
+  apiVersion: string;
+  kind: string;
+  metadata: {
+    name: string;
+    namespace: string;
+    labels?: Record<string, string>;
+  };
+  spec: {
+    path: string;
+    sourceRef: {
+      kind: string;
+      name: string;
+    };
+    interval: string;
+    prune: boolean;
+    validation?: string;
+    healthChecks?: Array<{
+      apiVersion: string;
+      kind: string;
+      name: string;
+      namespace: string;
+    }>;
+  };
+  status?: {
+    conditions?: Array<{
+      type: string;
+      status: string;
+      reason?: string;
+      message?: string;
+      lastTransitionTime: string;
+    }>;
+    lastAppliedRevision?: string;
+    lastAttemptedRevision?: string;
+    inventory?: {
+      entries?: Array<{
+        id: string;
+        v: string;
+      }>;
+    };
+  };
+}
+
+export interface Source {
+  apiVersion: string;
+  kind: string;
+  metadata: {
+    name: string;
+    namespace: string;
+    labels?: Record<string, string>;
+  };
+  spec: {
+    interval: string;
+    timeout?: string;
+    suspend?: boolean;
+  };
+  status?: {
+    conditions?: Array<{
+      type: string;
+      status: string;
+      reason?: string;
+      message?: string;
+      lastTransitionTime: string;
+    }>;
+    artifact?: {
+      path: string;
+      url: string;
+      revision: string;
+      checksum?: string;
+      lastUpdateTime: string;
+    };
+  };
+}
+
+export interface OCIRepository extends Source {
+  spec: Source['spec'] & {
+    url: string;
+    provider?: string;
+    secretRef?: {
+      name: string;
+    };
+    serviceAccountName?: string;
+    certSecretRef?: {
+      name: string;
+    };
+    insecure?: boolean;
+    interval: string;
+  };
+}
+
+export interface HelmRepository extends Source {
+  spec: Source['spec'] & {
+    url: string;
+    secretRef?: {
+      name: string;
+    };
+    passCredentials?: boolean;
+    interval: string;
+  };
+}
+
+export interface HelmChart extends Source {
+  spec: Source['spec'] & {
+    chart: string;
+    sourceRef: {
+      kind: string;
+      name: string;
+    };
+    interval: string;
+    valuesFiles?: string[];
+    valuesFrom?: Array<{
+      kind: string;
+      name: string;
+    }>;
+  };
+}
+
+export interface GitRepository extends Source {
+  spec: Source['spec'] & {
+    url: string;
+    secretRef?: {
+      name: string;
+    };
+    interval: string;
+    ref?: {
+      branch?: string;
+      tag?: string;
+      semver?: string;
+      commit?: string;
+    };
+    ignore?: string;
+    timeout?: string;
+  };
 } 

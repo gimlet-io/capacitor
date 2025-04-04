@@ -1,13 +1,13 @@
 import { For } from "solid-js/web";
-import type { ServiceWithResources } from '../types/k8s.ts';
+import type { ServiceWithResources, Container, ServicePort } from '../types/k8s.ts';
 
 export function ServiceList(props: { 
   services: ServiceWithResources[]
 }) {
   return (
     <div class="resource-list">
-      <For each={props.services}>
-        {(service) => (
+      <For each={props.services}> 
+        {(service: ServiceWithResources) => (
           <div class="resource-item service-item">
             <h2>Service: {service.metadata.namespace}/{service.metadata.name}</h2>
             <p>Type: {service.spec.type || 'ClusterIP'}</p>
@@ -31,7 +31,7 @@ export function ServiceList(props: {
             <details>
               <summary>Ports</summary>
               <For each={service.spec.ports}>
-                {(port) => (
+                {(port: ServicePort) => (
                   <div>
                     {port.name && <strong>{port.name}: </strong>}
                     {port.port}{port.targetPort ? ` → ${port.targetPort}` : ''}
@@ -62,7 +62,7 @@ export function ServiceList(props: {
                     <details>
                       <summary>Containers</summary>
                       <For each={pod.spec.containers}>
-                        {(container) => (
+                        {(container: Container) => (
                           <div>
                             <p>Name: {container.name}</p>
                             <p>Image: {container.image}</p>
