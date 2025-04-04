@@ -107,7 +107,7 @@ body {
     background: #f8f9fa;
     padding: 0.5rem;
     border-right: 1px solid #dee2e6;
-    width: 250px;
+    width: 300px;
     transition: all 0.3s ease;
     flex-shrink: 0;
 }
@@ -118,6 +118,10 @@ body {
 
 .sidebar.collapsed .filters {
     display: none;
+}
+
+.filters {
+    width: 250px;
 }
 
 .sidebar-toggle {
@@ -360,15 +364,8 @@ body {
 
 .events-list {
   margin-top: 2rem;
-  padding: 1rem;
   background-color: #f8f9fa;
   border-radius: 4px;
-}
-
-.events-list h3 {
-  margin: 0 0 1rem 0;
-  color: #495057;
-  font-size: 1.1rem;
 }
 
 .events-container {

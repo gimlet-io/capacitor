@@ -4,7 +4,6 @@ import type { Event } from "../types/k8s.ts";
 export function EventList(props: { events: Event[] }) {
   return (
     <div class="events-list">
-      <h3>Events</h3>
       <div class="events-container">
         <For each={props.events}>
           {(event) => (
