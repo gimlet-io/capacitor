@@ -41,10 +41,11 @@ function App() {
     setIsSidebarCollapsed(!isSidebarCollapsed());
   };
 
-  // Call setupWatches when namespace changes
+  // Call setupWatches when namespace or card type changes
   createEffect(() => {
     setupWatches(
       namespace(),
+      cardType(),
       pods,
       setPods,
       deployments,
