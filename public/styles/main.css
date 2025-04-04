@@ -432,3 +432,27 @@ body {
   color: #6c757d;
   font-size: 0.8rem;
 }
+
+.events-truncated {
+  color: #6c757d;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.5rem;
+  border-top: 1px solid #dee2e6;
+}
+
+.show-more-events {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  background: none;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  color: #495057;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.show-more-events:hover {
+  background-color: #e9ecef;
+}
