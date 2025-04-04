@@ -1,5 +1,5 @@
 import { Accessor, createSignal } from "solid-js";
-import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source } from "./types/k8s.ts";
+import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event } from "./types/k8s.ts";
 import { updateServiceMatchingResources } from "./utils/k8s.ts";
 import { untrack } from "solid-js";
 
@@ -59,7 +59,8 @@ export const setupWatches = (
   setDeployments: (fn: (prev: Deployment[]) => Deployment[]) => void,
   setServices: (fn: (prev: ServiceWithResources[]) => ServiceWithResources[]) => void,
   setKustomizations: (fn: (prev: Kustomization[]) => Kustomization[]) => void,
-  setSources: (fn: (prev: Source[]) => Source[]) => void
+  setSources: (fn: (prev: Source[]) => Source[]) => void,
+  setEvents: (fn: (prev: Event[]) => Event[]) => void
 ) => {
   if (!ns) return;
   console.log('Setting up watches for namespace:', ns, 'card type:', cardType);
@@ -75,8 +76,23 @@ export const setupWatches = (
   setServices([]);
   setKustomizations([]);
   setSources([]);
+  setEvents([]);
 
   const watches = [];
+
+  // Always watch events regardless of card type
+  watches.push({
+    path: `/k8s/api/v1/namespaces/${ns}/events?watch=true`,
+    callback: (event: { type: string; object: Event }) => {
+      if (event.type === 'ADDED') {
+        setEvents(prev => [...prev, event.object]);
+      } else if (event.type === 'MODIFIED') {
+        setEvents(prev => prev.map(e => e.metadata.name === event.object.metadata.name ? event.object : e));
+      } else if (event.type === 'DELETED') {
+        setEvents(prev => prev.filter(e => e.metadata.name !== event.object.metadata.name));
+      }
+    }
+  });
 
   // Only set up watches for the selected card type
   if (cardType !== 'fluxcd') {

@@ -292,4 +292,26 @@ export interface GitRepository extends Source {
     ignore?: string;
     timeout?: string;
   };
+}
+
+export interface Event {
+  metadata: {
+    name: string;
+    namespace: string;
+    creationTimestamp: string;
+  };
+  involvedObject: {
+    kind: string;
+    namespace: string;
+    name: string;
+  };
+  type: string;
+  reason: string;
+  message: string;
+  firstTimestamp: string;
+  lastTimestamp: string;
+  count: number;
+  source: {
+    component: string;
+  };
 } 

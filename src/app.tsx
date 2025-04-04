@@ -1,8 +1,8 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { render } from "solid-js/web";
 import { createSignal, createResource, createEffect } from "solid-js";
-import { PodList, DeploymentList, ServiceList, FluxResourceList } from "./components/index.ts";
-import type { Pod, Deployment, ServiceWithResources, Kustomization, Source } from "./types/k8s.ts";
+import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList } from "./components/index.ts";
+import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event } from "./types/k8s.ts";
 import { For, Show } from "solid-js";
 import { watchStatus, setupWatches } from "./watches.tsx";
 
@@ -17,6 +17,7 @@ function App() {
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
   const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
   const [sources, setSources] = createSignal<Source[]>([]);
+  const [events, setEvents] = createSignal<Event[]>([]);
 
   const [namespaces] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
@@ -52,7 +53,8 @@ function App() {
       setDeployments,
       setServices,
       setKustomizations,
-      setSources
+      setSources,
+      setEvents
     );
   });
 
@@ -86,6 +88,7 @@ function App() {
             <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD</option>
           </select>
         </div>
+        <EventList events={events()} />
       </aside>
       <main class="main-content">
         <h1>Kubernetes Resources</h1>
