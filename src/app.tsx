@@ -2,7 +2,7 @@
 import { render } from "solid-js/web";
 import { createSignal, createResource, createEffect } from "solid-js";
 import { PodList, DeploymentList, ServiceList, FluxResourceList } from "./components/index.ts";
-import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source } from "./types/k8s.ts";
+import type { Pod, Deployment, ServiceWithResources, Kustomization, Source } from "./types/k8s.ts";
 import { For, Show } from "solid-js";
 import { watchStatus, setupWatches } from "./watches.tsx";
 
