@@ -1,1 +1,3 @@
+build/embedded.ts
+dist/
 public/js/*
