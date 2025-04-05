@@ -156,6 +156,22 @@ body {
     overflow-y: auto;
 }
 
+.header-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.header-container h1 {
+    margin: 0;
+}
+
+.watch-status {
+    font-size: 1.2rem;
+    border-radius: 4px;
+}
+
 .controls {
     display: flex;
     align-items: center;
@@ -163,9 +179,108 @@ body {
     padding-bottom: 1rem;
 }
 
+.search-container {
+    flex: 1;
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.search-hotkey {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #495057;
+    font-size: 12px;
+    background-color: #e9ecef;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    pointer-events: none;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.search-input::placeholder {
+    color: #6c757d;
+}
+
+.namespace-combobox {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.namespace-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.namespace-hotkey {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #495057;
+    font-size: 12px;
+    background-color: #e9ecef;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    pointer-events: none;
+}
+
+.namespace-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.namespace-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.namespace-option {
+    padding: 0.5rem;
+    cursor: pointer;
+}
+
+.namespace-option:hover {
+    background-color: #f8f9fa;
+}
+
+.namespace-option.selected {
+    background-color: #e9ecef;
+}
+
+.namespace-option.highlighted {
+    background-color: #e9ecef;
+}
+
 .watch-status {
     color: #2ecc71;
-    animation: pulse 2s infinite;
 }
 
 @keyframes pulse {

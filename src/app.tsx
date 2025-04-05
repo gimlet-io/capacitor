@@ -1,6 +1,6 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { render } from "solid-js/web";
-import { createSignal, createResource, createEffect } from "solid-js";
+import { createSignal, createResource, createEffect, onMount } from "solid-js";
 import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList } from "./components/index.ts";
 import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event } from "./types/k8s.ts";
 import { For, Show } from "solid-js";
@@ -10,6 +10,11 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
   const [namespace, setNamespace] = createSignal<string>();
   const [cardType, setCardType] = createSignal<'services' | 'deployments' | 'pods' | 'fluxcd'>('services');
+  const [searchQuery, setSearchQuery] = createSignal("");
+  const [isSearchFocused, setIsSearchFocused] = createSignal(false);
+  const [namespaceSearch, setNamespaceSearch] = createSignal("");
+  const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = createSignal(false);
+  const [selectedNamespaceIndex, setSelectedNamespaceIndex] = createSignal(0);
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
@@ -26,6 +31,15 @@ function App() {
     return nsList;
   });
 
+  // Filter namespaces based on search
+  const filteredNamespaces = () => {
+    const query = namespaceSearch().toLowerCase();
+    if (!query) return namespaces() || [];
+    return (namespaces() || []).filter(ns => 
+      ns.toLowerCase().includes(query)
+    );
+  };
+
   // Set the default namespace or the first namespace if no namespace is selected
   createEffect(() => {
     if (!namespaces()) {
@@ -40,6 +54,107 @@ function App() {
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed());
+  };
+
+  // Handle keyboard shortcuts
+  onMount(() => {
+    document.addEventListener('keydown', (e) => {
+      // Focus namespace selector on 'n'
+      if (e.key === 'n' && !isSearchFocused()) {
+        e.preventDefault();
+        const namespaceInput = document.querySelector('.namespace-input') as HTMLInputElement;
+        if (namespaceInput) {
+          namespaceInput.focus();
+          setIsNamespaceDropdownOpen(true);
+          setNamespaceSearch("");
+        }
+      }
+      // Focus search on '/'
+      if (e.key === '/' && !isSearchFocused()) {
+        e.preventDefault();
+        const searchInput = document.querySelector('.search-input') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+
+      // Handle namespace dropdown navigation
+      if (isNamespaceDropdownOpen()) {
+        const filtered = filteredNamespaces();
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedNamespaceIndex((prev) => 
+            Math.min(prev + 1, filtered.length - 1)
+          );
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedNamespaceIndex((prev) => Math.max(prev - 1, 0));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const selectedNs = filtered[selectedNamespaceIndex()];
+          if (selectedNs) {
+            setNamespace(selectedNs);
+            setNamespaceSearch(selectedNs);
+            setIsNamespaceDropdownOpen(false);
+          }
+        }
+      }
+
+      // Handle Escape key to blur inputs
+      if (e.key === 'Escape') {
+        const namespaceInput = document.querySelector('.namespace-input') as HTMLInputElement;
+        const searchInput = document.querySelector('.search-input') as HTMLInputElement;
+        if (namespaceInput) namespaceInput.blur();
+        if (searchInput) searchInput.blur();
+        setIsNamespaceDropdownOpen(false);
+      }
+    });
+  });
+
+  // Filter resources based on search query
+  const filteredPods = () => {
+    const query = searchQuery().toLowerCase();
+    if (!query) return pods();
+    return pods().filter(pod => 
+      pod.metadata.name.toLowerCase().includes(query) ||
+      pod.metadata.namespace.toLowerCase().includes(query)
+    );
+  };
+
+  const filteredDeployments = () => {
+    const query = searchQuery().toLowerCase();
+    if (!query) return deployments();
+    return deployments().filter(deployment => 
+      deployment.metadata.name.toLowerCase().includes(query) ||
+      deployment.metadata.namespace.toLowerCase().includes(query)
+    );
+  };
+
+  const filteredServices = () => {
+    const query = searchQuery().toLowerCase();
+    if (!query) return services();
+    return services().filter(service => 
+      service.metadata.name.toLowerCase().includes(query) ||
+      service.metadata.namespace.toLowerCase().includes(query)
+    );
+  };
+
+  const filteredKustomizations = () => {
+    const query = searchQuery().toLowerCase();
+    if (!query) return kustomizations();
+    return kustomizations().filter(kustomization => 
+      kustomization.metadata.name.toLowerCase().includes(query) ||
+      kustomization.metadata.namespace.toLowerCase().includes(query)
+    );
+  };
+
+  const filteredSources = () => {
+    const query = searchQuery().toLowerCase();
+    if (!query) return sources();
+    return sources().filter(source => 
+      source.metadata.name.toLowerCase().includes(query) ||
+      source.metadata.namespace.toLowerCase().includes(query)
+    );
   };
 
   // Call setupWatches when namespace or card type changes
@@ -63,21 +178,46 @@ function App() {
       <aside class={`sidebar ${isSidebarCollapsed() ? 'collapsed' : ''}`} id="sidebar">
         <button class="sidebar-toggle" onClick={toggleSidebar}>☰</button>
         <div class="filters">
-          <select
-            class="namespace-select"
-            onChange={(e) => setNamespace(e.currentTarget.value)}
-          >
-            <For each={namespaces() || []}>
-              {(ns) => (
-                <option 
-                  value={ns} 
-                  selected={ns === "flux-system"}
-                >
-                  {ns}
-                </option>
-              )}
-            </For>
-          </select>
+          <div class="namespace-combobox">
+            <input
+              type="text"
+              class="namespace-input"
+              value={namespaceSearch() || namespace() || ""}
+              onInput={(e) => {
+                setNamespaceSearch(e.currentTarget.value);
+                setIsNamespaceDropdownOpen(true);
+                setSelectedNamespaceIndex(0);
+              }}
+              onFocus={() => {
+                setIsNamespaceDropdownOpen(true);
+                setNamespaceSearch("");
+              }}
+              onBlur={() => setTimeout(() => setIsNamespaceDropdownOpen(false), 200)}
+            />
+            <span class="namespace-hotkey">n</span>
+            <Show when={isNamespaceDropdownOpen()}>
+              <div class="namespace-dropdown">
+                <For each={filteredNamespaces()}>
+                  {(ns, index) => (
+                    <div
+                      class="namespace-option"
+                      classList={{ 
+                        'selected': ns === namespace(),
+                        'highlighted': index() === selectedNamespaceIndex()
+                      }}
+                      onClick={() => {
+                        setNamespace(ns);
+                        setNamespaceSearch(ns);
+                        setIsNamespaceDropdownOpen(false);
+                      }}
+                    >
+                      {ns}
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
           <select
             class="card-type-select"
             onChange={(e) => setCardType(e.currentTarget.value as 'services' | 'deployments' | 'pods' | 'fluxcd')}
@@ -91,26 +231,40 @@ function App() {
         <EventList events={events()} />
       </aside>
       <main class="main-content">
-        <h1>Kubernetes Resources</h1>
-        <div class="controls">
+        <div class="header-container">
+          <h1>Kubernetes Resources</h1>
           <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" }}>
             {watchStatus()}
           </span>
         </div>
+        <div class="controls">
+          <div class="search-container">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search resources"
+              value={searchQuery()}
+              onInput={(e) => setSearchQuery(e.currentTarget.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+            />
+            <span class="search-hotkey">/</span>
+          </div>
+        </div>
         <div class="resources-grid">
           <section class="resource-section full-width">
             <Show when={cardType() === 'services'}>
-              <ServiceList services={services()} />
+              <ServiceList services={filteredServices()} />
             </Show>
             <Show when={cardType() === 'deployments'}>
-              <DeploymentList deployments={deployments()} pods={pods()} />
+              <DeploymentList deployments={filteredDeployments()} pods={filteredPods()} />
             </Show>
             <Show when={cardType() === 'pods'}>
-              <PodList pods={pods()} />
+              <PodList pods={filteredPods()} />
             </Show>
             <Show when={cardType() === 'fluxcd'}>
               <div class="flux-resources">
-                <FluxResourceList kustomizations={kustomizations()} sources={sources()} />
+                <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
               </div>
             </Show>
           </section>
