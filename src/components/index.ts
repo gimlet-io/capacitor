@@ -3,3 +3,4 @@ export { DeploymentList } from './DeploymentList.tsx';
 export { ServiceList } from './ServiceList.tsx';
 export { FluxResourceList } from './FluxResourceList.tsx';
 export { EventList } from './EventList.tsx';
+export { ArgoCDResourceList } from './ArgoCDResourceList.tsx';

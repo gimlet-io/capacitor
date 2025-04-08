@@ -1,5 +1,5 @@
-import { Accessor, createSignal } from "solid-js";
-import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event } from "./types/k8s.ts";
+import { createSignal } from "solid-js";
+import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication } from "./types/k8s.ts";
 import { updateServiceMatchingResources } from "./utils/k8s.ts";
 import { untrack } from "solid-js";
 
@@ -52,7 +52,7 @@ export const watchResource = async (path: string, callback: (event: any) => void
 
 export const setupWatches = (
   ns: string | undefined,
-  cardType: 'services' | 'deployments' | 'pods' | 'fluxcd',
+  cardType: string,
   pods: () => Pod[],
   setPods: (fn: (prev: Pod[]) => Pod[]) => void,
   deployments: () => Deployment[],
@@ -60,6 +60,7 @@ export const setupWatches = (
   setServices: (fn: (prev: ServiceWithResources[]) => ServiceWithResources[]) => void,
   setKustomizations: (fn: (prev: Kustomization[]) => Kustomization[]) => void,
   setSources: (fn: (prev: Source[]) => Source[]) => void,
+  setApplications: (fn: (prev: ArgoCDApplication[]) => ArgoCDApplication[]) => void,
   setEvents: (fn: (prev: Event[]) => Event[]) => void
 ) => {
   if (!ns) return;
@@ -71,12 +72,13 @@ export const setupWatches = (
   });
 
   // Clear existing resources
-  setPods([]);
-  setDeployments([]);
-  setServices([]);
-  setKustomizations([]);
-  setSources([]);
-  setEvents([]);
+  setPods(() => []);
+  setDeployments(() => []);
+  setServices(() => []);
+  setKustomizations(() => []);
+  setSources(() => []);
+  setApplications(() => []);
+  setEvents(() => []);
 
   const watches = [];
 
@@ -207,6 +209,24 @@ export const setupWatches = (
             setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
           } else if (event.type === 'DELETED') {
             setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
+          }
+        }
+      }
+    );
+  }
+
+  if (cardType === 'argocd') {
+    // ArgoCD Application watches
+    watches.push(
+      {
+        path: `/k8s/apis/argoproj.io/v1alpha1/namespaces/${ns}/applications?watch=true`,
+        callback: (event: { type: string; object: ArgoCDApplication }) => {
+          if (event.type === 'ADDED') {
+            setApplications(prev => [...prev, event.object]);
+          } else if (event.type === 'MODIFIED') {
+            setApplications(prev => prev.map(a => a.metadata.name === event.object.metadata.name ? event.object : a));
+          } else if (event.type === 'DELETED') {
+            setApplications(prev => prev.filter(a => a.metadata.name !== event.object.metadata.name));
           }
         }
       }

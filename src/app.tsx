@@ -1,15 +1,15 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { render } from "solid-js/web";
 import { createSignal, createResource, createEffect, onMount } from "solid-js";
-import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList } from "./components/index.ts";
-import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event } from "./types/k8s.ts";
+import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList, ArgoCDResourceList } from "./components/index.ts";
+import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication } from "./types/k8s.ts";
 import { For, Show } from "solid-js";
 import { watchStatus, setupWatches } from "./watches.tsx";
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
   const [namespace, setNamespace] = createSignal<string>();
-  const [cardType, setCardType] = createSignal<'services' | 'deployments' | 'pods' | 'fluxcd'>('services');
+  const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('pods');
   const [searchQuery, setSearchQuery] = createSignal("");
   const [isSearchFocused, setIsSearchFocused] = createSignal(false);
   const [namespaceSearch, setNamespaceSearch] = createSignal("");
@@ -22,6 +22,7 @@ function App() {
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
   const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
   const [sources, setSources] = createSignal<Source[]>([]);
+  const [applications, setApplications] = createSignal<ArgoCDApplication[]>([]);
   const [events, setEvents] = createSignal<Event[]>([]);
 
   const [namespaces] = createResource(async () => {
@@ -157,6 +158,18 @@ function App() {
     );
   };
 
+  const filteredApplications = () => {
+    const query = searchQuery().toLowerCase();
+    if (!query) return applications();
+    return applications().filter(app => 
+      (namespaces() === 'all-namespaces' || app.metadata.namespace === namespaces()) &&
+      (query === '' || 
+        app.metadata.name.toLowerCase().includes(query) ||
+        app.spec.project.toLowerCase().includes(query) ||
+        app.spec.source.repoURL.toLowerCase().includes(query))
+    );
+  };
+
   // Call setupWatches when namespace or card type changes
   createEffect(() => {
     setupWatches(
@@ -169,6 +182,7 @@ function App() {
       setServices,
       setKustomizations,
       setSources,
+      setApplications,
       setEvents
     );
   });
@@ -220,12 +234,13 @@ function App() {
           </div>
           <select
             class="card-type-select"
-            onChange={(e) => setCardType(e.currentTarget.value as 'services' | 'deployments' | 'pods' | 'fluxcd')}
+            onChange={(e) => setCardType(e.currentTarget.value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd')}
           >
+            <option value="pods" selected={cardType() === 'pods'}>Pod Cards</option>
             <option value="services" selected={cardType() === 'services'}>Service Cards</option>
             <option value="deployments" selected={cardType() === 'deployments'}>Deployment Cards</option>
-            <option value="pods" selected={cardType() === 'pods'}>Pod Cards</option>
             <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD</option>
+            <option value="argocd" selected={cardType() === 'argocd'}>Argo CD Applications</option>
           </select>
         </div>
         <EventList events={events()} />
@@ -265,6 +280,11 @@ function App() {
             <Show when={cardType() === 'fluxcd'}>
               <div class="flux-resources">
                 <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
+              </div>
+            </Show>
+            <Show when={cardType() === 'argocd'}>
+              <div class="argocd-resources">
+                <ArgoCDResourceList applications={filteredApplications()} />
               </div>
             </Show>
           </section>

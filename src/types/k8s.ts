@@ -315,4 +315,115 @@ export interface Event {
   source: {
     component: string;
   };
+}
+
+// ArgoCD types
+export interface ArgoCDApplication {
+  apiVersion: string;
+  kind: string;
+  metadata: {
+    name: string;
+    namespace: string;
+    labels?: Record<string, string>;
+  };
+  spec: {
+    project: string;
+    source: {
+      repoURL: string;
+      targetRevision?: string;
+      path?: string;
+      chart?: string;
+      helm?: {
+        valueFiles?: string[];
+        parameters?: Array<{
+          name: string;
+          value: string;
+        }>;
+      };
+    };
+    destination: {
+      server?: string;
+      namespace: string;
+      name?: string;
+    };
+    syncPolicy?: {
+      automated?: {
+        prune: boolean;
+        selfHeal: boolean;
+      };
+      syncOptions?: string[];
+      retry?: {
+        limit: number;
+        backoff?: {
+          duration: string;
+          factor: number;
+          maxDuration: string;
+        };
+      };
+    };
+  };
+  status?: {
+    sync: {
+      status: string;
+      comparedTo: {
+        source: {
+          repoURL: string;
+          targetRevision: string;
+          path?: string;
+          chart?: string;
+        };
+        destination: {
+          server?: string;
+          namespace: string;
+        };
+      };
+      revision: string;
+    };
+    health: {
+      status: string;
+      message?: string;
+    };
+    history?: Array<{
+      revision: string;
+      deployedAt: string;
+      id: number;
+      source: {
+        repoURL: string;
+        targetRevision: string;
+        path?: string;
+        chart?: string;
+      };
+    }>;
+    operationState?: {
+      operation: {
+        sync: {
+          revision: string;
+        };
+      };
+      phase: string;
+      message: string;
+      startedAt: string;
+      finishedAt?: string;
+    };
+    conditions?: Array<{
+      type: string;
+      status: string;
+      message: string;
+      lastTransitionTime: string;
+    }>;
+    reconciledAt: string;
+    observedAt: string;
+    resources?: Array<{
+      group: string;
+      version: string;
+      kind: string;
+      namespace: string;
+      name: string;
+      status: string;
+      message?: string;
+      health?: {
+        status: string;
+      };
+    }>;
+  };
 } 
