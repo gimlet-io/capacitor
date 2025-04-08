@@ -1,3 +1,6 @@
 build/embedded.ts
 dist/
 public/js/*
+flux-source/
+fixtures/
+.env

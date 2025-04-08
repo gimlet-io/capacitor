@@ -577,3 +577,131 @@ body {
 .show-more-events:hover {
   background-color: #e9ecef;
 }
+
+/* Kustomization Status Styles */
+.kustomization-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-badge.ready {
+  background-color: #22c55e;
+  color: #f0fdf4;
+}
+
+.status-badge.not-ready {
+  background-color: #ef4444;
+  color: #fef2f2;
+}
+
+.status-badge.reconciling {
+  background-color: #3b82f6;
+  color: #eff6ff;
+}
+
+.status-badge.stalled {
+  background-color: #f59e0b;
+  color: #fffbeb;
+}
+
+.status-badge.unknown {
+  background-color: #6b7280;
+  color: #f9fafb;
+}
+
+.status-badge.suspended {
+  background-color: #9333ea;
+  color: #f3e8ff;
+}
+
+.revision {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.25rem;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Kustomization Item Styles */
+.kustomization-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: white;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  border-left: 4px solid #6f42c1;
+}
+
+/* Override the status-based left borders to keep consistent purple for kustomization items */
+.kustomization-item.ready,
+.kustomization-item.not-ready,
+.kustomization-item.reconciling,
+.kustomization-item.stalled,
+.kustomization-item.unknown {
+  border-left: 4px solid #6f42c1;
+}
+
+/* Condition Details */
+.conditions {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.condition {
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.condition p {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+}
+
+.condition.true {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.condition.false {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.condition.unknown {
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+/* Details Summary */
+details summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+details summary:hover {
+  color: #111827;
+}
+
+details[open] summary {
+  margin-bottom: 0.5rem;
+}

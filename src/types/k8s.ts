@@ -176,6 +176,7 @@ export interface Kustomization {
     interval: string;
     prune: boolean;
     validation?: string;
+    suspend?: boolean;
     healthChecks?: Array<{
       apiVersion: string;
       kind: string;
