@@ -636,6 +636,20 @@ body {
   white-space: normal;
 }
 
+/* Artifact URL styling */
+.flux-source-item code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85rem;
+  background-color: #f1f5f9;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid #e2e8f0;
+  word-break: break-all;
+  max-width: 100%;
+  display: block;
+  margin-top: 0.25rem;
+}
+
 /* Kustomization Item Styles */
 .kustomization-item {
   border: 1px solid #e5e7eb;

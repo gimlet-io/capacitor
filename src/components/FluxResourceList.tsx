@@ -104,6 +104,7 @@ export function FluxResourceList(props: {
               <p>Interval: {source.spec.interval}</p>
               {source.spec.timeout && <p>Timeout: {source.spec.timeout}</p>}
               {source.spec.suspend && <p>Status: Suspended</p>}
+              {source.status?.artifact?.url && <p>Artifact URL: <code>{source.status.artifact.url}</code></p>}
 
               {source.kind === 'OCIRepository' && (
                 <div class="source-details">
