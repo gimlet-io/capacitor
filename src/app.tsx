@@ -1,6 +1,6 @@
 import { render } from "solid-js/web";
 import { Router, Route } from "@solidjs/router";
-import { KustomizationDetails } from "./components/KustomizationDetails.tsx";
+import { KustomizationDetails } from "./views/kustomizationDetails.tsx";
 import { Dashboard } from "./views/dashboard.tsx";
 
 function App() {

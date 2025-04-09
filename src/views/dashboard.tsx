@@ -45,7 +45,6 @@ export function Dashboard() {
     );
   };
 
-  // Set the default namespace or the first namespace if no namespace is selected
   createEffect(() => {
     if (!namespaces()) {
       return;
