@@ -1,15 +1,17 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { render } from "solid-js/web";
 import { createSignal, createResource, createEffect, onMount } from "solid-js";
+import { Router, Route } from "@solidjs/router";
 import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList, ArgoCDResourceList } from "./components/index.ts";
+import { KustomizationDetails } from "./components/KustomizationDetails.tsx";
 import type { Pod, Deployment, Service, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication } from "./types/k8s.ts";
 import { For, Show } from "solid-js";
 import { watchStatus, setupWatches } from "./watches.tsx";
 
-function App() {
+function Dashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
   const [namespace, setNamespace] = createSignal<string>();
-  const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('pods');
+  const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('fluxcd');
   const [searchQuery, setSearchQuery] = createSignal("");
   const [isSearchFocused, setIsSearchFocused] = createSignal(false);
   const [namespaceSearch, setNamespaceSearch] = createSignal("");
@@ -36,7 +38,7 @@ function App() {
   const filteredNamespaces = () => {
     const query = namespaceSearch().toLowerCase();
     if (!query) return namespaces() || [];
-    return (namespaces() || []).filter(ns => 
+    return (namespaces() || []).filter((ns: string) => 
       ns.toLowerCase().includes(query)
     );
   };
@@ -144,7 +146,7 @@ function App() {
     if (!query) return pods();
     return pods().filter(pod => 
       pod.metadata.name.toLowerCase().includes(query) ||
-      pod.metadata.namespace.toLowerCase().includes(query)
+      (pod.metadata.namespace?.toLowerCase() || '').includes(query)
     );
   };
 
@@ -153,7 +155,7 @@ function App() {
     if (!query) return deployments();
     return deployments().filter(deployment => 
       deployment.metadata.name.toLowerCase().includes(query) ||
-      deployment.metadata.namespace.toLowerCase().includes(query)
+      (deployment.metadata.namespace?.toLowerCase() || '').includes(query)
     );
   };
 
@@ -162,7 +164,7 @@ function App() {
     if (!query) return services();
     return services().filter(service => 
       service.metadata.name.toLowerCase().includes(query) ||
-      service.metadata.namespace.toLowerCase().includes(query)
+      (service.metadata.namespace?.toLowerCase() || '').includes(query)
     );
   };
 
@@ -238,7 +240,7 @@ function App() {
             <Show when={isNamespaceDropdownOpen()}>
               <div class="namespace-dropdown">
                 <For each={filteredNamespaces()}>
-                  {(ns, index) => (
+                  {(ns: string, index) => (
                     <div
                       class="namespace-option"
                       classList={{ 
@@ -262,7 +264,7 @@ function App() {
             class="card-type-select"
             onChange={(e) => setCardType(e.currentTarget.value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd')}
           >
-            <option value="argocd" selected={cardType() === 'argocd'}>ArgoCD Applications (a)</option>
+            <option value="argocd" selected={cardType() === 'argocd'}>ArgoCD (a)</option>
             <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD (f)</option>
             <option value="services" selected={cardType() === 'services'}>Services (s)</option>
             <option value="deployments" selected={cardType() === 'deployments'}>Deployments (d)</option>
@@ -274,7 +276,7 @@ function App() {
       <main class="main-content">
         <div class="header-container">
           <h1>Kubernetes Resources</h1>
-          <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" }}>
+          <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
             {watchStatus()}
           </span>
         </div>
@@ -317,6 +319,15 @@ function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Route path="/" component={Dashboard} />
+      <Route path="/kustomization/:namespace/:name" component={KustomizationDetails} />
+    </Router>
   );
 }
 

@@ -1,4 +1,5 @@
 import { For } from "solid-js/web";
+import { useNavigate } from "@solidjs/router";
 import type { Kustomization, Source, OCIRepository, HelmRepository, HelmChart, GitRepository } from '../types/k8s.ts';
 import { getHumanReadableStatus } from '../utils/conditions.ts';
 
@@ -6,6 +7,8 @@ export function FluxResourceList(props: {
   kustomizations: Kustomization[],
   sources: Source[]
 }) {
+  const navigate = useNavigate();
+
   return (
     <div class="resource-list">
       <For each={props.kustomizations}>
@@ -13,7 +16,11 @@ export function FluxResourceList(props: {
           const status = getHumanReadableStatus(kustomization.status?.conditions || []);
           console.log(kustomization.status);
           return (
-            <div class={`resource-item kustomization-item ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}>
+            <div 
+              class={`resource-item kustomization-item ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}
+              onClick={() => navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`)}
+              style={{ cursor: 'pointer' }}
+            >
               <h2>Kustomization: {kustomization.metadata.namespace}/{kustomization.metadata.name}</h2>
               <div class="kustomization-status">
                 <span class={`status-badge ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}>
@@ -33,7 +40,7 @@ export function FluxResourceList(props: {
               {kustomization.spec.suspend && <p>Status: Suspended</p>}
               {kustomization.spec.validation && <p>Validation: {kustomization.spec.validation}</p>}
 
-              <details>
+              <details onClick={(e) => e.stopPropagation()}>
                 <summary>Conditions</summary>
                 <div class="conditions">
                   <For each={kustomization.status?.conditions || []}>
@@ -51,7 +58,7 @@ export function FluxResourceList(props: {
               </details>
 
               {kustomization.status?.healthChecks && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>Health Checks</summary>
                   <div class="health-checks">
                     <For each={kustomization.status.healthChecks}>
@@ -68,7 +75,7 @@ export function FluxResourceList(props: {
               )}
 
               {kustomization.status?.inventory?.entries && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>Inventory</summary>
                   <div class="inventory">
                     <For each={kustomization.status.inventory.entries}>
@@ -148,7 +155,7 @@ export function FluxResourceList(props: {
                 </div>
               )}
 
-              <details>
+              <details onClick={(e) => e.stopPropagation()}>
                 <summary>Conditions</summary>
                 <div class="conditions">
                   <For each={source.status?.conditions || []}>
@@ -166,7 +173,7 @@ export function FluxResourceList(props: {
               </details>
 
               {source.status?.artifact && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>Artifact</summary>
                   <div class="artifact">
                     <p>Path: {source.status.artifact.path}</p>

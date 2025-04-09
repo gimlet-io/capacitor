@@ -7,6 +7,7 @@
     "jsr:@std/encoding@^1.0.5": "1.0.8",
     "jsr:@std/internal@^1.0.6": "1.0.6",
     "jsr:@std/path@^1.0.6": "1.0.8",
+    "npm:@solidjs/router@0.10.0": "0.10.0_solid-js@1.8.15__seroval@1.2.1",
     "npm:@types/node@*": "22.10.2",
     "npm:esbuild-plugin-solid@*": "0.6.0_esbuild@0.20.2_solid-js@1.8.15__seroval@1.2.1_@babel+core@7.26.10",
     "npm:esbuild@*": "0.24.2",
@@ -433,6 +434,12 @@
       "dependencies": [
         "@jridgewell/resolve-uri",
         "@jridgewell/sourcemap-codec"
+      ]
+    },
+    "@solidjs/router@0.10.0_solid-js@1.8.15__seroval@1.2.1": {
+      "integrity": "sha512-aI6Qgh3Ds8r8WsWYv9Jlls6D5sr6qM0rtEF6FMnICaHRC1DIJU2Uo+GLcA7ClBz6jJ4bAWvaYreSy4HDfODyVw==",
+      "dependencies": [
+        "solid-js@1.8.15_seroval@1.2.1"
       ]
     },
     "@types/node@22.10.2": {
@@ -888,6 +895,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
+      "npm:@solidjs/router@0.10.0",
       "npm:solid-js@1.9.5"
     ]
   }

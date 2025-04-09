@@ -5,3 +5,5 @@ flux-source/
 fixtures/
 .env
 todo.md
+.cursor/
+.spec/
