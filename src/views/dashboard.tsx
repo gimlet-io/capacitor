@@ -1,9 +1,11 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, createResource, createEffect, onMount } from "solid-js";
+import { createSignal, createResource, createEffect, onMount, untrack } from "solid-js";
 import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList, ArgoCDResourceList } from "../components/index.ts";
 import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication } from "../types/k8s.ts";
 import { For, Show } from "solid-js";
-import { watchStatus, setupDashboardWatches } from "../watches.tsx";
+import { updateServiceMatchingResources } from "../utils/k8s.ts";
+import { watchResource } from "../watches.tsx";
+import { onCleanup } from "solid-js";
 
 export function Dashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
@@ -14,6 +16,9 @@ export function Dashboard() {
   const [namespaceSearch, setNamespaceSearch] = createSignal("");
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = createSignal(false);
   const [selectedNamespaceIndex, setSelectedNamespaceIndex] = createSignal(0);
+
+  const [watchStatus, setWatchStatus] = createSignal("●");
+  const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
@@ -137,6 +142,12 @@ export function Dashboard() {
     });
   });
 
+  onCleanup(() => {
+    untrack(() => {
+      watchControllers().forEach(controller => controller.abort());
+    });
+  });
+
   // Filter resources based on search query
   const filteredPods = () => {
     const query = searchQuery().toLowerCase();
@@ -197,20 +208,188 @@ export function Dashboard() {
 
   // Call setupWatches when namespace or card type changes
   createEffect(() => {
-    setupDashboardWatches(
-      namespace(),
-      cardType(),
-      pods,
-      setPods,
-      deployments,
-      setDeployments,
-      setServices,
-      setKustomizations,
-      setSources,
-      setApplications,
-      setEvents
-    );
+    setupWatches(namespace(), cardType());
   });
+
+  const setupWatches = (ns: string | undefined, cardType: 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd') => {
+    if (!ns) return;
+    console.log('Setting up watches for namespace:', ns, 'card type:', cardType);
+
+    // Cancel existing watches
+    untrack(() => {
+      watchControllers().forEach(controller => controller.abort());
+    });
+
+    // Clear existing resources
+    setPods(() => []);
+    setDeployments(() => []);
+    setServices(() => []);
+    setKustomizations(() => []);
+    setSources(() => []);
+    setApplications(() => []);
+    setEvents(() => []);
+
+    const watches = [];
+
+    // Always watch events regardless of card type
+    watches.push({
+      path: `/k8s/api/v1/namespaces/${ns}/events?watch=true`,
+      callback: (event: { type: string; object: Event }) => {
+        if (event.type === 'ADDED') {
+          setEvents(prev => [...prev, event.object]);
+        } else if (event.type === 'MODIFIED') {
+          setEvents(prev => prev.map(e => e.metadata.name === event.object.metadata.name ? event.object : e));
+        } else if (event.type === 'DELETED') {
+          setEvents(prev => prev.filter(e => e.metadata.name !== event.object.metadata.name));
+        }
+      }
+    });
+
+    // Only set up watches for the selected card type
+    if (cardType !== 'fluxcd') {
+      // Kubernetes resource watches
+      watches.push(
+        {
+          path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
+          callback: (event: { type: string; object: Pod }) => {
+            if (event.type === 'ADDED') {
+              setPods(prev => [...prev, event.object]);
+              setServices(prev => prev.map(service => updateServiceMatchingResources(service, [...pods(), event.object], deployments())));
+            } else if (event.type === 'MODIFIED') {
+              setPods(prev => prev.map(p => p.metadata.name === event.object.metadata.name ? event.object : p));
+              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
+            } else if (event.type === 'DELETED') {
+              setPods(prev => prev.filter(p => p.metadata.name !== event.object.metadata.name));
+              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
+            }
+          }
+        },
+        {
+          path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
+          callback: (event: { type: string; object: Deployment }) => {
+            if (event.type === 'ADDED') {
+              setDeployments(prev => [...prev, event.object]);
+              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), [...deployments(), event.object])));
+            } else if (event.type === 'MODIFIED') {
+              setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? event.object : d));
+              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
+            } else if (event.type === 'DELETED') {
+              setDeployments(prev => prev.filter(d => d.metadata.name !== event.object.metadata.name));
+              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
+            }
+          }
+        },
+        {
+          path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
+          callback: (event: { type: string; object: Service }) => {
+            if (event.type === 'ADDED') {
+              setServices(prev => [...prev, updateServiceMatchingResources(event.object, pods(), deployments())]);
+            } else if (event.type === 'MODIFIED') {
+              setServices(prev => prev.map(s => 
+                s.metadata.name === event.object.metadata.name 
+                  ? updateServiceMatchingResources(event.object, pods(), deployments())
+                  : s
+              ));
+            } else if (event.type === 'DELETED') {
+              setServices(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
+            }
+          }
+        }
+      );
+    }
+
+    if (cardType === 'fluxcd') {
+      // FluxCD resource watches
+      watches.push(
+        {
+          path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${ns}/kustomizations?watch=true`,
+          callback: (event: { type: string; object: Kustomization }) => {
+            if (event.type === 'ADDED') {
+              setKustomizations(prev => [...prev, event.object]);
+            } else if (event.type === 'MODIFIED') {
+              setKustomizations(prev => prev.map(k => k.metadata.name === event.object.metadata.name ? event.object : k));
+            } else if (event.type === 'DELETED') {
+              setKustomizations(prev => prev.filter(k => k.metadata.name !== event.object.metadata.name));
+            }
+          }
+        },
+        {
+          path: `/k8s/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/${ns}/ocirepositories?watch=true`,
+          callback: (event: { type: string; object: Source }) => {
+            if (event.type === 'ADDED') {
+              setSources(prev => [...prev, event.object]);
+            } else if (event.type === 'MODIFIED') {
+              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
+            } else if (event.type === 'DELETED') {
+              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
+            }
+          }
+        },
+        {
+          path: `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${ns}/helmrepositories?watch=true`,
+          callback: (event: { type: string; object: Source }) => {
+            if (event.type === 'ADDED') {
+              setSources(prev => [...prev, event.object]);
+            } else if (event.type === 'MODIFIED') {
+              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
+            } else if (event.type === 'DELETED') {
+              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
+            }
+          }
+        },
+        {
+          path: `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${ns}/helmcharts?watch=true`,
+          callback: (event: { type: string; object: Source }) => {
+            if (event.type === 'ADDED') {
+              setSources(prev => [...prev, event.object]);
+            } else if (event.type === 'MODIFIED') {
+              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
+            } else if (event.type === 'DELETED') {
+              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
+            }
+          }
+        },
+        {
+          path: `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${ns}/gitrepositories?watch=true`,
+          callback: (event: { type: string; object: Source }) => {
+            if (event.type === 'ADDED') {
+              setSources(prev => [...prev, event.object]);
+            } else if (event.type === 'MODIFIED') {
+              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
+            } else if (event.type === 'DELETED') {
+              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
+            }
+          }
+        }
+      );
+    }
+
+    if (cardType === 'argocd') {
+      // ArgoCD Application watches
+      watches.push(
+        {
+          path: `/k8s/apis/argoproj.io/v1alpha1/namespaces/${ns}/applications?watch=true`,
+          callback: (event: { type: string; object: ArgoCDApplication }) => {
+            if (event.type === 'ADDED') {
+              setApplications(prev => [...prev, event.object]);
+            } else if (event.type === 'MODIFIED') {
+              setApplications(prev => prev.map(a => a.metadata.name === event.object.metadata.name ? event.object : a));
+            } else if (event.type === 'DELETED') {
+              setApplications(prev => prev.filter(a => a.metadata.name !== event.object.metadata.name));
+            }
+          }
+        }
+      );
+    }
+
+    const controllers = watches.map(({ path, callback }) => {
+      const controller = new AbortController();
+      watchResource(path, callback, controller, setWatchStatus);
+      return controller;
+    });
+
+    setWatchControllers(controllers);
+  };
 
   return (
     <div class="layout">

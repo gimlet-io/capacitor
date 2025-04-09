@@ -1,8 +1,9 @@
-import { createSignal, createEffect, onMount } from "solid-js";
+// deno-lint-ignore-file jsx-button-has-type
+import { createSignal, createEffect, untrack, onCleanup } from "solid-js";
 import { useParams, useNavigate } from "@solidjs/router";
 import { Show, For } from "solid-js";
 import type { Kustomization, Deployment, Pod, ServiceWithResources } from "../types/k8s.ts";
-import { setupKustomizationWatches } from "../watches.tsx";
+import { watchResource } from "../watches.tsx";
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -14,19 +15,51 @@ export function KustomizationDetails() {
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
 
+  const [watchStatus, setWatchStatus] = createSignal("●");
+  const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
+
   // Set up watches when component mounts or params change
   createEffect(() => {
     if (params.namespace && params.name) {
-      setupKustomizationWatches(
-        params.namespace,
-        params.name,
-        setKustomization,
-        setDeployments,
-        setPods,
-        setServices
-      );
+      setupWatches(params.namespace, params.name);
     }
   });
+
+  onCleanup(() => {
+    untrack(() => {
+      watchControllers().forEach(controller => controller.abort());
+    });
+  });
+
+  const setupWatches = (namespace: string, name: string) => {
+    // Cancel existing watches
+    untrack(() => {
+      watchControllers().forEach(controller => controller.abort());
+    });
+  
+    const watches = [];
+  
+    watches.push(
+      {
+        path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${namespace}/kustomizations?watch=true`,
+        callback: (event: { type: string; object: Kustomization }) => {
+          if (event.type === 'ADDED' || event.type === 'MODIFIED') {
+            if (event.object.metadata.name === name) {
+              setKustomization(event.object);
+            }
+          }
+        }
+      },
+    );
+  
+    const controllers = watches.map(({ path, callback }) => {
+      const controller = new AbortController();
+      watchResource(path, callback, controller, setWatchStatus);
+      return controller;
+    });
+  
+    setWatchControllers(controllers);
+  }
 
   return (
     <div class="kustomization-details">
@@ -133,4 +166,4 @@ export function KustomizationDetails() {
       </main>
     </div>
   );
-} 
+}
