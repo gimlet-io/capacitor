@@ -14,7 +14,6 @@ export function FluxResourceList(props: {
       <For each={props.kustomizations}>
         {(kustomization) => {
           const status = getHumanReadableStatus(kustomization.status?.conditions || []);
-          console.log(kustomization.status);
           return (
             <div 
               class={`resource-item kustomization-item ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}

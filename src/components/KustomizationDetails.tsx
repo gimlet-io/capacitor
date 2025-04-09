@@ -1,96 +1,136 @@
-import { For, Show, createResource } from "solid-js";
-import { A, useParams } from "@solidjs/router";
-import type { Kustomization } from "../types/k8s.ts";
+import { createSignal, createEffect, onMount } from "solid-js";
+import { useParams, useNavigate } from "@solidjs/router";
+import { Show, For } from "solid-js";
+import type { Kustomization, Deployment, Pod, ServiceWithResources } from "../types/k8s.ts";
+import { setupKustomizationWatches } from "../watches.tsx";
 
 export function KustomizationDetails() {
   const params = useParams();
-  
-  const [kustomization] = createResource(async () => {
-    const response = await fetch(`/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${params.namespace}/kustomizations/${params.name}`);
-    if (!response.ok) throw new Error('Failed to fetch kustomization');
-    return response.json() as Promise<Kustomization>;
+  const navigate = useNavigate();
+
+  // Initialize state for the specific kustomization and its related resources
+  const [kustomization, setKustomization] = createSignal<Kustomization | null>(null);
+  const [deployments, setDeployments] = createSignal<Deployment[]>([]);
+  const [pods, setPods] = createSignal<Pod[]>([]);
+  const [services, setServices] = createSignal<ServiceWithResources[]>([]);
+
+  // Set up watches when component mounts or params change
+  createEffect(() => {
+    if (params.namespace && params.name) {
+      setupKustomizationWatches(
+        params.namespace,
+        params.name,
+        setKustomization,
+        setDeployments,
+        setPods,
+        setServices
+      );
+    }
   });
 
   return (
     <div class="kustomization-details">
-      <div class="header">
-        <A href="/" class="back-button">← Back</A>
-        <div class="breadcrumbs">
-          <A href="/">Home</A>
-          <span> / </span>
-          <span>Kustomization: {params.name}</span>
+      <header class="kustomization-header">
+        <div class="header-actions">
+          <button onClick={() => navigate("/")}>Back to Dashboard</button>
         </div>
-      </div>
-      
-      <Show when={kustomization()}>
-        {(k) => (
-          <div class="content">
-            <h1>{k().metadata.name}</h1>
+        
+        <Show when={kustomization()} fallback={<div>Loading...</div>}>
+          {(k) => {
+            const kustomization = k();
+            const metadata = kustomization.metadata;
+            const spec = kustomization.spec;
+            const status = kustomization.status;
             
-            <section class="details-section">
-              <h2>Metadata</h2>
-              <div class="metadata-grid">
-                <div class="metadata-item">
-                  <span class="label">Namespace:</span>
-                  <span class="value">{k().metadata.namespace}</span>
-                </div>
-                <div class="metadata-item">
-                  <span class="label">Created:</span>
-                  <span class="value">{new Date(k().metadata.creationTimestamp).toLocaleString()}</span>
-                </div>
-              </div>
-            </section>
-
-            <section class="details-section">
-              <h2>Spec</h2>
-              <div class="spec-grid">
-                <div class="spec-item">
-                  <span class="label">Path:</span>
-                  <span class="value">{k().spec.path}</span>
-                </div>
-                <div class="spec-item">
-                  <span class="label">Source:</span>
-                  <span class="value">{k().spec.sourceRef.name}</span>
-                </div>
-                <div class="spec-item">
-                  <span class="label">Interval:</span>
-                  <span class="value">{k().spec.interval}</span>
-                </div>
-              </div>
-            </section>
-
-            <Show when={k().status}>
-              <section class="details-section">
-                <h2>Status</h2>
-                <div class="status-grid">
-                  <div class="status-item">
-                    <span class="label">Last Applied Revision:</span>
-                    <span class="value">{k().status?.lastAppliedRevision}</span>
+            return (
+              <div class="kustomization-info">
+                <h1>{metadata.name}</h1>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="label">Namespace:</span>
+                    <span class="value">{metadata.namespace}</span>
                   </div>
-                  <div class="status-item">
-                    <span class="label">Last Attempted Revision:</span>
-                    <span class="value">{k().status?.lastAttemptedRevision}</span>
+                  <div class="info-item">
+                    <span class="label">Path:</span>
+                    <span class="value">{spec.path}</span>
                   </div>
-                  <div class="status-item">
-                    <span class="label">Conditions:</span>
-                    <div class="conditions">
-                      <For each={k().status?.conditions || []}>
-                        {(condition) => (
-                          <div class="condition" classList={{ [condition.type]: true, [condition.status]: true }}>
-                            <span class="type">{condition.type}</span>
-                            <span class="status">{condition.status}</span>
-                            <span class="message">{condition.message}</span>
-                          </div>
-                        )}
-                      </For>
+                  <div class="info-item">
+                    <span class="label">Source:</span>
+                    <span class="value">{spec.sourceRef.kind}/{spec.sourceRef.name}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="label">Interval:</span>
+                    <span class="value">{spec.interval}</span>
+                  </div>
+                  {status?.lastAppliedRevision && (
+                    <div class="info-item">
+                      <span class="label">Revision:</span>
+                      <span class="value">{status.lastAppliedRevision}</span>
                     </div>
-                  </div>
+                  )}
                 </div>
-              </section>
-            </Show>
+              </div>
+            );
+          }}
+        </Show>
+      </header>
+
+      <main class="kustomization-content">
+        <div class="resource-tree">
+          <h2>Resource Tree</h2>
+          <div class="tree-placeholder">
+            Resource tree visualization will be displayed here
           </div>
-        )}
-      </Show>
+        </div>
+
+        <div class="resource-details">
+          <Show when={kustomization()}>
+            {(k) => {
+              const kustomization = k();
+              const status = kustomization.status;
+              
+              return (
+                <>
+                  <Show when={status?.conditions}>
+                    <div class="details-section">
+                      <h3>Conditions</h3>
+                      <div class="conditions">
+                        <For each={status?.conditions || []}>
+                          {(condition) => (
+                            <div class={`condition ${condition.status.toLowerCase()}`}>
+                              <p>Type: {condition.type}</p>
+                              <p>Status: {condition.status}</p>
+                              {condition.reason && <p>Reason: {condition.reason}</p>}
+                              {condition.message && <p>Message: {condition.message}</p>}
+                              <p>Last Transition: {new Date(condition.lastTransitionTime).toLocaleString()}</p>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </div>
+                  </Show>
+
+                  <Show when={status?.inventory?.entries}>
+                    <div class="details-section">
+                      <h3>Inventory</h3>
+                      <div class="inventory">
+                        <For each={status?.inventory?.entries || []}>
+                          {(entry) => (
+                            <div class="inventory-entry">
+                              <p>ID: {entry.id}</p>
+                              <p>Version: {entry.v}</p>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </div>
+                  </Show>
+                </>
+              );
+            }}
+          </Show>
+        </div>
+      </main>
     </div>
   );
 } 

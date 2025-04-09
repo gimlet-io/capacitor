@@ -50,7 +50,7 @@ export const watchResource = async (path: string, callback: (event: any) => void
   }
 };
 
-export const setupWatches = (
+export const setupDashboardWatches = (
   ns: string | undefined,
   cardType: string,
   pods: () => Pod[],
@@ -240,4 +240,41 @@ export const setupWatches = (
   });
 
   setWatchControllers(controllers);
-}; 
+};
+
+export function setupKustomizationWatches(
+  namespace: string,
+  name: string,
+  setKustomization: (k: Kustomization) => void,
+  setDeployments: (d: Deployment[]) => void,
+  setPods: (p: Pod[]) => void,
+  setServices: (s: ServiceWithResources[]) => void
+) {
+  // Cancel existing watches
+  untrack(() => {
+    watchControllers().forEach(controller => controller.abort());
+  });
+
+  const watches = [];
+
+  watches.push(
+    {
+      path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${namespace}/kustomizations?watch=true`,
+      callback: (event: { type: string; object: Kustomization }) => {
+        if (event.type === 'ADDED' || event.type === 'MODIFIED') {
+          if (event.object.metadata.name === name) {
+            setKustomization(event.object);
+          }
+        }
+      }
+    },
+  );
+
+  const controllers = watches.map(({ path, callback }) => {
+    const controller = new AbortController();
+    watchResource(path, callback, controller);
+    return controller;
+  });
+
+  setWatchControllers(controllers);
+}
