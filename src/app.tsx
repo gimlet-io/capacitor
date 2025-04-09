@@ -79,6 +79,32 @@ function App() {
         }
       }
 
+      // Card type shortcuts
+      if (!isSearchFocused()) {
+        switch (e.key.toLowerCase()) {
+          case 'a':
+            e.preventDefault();
+            setCardType('argocd');
+            break;
+          case 'f':
+            e.preventDefault();
+            setCardType('fluxcd');
+            break;
+          case 'd':
+            e.preventDefault();
+            setCardType('deployments');
+            break;
+          case 's':
+            e.preventDefault();
+            setCardType('services');
+            break;
+          case 'p':
+            e.preventDefault();
+            setCardType('pods');
+            break;
+        }
+      }
+
       // Handle namespace dropdown navigation
       if (isNamespaceDropdownOpen()) {
         const filtered = filteredNamespaces();
@@ -236,11 +262,11 @@ function App() {
             class="card-type-select"
             onChange={(e) => setCardType(e.currentTarget.value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd')}
           >
-            <option value="pods" selected={cardType() === 'pods'}>Pod Cards</option>
-            <option value="services" selected={cardType() === 'services'}>Service Cards</option>
-            <option value="deployments" selected={cardType() === 'deployments'}>Deployment Cards</option>
-            <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD</option>
-            <option value="argocd" selected={cardType() === 'argocd'}>Argo CD Applications</option>
+            <option value="argocd" selected={cardType() === 'argocd'}>ArgoCD Applications (a)</option>
+            <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD (f)</option>
+            <option value="services" selected={cardType() === 'services'}>Services (s)</option>
+            <option value="deployments" selected={cardType() === 'deployments'}>Deployments (d)</option>
+            <option value="pods" selected={cardType() === 'pods'}>Pods (p)</option>
           </select>
         </div>
         <EventList events={events()} />
