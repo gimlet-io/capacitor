@@ -844,3 +844,137 @@ details[open] summary {
   border-radius: 0.375rem;
   border: 1px solid #e5e7eb;
 }
+
+/* Kustomization Details */
+.kustomization-details {
+  padding: 20px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8f9fa;
+}
+
+.kustomization-details .loading {
+  text-align: center;
+  padding: 2rem;
+}
+
+.kustomization-details .kustomization-header {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.kustomization-details .header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.kustomization-details .header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.kustomization-details .back-button {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kustomization-details .status-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.kustomization-details .health-badge,
+.kustomization-details .sync-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.kustomization-details .health-badge.true {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.kustomization-details .health-badge.false {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
+.kustomization-details .sync-badge.syncing {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.kustomization-details .header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.kustomization-details .header-actions button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+}
+
+.kustomization-details .sync-button {
+  background: #1a73e8 !important;
+  color: white;
+}
+
+.kustomization-details .info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.kustomization-details .info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kustomization-details .info-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.kustomization-details .label {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.kustomization-details .value {
+  font-weight: 500;
+}
+
+.kustomization-details .resource-tree-container {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: auto;
+}
+
+.kustomization-details .tree-placeholder {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  margin-top: 20px;
+}

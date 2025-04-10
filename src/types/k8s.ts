@@ -219,7 +219,7 @@ export interface Kustomization {
 export interface KustomizationWithInventory extends Kustomization {
   inventoryItems: {
     deployments: DeploymentWithResources[];
-    services: ServiceWithResources[];
+    services: Service[];
   };
 }
 

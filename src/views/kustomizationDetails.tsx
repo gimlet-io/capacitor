@@ -6,13 +6,14 @@ import type {
   Deployment,
   Kustomization,
   Pod,
-  ServiceWithResources,
+  Service,
   ReplicaSet,
   ReplicaSetWithResources,
   DeploymentWithResources,
   KustomizationWithInventory
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
+import { getHumanReadableStatus } from "../utils/conditions.ts";
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -188,119 +189,98 @@ export function KustomizationDetails() {
 
   return (
     <div class="kustomization-details">
-      <header class="kustomization-header">
-        <div class="header-actions">
-          <button onClick={() => navigate("/")}>Back to Dashboard</button>
-        </div>
+      <Show when={kustomization()} fallback={<div class="loading">Loading...</div>}>
+        {(k) => {
+          const kustomization = k();
+          const metadata = kustomization.metadata;
+          const spec = kustomization.spec;
+          const status = kustomization.status;
+          const conditions = status?.conditions || [];
+          const healthCondition = conditions.find(c => c.type === 'Ready');
+          const syncCondition = conditions.find(c => c.type === 'Reconciling');
+          const humanstatus = getHumanReadableStatus(kustomization.status?.conditions || []);
 
-        <Show when={kustomization()} fallback={<div>Loading...</div>}>
-          {(k) => {
-            const kustomization = k();
-            const metadata = kustomization.metadata;
-            const spec = kustomization.spec;
-            const status = kustomization.status;
-
-            return (
-              <div class="kustomization-info">
-                <h1>{metadata.name}</h1>
-                <div class="info-grid">
-                  <div class="info-item">
-                    <span class="label">Namespace:</span>
-                    <span class="value">{metadata.namespace}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="label">Path:</span>
-                    <span class="value">{spec.path}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="label">Source:</span>
-                    <span class="value">
-                      {spec.sourceRef.kind}/{spec.sourceRef.name}
-                    </span>
-                  </div>
-                  <div class="info-item">
-                    <span class="label">Interval:</span>
-                    <span class="value">{spec.interval}</span>
-                  </div>
-                  {status?.lastAppliedRevision && (
-                    <div class="info-item">
-                      <span class="label">Revision:</span>
-                      <span class="value">{status.lastAppliedRevision}</span>
+          return (
+            <>
+              <header class="kustomization-header">
+                <div class="header-top">
+                  <div class="header-left">
+                    <button class="back-button" onClick={() => navigate("/")}>
+                      <span class="icon">←</span> Back
+                    </button>
+                    <h1>{metadata.name}</h1>
+                    <div class="status-badges">
+                      <span class={`health-badge ${healthCondition?.status.toLowerCase()}`}>
+                        {healthCondition?.status || 'Unknown'}
+                      </span>
+                      <span class={`sync-badge ${syncCondition ? 'syncing' : 'idle'}`}>
+                        {syncCondition ? 'Syncing' : 'Idle'}
+                      </span>
                     </div>
-                  )}
+                    <div class="kustomization-status">
+                      <span class={`status-badge ${humanstatus.toLowerCase().replace(/[^a-z]/g, '-')}`}>
+                        {humanstatus}
+                      </span>
+                      {kustomization.status?.lastAppliedRevision && (
+                        <span class="revision">Rev: {kustomization.status.lastAppliedRevision}</span>
+                      )}
+                      {kustomization.spec.suspend && (
+                        <span class="status-badge suspended">Suspended</span>
+                      )}
+                    </div>
+                  </div>
+                  <div class="header-actions">
+                    <button class="sync-button" onClick={() => {}}>Sync</button>
+                    <button class="refresh-button" onClick={() => {}}>Refresh</button>
+                  </div>
                 </div>
-              </div>
-            );
-          }}
-        </Show>
-      </header>
 
-      <main class="kustomization-content">
-        <div class="resource-tree">
-          <h2>Resource Tree</h2>
-          <div class="tree-placeholder">
-            Resource tree visualization will be displayed here
-          </div>
-        </div>
-
-        <div class="resource-details">
-          <Show when={kustomization()}>
-            {(k) => {
-              const kustomization = k();
-              const status = kustomization.status;
-
-              return (
-                <>
-                  <Show when={status?.conditions}>
-                    <div class="details-section">
-                      <h3>Conditions</h3>
-                      <div class="conditions">
-                        <For each={status?.conditions || []}>
-                          {(condition) => (
-                            <div
-                              class={`condition ${condition.status.toLowerCase()}`}
-                            >
-                              <p>Type: {condition.type}</p>
-                              <p>Status: {condition.status}</p>
-                              {condition.reason && (
-                                <p>Reason: {condition.reason}</p>
-                              )}
-                              {condition.message && (
-                                <p>Message: {condition.message}</p>
-                              )}
-                              <p>
-                                Last Transition:{" "}
-                                {new Date(condition.lastTransitionTime)
-                                  .toLocaleString()}
-                              </p>
-                            </div>
-                          )}
-                        </For>
-                      </div>
+                <div class="header-info">
+                  <div class="info-grid">
+                    <div class="info-item">
+                      <span class="label">Namespace:</span>
+                      <span class="value">{metadata.namespace}</span>
                     </div>
-                  </Show>
-
-                  <Show when={status?.inventory?.entries}>
-                    <div class="details-section">
-                      <h3>Inventory</h3>
-                      <div class="inventory">
-                        <For each={status?.inventory?.entries || []}>
-                          {(entry) => (
-                            <div class="inventory-entry">
-                              <p>ID: {entry.id}</p>
-                              <p>Version: {entry.v}</p>
-                            </div>
-                          )}
-                        </For>
-                      </div>
+                    <div class="info-item">
+                      <span class="label">Source:</span>
+                      <span class="value">{spec.sourceRef.kind}/{spec.sourceRef.name}</span>
                     </div>
-                  </Show>
-                </>
-              );
-            }}
-          </Show>
-        </div>
-      </main>
+                    <div class="info-item">
+                      <span class="label">Path:</span>
+                      <span class="value">{spec.path}</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="label">Interval:</span>
+                      <span class="value">{spec.interval}</span>
+                    </div>
+                    {status?.lastAppliedRevision && (
+                      <div class="info-item">
+                        <span class="label">Revision:</span>
+                        <span class="value">{status.lastAppliedRevision}</span>
+                      </div>
+                    )}
+                    {healthCondition?.message && (
+                      <div class="info-item full-width">
+                        <span class="label">Message:</span>
+                        <span class="value">{healthCondition.message}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </header>
+
+              <main class="resource-tree-container">
+                <div class="resource-tree">
+                  <h2>Resources</h2>
+                  <div class="tree-placeholder">
+                    Resource tree visualization coming soon...
+                  </div>
+                </div>
+              </main>
+            </>
+          );
+        }}
+      </Show>
     </div>
   );
 }
