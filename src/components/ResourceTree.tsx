@@ -12,9 +12,13 @@ interface NodeData {
   width: number;
   height: number;
   type: "kustomization" | "deployment" | "replicaset" | "pod" | "service";
-  status?: boolean | string;
   x?: number;
   y?: number;
+  fontSize?: number;
+  fontWeight?: string;
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
 }
 
 interface EdgeData {
@@ -33,52 +37,114 @@ export function ResourceTree(props: ResourceTreeProps) {
       ranksep: 80,
       marginx: 20,
       marginy: 20,
+      align: "UL",  // Upper-Left alignment for nodes in the same rank
     });
     g.setDefaultEdgeLabel(() => ({}));
 
+    // Helper function to calculate text width
+    const getTextWidth = (text: string, fontSize: number, fontWeight: string = "normal") => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) return 0;
+      context.font = `${fontWeight} ${fontSize}px sans-serif`;
+      return context.measureText(text).width;
+    };
+
+    // Helper function to create a node
+    const createNode = (
+      id: string,
+      label: string,
+      type: NodeData["type"],
+      options: {
+        fontSize?: number;
+        fontWeight?: string;
+        fill: string;
+        stroke: string;
+        strokeWidth: string;
+      }
+    ) => {
+      const {
+        fontSize = 12,
+        fontWeight = "normal",
+        fill,
+        stroke,
+        strokeWidth
+      } = options;
+
+      const textWidth = getTextWidth(label, fontSize, fontWeight);
+      const width = Math.max(140, textWidth + 40); // Fixed minWidth of 140
+      const height = 40; // Fixed height of 40
+
+      g.setNode(id, {
+        label,
+        width,
+        height,
+        type,
+        fontSize,
+        fontWeight,
+        fill,
+        stroke,
+        strokeWidth
+      });
+
+      return id;
+    };
+
     // Add Kustomization as root node
-    const kustomizationId = `kustomization-${props.kustomization.metadata.name}`;
-    g.setNode(kustomizationId, {
-      label: `Kustomization: ${props.kustomization.metadata.name}`,
-      width: 180,
-      height: 50,
-      type: "kustomization",
-      status: props.kustomization.status?.conditions?.some(c => c.type === "Ready" && c.status === "True"),
-    });
+    const kustomizationId = createNode(
+      `kustomization-${props.kustomization.metadata.name}`,
+      `Kustomization: ${props.kustomization.metadata.name}`,
+      "kustomization",
+      {
+        fontSize: 14,
+        fontWeight: "bold",
+        fill: props.kustomization.status?.conditions?.some(c => c.type === "Ready" && c.status === "True") ? "#e6f4ea" : "#fce8e6",
+        stroke: props.kustomization.status?.conditions?.some(c => c.type === "Ready" && c.status === "True") ? "#137333" : "#c5221f",
+        strokeWidth: "2"
+      }
+    );
 
     // Add nodes and edges for deployments
     props.kustomization.inventoryItems.deployments.forEach((deployment) => {
-      const deploymentId = `deployment-${deployment.metadata.name}`;
-      g.setNode(deploymentId, {
-        label: `Deployment: ${deployment.metadata.name}`,
-        width: 160,
-        height: 40,
-        type: "deployment",
-        status: deployment.status.availableReplicas === deployment.status.replicas,
-      });
+      const isReady = deployment.status.availableReplicas === deployment.status.replicas;
+      const deploymentId = createNode(
+        `deployment-${deployment.metadata.name}`,
+        `Deployment: ${deployment.metadata.name}`,
+        "deployment",
+        {
+          fill: isReady ? "#e6f4ea" : "#fce8e6",
+          stroke: isReady ? "#137333" : "#c5221f",
+          strokeWidth: "1"
+        }
+      );
       g.setEdge(kustomizationId, deploymentId);
 
       // Add replica sets
       deployment.replicaSets.forEach((replicaSet) => {
-        const rsId = `replicaset-${replicaSet.metadata.name}`;
-        g.setNode(rsId, {
-          label: `ReplicaSet: ${replicaSet.metadata.name}`,
-          width: 140,
-          height: 35,
-          type: "replicaset",
-        });
+        const rsId = createNode(
+          `replicaset-${replicaSet.metadata.name}`,
+          `ReplicaSet: ${replicaSet.metadata.name}`,
+          "replicaset",
+          {
+            fill: "#e8f0fe",
+            stroke: "#1a73e8",
+            strokeWidth: "1"
+          }
+        );
         g.setEdge(deploymentId, rsId);
 
         // Add pods
         replicaSet.pods.forEach((pod) => {
-          const podId = `pod-${pod.metadata.name}`;
-          g.setNode(podId, {
-            label: `Pod: ${pod.metadata.name}`,
-            width: 120,
-            height: 30,
-            type: "pod",
-            status: pod.status.phase,
-          });
+          const podId = createNode(
+            `pod-${pod.metadata.name}`,
+            `Pod: ${pod.metadata.name}`,
+            "pod",
+            {
+              fill: "#fff",
+              stroke: "#666",
+              strokeWidth: "1"
+            }
+          );
           g.setEdge(rsId, podId);
         });
       });
@@ -86,13 +152,16 @@ export function ResourceTree(props: ResourceTreeProps) {
 
     // Add nodes for services
     props.kustomization.inventoryItems.services.forEach((service) => {
-      const serviceId = `service-${service.metadata.name}`;
-      g.setNode(serviceId, {
-        label: `Service: ${service.metadata.name}`,
-        width: 160,
-        height: 40,
-        type: "service",
-      });
+      const serviceId = createNode(
+        `service-${service.metadata.name}`,
+        `Service: ${service.metadata.name}`,
+        "service",
+        {
+          fill: "#e6f4ea",
+          stroke: "#137333",
+          strokeWidth: "1"
+        }
+      );
       g.setEdge(kustomizationId, serviceId);
     });
 
@@ -120,25 +189,9 @@ export function ResourceTree(props: ResourceTreeProps) {
       rect.setAttribute("height", node.height.toString());
       rect.setAttribute("rx", "4");
       rect.setAttribute("ry", "4");
-      
-      // Set colors based on type and status
-      if (node.type === "kustomization") {
-        rect.setAttribute("fill", node.status ? "#e6f4ea" : "#fce8e6");
-        rect.setAttribute("stroke", node.status ? "#137333" : "#c5221f");
-        rect.setAttribute("stroke-width", "2");
-      } else if (node.type === "deployment") {
-        rect.setAttribute("fill", node.status ? "#e6f4ea" : "#fce8e6");
-        rect.setAttribute("stroke", node.status ? "#137333" : "#c5221f");
-      } else if (node.type === "replicaset") {
-        rect.setAttribute("fill", "#e8f0fe");
-        rect.setAttribute("stroke", "#1a73e8");
-      } else if (node.type === "pod") {
-        rect.setAttribute("fill", "#fff");
-        rect.setAttribute("stroke", "#666");
-      } else if (node.type === "service") {
-        rect.setAttribute("fill", "#e6f4ea");
-        rect.setAttribute("stroke", "#137333");
-      }
+      rect.setAttribute("fill", node.fill);
+      rect.setAttribute("stroke", node.stroke);
+      rect.setAttribute("stroke-width", node.strokeWidth);
 
       // Create text
       const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -146,8 +199,8 @@ export function ResourceTree(props: ResourceTreeProps) {
       text.setAttribute("y", (node.height / 2).toString());
       text.setAttribute("text-anchor", "middle");
       text.setAttribute("dominant-baseline", "middle");
-      text.setAttribute("font-size", node.type === "kustomization" ? "14" : "12");
-      text.setAttribute("font-weight", node.type === "kustomization" ? "bold" : "normal");
+      text.setAttribute("font-size", node.fontSize?.toString() || "12");
+      text.setAttribute("font-weight", node.fontWeight || "normal");
       text.textContent = node.label;
 
       group.appendChild(rect);
@@ -159,12 +212,35 @@ export function ResourceTree(props: ResourceTreeProps) {
     g.edges().forEach((e: graphlib.Edge) => {
       const edge = g.edge(e) as EdgeData;
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", edge.points.map((p: { x: number; y: number }, i: number) => 
-        i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`
-      ).join(" "));
+      
+      // Get source and target nodes
+      const sourceNode = g.node(e.v) as NodeData;
+      const targetNode = g.node(e.w) as NodeData;
+      
+      // Calculate middle points
+      const sourceX = sourceNode.x! + sourceNode.width/2;
+      const sourceY = sourceNode.y!;
+      const targetX = targetNode.x! - targetNode.width/2;
+      const targetY = targetNode.y!;
+      
+      // Create Manhattan-style path
+      let pathData = `M ${sourceX} ${sourceY}`;
+      
+      // Calculate intermediate points for Manhattan routing
+      const midX = (sourceX + targetX) / 2;
+      
+      // First move horizontally to the midpoint
+      pathData += ` H ${midX}`;
+      // Then move vertically to target's y
+      pathData += ` V ${targetY}`;
+      // Finally move horizontally to target
+      pathData += ` H ${targetX}`;
+      
+      path.setAttribute("d", pathData);
       path.setAttribute("fill", "none");
-      path.setAttribute("stroke", "#666");
+      path.setAttribute("stroke", "#999");  // Lighter gray
       path.setAttribute("stroke-width", "1");
+      path.setAttribute("stroke-dasharray", "5,2");  // Dashed line
       gRef?.appendChild(path);
     });
   };
