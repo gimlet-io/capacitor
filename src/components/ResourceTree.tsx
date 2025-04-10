@@ -1,5 +1,4 @@
-import { Accessor, createEffect, onMount, Signal } from "solid-js";
-import type { KustomizationWithInventory } from "../types/k8s.ts";
+import { Accessor, createEffect } from "solid-js";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
 
