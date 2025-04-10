@@ -1,19 +1,18 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { Show } from "solid-js";
 import type {
   Deployment,
   Kustomization,
   Pod,
   Service,
   ReplicaSet,
-  ReplicaSetWithResources,
-  DeploymentWithResources,
   KustomizationWithInventory
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
+import { ResourceTree } from "../components/ResourceTree.tsx";
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -24,7 +23,7 @@ export function KustomizationDetails() {
   const [deployments, setDeployments] = createSignal<Deployment[]>([]);
   const [replicaSets, setReplicaSets] = createSignal<ReplicaSet[]>([]);
   const [pods, setPods] = createSignal<Pod[]>([]);
-  const [services, setServices] = createSignal<ServiceWithResources[]>([]);
+  const [services, setServices] = createSignal<Service[]>([]);
   const [kustomizationWithInventory, setKustomizationWithInventory] = createSignal<KustomizationWithInventory | null>(null);
 
   const [watchStatus, setWatchStatus] = createSignal("●");
@@ -209,6 +208,9 @@ export function KustomizationDetails() {
                       <span class="icon">←</span> Back
                     </button>
                     <h1>{metadata.name}</h1>
+                    <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
+                      {watchStatus()}
+                    </span>
                     <div class="status-badges">
                       <span class={`health-badge ${healthCondition?.status.toLowerCase()}`}>
                         {healthCondition?.status || 'Unknown'}
@@ -221,9 +223,6 @@ export function KustomizationDetails() {
                       <span class={`status-badge ${humanstatus.toLowerCase().replace(/[^a-z]/g, '-')}`}>
                         {humanstatus}
                       </span>
-                      {kustomization.status?.lastAppliedRevision && (
-                        <span class="revision">Rev: {kustomization.status.lastAppliedRevision}</span>
-                      )}
                       {kustomization.spec.suspend && (
                         <span class="status-badge suspended">Suspended</span>
                       )}
@@ -271,10 +270,10 @@ export function KustomizationDetails() {
 
               <main class="resource-tree-container">
                 <div class="resource-tree">
-                  <h2>Resources</h2>
-                  <div class="tree-placeholder">
-                    Resource tree visualization coming soon...
-                  </div>
+                  <ResourceTree
+                    deployments={kustomizationWithInventory()?.inventoryItems.deployments || []}
+                    services={kustomizationWithInventory()?.inventoryItems.services || []}
+                  />
                 </div>
               </main>
             </>

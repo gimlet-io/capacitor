@@ -896,6 +896,8 @@
     "dependencies": [
       "jsr:@std/assert@1",
       "npm:@solidjs/router@0.10.0",
+      "npm:dagre@0.8.5",
+      "npm:graphlib@2.1.8",
       "npm:solid-js@1.9.5"
     ]
   }

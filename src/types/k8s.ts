@@ -172,6 +172,8 @@ export interface ServiceWithResources extends Service {
   matchingDeployments: Deployment[];
 }
 
+import { Condition } from "../utils/conditions.ts";
+
 export interface Kustomization {
   apiVersion: string;
   kind: string;
@@ -198,13 +200,7 @@ export interface Kustomization {
     }>;
   };
   status?: {
-    conditions?: Array<{
-      type: string;
-      status: string;
-      reason?: string;
-      message?: string;
-      lastTransitionTime: string;
-    }>;
+    conditions?: Condition[];
     lastAppliedRevision?: string;
     lastAttemptedRevision?: string;
     inventory?: {
@@ -446,6 +442,29 @@ export interface ArgoCDApplication {
       };
     }>;
   };
+}
+
+export interface ReplicaSet {
+  metadata: ObjectMeta;
+  spec: {
+    replicas: number;
+    selector: {
+      matchLabels: { [key: string]: string };
+    };
+    template: {
+      metadata: ObjectMeta;
+      spec: PodSpec;
+    };
+  };
+  status: {
+    replicas: number;
+    readyReplicas: number;
+    availableReplicas: number;
+  };
+}
+
+export interface ReplicaSetWithResources extends ReplicaSet {
+  pods: Pod[];
 }
 
 export interface ReplicaSet {

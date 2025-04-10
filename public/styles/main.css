@@ -978,3 +978,120 @@ details[open] summary {
   border-radius: 8px;
   margin-top: 20px;
 }
+
+.kustomization-details .resource-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.kustomization-details .resource-tree h2 {
+  color: #333;
+  margin-bottom: 16px;
+  font-size: 1.2em;
+}
+
+.kustomization-details .resource-tree-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 4px solid #6f42c1;
+}
+
+.kustomization-details .resource-tree-item.deployment {
+  border-left-color: #6f42c1;
+}
+
+.kustomization-details .resource-tree-item.service {
+  border-left-color: #20c997;
+}
+
+.kustomization-details .resource-tree-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kustomization-details .resource-tree-item-header h3 {
+  margin: 0;
+  font-size: 1em;
+  color: #333;
+}
+
+.kustomization-details .resource-tree-item-header .status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.kustomization-details .resource-tree-item-header .status-badge.true {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.kustomization-details .resource-tree-item-header .status-badge.false {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
+.kustomization-details .resource-tree-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 2px solid #e9ecef;
+}
+
+.kustomization-details .resource-tree-item-content .replica-set {
+  padding: 8px;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.kustomization-details .resource-tree-item-content .pod {
+  padding: 8px;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  margin-left: 16px;
+}
+
+.kustomization-details .resource-tree-item-content .pod-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kustomization-details .resource-tree-item-content .pod-header h4 {
+  margin: 0;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.kustomization-details .resource-tree-item-content .pod-status {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.kustomization-details .resource-tree-item-content .pod-status.running {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.kustomization-details .resource-tree-item-content .pod-status.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.kustomization-details .resource-tree-item-content .pod-status.failed {
+  background: #fce8e6;
+  color: #c5221f;
+}
