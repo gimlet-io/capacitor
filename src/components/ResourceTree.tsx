@@ -6,7 +6,6 @@ interface NodeData {
   label: string;
   width: number;
   height: number;
-  type: "kustomization" | "deployment" | "replicaset" | "pod" | "service";
   x?: number;
   y?: number;
   fontSize?: number;
@@ -38,7 +37,6 @@ export function createNode(
   g: graphlib.Graph,
   id: string,
   label: string,
-  type: NodeData["type"],
   options: {
     fontSize?: number;
     fontWeight?: string;
@@ -63,7 +61,6 @@ export function createNode(
     label,
     width,
     height,
-    type,
     fontSize,
     fontWeight,
     fill,
