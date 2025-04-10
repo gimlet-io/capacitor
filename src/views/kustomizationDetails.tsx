@@ -209,7 +209,6 @@ export function KustomizationDetails() {
       g,
       `kustomization-${kustomization.metadata.name}`,
       `Kustomization: ${kustomization.metadata.name}`,
-      "kustomization",
       {
         fontSize: 14,
         fontWeight: "bold",
@@ -237,7 +236,6 @@ export function KustomizationDetails() {
         g,
         `deployment-${deployment.metadata.name}`,
         `Deployment: ${deployment.metadata.name}`,
-        "deployment",
         {
           fill: isReady ? "#e6f4ea" : "#fce8e6",
           stroke: isReady ? "#137333" : "#c5221f",
@@ -252,7 +250,6 @@ export function KustomizationDetails() {
           g,
           `replicaset-${replicaSet.metadata.name}`,
           `ReplicaSet: ${replicaSet.metadata.name}`,
-          "replicaset",
           {
             fill: "#e8f0fe",
             stroke: "#1a73e8",
@@ -267,7 +264,6 @@ export function KustomizationDetails() {
             g,
             `pod-${pod.metadata.name}`,
             `Pod: ${pod.metadata.name}`,
-            "pod",
             {
               fill: "#fff",
               stroke: "#666",
@@ -285,7 +281,6 @@ export function KustomizationDetails() {
         g,
         `service-${service.metadata.name}`,
         `Service: ${service.metadata.name}`,
-        "service",
         {
           fill: "#e6f4ea",
           stroke: "#137333",
