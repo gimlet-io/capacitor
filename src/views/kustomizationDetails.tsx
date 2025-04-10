@@ -13,7 +13,8 @@ import type {
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
-import { ResourceTree } from "../components/ResourceTree.tsx";
+import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
+import * as graphlib from "graphlib";
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -26,6 +27,8 @@ export function KustomizationDetails() {
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [services, setServices] = createSignal<Service[]>([]);
   const [kustomizationWithInventory, setKustomizationWithInventory] = createSignal<KustomizationWithInventory | null>(null);
+
+  const [graph, setGraph] = createSignal<graphlib.Graph>();
 
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<
@@ -184,8 +187,116 @@ export function KustomizationDetails() {
   });
 
   createEffect(() => {
-    console.log('kustomizationWithInventory', kustomizationWithInventory());
+    setGraph(createGraph(kustomizationWithInventory()));
   });
+
+  const createGraph = (kustomization: KustomizationWithInventory | null) => {
+    if (!kustomization) return;
+    
+    const g = new graphlib.Graph({ directed: true });
+    g.setGraph({
+      rankdir: "LR",
+      nodesep: 100,
+      ranksep: 80,
+      marginx: 20,
+      marginy: 20,
+      align: "UL", // Upper-Left alignment for nodes in the same rank
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    // Add Kustomization as root node
+    const kustomizationId = createNode(
+      g,
+      `kustomization-${kustomization.metadata.name}`,
+      `Kustomization: ${kustomization.metadata.name}`,
+      "kustomization",
+      {
+        fontSize: 14,
+        fontWeight: "bold",
+        fill:
+          kustomization.status?.conditions?.some((c) =>
+              c.type === "Ready" && c.status === "True"
+            )
+            ? "#e6f4ea"
+            : "#fce8e6",
+        stroke:
+          kustomization.status?.conditions?.some((c) =>
+            c.type === "Ready" && c.status === "True"
+            )
+            ? "#137333"
+            : "#c5221f",
+        strokeWidth: "2",
+      },
+    );
+
+    // Add nodes and edges for deployments
+    kustomization.inventoryItems.deployments.forEach((deployment) => {
+      const isReady =
+        deployment.status.availableReplicas === deployment.status.replicas;
+      const deploymentId = createNode(
+        g,
+        `deployment-${deployment.metadata.name}`,
+        `Deployment: ${deployment.metadata.name}`,
+        "deployment",
+        {
+          fill: isReady ? "#e6f4ea" : "#fce8e6",
+          stroke: isReady ? "#137333" : "#c5221f",
+          strokeWidth: "1",
+        },
+      );
+      g.setEdge(kustomizationId, deploymentId);
+
+      // Add replica sets
+      deployment.replicaSets.forEach((replicaSet) => {
+        const rsId = createNode(
+          g,
+          `replicaset-${replicaSet.metadata.name}`,
+          `ReplicaSet: ${replicaSet.metadata.name}`,
+          "replicaset",
+          {
+            fill: "#e8f0fe",
+            stroke: "#1a73e8",
+            strokeWidth: "1",
+          },
+        );
+        g.setEdge(deploymentId, rsId);
+
+        // Add pods
+        replicaSet.pods.forEach((pod) => {
+          const podId = createNode(
+            g,
+            `pod-${pod.metadata.name}`,
+            `Pod: ${pod.metadata.name}`,
+            "pod",
+            {
+              fill: "#fff",
+              stroke: "#666",
+              strokeWidth: "1",
+            },
+          );
+          g.setEdge(rsId, podId);
+        });
+      });
+    });
+
+    // Add nodes for services
+    kustomization.inventoryItems.services.forEach((service) => {
+      const serviceId = createNode(
+        g,
+        `service-${service.metadata.name}`,
+        `Service: ${service.metadata.name}`,
+        "service",
+        {
+          fill: "#e6f4ea",
+          stroke: "#137333",
+          strokeWidth: "1",
+        },
+      );
+      g.setEdge(kustomizationId, serviceId);
+    });
+
+    return g;
+  };
 
   return (
     <div class="kustomization-details">
@@ -271,11 +382,7 @@ export function KustomizationDetails() {
 
               <main class="resource-tree-container">
                 <div class="resource-tree">
-                  <Show when={kustomizationWithInventory()}>
-                    {(k) => (
-                      <ResourceTree kustomization={k()} />
-                    )}
-                  </Show>
+                  <ResourceTree g={graph} />
                 </div>
               </main>
             </>
