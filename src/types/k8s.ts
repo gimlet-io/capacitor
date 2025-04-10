@@ -6,6 +6,14 @@ export interface ObjectMeta {
     annotations?: { [key: string]: string };
     creationTimestamp?: string;
     uid?: string;
+    ownerReferences?: Array<{
+        apiVersion: string;
+        kind: string;
+        name: string;
+        uid: string;
+        controller?: boolean;
+        blockOwnerDeletion?: boolean;
+    }>;
 }
 
 export interface ListMeta {
@@ -125,6 +133,11 @@ export interface DeploymentList {
     items: Deployment[];
 }
 
+export interface DeploymentWithResources extends Deployment {
+  pods: Pod[];
+  replicaSets: ReplicaSetWithResources[];
+}
+
 export interface ServicePort {
     name?: string;
     protocol?: string;
@@ -200,6 +213,13 @@ export interface Kustomization {
         v: string;
       }>;
     };
+  };
+}
+
+export interface KustomizationWithInventory extends Kustomization {
+  inventoryItems: {
+    deployments: DeploymentWithResources[];
+    services: ServiceWithResources[];
   };
 }
 
@@ -426,4 +446,27 @@ export interface ArgoCDApplication {
       };
     }>;
   };
+}
+
+export interface ReplicaSet {
+  metadata: ObjectMeta;
+  spec: {
+    replicas: number;
+    selector: {
+      matchLabels: { [key: string]: string };
+    };
+    template: {
+      metadata: ObjectMeta;
+      spec: PodSpec;
+    };
+  };
+  status: {
+    replicas: number;
+    readyReplicas: number;
+    availableReplicas: number;
+  };
+}
+
+export interface ReplicaSetWithResources extends ReplicaSet {
+  pods: Pod[];
 } 

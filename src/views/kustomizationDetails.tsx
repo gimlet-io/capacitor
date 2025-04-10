@@ -7,6 +7,10 @@ import type {
   Kustomization,
   Pod,
   ServiceWithResources,
+  ReplicaSet,
+  ReplicaSetWithResources,
+  DeploymentWithResources,
+  KustomizationWithInventory
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 
@@ -15,12 +19,12 @@ export function KustomizationDetails() {
   const navigate = useNavigate();
 
   // Initialize state for the specific kustomization and its related resources
-  const [kustomization, setKustomization] = createSignal<Kustomization | null>(
-    null,
-  );
+  const [kustomization, setKustomization] = createSignal<Kustomization | null>(null);
   const [deployments, setDeployments] = createSignal<Deployment[]>([]);
+  const [replicaSets, setReplicaSets] = createSignal<ReplicaSet[]>([]);
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
+  const [kustomizationWithInventory, setKustomizationWithInventory] = createSignal<KustomizationWithInventory | null>(null);
 
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<
@@ -72,6 +76,18 @@ export function KustomizationDetails() {
         }
       },
       {
+        path: `/k8s/apis/apps/v1/namespaces/${ns}/replicasets?watch=true`,
+        callback: (event: { type: string; object: ReplicaSet }) => {
+          if (event.type === 'ADDED') {
+            setReplicaSets(prev => [...prev, event.object]);
+          } else if (event.type === 'MODIFIED') {
+            setReplicaSets(prev => prev.map(rs => rs.metadata.name === event.object.metadata.name ? event.object : rs));
+          } else if (event.type === 'DELETED') {
+            setReplicaSets(prev => prev.filter(rs => rs.metadata.name !== event.object.metadata.name));
+          }
+        }
+      },
+      {
         path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
         callback: (event: { type: string; object: Deployment }) => {
           if (event.type === 'ADDED') {
@@ -106,11 +122,68 @@ export function KustomizationDetails() {
     setWatchControllers(controllers);
   };
 
+  // Update inventory when resources change
   createEffect(() => {
-    console.log('kustomization', kustomization());
-    console.log('deployments', deployments());
-    console.log('pods', pods());
-    console.log('services', services());
+    const k = kustomization();
+    if (!k) return;
+
+    const inventory = k.status?.inventory?.entries || [];
+    const currentDeployments = deployments();
+    const currentReplicaSets = replicaSets();
+    const currentPods = pods();
+    const currentServices = services();
+
+    const matchingDeployments = currentDeployments
+      .filter(d => 
+        inventory.some(entry => 
+          entry.id === `${d.metadata.namespace}_${d.metadata.name}_apps_Deployment`
+        )
+      )
+      .map(deployment => {
+        // Find ReplicaSets owned by this Deployment
+        const deploymentReplicaSets = currentReplicaSets
+          .filter(rs => 
+            rs.metadata.ownerReferences?.some(ref => 
+              ref.kind === 'Deployment' && 
+              ref.name === deployment.metadata.name &&
+              rs.metadata.namespace === deployment.metadata.namespace
+            )
+          )
+          .map(replicaSet => ({
+            ...replicaSet,
+            // Find Pods owned by this ReplicaSet
+            pods: currentPods.filter(pod => 
+              pod.metadata.ownerReferences?.some(ref => 
+                ref.kind === 'ReplicaSet' && 
+                ref.name === replicaSet.metadata.name &&
+                pod.metadata.namespace === replicaSet.metadata.namespace
+              )
+            )
+          }));
+
+        return {
+          ...deployment,
+          replicaSets: deploymentReplicaSets
+        };
+      });
+
+    const matchingServices = currentServices.filter(s => 
+      inventory.some(entry => 
+        entry.id === `${s.metadata.namespace}_${s.metadata.name}__Service`
+      )
+    );
+
+    setKustomizationWithInventory({
+      ...k,
+      inventoryItems: {
+        deployments: matchingDeployments,
+        services: matchingServices
+      }
+    });
+  });
+
+  createEffect(() => {
+    console.log('kustomizationWithInventory', kustomizationWithInventory());
   });
 
   return (
