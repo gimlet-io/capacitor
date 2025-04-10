@@ -148,60 +148,22 @@ export function Dashboard() {
   });
 
   // Filter resources based on search query
-  const filteredPods = () => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return pods();
-    return pods().filter(pod => 
-      pod.metadata.name.toLowerCase().includes(query) ||
-      (pod.metadata.namespace?.toLowerCase() || '').includes(query)
-    );
-  };
+  const filteredPods = () => filterResources(pods(), searchQuery());
+  const filteredDeployments = () => filterResources(deployments(), searchQuery());
+  const filteredServices = () => filterResources(services(), searchQuery());
+  const filteredKustomizations = () => filterResources(kustomizations(), searchQuery());
+  const filteredSources = () => filterResources(sources(), searchQuery());
+  const filteredApplications = () => filterResources(applications(), searchQuery());
 
-  const filteredDeployments = () => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return deployments();
-    return deployments().filter(deployment => 
-      deployment.metadata.name.toLowerCase().includes(query) ||
-      (deployment.metadata.namespace?.toLowerCase() || '').includes(query)
-    );
-  };
-
-  const filteredServices = () => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return services();
-    return services().filter(service => 
-      service.metadata.name.toLowerCase().includes(query) ||
-      (service.metadata.namespace?.toLowerCase() || '').includes(query)
-    );
-  };
-
-  const filteredKustomizations = () => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return kustomizations();
-    return kustomizations().filter(kustomization => 
-      kustomization.metadata.name.toLowerCase().includes(query) ||
-      kustomization.metadata.namespace.toLowerCase().includes(query)
-    );
-  };
-
-  const filteredSources = () => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return sources();
-    return sources().filter(source => 
-      source.metadata.name.toLowerCase().includes(query) ||
-      source.metadata.namespace.toLowerCase().includes(query)
-    );
-  };
-
-  const filteredApplications = () => {
-    const query = searchQuery().toLowerCase();
-    if (!query) return applications();
-    return applications().filter(app => 
-      (namespaces() === 'all-namespaces' || app.metadata.namespace === namespaces()) &&
-      (query === '' || 
-        app.metadata.name.toLowerCase().includes(query) ||
-        app.spec.project.toLowerCase().includes(query) ||
-        app.spec.source.repoURL.toLowerCase().includes(query))
+  const filterResources = <T extends { metadata: { name: string; namespace: string } }>(
+    resources: T[],
+    query: string
+  ): T[] => {
+    if (!query) return resources;
+    const lowerQuery = query.toLowerCase();
+    return resources.filter(resource =>
+      resource.metadata.name.toLowerCase().includes(lowerQuery) ||
+      resource.metadata.namespace.toLowerCase().includes(lowerQuery)
     );
   };
 

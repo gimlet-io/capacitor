@@ -1,7 +1,7 @@
 // Basic metadata interfaces
 export interface ObjectMeta {
     name: string;
-    namespace?: string;
+    namespace: string;
     labels?: { [key: string]: string };
     annotations?: { [key: string]: string };
     creationTimestamp?: string;
