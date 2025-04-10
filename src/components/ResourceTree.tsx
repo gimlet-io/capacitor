@@ -1,18 +1,17 @@
 import { createEffect, onMount } from "solid-js";
-import type { DeploymentWithResources, Service } from "../types/k8s.ts";
+import type { KustomizationWithInventory } from "../types/k8s.ts";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
 
 interface ResourceTreeProps {
-  deployments: DeploymentWithResources[];
-  services: Service[];
+  kustomization: KustomizationWithInventory;
 }
 
 interface NodeData {
   label: string;
   width: number;
   height: number;
-  type: "deployment" | "replicaset" | "pod" | "service";
+  type: "kustomization" | "deployment" | "replicaset" | "pod" | "service";
   status?: boolean | string;
   x?: number;
   y?: number;
@@ -29,32 +28,43 @@ export function ResourceTree(props: ResourceTreeProps) {
   const createGraph = () => {
     const g = new graphlib.Graph({ directed: true });
     g.setGraph({
-      rankdir: "TB",
-      nodesep: 50,
-      ranksep: 50,
+      rankdir: "LR",
+      nodesep: 100,
+      ranksep: 80,
       marginx: 20,
       marginy: 20,
     });
     g.setDefaultEdgeLabel(() => ({}));
 
+    // Add Kustomization as root node
+    const kustomizationId = `kustomization-${props.kustomization.metadata.name}`;
+    g.setNode(kustomizationId, {
+      label: `Kustomization: ${props.kustomization.metadata.name}`,
+      width: 180,
+      height: 50,
+      type: "kustomization",
+      status: props.kustomization.status?.conditions?.some(c => c.type === "Ready" && c.status === "True"),
+    });
+
     // Add nodes and edges for deployments
-    props.deployments.forEach((deployment) => {
+    props.kustomization.inventoryItems.deployments.forEach((deployment) => {
       const deploymentId = `deployment-${deployment.metadata.name}`;
       g.setNode(deploymentId, {
         label: `Deployment: ${deployment.metadata.name}`,
-        width: 200,
-        height: 50,
+        width: 160,
+        height: 40,
         type: "deployment",
         status: deployment.status.availableReplicas === deployment.status.replicas,
       });
+      g.setEdge(kustomizationId, deploymentId);
 
       // Add replica sets
       deployment.replicaSets.forEach((replicaSet) => {
         const rsId = `replicaset-${replicaSet.metadata.name}`;
         g.setNode(rsId, {
           label: `ReplicaSet: ${replicaSet.metadata.name}`,
-          width: 180,
-          height: 40,
+          width: 140,
+          height: 35,
           type: "replicaset",
         });
         g.setEdge(deploymentId, rsId);
@@ -64,7 +74,7 @@ export function ResourceTree(props: ResourceTreeProps) {
           const podId = `pod-${pod.metadata.name}`;
           g.setNode(podId, {
             label: `Pod: ${pod.metadata.name}`,
-            width: 160,
+            width: 120,
             height: 30,
             type: "pod",
             status: pod.status.phase,
@@ -75,14 +85,15 @@ export function ResourceTree(props: ResourceTreeProps) {
     });
 
     // Add nodes for services
-    props.services.forEach((service) => {
+    props.kustomization.inventoryItems.services.forEach((service) => {
       const serviceId = `service-${service.metadata.name}`;
       g.setNode(serviceId, {
         label: `Service: ${service.metadata.name}`,
-        width: 200,
-        height: 50,
+        width: 160,
+        height: 40,
         type: "service",
       });
+      g.setEdge(kustomizationId, serviceId);
     });
 
     return g;
@@ -111,7 +122,11 @@ export function ResourceTree(props: ResourceTreeProps) {
       rect.setAttribute("ry", "4");
       
       // Set colors based on type and status
-      if (node.type === "deployment") {
+      if (node.type === "kustomization") {
+        rect.setAttribute("fill", node.status ? "#e6f4ea" : "#fce8e6");
+        rect.setAttribute("stroke", node.status ? "#137333" : "#c5221f");
+        rect.setAttribute("stroke-width", "2");
+      } else if (node.type === "deployment") {
         rect.setAttribute("fill", node.status ? "#e6f4ea" : "#fce8e6");
         rect.setAttribute("stroke", node.status ? "#137333" : "#c5221f");
       } else if (node.type === "replicaset") {
@@ -131,7 +146,8 @@ export function ResourceTree(props: ResourceTreeProps) {
       text.setAttribute("y", (node.height / 2).toString());
       text.setAttribute("text-anchor", "middle");
       text.setAttribute("dominant-baseline", "middle");
-      text.setAttribute("font-size", "12");
+      text.setAttribute("font-size", node.type === "kustomization" ? "14" : "12");
+      text.setAttribute("font-weight", node.type === "kustomization" ? "bold" : "normal");
       text.textContent = node.label;
 
       group.appendChild(rect);
@@ -163,7 +179,7 @@ export function ResourceTree(props: ResourceTreeProps) {
 
   return (
     <div class="resource-tree-visualization">
-      <svg ref={svgRef} width="100%" height="600">
+      <svg ref={svgRef} width="100%" height="400">
         <g ref={gRef} />
       </svg>
     </div>

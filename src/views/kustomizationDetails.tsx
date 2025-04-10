@@ -8,7 +8,8 @@ import type {
   Pod,
   Service,
   ReplicaSet,
-  KustomizationWithInventory
+  KustomizationWithInventory,
+  DeploymentWithResources
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
@@ -164,7 +165,7 @@ export function KustomizationDetails() {
         return {
           ...deployment,
           replicaSets: deploymentReplicaSets
-        };
+        } as DeploymentWithResources;
       });
 
     const matchingServices = currentServices.filter(s => 
@@ -270,10 +271,11 @@ export function KustomizationDetails() {
 
               <main class="resource-tree-container">
                 <div class="resource-tree">
-                  <ResourceTree
-                    deployments={kustomizationWithInventory()?.inventoryItems.deployments || []}
-                    services={kustomizationWithInventory()?.inventoryItems.services || []}
-                  />
+                  <Show when={kustomizationWithInventory()}>
+                    {(k) => (
+                      <ResourceTree kustomization={k()} />
+                    )}
+                  </Show>
                 </div>
               </main>
             </>
