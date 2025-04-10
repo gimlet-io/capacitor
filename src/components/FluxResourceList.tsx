@@ -1,7 +1,7 @@
 import { For } from "solid-js/web";
 import { useNavigate } from "@solidjs/router";
 import type { Kustomization, Source, OCIRepository, HelmRepository, HelmChart, GitRepository } from '../types/k8s.ts';
-import { getHumanReadableStatus } from '../utils/conditions.ts';
+import { Condition, getHumanReadableStatus } from '../utils/conditions.ts';
 
 export function FluxResourceList(props: { 
   kustomizations: Kustomization[],
@@ -12,7 +12,7 @@ export function FluxResourceList(props: {
   return (
     <div class="resource-list">
       <For each={props.kustomizations}>
-        {(kustomization) => {
+        {(kustomization: Kustomization) => {
           const status = getHumanReadableStatus(kustomization.status?.conditions || []);
           return (
             <div 
@@ -43,7 +43,7 @@ export function FluxResourceList(props: {
                 <summary>Conditions</summary>
                 <div class="conditions">
                   <For each={kustomization.status?.conditions || []}>
-                    {(condition) => (
+                    {(condition: Condition) => (
                       <div class={`condition ${condition.status.toLowerCase()}`}>
                         <p>Type: {condition.type}</p>
                         <p>Status: {condition.status}</p>

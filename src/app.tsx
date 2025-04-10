@@ -1,14 +1,14 @@
 import { render } from "solid-js/web";
-import { Router, Route } from "@solidjs/router";
+import { HashRouter, Route } from "@solidjs/router";
 import { KustomizationDetails } from "./views/kustomizationDetails.tsx";
 import { Dashboard } from "./views/dashboard.tsx";
 
 function App() {
   return (
-    <Router>
+    <HashRouter>
       <Route path="/" component={Dashboard} />
       <Route path="/kustomization/:namespace/:name" component={KustomizationDetails} />
-    </Router>
+    </HashRouter>
   );
 }
 
