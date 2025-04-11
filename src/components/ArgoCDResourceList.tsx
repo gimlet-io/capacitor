@@ -60,7 +60,7 @@ export function ArgoCDResourceList(props: {
               )}
               
               {application.status?.conditions && application.status.conditions.length > 0 && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>Conditions</summary>
                   <div class="conditions">
                     <For each={application.status.conditions}>
@@ -78,7 +78,7 @@ export function ArgoCDResourceList(props: {
               )}
               
               {application.status?.operationState && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>Operation State</summary>
                   <div class="operation-state">
                     <p>Phase: {application.status.operationState.phase}</p>
@@ -92,7 +92,7 @@ export function ArgoCDResourceList(props: {
               )}
               
               {application.status?.resources && application.status.resources.length > 0 && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>Resources ({application.status.resources.length})</summary>
                   <div class="resources">
                     <For each={application.status.resources}>
@@ -110,7 +110,7 @@ export function ArgoCDResourceList(props: {
               )}
               
               {application.status?.history && application.status.history.length > 0 && (
-                <details>
+                <details onClick={(e) => e.stopPropagation()}>
                   <summary>History</summary>
                   <div class="history">
                     <For each={application.status.history.slice(0, 5)}>
