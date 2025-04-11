@@ -68,7 +68,7 @@ export function KustomizationDetails() {
         },
       },
       {
-        path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
+        path: `/k8s/api/v1/pods?watch=true`,
         callback: (event: { type: string; object: Pod }) => {
           if (event.type === 'ADDED') {
             setPods(prev => [...prev, event.object]);
@@ -80,7 +80,7 @@ export function KustomizationDetails() {
         }
       },
       {
-        path: `/k8s/apis/apps/v1/namespaces/${ns}/replicasets?watch=true`,
+        path: `/k8s/apis/apps/v1/replicasets?watch=true`,
         callback: (event: { type: string; object: ReplicaSet }) => {
           if (event.type === 'ADDED') {
             setReplicaSets(prev => [...prev, event.object]);
@@ -92,7 +92,7 @@ export function KustomizationDetails() {
         }
       },
       {
-        path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
+        path: `/k8s/apis/apps/v1/deployments?watch=true`,
         callback: (event: { type: string; object: Deployment }) => {
           if (event.type === 'ADDED') {
             setDeployments(prev => [...prev, event.object]);
@@ -104,7 +104,7 @@ export function KustomizationDetails() {
         }
       },
       {
-        path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
+        path: `/k8s/api/v1/services?watch=true`,
         callback: (event: { type: string; object: Service }) => {
           if (event.type === 'ADDED') {
             setServices(prev => [...prev, event.object]);
