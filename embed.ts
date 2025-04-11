@@ -21,7 +21,9 @@ async function embedFiles(dir: string, basePath: string = "") {
     if (entry.isFile) {
       console.log("Embedding " + relativePath);
       const content = await Deno.readFile(fullPath);
-      const base64 = btoa(String.fromCharCode(...content));
+      const decoder = new TextDecoder();
+      const text = decoder.decode(content);
+      const base64 = btoa(text);
       files[relativePath] = base64;
     } else if (entry.isDirectory) {
       await embedFiles(fullPath, relativePath);

@@ -444,6 +444,13 @@ export interface ArgoCDApplication {
   };
 }
 
+export interface ArgoCDApplicationWithResources extends ArgoCDApplication {
+  resources: {
+    deployments: DeploymentWithResources[];
+    services: Service[];
+  };
+}
+
 export interface ReplicaSet {
   metadata: ObjectMeta;
   spec: {

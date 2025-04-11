@@ -1,18 +1,26 @@
 import { For } from "solid-js/web";
 import type { ArgoCDApplication } from '../types/k8s.ts';
+import { useNavigate } from "@solidjs/router";
+
 
 export function ArgoCDResourceList(props: { 
   applications: ArgoCDApplication[]
 }) {
+  const navigate = useNavigate();
+
   return (
     <div class="resource-list">
       <For each={props.applications}>
-        {(application) => {
+        {(application: ArgoCDApplication) => {
           const syncStatus = application.status?.sync?.status || 'Unknown';
           const healthStatus = application.status?.health?.status || 'Unknown';
           
           return (
-            <div class={`resource-item argocd-app-item ${syncStatus.toLowerCase()} ${healthStatus.toLowerCase()}`}>
+            <div
+              class={`resource-item argocd-app-item ${syncStatus.toLowerCase()} ${healthStatus.toLowerCase()}`}
+              onClick={() => navigate(`/application/${application.metadata.namespace}/${application.metadata.name}`)}
+              style={{ cursor: 'pointer' }}
+            >
               <h2>Application: {application.metadata.namespace}/{application.metadata.name}</h2>
               
               <div class="argocd-status">
