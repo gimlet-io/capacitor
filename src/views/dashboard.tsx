@@ -315,16 +315,9 @@ export function Dashboard() {
             <Combobox
               value={namespace() || ""}
               options={namespaces() || []}
-              onInput={(value: string) => {
-                setNamespace(value);
-              }}
               onSelect={(value: string) => {
                 setNamespace(value);
               }}
-              onFocus={() => {
-                setNamespace("");
-              }}
-              onBlur={() => {}}
               hotkey="n"
               placeholder="Select namespace"
             />

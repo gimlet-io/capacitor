@@ -3,10 +3,7 @@ import { For, Show, onMount, onCleanup, createSignal, createEffect } from "solid
 interface ComboboxProps {
   value: string;
   options: string[];
-  onInput: (value: string) => void;
   onSelect: (value: string) => void;
-  onFocus: () => void;
-  onBlur: () => void;
   hotkey?: string;
   placeholder?: string;
 }
@@ -14,15 +11,17 @@ interface ComboboxProps {
 export function Combobox(props: ComboboxProps) {
   let inputRef: HTMLInputElement | undefined;
   const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const [filter, setFilter] = createSignal(props.value);
   const [filteredOptions, setFilteredOptions] = createSignal(props.options);
   const [isOpen, setIsOpen] = createSignal(false);
 
+  console.log(props.value);
+
   // Update filtered options when input value changes
   createEffect(() => {
-    const value = props.value.toLowerCase();
     setFilteredOptions(
       props.options.filter(option => 
-        option.toLowerCase().includes(value)
+        option.toLowerCase().includes(filter().toLowerCase())
       )
     );
     // Reset selected index when filtering
@@ -34,7 +33,7 @@ export function Combobox(props: ComboboxProps) {
     if (props.hotkey && e.key === props.hotkey && document.activeElement !== inputRef) {
       e.preventDefault();
       inputRef?.focus();
-      props.onFocus();
+      setFilter("");
       setIsOpen(true);
     }
 
@@ -54,20 +53,17 @@ export function Combobox(props: ComboboxProps) {
         const selected = filtered[selectedIndex()];
         if (selected) {
           props.onSelect(selected);
+          setFilter(selected);
           setIsOpen(false);
           inputRef?.blur();
         }
       } else if (e.key === 'Escape') {
+        console.log("Escape");
         e.preventDefault();
         setIsOpen(false);
+        setFilter(props.value);
         inputRef?.blur();
       }
-    }
-
-    if (document.activeElement === inputRef && e.key === 'Escape') {
-      e.preventDefault();
-      setIsOpen(false);
-      inputRef?.blur();
     }
   };
 
@@ -85,17 +81,15 @@ export function Combobox(props: ComboboxProps) {
         ref={inputRef}
         type="text"
         class="combobox-input"
-        value={props.value}
-        onInput={(e) => {
-          props.onInput(e.currentTarget.value);
+        value={isOpen() ? filter() : props.value}
+        onfocus={() => {
           setIsOpen(true);
+          setFilter("");
         }}
-        onFocus={() => {
-          props.onFocus();
-          setIsOpen(true);
+        onInput={(e) => {
+          setFilter(e.currentTarget.value);
         }}
         onBlur={() => {
-          props.onBlur();
           // Use setTimeout to allow click events to fire before closing
           setTimeout(() => setIsOpen(false), 200);
         }}
@@ -114,7 +108,9 @@ export function Combobox(props: ComboboxProps) {
                 }}
                 onClick={() => {
                   props.onSelect(option);
+                  setFilter(option);
                   setIsOpen(false);
+                  inputRef?.blur();
                 }}
               >
                 {option}
