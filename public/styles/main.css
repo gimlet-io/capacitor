@@ -283,7 +283,7 @@ h1 {
     top: 100%;
     left: 0;
     width: 100%;
-    max-height: 200px;
+    max-height: 250px;
     overflow-y: auto;
     background: white;
     border: 1px solid #dee2e6;
@@ -296,6 +296,18 @@ h1 {
 .combobox-option {
     padding: 0.5rem;
     cursor: pointer;
+    position: relative;
+}
+
+.combobox-option-hotkey{
+  position: absolute;
+  right: 0.5rem;
+  background-color: #e9ecef;
+  color: #495057;
+  font-size: 12px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  pointer-events: none;
 }
 
 .combobox-option:hover {

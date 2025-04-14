@@ -305,7 +305,7 @@ export function Dashboard() {
           <div class="namespace-combobox">
             <Combobox
               value={namespace() || ""}
-              options={namespaces() || []}
+              options={namespaces()?.map((ns: string) => ({ value: ns, label: ns })) || []}
               onSelect={(value: string) => {
                 setNamespace(value);
               }}
@@ -316,14 +316,12 @@ export function Dashboard() {
           <div class="combobox">
             <Combobox
               value={cardType()}
-              options={CARD_TYPES.map(type => type.label + " (" + type.hotkey + ")")}
+              options={CARD_TYPES.map(type => ({ value: type.value, label: type.label, hotkey: type.hotkey }))}
               onSelect={(value: string) => {
-                const t = CARD_TYPES.find(type => type.label + " (" + type.hotkey + ")" === value);
-                if (t) {
-                  setCardType(t.value);
-                }
+                setCardType(value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd');
               }}
               placeholder="Select resource type"
+              disableKeyboardNavigation
             />
           </div>
         </div>

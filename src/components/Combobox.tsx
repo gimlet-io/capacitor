@@ -1,11 +1,18 @@
 import { For, Show, onMount, onCleanup, createSignal, createEffect } from "solid-js";
 
+interface ComboboxOption {
+  value: string;
+  label: string;
+  hotkey?: string;
+}
+
 interface ComboboxProps {
   value: string;
-  options: string[];
+  options: ComboboxOption[];
   onSelect: (value: string) => void;
   hotkey?: string;
   placeholder?: string;
+  disableKeyboardNavigation?: boolean;
 }
 
 export function Combobox(props: ComboboxProps) {
@@ -21,7 +28,7 @@ export function Combobox(props: ComboboxProps) {
   createEffect(() => {
     setFilteredOptions(
       props.options.filter(option => 
-        option.toLowerCase().includes(filter().toLowerCase())
+        option.label.toLowerCase().includes(filter().toLowerCase())
       )
     );
     // Reset selected index when filtering
@@ -50,10 +57,10 @@ export function Combobox(props: ComboboxProps) {
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        const selected = filtered[selectedIndex()];
+        const selected = filteredOptions()[selectedIndex()];
         if (selected) {
-          props.onSelect(selected);
-          setFilter(selected);
+          props.onSelect(selected.value);
+          setFilter(selected.label);
           setIsOpen(false);
           inputRef?.blur();
         }
@@ -81,7 +88,7 @@ export function Combobox(props: ComboboxProps) {
         ref={inputRef}
         type="text"
         class="combobox-input"
-        value={isOpen() ? filter() : props.value}
+        value={isOpen() ? filter() : props.options.find(option => option.value === props.value)?.label || props.value}
         onfocus={() => {
           setIsOpen(true);
           setFilter("");
@@ -101,19 +108,20 @@ export function Combobox(props: ComboboxProps) {
           <For each={filteredOptions()}>
             {(option, index) => (
               <div
-                class="combobox-option"
+                class="combobox-option relative"
                 classList={{ 
-                  'selected': option === props.value,
-                  'highlighted': index() === selectedIndex()
+                  'selected': !props.disableKeyboardNavigation && option.value === props.value,
+                  'highlighted': !props.disableKeyboardNavigation && index() === selectedIndex()
                 }}
                 onClick={() => {
-                  props.onSelect(option);
-                  setFilter(option);
+                  props.onSelect(option.value);
+                  setFilter(option.label);
                   setIsOpen(false);
                   inputRef?.blur();
                 }}
               >
-                {option}
+                {option.label}
+                {option.hotkey && <span class="combobox-option-hotkey">{option.hotkey}</span>}
               </div>
             )}
           </For>
