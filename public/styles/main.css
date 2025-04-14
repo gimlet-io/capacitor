@@ -56,7 +56,6 @@ h1 {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
-    /* padding: 1rem; */
 }
 
 .resource-section {
@@ -175,14 +174,6 @@ h1 {
     background: #dee2e6;
 }
 
-.namespace-select {
-    width: 100%;
-    padding: 0.5rem;
-    margin-bottom: 1rem;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-}
-
 .main-content {
     flex: 1;
     padding: 2rem;
@@ -251,13 +242,14 @@ h1 {
     color: #6c757d;
 }
 
-.namespace-combobox {
+/* Generic combobox styles */
+.combobox {
     position: relative;
     width: 100%;
     margin-bottom: 1rem;
 }
 
-.namespace-input {
+.combobox-input {
     width: 100%;
     padding: 0.5rem;
     padding-right: 2.5rem;
@@ -267,7 +259,7 @@ h1 {
     box-sizing: border-box;
 }
 
-.namespace-hotkey {
+.combobox-hotkey {
     position: absolute;
     right: 0.5rem;
     top: 50%;
@@ -280,13 +272,13 @@ h1 {
     pointer-events: none;
 }
 
-.namespace-input:focus {
+.combobox-input:focus {
     outline: none;
     border-color: #007bff;
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
-.namespace-dropdown {
+.combobox-dropdown {
     position: absolute;
     top: 100%;
     left: 0;
@@ -301,20 +293,20 @@ h1 {
     box-sizing: border-box;
 }
 
-.namespace-option {
+.combobox-option {
     padding: 0.5rem;
     cursor: pointer;
 }
 
-.namespace-option:hover {
+.combobox-option:hover {
     background-color: #f8f9fa;
 }
 
-.namespace-option.selected {
+.combobox-option.selected {
     background-color: #e9ecef;
 }
 
-.namespace-option.highlighted {
+.combobox-option.highlighted {
     background-color: #e9ecef;
 }
 

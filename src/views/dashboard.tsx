@@ -1,7 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createResource, createEffect, onMount, untrack } from "solid-js";
-import { PodList, DeploymentList, ServiceList, FluxResourceList, EventList, ArgoCDResourceList } from "../components/index.ts";
-import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication } from "../types/k8s.ts";
+import { PodList, DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, Combobox } from "../components/index.ts";
+import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication, Service } from "../types/k8s.ts";
 import { For, Show } from "solid-js";
 import { updateServiceMatchingResources } from "../utils/k8s.ts";
 import { watchResource } from "../watches.tsx";
@@ -13,9 +13,6 @@ export function Dashboard() {
   const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('fluxcd');
   const [searchQuery, setSearchQuery] = createSignal("");
   const [isSearchFocused, setIsSearchFocused] = createSignal(false);
-  const [namespaceSearch, setNamespaceSearch] = createSignal("");
-  const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = createSignal(false);
-  const [selectedNamespaceIndex, setSelectedNamespaceIndex] = createSignal(0);
 
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
@@ -36,15 +33,6 @@ export function Dashboard() {
     return nsList;
   });
 
-  // Filter namespaces based on search
-  const filteredNamespaces = () => {
-    const query = namespaceSearch().toLowerCase();
-    if (!query) return namespaces() || [];
-    return (namespaces() || []).filter((ns: string) => 
-      ns.toLowerCase().includes(query)
-    );
-  };
-
   createEffect(() => {
     if (!namespaces()) {
       return;
@@ -56,6 +44,7 @@ export function Dashboard() {
     }
   });
 
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed());
   };
@@ -63,16 +52,6 @@ export function Dashboard() {
   // Handle keyboard shortcuts
   onMount(() => {
     document.addEventListener('keydown', (e) => {
-      // Focus namespace selector on 'n'
-      if (e.key === 'n' && !isSearchFocused()) {
-        e.preventDefault();
-        const namespaceInput = document.querySelector('.namespace-input') as HTMLInputElement;
-        if (namespaceInput) {
-          namespaceInput.focus();
-          setIsNamespaceDropdownOpen(true);
-          setNamespaceSearch("");
-        }
-      }
       // Focus search on '/'
       if (e.key === '/' && !isSearchFocused()) {
         e.preventDefault();
@@ -108,35 +87,10 @@ export function Dashboard() {
         }
       }
 
-      // Handle namespace dropdown navigation
-      if (isNamespaceDropdownOpen()) {
-        const filtered = filteredNamespaces();
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setSelectedNamespaceIndex((prev) => 
-            Math.min(prev + 1, filtered.length - 1)
-          );
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setSelectedNamespaceIndex((prev) => Math.max(prev - 1, 0));
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          const selectedNs = filtered[selectedNamespaceIndex()];
-          if (selectedNs) {
-            setNamespace(selectedNs);
-            setNamespaceSearch(selectedNs);
-            setIsNamespaceDropdownOpen(false);
-          }
-        }
-      }
-
       // Handle Escape key to blur inputs
       if (e.key === 'Escape') {
-        const namespaceInput = document.querySelector('.namespace-input') as HTMLInputElement;
         const searchInput = document.querySelector('.search-input') as HTMLInputElement;
-        if (namespaceInput) namespaceInput.blur();
         if (searchInput) searchInput.blur();
-        setIsNamespaceDropdownOpen(false);
       }
     });
   });
@@ -358,44 +312,22 @@ export function Dashboard() {
         <button class="sidebar-toggle" onClick={toggleSidebar}>☰</button>
         <div class="filters">
           <div class="namespace-combobox">
-            <input
-              type="text"
-              class="namespace-input"
-              value={namespaceSearch() || namespace() || ""}
-              onInput={(e) => {
-                setNamespaceSearch(e.currentTarget.value);
-                setIsNamespaceDropdownOpen(true);
-                setSelectedNamespaceIndex(0);
+            <Combobox
+              value={namespace() || ""}
+              options={namespaces() || []}
+              onInput={(value: string) => {
+                setNamespace(value);
+              }}
+              onSelect={(value: string) => {
+                setNamespace(value);
               }}
               onFocus={() => {
-                setIsNamespaceDropdownOpen(true);
-                setNamespaceSearch("");
+                setNamespace("");
               }}
-              onBlur={() => setTimeout(() => setIsNamespaceDropdownOpen(false), 200)}
+              onBlur={() => {}}
+              hotkey="n"
+              placeholder="Select namespace"
             />
-            <span class="namespace-hotkey">n</span>
-            <Show when={isNamespaceDropdownOpen()}>
-              <div class="namespace-dropdown">
-                <For each={filteredNamespaces()}>
-                  {(ns: string, index) => (
-                    <div
-                      class="namespace-option"
-                      classList={{ 
-                        'selected': ns === namespace(),
-                        'highlighted': index() === selectedNamespaceIndex()
-                      }}
-                      onClick={() => {
-                        setNamespace(ns);
-                        setNamespaceSearch(ns);
-                        setIsNamespaceDropdownOpen(false);
-                      }}
-                    >
-                      {ns}
-                    </div>
-                  )}
-                </For>
-              </div>
-            </Show>
           </div>
           <select
             class="card-type-select"
@@ -408,7 +340,7 @@ export function Dashboard() {
             <option value="pods" selected={cardType() === 'pods'}>Pods (p)</option>
           </select>
         </div>
-        <EventList events={events()} />
+        {/* <EventList events={events()} /> */}
       </aside>
       <main class="main-content">
         <div class="header-container">
