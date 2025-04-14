@@ -17,6 +17,14 @@ export function Dashboard() {
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
+  const CARD_TYPES = [
+    { value: 'argocd', label: 'ArgoCD', hotkey: 'a' },
+    { value: 'fluxcd', label: 'FluxCD', hotkey: 'f' },
+    { value: 'services', label: 'Services', hotkey: 's' },
+    { value: 'deployments', label: 'Deployments', hotkey: 'd' },
+    { value: 'pods', label: 'Pods', hotkey: 'p' }
+  ] as const;
+
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [deployments, setDeployments] = createSignal<Deployment[]>([]);
@@ -63,27 +71,10 @@ export function Dashboard() {
 
       // Card type shortcuts
       if (!isSearchFocused()) {
-        switch (e.key.toLowerCase()) {
-          case 'a':
-            e.preventDefault();
-            setCardType('argocd');
-            break;
-          case 'f':
-            e.preventDefault();
-            setCardType('fluxcd');
-            break;
-          case 'd':
-            e.preventDefault();
-            setCardType('deployments');
-            break;
-          case 's':
-            e.preventDefault();
-            setCardType('services');
-            break;
-          case 'p':
-            e.preventDefault();
-            setCardType('pods');
-            break;
+        const cardType = CARD_TYPES.find(type => type.hotkey === e.key.toLowerCase());
+        if (cardType) {
+          e.preventDefault();
+          setCardType(cardType.value);
         }
       }
 
@@ -322,16 +313,19 @@ export function Dashboard() {
               placeholder="Select namespace"
             />
           </div>
-          <select
-            class="card-type-select"
-            onChange={(e) => setCardType(e.currentTarget.value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd')}
-          >
-            <option value="argocd" selected={cardType() === 'argocd'}>ArgoCD (a)</option>
-            <option value="fluxcd" selected={cardType() === 'fluxcd'}>FluxCD (f)</option>
-            <option value="services" selected={cardType() === 'services'}>Services (s)</option>
-            <option value="deployments" selected={cardType() === 'deployments'}>Deployments (d)</option>
-            <option value="pods" selected={cardType() === 'pods'}>Pods (p)</option>
-          </select>
+          <div class="combobox">
+            <Combobox
+              value={cardType()}
+              options={CARD_TYPES.map(type => type.label + " (" + type.hotkey + ")")}
+              onSelect={(value: string) => {
+                const t = CARD_TYPES.find(type => type.label + " (" + type.hotkey + ")" === value);
+                if (t) {
+                  setCardType(t.value);
+                }
+              }}
+              placeholder="Select resource type"
+            />
+          </div>
         </div>
         {/* <EventList events={events()} /> */}
       </aside>
