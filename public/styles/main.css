@@ -109,7 +109,6 @@ h1 {
 
 .resource-section {
     background: #f8f9fa;
-    padding: 1rem;
     border-radius: 8px;
 }
 
@@ -122,9 +121,13 @@ h1 {
 
 .resource-list {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
-    max-width: 100%;
+    width: 100%;
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.resource-list.card-layout {
+    grid-template-columns: repeat(3, 1fr);
 }
 
 .resource-item {
@@ -227,17 +230,6 @@ h1 {
     flex: 1;
     padding: 2rem;
     overflow-y: auto;
-}
-
-.header-container {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.header-container h1 {
-    margin: 0;
 }
 
 .watch-status {
@@ -1159,4 +1151,40 @@ details[open] summary {
 .edge:hover {
   stroke: var(--linear-text-tertiary);
   stroke-width: 2px;
+}
+
+.pod-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    background: var(--linear-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    table-layout: fixed;
+    min-width: 100%;
+}
+
+.pod-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--linear-text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.pod-table td {
+    padding: 0.25rem 0rem;
+    color: var(--linear-text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pod-table tr.selected td {
+    background-color: #1a1a1a; /* Almost black background */
+    color: #ffffff; /* White text for contrast */
+}
+
+.pod-list-container {
+    width: 100%;
 }

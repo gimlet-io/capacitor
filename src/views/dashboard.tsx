@@ -8,11 +8,11 @@ import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 
 export function Dashboard() {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = createSignal(false);
+  const [sidebarOpen, setSidebarOpen] = createSignal(false);
   const [namespace, setNamespace] = createSignal<string>();
-  const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('fluxcd');
+  const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('pods');
   const [searchQuery, setSearchQuery] = createSignal("");
-  const [isSearchFocused, setIsSearchFocused] = createSignal(false);
+  const [searchFocused, setSearchFocused] = createSignal(false);
 
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
@@ -54,14 +54,14 @@ export function Dashboard() {
 
 
   const toggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed());
+    setSidebarOpen(!sidebarOpen());
   };
 
   // Handle keyboard shortcuts
   onMount(() => {
     document.addEventListener('keydown', (e) => {
       // Focus search on '/'
-      if (e.key === '/' && !isSearchFocused()) {
+      if (e.key === '/' && !searchFocused()) {
         e.preventDefault();
         const searchInput = document.querySelector('.search-input') as HTMLInputElement;
         if (searchInput) {
@@ -70,7 +70,7 @@ export function Dashboard() {
       }
 
       // Card type shortcuts
-      if (!isSearchFocused()) {
+      if (!searchFocused()) {
         const cardType = CARD_TYPES.find(type => type.hotkey === e.key.toLowerCase());
         if (cardType) {
           e.preventDefault();
@@ -299,8 +299,11 @@ export function Dashboard() {
 
   return (
     <div class="layout">
-      <aside class={`sidebar ${isSidebarCollapsed() ? 'collapsed' : ''}`} id="sidebar">
+      <aside class={`sidebar ${sidebarOpen() ? '' : 'collapsed'}`} id="sidebar">
         <button class="sidebar-toggle" onClick={toggleSidebar}>☰</button>
+        <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
+          {watchStatus()}
+        </span>
         <div class="filters">
           <div class="namespace-combobox">
             <Combobox
@@ -328,12 +331,6 @@ export function Dashboard() {
         {/* <EventList events={events()} /> */}
       </aside>
       <main class="main-content">
-        <div class="header-container">
-          <h1>Kubernetes Resources</h1>
-          <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
-            {watchStatus()}
-          </span>
-        </div>
         <div class="controls">
           <div class="search-container">
             <input
@@ -342,8 +339,8 @@ export function Dashboard() {
               placeholder="Search resources"
               value={searchQuery()}
               onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
             />
             <span class="search-hotkey">/</span>
           </div>
