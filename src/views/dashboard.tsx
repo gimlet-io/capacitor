@@ -372,14 +372,10 @@ export function Dashboard() {
               <PodList pods={filteredPods()} />
             </Show>
             <Show when={cardType() === 'fluxcd'}>
-              <div class="flux-resources">
-                <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
-              </div>
+              <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
             </Show>
             <Show when={cardType() === 'argocd'}>
-              <div class="argocd-resources">
-                <ArgoCDResourceList applications={filteredApplications()} />
-              </div>
+              <ArgoCDResourceList applications={filteredApplications()} />
             </Show>
           </section>
         </div>

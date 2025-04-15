@@ -177,11 +177,7 @@ import { Condition } from "../utils/conditions.ts";
 export interface Kustomization {
   apiVersion: string;
   kind: string;
-  metadata: {
-    name: string;
-    namespace: string;
-    labels?: Record<string, string>;
-  };
+  metadata: ObjectMeta;
   spec: {
     path: string;
     sourceRef: {
@@ -222,11 +218,7 @@ export interface KustomizationWithInventory extends Kustomization {
 export interface Source {
   apiVersion: string;
   kind: string;
-  metadata: {
-    name: string;
-    namespace: string;
-    labels?: Record<string, string>;
-  };
+  metadata: ObjectMeta;
   spec: {
     interval: string;
     timeout?: string;

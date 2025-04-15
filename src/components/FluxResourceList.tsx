@@ -1,192 +1,96 @@
-import { For } from "solid-js/web";
+import { For, createSignal, onMount } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import type { Kustomization, Source, OCIRepository, HelmRepository, HelmChart, GitRepository } from '../types/k8s.ts';
-import { Condition, getHumanReadableStatus } from '../utils/conditions.ts';
+import type { Kustomization, Source } from '../types/k8s.ts';
+import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
 
 export function FluxResourceList(props: { 
   kustomizations: Kustomization[],
   sources: Source[]
 }) {
   const navigate = useNavigate();
+  const [selectedIndex, setSelectedIndex] = createSignal(-1);
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => {
+        if (prev === -1) return 0; // Select the first row if none is selected
+        return Math.min(prev + 1, props.kustomizations.length - 1); // Move down
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => {
+        if (prev === -1) return 0; // Select the first row if none is selected
+        return Math.max(prev - 1, 0); // Move up
+      });
+    }
+  };
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  });
 
   return (
-    <div class="resource-list">
-      <For each={props.kustomizations}>
-        {(kustomization: Kustomization) => {
-          const status = getHumanReadableStatus(kustomization.status?.conditions || []);
-          return (
-            <div 
-              class={`resource-item kustomization-item ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}
-              onClick={() => navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`)}
-              style={{ cursor: 'pointer' }}
-            >
-              <h2>Kustomization: {kustomization.metadata.namespace}/{kustomization.metadata.name}</h2>
-              <div class="kustomization-status">
-                <span class={`status-badge ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}>
-                  {status}
-                </span>
-                {kustomization.status?.lastAppliedRevision && (
-                  <span class="revision">Rev: {kustomization.status.lastAppliedRevision}</span>
-                )}
-                {kustomization.spec.suspend && (
-                  <span class="status-badge suspended">Suspended</span>
-                )}
-              </div>
-              <p>Path: {kustomization.spec.path}</p>
-              <p>Source: {kustomization.spec.sourceRef.kind}/{kustomization.spec.sourceRef.name}</p>
-              <p>Interval: {kustomization.spec.interval}</p>
-              {kustomization.spec.prune && <p>Prune: Yes</p>}
-              {kustomization.spec.suspend && <p>Status: Suspended</p>}
-              {kustomization.spec.validation && <p>Validation: {kustomization.spec.validation}</p>}
-
-              <details onClick={(e) => e.stopPropagation()}>
-                <summary>Conditions</summary>
-                <div class="conditions">
-                  <For each={kustomization.status?.conditions || []}>
-                    {(condition: Condition) => (
-                      <div class={`condition ${condition.status.toLowerCase()}`}>
-                        <p>Type: {condition.type}</p>
-                        <p>Status: {condition.status}</p>
-                        {condition.reason && <p>Reason: {condition.reason}</p>}
-                        {condition.message && <p>Message: {condition.message}</p>}
-                        <p>Last Transition: {new Date(condition.lastTransitionTime).toLocaleString()}</p>
+    <div class="resource-list-container no-select">
+      <table class="resource-table">
+        <thead>
+          <tr>
+            <th style="width: 30%">NAME</th>
+            <th style="width: 5%">AGE</th>
+            <th style="width: 20%">READY</th>
+            <th style="width: 45%">STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <For each={props.kustomizations}>
+            {(kustomization, index) => {
+              const readyCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Ready);
+              const creationTime = kustomization.metadata.creationTimestamp;
+              return (
+                <>
+                  <tr 
+                    class={selectedIndex() === index() ? 'selected' : ''} 
+                    onClick={() => navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`)}
+                  >
+                    <td title={kustomization.metadata.name}>
+                      {kustomization.metadata.name}
+                    </td>
+                    <td>
+                      {(() => {
+                        if (!creationTime) return 'N/A';
+                        const startTime = new Date(creationTime);
+                        const now = new Date();
+                        const diff = now.getTime() - startTime.getTime();
+                        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        return days > 0 ? `${days}d${hours}h` : `${hours}h`;
+                      })()}
+                    </td>
+                    <td>{readyCondition?.status || ConditionStatus.False}</td>
+                    <td>
+                      {readyCondition?.message}
+                    </td>
+                  </tr>
+                  <tr class={selectedIndex() === index() ? 'selected' : ''}>
+                    <td colSpan={4}>
+                      <div class="second-row">
+                        <strong>Source:</strong> {kustomization.spec.sourceRef.name} <br />
+                        <strong>Path:</strong> {kustomization.spec.path} <br />
+                        <strong>Prune:</strong> {kustomization.spec.prune ? 'True' : 'False'} <br />
+                        <strong>Suspended:</strong> {kustomization.spec.suspend ? 'True' : 'False'} <br />
+                        <strong>Interval:</strong> {kustomization.spec.interval}
                       </div>
-                    )}
-                  </For>
-                </div>
-              </details>
-
-              {kustomization.status?.healthChecks && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>Health Checks</summary>
-                  <div class="health-checks">
-                    <For each={kustomization.status.healthChecks}>
-                      {(check) => (
-                        <div class="health-check">
-                          <p>Kind: {check.kind}</p>
-                          <p>Name: {check.name}</p>
-                          <p>Namespace: {check.namespace}</p>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </details>
-              )}
-
-              {kustomization.status?.inventory?.entries && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>Inventory</summary>
-                  <div class="inventory">
-                    <For each={kustomization.status.inventory.entries}>
-                      {(entry) => (
-                        <div class="inventory-entry">
-                          <p>ID: {entry.id}</p>
-                          <p>Version: {entry.v}</p>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </details>
-              )}
-            </div>
-          );
-        }}
-      </For>
-
-      <For each={props.sources}>
-        {(source) => {
-          const status = getHumanReadableStatus(source.status?.conditions || []);
-          return (
-            <div class={`resource-item flux-source-item ${status.toLowerCase().replace(/[^a-z]/g, '-')}`} data-kind={source.kind}>
-              <h2>{source.kind}: {source.metadata.namespace}/{source.metadata.name}</h2>
-              <div class="kustomization-status">
-                <span class={`status-badge ${status.toLowerCase().replace(/[^a-z]/g, '-')}`}>
-                  {status}
-                </span>
-                {source.status?.artifact?.revision && (
-                  <span class="revision">Rev: {source.status.artifact.revision}</span>
-                )}
-              </div>
-              <p>Interval: {source.spec.interval}</p>
-              {source.spec.timeout && <p>Timeout: {source.spec.timeout}</p>}
-              {source.spec.suspend && <p>Status: Suspended</p>}
-              {source.status?.artifact?.url && <p>Artifact URL: <code>{source.status.artifact.url}</code></p>}
-
-              {source.kind === 'OCIRepository' && (
-                <div class="source-details">
-                  <p>URL: {(source as OCIRepository).spec.url}</p>
-                  {(source as OCIRepository).spec.provider && <p>Provider: {(source as OCIRepository).spec.provider}</p>}
-                  {(source as OCIRepository).spec.insecure && <p>Insecure: Yes</p>}
-                </div>
-              )}
-
-              {source.kind === 'HelmRepository' && (
-                <div class="source-details">
-                  <p>URL: {(source as HelmRepository).spec.url}</p>
-                  {(source as HelmRepository).spec.passCredentials && <p>Pass Credentials: Yes</p>}
-                </div>
-              )}
-
-              {source.kind === 'HelmChart' && (
-                <div class="source-details">
-                  <p>Chart: {(source as HelmChart).spec.chart}</p>
-                  <p>Source: {(source as HelmChart).spec.sourceRef.kind}/{(source as HelmChart).spec.sourceRef.name}</p>
-                  {(source as HelmChart).spec.valuesFiles && (
-                    <p>Values Files: {(source as HelmChart).spec.valuesFiles?.join(', ')}</p>
-                  )}
-                </div>
-              )}
-
-              {source.kind === 'GitRepository' && (
-                <div class="source-details">
-                  <p>URL: {(source as GitRepository).spec.url}</p>
-                  {(source as GitRepository).spec.ref && (
-                    <div>
-                      <p>Reference:</p>
-                      <ul>
-                        {(source as GitRepository).spec.ref?.branch && <li>Branch: {(source as GitRepository).spec.ref.branch}</li>}
-                        {(source as GitRepository).spec.ref?.tag && <li>Tag: {(source as GitRepository).spec.ref.tag}</li>}
-                        {(source as GitRepository).spec.ref?.semver && <li>Semver: {(source as GitRepository).spec.ref.semver}</li>}
-                        {(source as GitRepository).spec.ref?.commit && <li>Commit: {(source as GitRepository).spec.ref.commit}</li>}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <details onClick={(e) => e.stopPropagation()}>
-                <summary>Conditions</summary>
-                <div class="conditions">
-                  <For each={source.status?.conditions || []}>
-                    {(condition) => (
-                      <div class={`condition ${condition.status.toLowerCase()}`}>
-                        <p>Type: {condition.type}</p>
-                        <p>Status: {condition.status}</p>
-                        {condition.reason && <p>Reason: {condition.reason}</p>}
-                        {condition.message && <p>Message: {condition.message}</p>}
-                        <p>Last Transition: {new Date(condition.lastTransitionTime).toLocaleString()}</p>
-                      </div>
-                    )}
-                  </For>
-                </div>
-              </details>
-
-              {source.status?.artifact && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>Artifact</summary>
-                  <div class="artifact">
-                    <p>Path: {source.status.artifact.path}</p>
-                    <p>URL: {source.status.artifact.url}</p>
-                    <p>Revision: {source.status.artifact.revision}</p>
-                    {source.status.artifact.checksum && <p>Checksum: {source.status.artifact.checksum}</p>}
-                    <p>Last Update: {new Date(source.status.artifact.lastUpdateTime).toLocaleString()}</p>
-                  </div>
-                </details>
-              )}
-            </div>
-          );
-        }}
-      </For>
+                    </td>
+                  </tr>
+                </>
+              );
+            }}
+          </For>
+        </tbody>
+      </table>
     </div>
   );
 } 

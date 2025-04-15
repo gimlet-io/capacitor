@@ -80,4 +80,4 @@ export function getHumanReadableStatus(conditions: Condition[]): string {
   }
 
   return 'Unknown';
-} 
+}
