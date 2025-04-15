@@ -341,6 +341,7 @@ export interface ArgoCDApplication {
     name: string;
     namespace: string;
     labels?: Record<string, string>;
+    creationTimestamp?: string;
   };
   spec: {
     project: string;

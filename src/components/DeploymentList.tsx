@@ -1,4 +1,4 @@
-import { For, createSignal, onMount, Accessor } from "solid-js";
+import { For, createSignal, onMount } from "solid-js";
 import type { DeploymentWithResources } from '../types/k8s.ts';
 
 export function DeploymentList(props: { 
@@ -10,14 +10,14 @@ export function DeploymentList(props: {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        if (prev === -1) return 0;
-        return Math.min(prev + 1, props.deployments.length - 1);
+        if (prev === -1) return 0; // Select the first row if none is selected
+        return Math.min(prev + 1, props.deployments.length - 1); // Move down
       });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        if (prev === -1) return 0;
-        return Math.max(prev - 1, 0);
+        if (prev === -1) return 0; // Select the first row if none is selected
+        return Math.max(prev - 1, 0); // Move up
       });
     }
   };
@@ -43,8 +43,8 @@ export function DeploymentList(props: {
   };
 
   return (
-    <div class="pod-list-container">
-      <table class="pod-table">
+    <div class="resource-list-container">
+      <table class="resource-table">
         <thead>
           <tr>
             <th style="width: 30%">NAME</th>

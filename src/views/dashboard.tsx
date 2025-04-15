@@ -323,6 +323,10 @@ export function Dashboard() {
               onSelect={(value: string) => {
                 setNamespace(value);
               }}
+              onFocus={() => {
+                console.log("Focus");
+                setSidebarOpen(true);
+              }}
               hotkey="n"
               placeholder="Select namespace"
             />

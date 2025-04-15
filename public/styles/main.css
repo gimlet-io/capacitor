@@ -53,7 +53,7 @@ table {
   --linear-bg-secondary: #fafafa;
   --linear-border: #e5e5e5;
   --linear-text-primary: #1a1a1a;
-  --linear-text-secondary: #666666;
+  --linear-text-secondary: #555555;
   --linear-text-tertiary: #999999;
   --linear-blue: #0066ff;
   --linear-blue-light: #e6f0ff;
@@ -825,32 +825,32 @@ details[open] summary {
 
 /* Health status badges */
 .status-badge.health-healthy {
-  background-color: #10b981; /* Green */
+  background-color: var(--linear-green); /* Green */
   color: white;
 }
 
 .status-badge.health-progressing {
-  background-color: #3b82f6; /* Blue */
+  background-color: var(--linear-blue); /* Blue */
   color: white;
 }
 
 .status-badge.health-degraded {
-  background-color: #ef4444; /* Red */
+  background-color: var(--linear-red); /* Red */
   color: white;
 }
 
 .status-badge.health-suspended {
-  background-color: #9333ea; /* Purple */
+  background-color: var(--linear-purple); /* Purple */
   color: white;
 }
 
 .status-badge.health-missing {
-  background-color: #f59e0b; /* Yellow/Orange */
+  background-color: var(--linear-yellow); /* Yellow/Orange */
   color: white;
 }
 
 .status-badge.health-unknown {
-  background-color: #6b7280; /* Gray */
+  background-color: var(--linear-gray); /* Gray */
   color: white;
 }
 
@@ -870,24 +870,24 @@ details[open] summary {
 
 .resource.synced,
 .resource.healthy {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid var(--linear-green);
 }
 
 .resource.outofsynced,
 .resource.degraded {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--linear-red);
 }
 
 .resource.progressing {
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid var(--linear-blue);
 }
 
 .resource.suspended {
-  border-left: 3px solid #9333ea;
+  border-left: 3px solid var(--linear-purple);
 }
 
 .resource.unknown {
-  border-left: 3px solid #6b7280;
+  border-left: 3px solid var(--linear-gray);
 }
 
 /* History item styling */
@@ -979,7 +979,6 @@ details[open] summary {
   font-weight: 500;
   padding: 4px 8px;
   border-radius: 4px;
-  display: flex;
   align-items: center;
   gap: 4px;
 }
@@ -1153,25 +1152,24 @@ details[open] summary {
   stroke-width: 2px;
 }
 
-.pod-table {
+.resource-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
     background: var(--linear-bg);
-    border-radius: 8px;
     overflow: hidden;
     table-layout: fixed;
     min-width: 100%;
 }
 
-.pod-table th {
+.resource-table th {
     text-align: left;
     font-weight: 700;
     color: var(--linear-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-.pod-table td {
+.resource-table td {
     padding: 0.25rem 0rem;
     color: var(--linear-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -1180,11 +1178,16 @@ details[open] summary {
     text-overflow: ellipsis;
 }
 
-.pod-table tr.selected td {
+.resource-table tr.selected td {
     background-color: #262626; /* Almost black background */
     color: #ffffff; /* White text for contrast */
 }
 
-.pod-list-container {
+.resource-table .second-row {
+  font-size: 12px;
+  margin-left: 1rem;
+}
+
+.resource-list-container {
     width: 100%;
 }

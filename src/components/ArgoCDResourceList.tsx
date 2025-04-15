@@ -1,4 +1,4 @@
-import { For } from "solid-js/web";
+import { For, createSignal, onMount } from "solid-js";
 import type { ArgoCDApplication } from '../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
 
@@ -7,127 +7,104 @@ export function ArgoCDResourceList(props: {
   applications: ArgoCDApplication[]
 }) {
   const navigate = useNavigate();
+  const [selectedIndex, setSelectedIndex] = createSignal(-1);
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => {
+        if (prev === -1) return 0; // Select the first row if none is selected
+        return Math.min(prev + 1, props.applications.length - 1); // Move down
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => {
+        if (prev === -1) return 0; // Select the first row if none is selected
+        return Math.max(prev - 1, 0); // Move up
+      });
+    }
+  };
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Healthy':
+        return 'var(--linear-green)'; // Use the CSS variable for green
+      case 'Degraded':
+        return 'var(--linear-yellow)'; // Use the CSS variable for yellow
+      case 'Missing':
+      case 'Suspended':
+        return 'var(--linear-red)'; // Use the CSS variable for red
+      default:
+        return 'var(--linear-gray)'; // Use a default gray color variable
+    }
+  };
 
   return (
-    <div class="resource-list">
-      <For each={props.applications}>
-        {(application: ArgoCDApplication) => {
-          const syncStatus = application.status?.sync?.status || 'Unknown';
-          const healthStatus = application.status?.health?.status || 'Unknown';
-          
-          return (
-            <div
-              class={`resource-item argocd-app-item ${syncStatus.toLowerCase()} ${healthStatus.toLowerCase()}`}
-              onClick={() => navigate(`/application/${application.metadata.namespace}/${application.metadata.name}`)}
-              style={{ cursor: 'pointer' }}
-            >
-              <h2>Application: {application.metadata.namespace}/{application.metadata.name}</h2>
-              
-              <div class="argocd-status">
-                <span class={`status-badge sync-${syncStatus.toLowerCase()}`}>
-                  Sync: {syncStatus}
-                </span>
-                <span class={`status-badge health-${healthStatus.toLowerCase()}`}>
-                  Health: {healthStatus}
-                </span>
-                {application.status?.sync?.revision && (
-                  <span class="revision">Rev: {application.status.sync.revision}</span>
-                )}
-              </div>
-              
-              <p>Project: {application.spec.project}</p>
-              <p>Destination: {application.spec.destination.server || 'in-cluster'}/{application.spec.destination.namespace}</p>
-              
-              <div class="source-details">
-                <p>Source: {application.spec.source.repoURL}</p>
-                {application.spec.source.targetRevision && (
-                  <p>Target Revision: {application.spec.source.targetRevision}</p>
-                )}
-                {application.spec.source.path && (
-                  <p>Path: {application.spec.source.path}</p>
-                )}
-                {application.spec.source.chart && (
-                  <p>Chart: {application.spec.source.chart}</p>
-                )}
-              </div>
-              
-              {application.spec.syncPolicy?.automated && (
-                <div class="sync-policy">
-                  <p>Auto-sync: Yes</p>
-                  <p>Prune: {application.spec.syncPolicy.automated.prune ? 'Yes' : 'No'}</p>
-                  <p>Self Heal: {application.spec.syncPolicy.automated.selfHeal ? 'Yes' : 'No'}</p>
-                </div>
-              )}
-              
-              {application.status?.conditions && application.status.conditions.length > 0 && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>Conditions</summary>
-                  <div class="conditions">
-                    <For each={application.status.conditions}>
-                      {(condition) => (
-                        <div class={`condition ${condition.status.toLowerCase()}`}>
-                          <p>Type: {condition.type}</p>
-                          <p>Status: {condition.status}</p>
-                          {condition.message && <p>Message: {condition.message}</p>}
-                          <p>Last Transition: {new Date(condition.lastTransitionTime).toLocaleString()}</p>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </details>
-              )}
-              
-              {application.status?.operationState && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>Operation State</summary>
-                  <div class="operation-state">
-                    <p>Phase: {application.status.operationState.phase}</p>
-                    <p>Message: {application.status.operationState.message}</p>
-                    <p>Started: {new Date(application.status.operationState.startedAt).toLocaleString()}</p>
-                    {application.status.operationState.finishedAt && (
-                      <p>Finished: {new Date(application.status.operationState.finishedAt).toLocaleString()}</p>
-                    )}
-                  </div>
-                </details>
-              )}
-              
-              {application.status?.resources && application.status.resources.length > 0 && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>Resources ({application.status.resources.length})</summary>
-                  <div class="resources">
-                    <For each={application.status.resources}>
-                      {(resource) => (
-                        <div class={`resource ${resource.status.toLowerCase()}`}>
-                          <p>{resource.kind}: {resource.namespace}/{resource.name}</p>
-                          <p>Status: {resource.status}</p>
-                          {resource.message && <p>Message: {resource.message}</p>}
-                          {resource.health && <p>Health: {resource.health.status}</p>}
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </details>
-              )}
-              
-              {application.status?.history && application.status.history.length > 0 && (
-                <details onClick={(e) => e.stopPropagation()}>
-                  <summary>History</summary>
-                  <div class="history">
-                    <For each={application.status.history.slice(0, 5)}>
-                      {(historyItem) => (
-                        <div class="history-item">
-                          <p>Revision: {historyItem.revision}</p>
-                          <p>Deployed: {new Date(historyItem.deployedAt).toLocaleString()}</p>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </details>
-              )}
-            </div>
-          );
-        }}
-      </For>
+    <div class="resource-list-container">
+      <table class="resource-table">
+        <thead>
+          <tr>
+            <th style="width: 30%">NAME</th>
+            <th style="width: 20%">STATUS</th>
+            <th style="width: 20%">HEALTH</th>
+            <th style="width: 10%">AGE</th>
+          </tr>
+        </thead>
+        <tbody>
+          <For each={props.applications}>
+            {(application, index) => {
+              const syncStatus = application.status?.sync?.status || 'Unknown';
+              const healthStatus = application.status?.health?.status || 'Unknown';
+
+              return (
+              <>
+                <tr class={selectedIndex() === index() ? 'selected' : ''}>
+                  <td title={application.metadata.name}>
+                    {application.metadata.name}
+                  </td>
+                  <td>
+                    <span class={`status-badge sync-${syncStatus.toLowerCase()}`}>
+                      {syncStatus}
+                    </span>
+                  </td>
+                  <td>
+                    <span class={`status-badge health-${healthStatus.toLowerCase()}`}>
+                      {healthStatus}
+                    </span>
+                  </td>
+                  <td>
+                    {(() => {
+                      if (!application.metadata.creationTimestamp) return 'N/A';
+                      const startTime = new Date(application.metadata.creationTimestamp);
+                      const now = new Date();
+                      const diff = now.getTime() - startTime.getTime();
+                      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                      return days > 0 ? `${days}d${hours}h` : `${hours}h`;
+                    })()}
+                  </td>
+                </tr>
+                <tr class={selectedIndex() === index() ? 'selected' : ''}>
+                  <td colSpan={4}>
+                    <div class="second-row">
+                      <strong>Source:</strong> {application.spec.source.repoURL} <br />
+                      <strong>Path:</strong> {application.spec.source.path} <br />
+                      <strong>Revision:</strong> {application.status?.sync.revision}
+                    </div>
+                  </td>
+                </tr>
+              </>
+            )}}
+          </For>
+        </tbody>
+      </table>
     </div>
   );
 } 

@@ -10,6 +10,7 @@ interface ComboboxProps {
   value: string;
   options: ComboboxOption[];
   onSelect: (value: string) => void;
+  onFocus?: () => void;
   hotkey?: string;
   placeholder?: string;
   disableKeyboardNavigation?: boolean;
@@ -38,6 +39,7 @@ export function Combobox(props: ComboboxProps) {
     if (props.hotkey && e.key === props.hotkey && document.activeElement !== inputRef) {
       e.preventDefault();
       inputRef?.focus();
+      props.onFocus?.();
       setFilter("");
       setIsOpen(true);
     }

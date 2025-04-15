@@ -30,8 +30,8 @@ export function PodList(props: {
   });
 
   return (
-    <div class="pod-list-container">
-      <table class="pod-table">
+    <div class="resource-list-container">
+      <table class="resource-table">
         <thead>
           <tr>
             <th style="width: 30%">NAME</th>
