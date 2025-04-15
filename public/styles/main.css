@@ -654,6 +654,7 @@ h1 {
   font-size: 0.875rem;
   font-weight: 500;
   text-transform: capitalize;
+  user-select: none;
 }
 
 .status-badge.ready {
@@ -1190,4 +1191,8 @@ details[open] summary {
 
 .resource-list-container {
     width: 100%;
+}
+
+.no-select {
+  user-select: none; /* Disable text selection */
 }

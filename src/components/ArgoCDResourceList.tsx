@@ -32,22 +32,8 @@ export function ArgoCDResourceList(props: {
     };
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Healthy':
-        return 'var(--linear-green)'; // Use the CSS variable for green
-      case 'Degraded':
-        return 'var(--linear-yellow)'; // Use the CSS variable for yellow
-      case 'Missing':
-      case 'Suspended':
-        return 'var(--linear-red)'; // Use the CSS variable for red
-      default:
-        return 'var(--linear-gray)'; // Use a default gray color variable
-    }
-  };
-
   return (
-    <div class="resource-list-container">
+    <div class="resource-list-container no-select">
       <table class="resource-table">
         <thead>
           <tr>
@@ -65,7 +51,10 @@ export function ArgoCDResourceList(props: {
 
               return (
               <>
-                <tr class={selectedIndex() === index() ? 'selected' : ''}>
+                <tr 
+                  class={selectedIndex() === index() ? 'selected' : ''} 
+                  onClick={() => navigate(`/application/${application.metadata.namespace}/${application.metadata.name}`)}
+                >
                   <td title={application.metadata.name}>
                     {application.metadata.name}
                   </td>
