@@ -52,7 +52,6 @@ export function Dashboard() {
     }
   });
 
-
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen());
   };
@@ -82,6 +81,12 @@ export function Dashboard() {
       if (e.key === 'Escape') {
         const searchInput = document.querySelector('.search-input') as HTMLInputElement;
         if (searchInput) searchInput.blur();
+      }
+
+      // Check for Command + B
+      if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSidebarOpen(prev => !prev);
       }
     });
   });
