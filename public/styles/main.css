@@ -658,32 +658,32 @@ h1 {
 }
 
 .status-badge.ready {
-  background-color: #22c55e;
+  background-color: var(--linear-green);
   color: #f0fdf4;
 }
 
 .status-badge.not-ready {
-  background-color: #ef4444;
+  background-color: var(--linear-red);
   color: #fef2f2;
 }
 
 .status-badge.reconciling {
-  background-color: #3b82f6;
+  background-color: var(--linear-blue);
   color: #eff6ff;
 }
 
 .status-badge.stalled {
-  background-color: #f59e0b;
+  background-color: var(--linear-yellow);
   color: #fffbeb;
 }
 
 .status-badge.unknown {
-  background-color: #6b7280;
+  background-color: var(--linear-text-secondary);
   color: #f9fafb;
 }
 
 .status-badge.suspended {
-  background-color: #9333ea;
+  background-color: var(--linear-text-secondary);
   color: #f3e8ff;
 }
 
@@ -972,6 +972,7 @@ details[open] summary {
 
 .status-badges {
   display: flex;
+  flex-wrap: wrap; /* This allows the badges to wrap onto the next line */
   gap: 8px;
 }
 
@@ -1195,4 +1196,10 @@ details[open] summary {
 
 .no-select {
   user-select: none; /* Disable text selection */
+}
+
+td.message-cell {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }

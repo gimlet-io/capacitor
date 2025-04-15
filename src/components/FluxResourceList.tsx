@@ -41,13 +41,14 @@ export function FluxResourceList(props: {
             <th style="width: 30%">NAME</th>
             <th style="width: 5%">AGE</th>
             <th style="width: 20%">READY</th>
-            <th style="width: 45%">STATUS</th>
+            <th style="width: 55%">STATUS</th>
           </tr>
         </thead>
         <tbody>
           <For each={props.kustomizations}>
             {(kustomization, index) => {
               const readyCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Ready);
+              const reconcilingCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Reconciling);
               const creationTime = kustomization.metadata.creationTimestamp;
               return (
                 <>
@@ -69,8 +70,23 @@ export function FluxResourceList(props: {
                         return days > 0 ? `${days}d${hours}h` : `${hours}h`;
                       })()}
                     </td>
-                    <td>{readyCondition?.status || ConditionStatus.False}</td>
                     <td>
+                      <div class="status-badges">
+                        {readyCondition?.status === ConditionStatus.True && (
+                          <span class="status-badge ready">Ready</span>
+                        )}
+                        {readyCondition?.status === ConditionStatus.False && (
+                          <span class="status-badge not-ready">NotReady</span>
+                        )}
+                        {reconcilingCondition?.status === ConditionStatus.True && (
+                          <span class="status-badge reconciling">Reconciling</span>
+                        )}
+                        {kustomization.spec.suspend && (
+                          <span class="status-badge suspended">Suspended</span>
+                        )}
+                      </div>
+                    </td>
+                    <td class="message-cell">
                       {readyCondition?.message}
                     </td>
                   </tr>
