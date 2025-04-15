@@ -1,4 +1,4 @@
-import type { Pod, Deployment, Service, ServiceWithResources } from '../types/k8s.ts';
+import type { Pod, Deployment, Service, ServiceWithResources, DeploymentWithResources } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
   if (!selector || !labels) return false;
@@ -22,6 +22,13 @@ export const updateServiceMatchingResources = (service: Service, allPods: Pod[],
     ...service,
     matchingPods: getMatchingPods(service, allPods),
     matchingDeployments: getMatchingDeployments(service, allDeployments)
+  };
+};
+
+export const updateDeploymentMatchingResources = (deployment: Deployment, allPods: Pod[]): DeploymentWithResources => {
+  return {
+    ...deployment,
+    pods: getDeploymentMatchingPods(deployment, allPods),
   };
 };
 

@@ -22,8 +22,6 @@ export function Combobox(props: ComboboxProps) {
   const [filteredOptions, setFilteredOptions] = createSignal(props.options);
   const [isOpen, setIsOpen] = createSignal(false);
 
-  console.log(props.value);
-
   // Update filtered options when input value changes
   createEffect(() => {
     setFilteredOptions(

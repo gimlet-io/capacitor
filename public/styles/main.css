@@ -1166,7 +1166,7 @@ details[open] summary {
 
 .pod-table th {
     text-align: left;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--linear-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
@@ -1181,7 +1181,7 @@ details[open] summary {
 }
 
 .pod-table tr.selected td {
-    background-color: #1a1a1a; /* Almost black background */
+    background-color: #262626; /* Almost black background */
     color: #ffffff; /* White text for contrast */
 }
 

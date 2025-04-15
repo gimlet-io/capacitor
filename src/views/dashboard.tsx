@@ -1,9 +1,9 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createResource, createEffect, onMount, untrack } from "solid-js";
 import { PodList, DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, Combobox } from "../components/index.ts";
-import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication, Service } from "../types/k8s.ts";
+import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication, Service, DeploymentWithResources } from "../types/k8s.ts";
 import { For, Show } from "solid-js";
-import { updateServiceMatchingResources } from "../utils/k8s.ts";
+import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 
@@ -27,7 +27,7 @@ export function Dashboard() {
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
-  const [deployments, setDeployments] = createSignal<Deployment[]>([]);
+  const [deployments, setDeployments] = createSignal<DeploymentWithResources[]>([]);
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
   const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
   const [sources, setSources] = createSignal<Source[]>([]);
@@ -160,12 +160,15 @@ export function Dashboard() {
           callback: (event: { type: string; object: Pod }) => {
             if (event.type === 'ADDED') {
               setPods(prev => [...prev, event.object]);
+              setDeployments(prev => prev.map(deployment => updateDeploymentMatchingResources(deployment, pods())));
               setServices(prev => prev.map(service => updateServiceMatchingResources(service, [...pods(), event.object], deployments())));
             } else if (event.type === 'MODIFIED') {
               setPods(prev => prev.map(p => p.metadata.name === event.object.metadata.name ? event.object : p));
+              setDeployments(prev => prev.map(deployment => updateDeploymentMatchingResources(deployment, pods())));
               setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
             } else if (event.type === 'DELETED') {
               setPods(prev => prev.filter(p => p.metadata.name !== event.object.metadata.name));
+              setDeployments(prev => prev.map(deployment => updateDeploymentMatchingResources(deployment, pods())));
               setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
             }
           }
@@ -174,10 +177,10 @@ export function Dashboard() {
           path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
           callback: (event: { type: string; object: Deployment }) => {
             if (event.type === 'ADDED') {
-              setDeployments(prev => [...prev, event.object]);
+              setDeployments(prev => [...prev, updateDeploymentMatchingResources(event.object, pods())]);
               setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), [...deployments(), event.object])));
             } else if (event.type === 'MODIFIED') {
-              setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? event.object : d));
+              setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? updateDeploymentMatchingResources(event.object, pods()) : d));
               setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
             } else if (event.type === 'DELETED') {
               setDeployments(prev => prev.filter(d => d.metadata.name !== event.object.metadata.name));
@@ -301,7 +304,10 @@ export function Dashboard() {
     <div class="layout">
       <aside class={`sidebar ${sidebarOpen() ? '' : 'collapsed'}`} id="sidebar">
         <button class="sidebar-toggle" onClick={toggleSidebar}>☰</button>
-        <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
+        <span 
+          class="watch-status" 
+          style={{ "color": watchStatus() === "●" ? "var(--linear-green)" : "var(--linear-red)" } as any}
+        >
           {watchStatus()}
         </span>
         <div class="filters">
@@ -351,7 +357,7 @@ export function Dashboard() {
               <ServiceList services={filteredServices()} />
             </Show>
             <Show when={cardType() === 'deployments'}>
-              <DeploymentList deployments={filteredDeployments()} pods={filteredPods()} />
+              <DeploymentList deployments={filteredDeployments()} />
             </Show>
             <Show when={cardType() === 'pods'}>
               <PodList pods={filteredPods()} />
