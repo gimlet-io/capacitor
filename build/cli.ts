@@ -22,29 +22,69 @@ async function setupTempDir(): Promise<string> {
   return tempDir;
 }
 
+// Function to generate a random port number
+function getRandomPort(): number {
+  return Math.floor(Math.random() * (65535 - 1024) + 1024); // Random port between 1024 and 65535
+}
+
 async function startKubectlProxy(wwwDir: string) {
-  const process = new Deno.Command("kubectl", {
+  const port = getRandomPort();
+  const kubectlCommand = new Deno.Command('kubectl', {
     args: [
-      "proxy",
-      "--www=" + wwwDir,
-      "--www-prefix=/",
-      "--api-prefix=/k8s"
+      'proxy',
+      `--port=${port}`,
+      `--www=${wwwDir}`,
+      '--www-prefix=/',
+      '--api-prefix=/k8s'
     ],
-    stdout: "inherit",
-    stderr: "inherit"
   });
 
-  const child = process.spawn();
+  const process = kubectlCommand.spawn();
   
-  // Handle process termination
-  Deno.addSignalListener("SIGINT", () => {
-    console.log("\nShutting down...");
-    child.kill("SIGTERM");
-    Deno.exit(0);
-  });
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  for (const signal of signals) {
+    Deno.addSignalListener(signal as Deno.Signal, () => {
+      console.log(`Received ${signal}, stopping kubectl proxy...`);
+      process.kill(signal as Deno.Signal);
+      Deno.exit(0);
+    });
+  }
 
-  // Wait for the process to complete
-  await child.status;
+  // Wait for the process to start
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  console.log(`kubectl proxy started on port ${port}`);
+  
+  // Launch the default browser with the correct URL
+  const url = `http://127.0.0.1:${port}`;
+  const os = Deno.build.os;
+  let cmd: string[];
+
+  switch (os) {
+    case 'darwin':
+      cmd = ['open', url];
+      break;
+    case 'linux':
+      cmd = ['xdg-open', url];
+      break;
+    case 'windows':
+      cmd = ['start', url];
+      break;
+    default:
+      console.error(`Unsupported OS: ${os}`);
+      return;
+  }
+
+  const browserProcess = new Deno.Command(cmd[0], {
+    args: cmd.slice(1),
+  });
+  browserProcess.spawn();
+
+  // Wait for the process to exit
+  const status = await process.status;
+  if (!status.success) {
+    console.error(`kubectl proxy exited with code ${status.code}`);
+  }
 }
 
 async function main() {
