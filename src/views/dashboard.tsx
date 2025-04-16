@@ -8,9 +8,8 @@ import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 
 export function Dashboard() {
-  const [sidebarOpen, setSidebarOpen] = createSignal(false);
   const [namespace, setNamespace] = createSignal<string>();
-  const [cardType, setCardType] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('pods');
+  const [resourceFilter, setResourceFilter] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('pods');
   const [searchQuery, setSearchQuery] = createSignal("");
   const [searchFocused, setSearchFocused] = createSignal(false);
 
@@ -52,10 +51,6 @@ export function Dashboard() {
     }
   });
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen());
-  };
-
   // Handle keyboard shortcuts
   onMount(() => {
     document.addEventListener('keydown', (e) => {
@@ -68,12 +63,12 @@ export function Dashboard() {
         }
       }
 
-      // Card type shortcuts
+      // Resource type shortcuts
       if (!searchFocused()) {
         const cardType = CARD_TYPES.find(type => type.hotkey === e.key.toLowerCase());
         if (cardType) {
           e.preventDefault();
-          setCardType(cardType.value);
+          setResourceFilter(cardType.value);
         }
       }
 
@@ -81,12 +76,6 @@ export function Dashboard() {
       if (e.key === 'Escape') {
         const searchInput = document.querySelector('.search-input') as HTMLInputElement;
         if (searchInput) searchInput.blur();
-      }
-
-      // Check for Command + B
-      if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setSidebarOpen(prev => !prev);
       }
     });
   });
@@ -117,14 +106,14 @@ export function Dashboard() {
     );
   };
 
-  // Call setupWatches when namespace or card type changes
+  // Call setupWatches when namespace or resource filter changes
   createEffect(() => {
-    setupWatches(namespace(), cardType());
+    setupWatches(namespace(), resourceFilter());
   });
 
-  const setupWatches = (ns: string | undefined, cardType: 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd') => {
+  const setupWatches = (ns: string | undefined, resourceFilter: 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd') => {
     if (!ns) return;
-    console.log('Setting up watches for namespace:', ns, 'card type:', cardType);
+    console.log('Setting up watches for namespace:', ns, 'resource type:', resourceFilter);
 
     // Cancel existing watches
     untrack(() => {
@@ -142,23 +131,7 @@ export function Dashboard() {
 
     const watches = [];
 
-    // Always watch events regardless of card type
-    watches.push({
-      path: `/k8s/api/v1/namespaces/${ns}/events?watch=true`,
-      callback: (event: { type: string; object: Event }) => {
-        if (event.type === 'ADDED') {
-          setEvents(prev => [...prev, event.object]);
-        } else if (event.type === 'MODIFIED') {
-          setEvents(prev => prev.map(e => e.metadata.name === event.object.metadata.name ? event.object : e));
-        } else if (event.type === 'DELETED') {
-          setEvents(prev => prev.filter(e => e.metadata.name !== event.object.metadata.name));
-        }
-      }
-    });
-
-    // Only set up watches for the selected card type
-    if (cardType !== 'fluxcd') {
-      // Kubernetes resource watches
+    if (resourceFilter === 'pods' || resourceFilter === 'services' || resourceFilter === 'deployments') {
       watches.push(
         {
           path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
@@ -212,8 +185,7 @@ export function Dashboard() {
       );
     }
 
-    if (cardType === 'fluxcd') {
-      // FluxCD resource watches
+    if (resourceFilter === 'fluxcd') {
       watches.push(
         {
           path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${ns}/kustomizations?watch=true`,
@@ -226,60 +198,11 @@ export function Dashboard() {
               setKustomizations(prev => prev.filter(k => k.metadata.name !== event.object.metadata.name));
             }
           }
-        },
-        {
-          path: `/k8s/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/${ns}/ocirepositories?watch=true`,
-          callback: (event: { type: string; object: Source }) => {
-            if (event.type === 'ADDED') {
-              setSources(prev => [...prev, event.object]);
-            } else if (event.type === 'MODIFIED') {
-              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
-            } else if (event.type === 'DELETED') {
-              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
-            }
-          }
-        },
-        {
-          path: `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${ns}/helmrepositories?watch=true`,
-          callback: (event: { type: string; object: Source }) => {
-            if (event.type === 'ADDED') {
-              setSources(prev => [...prev, event.object]);
-            } else if (event.type === 'MODIFIED') {
-              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
-            } else if (event.type === 'DELETED') {
-              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
-            }
-          }
-        },
-        {
-          path: `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${ns}/helmcharts?watch=true`,
-          callback: (event: { type: string; object: Source }) => {
-            if (event.type === 'ADDED') {
-              setSources(prev => [...prev, event.object]);
-            } else if (event.type === 'MODIFIED') {
-              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
-            } else if (event.type === 'DELETED') {
-              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
-            }
-          }
-        },
-        {
-          path: `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${ns}/gitrepositories?watch=true`,
-          callback: (event: { type: string; object: Source }) => {
-            if (event.type === 'ADDED') {
-              setSources(prev => [...prev, event.object]);
-            } else if (event.type === 'MODIFIED') {
-              setSources(prev => prev.map(s => s.metadata.name === event.object.metadata.name ? event.object : s));
-            } else if (event.type === 'DELETED') {
-              setSources(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
-            }
-          }
         }
       );
     }
 
-    if (cardType === 'argocd') {
-      // ArgoCD Application watches
+    if (resourceFilter === 'argocd') {
       watches.push(
         {
           path: `/k8s/apis/argoproj.io/v1alpha1/namespaces/${ns}/applications?watch=true`,
@@ -307,15 +230,8 @@ export function Dashboard() {
 
   return (
     <div class="layout">
-      <aside class={`sidebar ${sidebarOpen() ? '' : 'collapsed'}`} id="sidebar">
-        <button class="sidebar-toggle" onClick={toggleSidebar}>☰</button>
-        <span 
-          class="watch-status" 
-          style={{ "color": watchStatus() === "●" ? "var(--linear-green)" : "var(--linear-red)" } as any}
-        >
-          {watchStatus()}
-        </span>
-        <div class="filters">
+      <main class="main-content">
+        <div class="controls">
           <div class="namespace-combobox">
             <Combobox
               value={namespace() || ""}
@@ -323,30 +239,21 @@ export function Dashboard() {
               onSelect={(value: string) => {
                 setNamespace(value);
               }}
-              onFocus={() => {
-                console.log("Focus");
-                setSidebarOpen(true);
-              }}
               hotkey="n"
               placeholder="Select namespace"
             />
           </div>
           <div class="combobox">
             <Combobox
-              value={cardType()}
+              value={resourceFilter()}
               options={CARD_TYPES.map(type => ({ value: type.value, label: type.label, hotkey: type.hotkey }))}
               onSelect={(value: string) => {
-                setCardType(value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd');
+                setResourceFilter(value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd');
               }}
               placeholder="Select resource type"
               disableKeyboardNavigation
             />
           </div>
-        </div>
-        {/* <EventList events={events()} /> */}
-      </aside>
-      <main class="main-content">
-        <div class="controls">
           <div class="search-container">
             <input
               type="text"
@@ -359,22 +266,28 @@ export function Dashboard() {
             />
             <span class="search-hotkey">/</span>
           </div>
+          <span 
+            class="watch-status" 
+            style={{ "color": watchStatus() === "●" ? "var(--linear-green)" : "var(--linear-red)" } as any}
+          >
+            {watchStatus()}
+          </span>
         </div>
         <div class="resources-grid">
           <section class="resource-section full-width">
-            <Show when={cardType() === 'services'}>
+            <Show when={resourceFilter() === 'services'}>
               <ServiceList services={filteredServices()} />
             </Show>
-            <Show when={cardType() === 'deployments'}>
+            <Show when={resourceFilter() === 'deployments'}>
               <DeploymentList deployments={filteredDeployments()} />
             </Show>
-            <Show when={cardType() === 'pods'}>
+            <Show when={resourceFilter() === 'pods'}>
               <PodList pods={filteredPods()} />
             </Show>
-            <Show when={cardType() === 'fluxcd'}>
+            <Show when={resourceFilter() === 'fluxcd'}>
               <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
             </Show>
-            <Show when={cardType() === 'argocd'}>
+            <Show when={resourceFilter() === 'argocd'}>
               <ArgoCDResourceList applications={filteredApplications()} />
             </Show>
           </section>

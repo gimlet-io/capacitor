@@ -187,45 +187,6 @@ h1 {
     min-height: 100vh;
 }
 
-.sidebar {
-    background: #f8f9fa;
-    padding: 0.5rem;
-    border-right: 1px solid #dee2e6;
-    width: 250px;
-    transition: all 0.3s ease;
-    flex-shrink: 0;
-}
-
-.sidebar.collapsed {
-    width: 30px;
-}
-
-.sidebar.collapsed .filters {
-    display: none;
-}
-
-.filters {
-    width: 250px;
-}
-
-.sidebar-toggle {
-    background: #e9ecef;
-    border: none;
-    padding: 0.5rem;
-    width: 30px;
-    height: 30px;
-    margin-bottom: 1rem;
-    cursor: pointer;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.sidebar-toggle:hover {
-    background: #dee2e6;
-}
-
 .main-content {
     flex: 1;
     padding: 2rem;
@@ -286,8 +247,7 @@ h1 {
 /* Generic combobox styles */
 .combobox {
     position: relative;
-    width: 100%;
-    margin-bottom: 1rem;
+    width: 250px;
 }
 
 .combobox-input {
