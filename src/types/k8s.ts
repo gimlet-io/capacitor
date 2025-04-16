@@ -151,6 +151,7 @@ export interface ServiceSpec {
     selector?: { [key: string]: string };
     clusterIP?: string;
     type?: string;
+    externalIPs?: string[];
 }
 
 export interface Service {

@@ -1151,7 +1151,12 @@ details[open] summary {
 }
 
 .resource-list-container {
-    width: 100%;
+  width: 100%;
+  height: calc(100vh - 200px); /* subtract header/nav height */
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
 }
 
 .no-select {

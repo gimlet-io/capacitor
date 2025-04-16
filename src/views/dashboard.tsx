@@ -1,7 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createResource, createEffect, onMount, untrack } from "solid-js";
 import { PodList, DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, Combobox } from "../components/index.ts";
-import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication, Service, DeploymentWithResources } from "../types/k8s.ts";
+import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication, Service, DeploymentWithResources, PodCondition, ContainerStatus } from "../types/k8s.ts";
 import { For, Show } from "solid-js";
 import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
 import { watchResource } from "../watches.tsx";

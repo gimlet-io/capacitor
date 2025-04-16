@@ -1,32 +1,63 @@
-import { For, createSignal, onMount } from "solid-js";
+import { For, createSignal, onMount, onCleanup, createEffect } from "solid-js";
 import type { DeploymentWithResources } from '../types/k8s.ts';
 
 export function DeploymentList(props: { 
   deployments: DeploymentWithResources[]
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
+  const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (props.deployments.length === 0) return;
+    
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        if (prev === -1) return 0; // Select the first row if none is selected
-        return Math.min(prev + 1, props.deployments.length - 1); // Move down
+        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, props.deployments.length - 1);
+        return newIndex;
       });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        if (prev === -1) return 0; // Select the first row if none is selected
-        return Math.max(prev - 1, 0); // Move up
+        const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
+        return newIndex;
       });
     }
   };
 
+  // Scroll selected item into view whenever selectedIndex changes
+  createEffect(() => {
+    const index = selectedIndex();
+    if (index === -1) return;
+    
+    // Use requestAnimationFrame to ensure the DOM is updated before scrolling
+    requestAnimationFrame(() => {
+      const container = listContainer();
+      if (!container) return;
+      
+      const rows = container.querySelectorAll('tbody tr');
+      if (index >= 0 && index < rows.length) {
+        const selectedRow = rows[index];
+        
+        // Calculate if element is in view
+        const containerRect = container.getBoundingClientRect();
+        const rowRect = selectedRow.getBoundingClientRect();
+        
+        // Check if the element is not fully visible
+        if (rowRect.top < containerRect.top || rowRect.bottom > containerRect.bottom) {
+          // Use scrollIntoView with block: 'nearest' for smoother scrolling
+          selectedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+        }
+      }
+    });
+  });
+
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+  });
+
+  onCleanup(() => {
+    window.removeEventListener('keydown', handleKeyDown);
   });
 
   const getPodColor = (status: string) => {
@@ -43,7 +74,7 @@ export function DeploymentList(props: {
   };
 
   return (
-    <div class="resource-list-container">
+    <div class="resource-list-container" ref={setListContainer}>
       <table class="resource-table">
         <thead>
           <tr>
@@ -72,13 +103,13 @@ export function DeploymentList(props: {
                       <span 
                         title={pod.metadata.name} 
                         style={{
-                          display: 'inline-block',
-                          width: '10px',
-                          height: '10px',
+                          "display": 'inline-block',
+                          "width": '10px',
+                          "height": '10px',
                           "border-radius": '5%',
                           "background-color": getPodColor(pod.status.phase),
-                          margin: '0 2px'
-                        }} 
+                          "margin": '0 2px'
+                        } as any} 
                       >
                       </span>
                     )}
