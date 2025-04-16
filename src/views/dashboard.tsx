@@ -7,9 +7,11 @@ import { updateServiceMatchingResources, updateDeploymentMatchingResources } fro
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 
+type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
+
 export function Dashboard() {
   const [namespace, setNamespace] = createSignal<string>();
-  const [resourceFilter, setResourceFilter] = createSignal<'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd'>('pods');
+  const [resourceFilter, setResourceFilter] = createSignal<ResourceType, (value: ResourceType) => void>('pods');
   const [searchQuery, setSearchQuery] = createSignal("");
   const [searchFocused, setSearchFocused] = createSignal(false);
 
@@ -23,6 +25,29 @@ export function Dashboard() {
     { value: 'deployments', label: 'Deployments', hotkey: 'd' },
     { value: 'pods', label: 'Pods', hotkey: 'p' }
   ] as const;
+
+  const VIEWS = [
+    { 
+      id: 'pods',
+      label: 'Pods',
+      namespace: 'flux-system',
+      resourceType: 'pods' as ResourceType
+    },
+    { 
+      id: 'fluxcd',
+      label: 'FluxCD',
+      namespace: 'flux-system',
+      resourceType: 'fluxcd' as ResourceType
+    },
+    { 
+      id: 'argocd',
+      label: 'ArgoCD',
+      namespace: 'argocd',
+      resourceType: 'argocd' as ResourceType
+    }
+  ] as const;
+
+  const [selectedView, setSelectedView] = createSignal(VIEWS[0].id);
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
@@ -48,6 +73,15 @@ export function Dashboard() {
       setNamespace("flux-system");
     } else {
       setNamespace(namespaces()![0]);
+    }
+  });
+
+  // Apply view when selected
+  createEffect(() => {
+    const view = VIEWS.find(v => v.id === selectedView());
+    if (view) {
+      setNamespace(view.namespace);
+      setResourceFilter(view.resourceType);
     }
   });
 
@@ -231,6 +265,18 @@ export function Dashboard() {
   return (
     <div class="layout">
       <main class="main-content">
+        <div class="views">
+          <For each={VIEWS}>
+            {(view) => (
+              <button
+                class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
+                onClick={() => setSelectedView(view.id)}
+              >
+                {view.label}
+              </button>
+            )}
+          </For>
+        </div>
         <div class="controls">
           <div class="namespace-combobox">
             <Combobox
