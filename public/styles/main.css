@@ -50,7 +50,7 @@ table {
 /* Linear-inspired styles */
 :root {
   --linear-bg: #ffffff;
-  --linear-bg-secondary: #fafafa;
+  --linear-bg-secondary: #f1f1f1;
   --linear-border: #e5e5e5;
   --linear-text-primary: #1a1a1a;
   --linear-text-secondary: #555555;
@@ -1173,20 +1173,22 @@ td.message-cell {
 
 .view-pill {
   padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  background-color: #e9ecef;
-  color: #495057;
+  border-radius: 5px;
+  background-color: var(--linear-bg);
+  color: var(--linear-text-secondary);
   font-size: 0.875rem;
   cursor: pointer;
-  border: none;
+  border: 1px solid var(--linear-border);
   transition: all 0.2s ease;
 }
 
 .view-pill:hover {
-  background-color: #dee2e6;
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-primary);
 }
 
 .view-pill.selected {
-  background-color: #007bff;
-  color: white;
+  background-color: var(--linear-bg-secondary);
+  border: 1px solid var(--linear-border);
+  color: var(--linear-text-primary);
 }

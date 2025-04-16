@@ -11,7 +11,7 @@ type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
 
 export function Dashboard() {
   const [namespace, setNamespace] = createSignal<string>();
-  const [resourceFilter, setResourceFilter] = createSignal<ResourceType, (value: ResourceType) => void>('pods');
+  const [resourceFilter, setResourceFilter] = createSignal<ResourceType>('pods');
   const [searchQuery, setSearchQuery] = createSignal("");
   const [searchFocused, setSearchFocused] = createSignal(false);
 
@@ -145,7 +145,7 @@ export function Dashboard() {
     setupWatches(namespace(), resourceFilter());
   });
 
-  const setupWatches = (ns: string | undefined, resourceFilter: 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd') => {
+  const setupWatches = (ns: string | undefined, resourceFilter: ResourceType) => {
     if (!ns) return;
     console.log('Setting up watches for namespace:', ns, 'resource type:', resourceFilter);
 
@@ -165,10 +165,12 @@ export function Dashboard() {
 
     const watches = [];
 
+    const namespacePath = ns === 'all-namespaces' ? '' : `/namespaces/${ns}`;
+
     if (resourceFilter === 'pods' || resourceFilter === 'services' || resourceFilter === 'deployments') {
       watches.push(
         {
-          path: `/k8s/api/v1/namespaces/${ns}/pods?watch=true`,
+          path: `/k8s/api/v1${namespacePath}/pods?watch=true`,
           callback: (event: { type: string; object: Pod }) => {
             if (event.type === 'ADDED') {
               setPods(prev => [...prev, event.object]);
@@ -186,7 +188,7 @@ export function Dashboard() {
           }
         },
         {
-          path: `/k8s/apis/apps/v1/namespaces/${ns}/deployments?watch=true`,
+          path: `/k8s/apis/apps/v1${namespacePath}/deployments?watch=true`,
           callback: (event: { type: string; object: Deployment }) => {
             if (event.type === 'ADDED') {
               setDeployments(prev => [...prev, updateDeploymentMatchingResources(event.object, pods())]);
@@ -201,7 +203,7 @@ export function Dashboard() {
           }
         },
         {
-          path: `/k8s/api/v1/namespaces/${ns}/services?watch=true`,
+          path: `/k8s/api/v1${namespacePath}/services?watch=true`,
           callback: (event: { type: string; object: Service }) => {
             if (event.type === 'ADDED') {
               setServices(prev => [...prev, updateServiceMatchingResources(event.object, pods(), deployments())]);
@@ -222,7 +224,7 @@ export function Dashboard() {
     if (resourceFilter === 'fluxcd') {
       watches.push(
         {
-          path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${ns}/kustomizations?watch=true`,
+          path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1${namespacePath}/kustomizations?watch=true`,
           callback: (event: { type: string; object: Kustomization }) => {
             if (event.type === 'ADDED') {
               setKustomizations(prev => [...prev, event.object]);
@@ -239,7 +241,7 @@ export function Dashboard() {
     if (resourceFilter === 'argocd') {
       watches.push(
         {
-          path: `/k8s/apis/argoproj.io/v1alpha1/namespaces/${ns}/applications?watch=true`,
+          path: `/k8s/apis/argoproj.io/v1alpha1${namespacePath}/applications?watch=true`,
           callback: (event: { type: string; object: ArgoCDApplication }) => {
             if (event.type === 'ADDED') {
               setApplications(prev => [...prev, event.object]);
@@ -281,7 +283,10 @@ export function Dashboard() {
           <div class="namespace-combobox">
             <Combobox
               value={namespace() || ""}
-              options={namespaces()?.map((ns: string) => ({ value: ns, label: ns })) || []}
+              options={[
+                { value: 'all-namespaces', label: 'All Namespaces' },
+                ...(namespaces()?.map((ns: string) => ({ value: ns, label: ns })) || [])
+              ]}
               onSelect={(value: string) => {
                 setNamespace(value);
               }}

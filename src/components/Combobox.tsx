@@ -98,7 +98,7 @@ export function Combobox(props: ComboboxProps) {
         }}
         onBlur={() => {
           // Use setTimeout to allow click events to fire before closing
-          setTimeout(() => setIsOpen(false), 50);
+          setTimeout(() => setIsOpen(false), 200);
         }}
         placeholder={props.placeholder}
       />
