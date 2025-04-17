@@ -324,25 +324,23 @@ export function Dashboard() {
             {watchStatus()}
           </span>
         </div>
-        <div class="resources-grid">
-          <section class="resource-section full-width">
-            <Show when={resourceFilter() === 'services'}>
-              <ServiceList services={filteredServices()} />
-            </Show>
-            <Show when={resourceFilter() === 'deployments'}>
-              <DeploymentList deployments={filteredDeployments()} />
-            </Show>
-            <Show when={resourceFilter() === 'pods'}>
-              <PodList pods={filteredPods()} />
-            </Show>
-            <Show when={resourceFilter() === 'fluxcd'}>
-              <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
-            </Show>
-            <Show when={resourceFilter() === 'argocd'}>
-              <ArgoCDResourceList applications={filteredApplications()} />
-            </Show>
-          </section>
-        </div>
+        <section class="resource-section full-width">
+          <Show when={resourceFilter() === 'services'}>
+            <ServiceList services={filteredServices()} />
+          </Show>
+          <Show when={resourceFilter() === 'deployments'}>
+            <DeploymentList deployments={filteredDeployments()} />
+          </Show>
+          <Show when={resourceFilter() === 'pods'}>
+            <PodList pods={filteredPods()} />
+          </Show>
+          <Show when={resourceFilter() === 'fluxcd'}>
+            <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
+          </Show>
+          <Show when={resourceFilter() === 'argocd'}>
+            <ArgoCDResourceList applications={filteredApplications()} />
+          </Show>
+        </section>
       </main>
     </div>
   );

@@ -101,35 +101,6 @@ h1 {
 .status-Pending { color: orange; }
 .status-Failed { color: red; }
 
-.resources-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-}
-
-.resource-section {
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.resource-section h2 {
-    margin-top: 0;
-    color: #2c3e50;
-    border-bottom: 2px solid #e9ecef;
-    padding-bottom: 0.5rem;
-}
-
-.resource-list {
-    display: grid;
-    gap: 1rem;
-    width: 100%;
-    grid-template-columns: repeat(3, 1fr);
-}
-
-.resource-list.card-layout {
-    grid-template-columns: repeat(3, 1fr);
-}
-
 .resource-item {
     background: var(--card-bg);
     border-radius: 8px;
@@ -1123,7 +1094,6 @@ details[open] summary {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
-    background: var(--linear-bg);
     overflow: hidden;
     table-layout: fixed;
     min-width: 100%;
