@@ -1274,37 +1274,6 @@ td.message-cell {
   border-color: var(--linear-blue);
 }
 
-.active-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.filter-pill {
-  display: flex;
-  align-items: center;
-  background-color: var(--linear-bg);
-  border: 1px solid var(--linear-border);
-  border-radius: 16px;
-  padding: 3px 8px;
-  font-size: 13px;
-  color: var(--linear-text-primary);
-}
-
-.remove-filter {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 0 0 4px;
-  color: var(--linear-text-secondary);
-}
-
-.remove-filter:hover {
-  color: var(--linear-red);
-}
-
 .resource-table-wrapper {
   flex: 1;
   overflow: auto;

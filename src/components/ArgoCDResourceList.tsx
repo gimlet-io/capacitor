@@ -16,7 +16,8 @@ export function ArgoCDResourceList(props: {
       { label: "Synced", value: "Synced", color: "var(--linear-green)" },
       { label: "OutOfSync", value: "OutOfSync", color: "var(--linear-red)" },
       { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
-    ]
+    ],
+    multiSelect: true
   };
 
   // Define health status filter options
@@ -29,7 +30,8 @@ export function ArgoCDResourceList(props: {
       { label: "Suspended", value: "Suspended", color: "var(--linear-text-tertiary)" },
       { label: "Missing", value: "Missing", color: "var(--linear-yellow)" },
       { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
-    ]
+    ],
+    multiSelect: true
   };
 
   // Define filter function

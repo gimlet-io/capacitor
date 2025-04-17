@@ -172,25 +172,6 @@ export function FilterBar(props: {
           }}
         </For>
       </div>
-      
-      <div class="active-filters">
-        <For each={props.activeFilters}>
-          {(filter, index) => (
-            <div 
-              class="filter-pill"
-              style={`border-color: ${getFilterColor(filter)}`}
-            >
-              <span>{getFilterLabel(filter)}</span>
-              <button 
-                class="remove-filter" 
-                onClick={() => removeFilter(index())}
-              >
-                ×
-              </button>
-            </div>
-          )}
-        </For>
-      </div>
     </div>
   );
 } 
