@@ -1,4 +1,6 @@
-import { For, createSignal, Show, JSX, createEffect, onCleanup, createMemo } from "solid-js";
+// deno-lint-ignore-file jsx-button-has-type
+import { For, createSignal, Show, createEffect, onCleanup, createMemo } from "solid-js";
+import { untrack } from "solid-js";
 
 export type FilterOption = {
   label: string;
@@ -6,108 +8,109 @@ export type FilterOption = {
   color?: string;
 };
 
-export type FilterGroupType = "select" | "text";
+export type FilterType = "select" | "text";
 
-export type FilterGroup = {
+export type Filter = {
   name: string;
-  type?: FilterGroupType;
+  type?: FilterType;
   options?: FilterOption[];
   multiSelect?: boolean;
   placeholder?: string;
 };
 
 export type ActiveFilter = {
-  group: string;
+  filter: string;
   value: string;
 };
 
 export function FilterBar(props: {
-  filterGroups: FilterGroup[];
+  filters: Filter[];
   activeFilters: ActiveFilter[];
   onFilterChange: (filters: ActiveFilter[]) => void;
 }) {
-  const [activeGroup, setActiveGroup] = createSignal<string | null>(null);
+  const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
-  const filterGroupsRef = new Map<string, HTMLDivElement>();
+  const filtersRef = new Map<string, HTMLDivElement>();
+  const textInputRefs = new Map<string, HTMLInputElement>();
 
-  const toggleFilter = (group: string, value: string) => {
+  const toggleFilter = (filter: string, value: string) => {
     let newFilters: ActiveFilter[] = [...props.activeFilters];
     const existingIndex = newFilters.findIndex(
-      (f) => f.group === group && f.value === value
+      (f) => f.filter === filter && f.value === value
     );
 
-    const groupDef = props.filterGroups.find(g => g.name === group);
+    const filterDef = props.filters.find(f => f.name === filter);
     
     if (existingIndex >= 0) {
       // Remove filter if it's already active
       newFilters.splice(existingIndex, 1);
     } else {
       // Add new filter
-      if (groupDef && !groupDef.multiSelect) {
-        // If not multi-select, remove any existing filters from this group
-        newFilters = newFilters.filter(f => f.group !== group);
+      if (filterDef && !filterDef.multiSelect) {
+        // If not multi-select, remove any existing filters from this filter
+        newFilters = newFilters.filter(f => f.filter !== filter);
       }
-      newFilters.push({ group, value });
+      newFilters.push({ filter, value });
     }
 
     props.onFilterChange(newFilters);
   };
 
-  const applyTextFilter = (group: string, value: string) => {
+  const applyTextFilter = (filter: string, value: string) => {
     // Update text input state
-    setTextInputs(prev => ({ ...prev, [group]: value }));
+    setTextInputs(prev => ({ ...prev, [filter]: value }));
     
     // If value is empty, remove the filter
     if (!value.trim()) {
-      const newFilters = props.activeFilters.filter(f => f.group !== group);
+      const newFilters = props.activeFilters.filter(f => f.filter !== filter);
       props.onFilterChange(newFilters);
       return;
     }
     
     // Update or add the text filter
-    let newFilters = [...props.activeFilters];
-    const existingIndex = newFilters.findIndex(f => f.group === group);
+    const newFilters = [...props.activeFilters];
+    const existingIndex = newFilters.findIndex(f => f.filter === filter);
     
     if (existingIndex >= 0) {
       // Replace existing filter
-      newFilters[existingIndex] = { group, value };
+      newFilters[existingIndex] = { filter, value };
     } else {
       // Add new filter
-      newFilters.push({ group, value });
+      newFilters.push({ filter, value });
     }
     
     props.onFilterChange(newFilters);
   };
 
-  const getGroupButtonText = (groupName: string): string => {
-    const group = props.filterGroups.find(g => g.name === groupName);
-    const activeInGroup = props.activeFilters.filter(f => f.group === groupName);
+  const getFilterButtonText = (filterName: string): string => {
+    const filter = props.filters.find(f => f.name === filterName);
+    const activeInFilter = props.activeFilters.filter(f => f.filter === filterName);
     
-    if (activeInGroup.length === 0) {
-      return `${groupName}`;
-    } else if (group?.type === "text") {
-      return `${groupName}: ${activeInGroup[0].value}`;
-    } else if (activeInGroup.length === 1) {
-      const option = group?.options?.find(o => o.value === activeInGroup[0].value);
-      return `${groupName} is ${option?.label || activeInGroup[0].value}`;
+    if (activeInFilter.length === 0) {
+      return `${filterName}`;
+    } else if (filter?.type === "text") {
+      return `${filterName}: ${activeInFilter[0].value}`;
+    } else if (activeInFilter.length === 1) {
+      const option = filter?.options?.find(o => o.value === activeInFilter[0].value);
+      return `${filterName} is ${option?.label || activeInFilter[0].value}`;
     } else {
-      return `${groupName} is any of ${activeInGroup.length} options`;
+      return `${filterName} is any of ${activeInFilter.length} options`;
     }
   };
 
   // Handle click outside to close filter options
   const handleClickOutside = (event: MouseEvent) => {
-    if (!activeGroup()) return;
+    if (!activeFilter()) return;
     
-    const activeGroupRef = filterGroupsRef.get(activeGroup()!);
-    if (activeGroupRef && !activeGroupRef.contains(event.target as Node)) {
-      setActiveGroup(null);
+    const activeFilterRef = filtersRef.get(activeFilter()!);
+    if (activeFilterRef && !activeFilterRef.contains(event.target as Node)) {
+      setActiveFilter(null);
     }
   };
 
   // Set up click outside handler
   createEffect(() => {
-    if (activeGroup()) {
+    if (activeFilter()) {
       document.addEventListener('click', handleClickOutside);
     } else {
       document.removeEventListener('click', handleClickOutside);
@@ -121,33 +124,53 @@ export function FilterBar(props: {
 
   // Initialize text input values from active filters
   createEffect(() => {
-    const textFilters = props.activeFilters.filter(f => {
-      const group = props.filterGroups.find(g => g.name === f.group);
-      return group?.type === "text";
+    const textFilters = props.activeFilters.filter(fl => {
+      const filter = props.filters.find(f => f.name === fl.filter);
+      return filter?.type === "text";
     });
     
     if (textFilters.length > 0) {
-      const newTextInputs = { ...textInputs() };
-      textFilters.forEach(filter => {
-        newTextInputs[filter.group] = filter.value;
+      untrack(() => {
+        const newTextInputs = { ...textInputs() };
+        textFilters.forEach(filter => {
+          newTextInputs[filter.filter] = filter.value;
+        });
+        setTextInputs(newTextInputs);
       });
-      setTextInputs(newTextInputs);
     }
   });
+
+  // Focus and select text input when the filter is opened
+  createEffect(() => {
+    if (activeFilter()) {
+      const inputRef = textInputRefs.get(activeFilter()!);
+      if (inputRef) {
+        inputRef.focus();
+        inputRef.select();
+      }
+    }
+  });
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === "Escape") {
+      // Close the filter on Enter or Escape
+      setActiveFilter(null);
+    }
+  };
 
   return (
     <div class="filter-bar">
       <div class="filter-groups">
-        <For each={props.filterGroups}>
-          {(group) => {
+        <For each={props.filters}>
+          {(filter) => {
             const hasActiveFilters = createMemo(() => 
-              props.activeFilters.some(f => f.group === group.name)
+              props.activeFilters.some(f => f.filter === filter.name)
             );
             
             return (
               <div 
                 class="filter-group" 
-                ref={el => filterGroupsRef.set(group.name, el)}
+                ref={el => filtersRef.set(filter.name, el)}
               >
                 <button 
                   classList={{ 
@@ -156,32 +179,34 @@ export function FilterBar(props: {
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveGroup(current => current === group.name ? null : group.name);
+                    setActiveFilter(current => current === filter.name ? null : filter.name);
                   }}
                 >
-                  {getGroupButtonText(group.name)}
+                  {getFilterButtonText(filter.name)}
                 </button>
-                <Show when={activeGroup() === group.name}>
+                <Show when={activeFilter() === filter.name}>
                   <div class="filter-options">
                     {/* Text input filter */}
-                    <Show when={group.type === "text"}>
+                    <Show when={filter.type === "text"}>
                       <div class="filter-text-input">
                         <input
                           type="text"
-                          placeholder={group.placeholder || `Filter by ${group.name.toLowerCase()}`}
-                          value={textInputs()[group.name] || ""}
-                          onInput={(e) => applyTextFilter(group.name, e.currentTarget.value)}
+                          placeholder={filter.placeholder || `Filter by ${filter.name.toLowerCase()}`}
+                          value={textInputs()[filter.name] || ""}
+                          onInput={(e) => applyTextFilter(filter.name, e.currentTarget.value)}
+                          ref={el => textInputRefs.set(filter.name, el)}
+                          onKeyDown={handleKeyDown}
                         />
                       </div>
                     </Show>
                     
                     {/* Select options filter */}
-                    <Show when={group.type !== "text" && group.options}>
-                      <For each={group.options}>
+                    <Show when={filter.type !== "text" && filter.options}>
+                      <For each={filter.options}>
                         {(option) => {
                           const isActive = createMemo(() => 
                             props.activeFilters.some(f => 
-                              f.group === group.name && f.value === option.value
+                              f.filter === filter.name && f.value === option.value
                             )
                           );
                           
@@ -192,7 +217,7 @@ export function FilterBar(props: {
                                 "active": isActive()
                               }}
                               style={option.color ? `border-color: ${option.color}` : ''}
-                              onClick={() => toggleFilter(group.name, option.value)}
+                              onClick={() => toggleFilter(filter.name, option.value)}
                             >
                               <span class="checkbox">
                                 {isActive() ? '✓' : ''}

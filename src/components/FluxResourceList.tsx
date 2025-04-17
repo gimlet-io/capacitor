@@ -1,9 +1,8 @@
-import { JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { Kustomization, Source } from '../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
 import { ResourceList } from './ResourceList.tsx';
-import { FilterGroup, ActiveFilter } from './FilterBar.tsx';
+import { Filter, ActiveFilter } from './FilterBar.tsx';
 
 export function FluxResourceList(props: { 
   kustomizations: Kustomization[],
@@ -12,7 +11,7 @@ export function FluxResourceList(props: {
   const navigate = useNavigate();
 
   // Define Ready condition filter options
-  const readyFilterGroup: FilterGroup = {
+  const readyFilter: Filter = {
     name: "Ready",
     type: "select",
     options: [
@@ -30,7 +29,7 @@ export function FluxResourceList(props: {
     if (activeFilters.length === 0) return true;
 
     // Check if we have ready condition filters
-    const readyFilters = activeFilters.filter(f => f.group === 'Ready');
+    const readyFilters = activeFilters.filter(f => f.filter === 'Ready');
     if (readyFilters.length > 0) {
       const readyCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Ready);
       
@@ -130,7 +129,7 @@ export function FluxResourceList(props: {
       detailRowRenderer={renderKustomizationDetails}
       noSelectClass={true}
       rowKeyField="name"
-      filterGroups={[readyFilterGroup]}
+      filters={[readyFilter]}
       filterFunction={filterKustomizations}
     />
   );

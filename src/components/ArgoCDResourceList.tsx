@@ -1,8 +1,7 @@
-import { JSX } from "solid-js";
 import type { ArgoCDApplication } from '../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
 import { ResourceList } from './ResourceList.tsx';
-import { FilterGroup, ActiveFilter } from './FilterBar.tsx';
+import { Filter, ActiveFilter } from './FilterBar.tsx';
 
 export function ArgoCDResourceList(props: { 
   applications: ArgoCDApplication[]
@@ -10,7 +9,7 @@ export function ArgoCDResourceList(props: {
   const navigate = useNavigate();
 
   // Define sync status filter options
-  const syncFilterGroup: FilterGroup = {
+  const syncFilter: Filter = {
     name: "Sync Status",
     type: "select",
     options: [
@@ -22,7 +21,7 @@ export function ArgoCDResourceList(props: {
   };
 
   // Define health status filter options
-  const healthFilterGroup: FilterGroup = {
+  const healthFilter: Filter = {
     name: "Health",
     type: "select",
     options: [
@@ -44,14 +43,14 @@ export function ArgoCDResourceList(props: {
     let matches = true;
 
     // Check if we have sync status filters
-    const syncFilters = activeFilters.filter(f => f.group === 'Sync Status');
+    const syncFilters = activeFilters.filter(f => f.filter === 'Sync Status');
     if (syncFilters.length > 0) {
       const syncStatus = application.status?.sync?.status || 'Unknown';
       matches = matches && syncFilters.some(filter => syncStatus === filter.value);
     }
 
     // Check if we have health status filters
-    const healthFilters = activeFilters.filter(f => f.group === 'Health');
+    const healthFilters = activeFilters.filter(f => f.filter === 'Health');
     if (healthFilters.length > 0) {
       const healthStatus = application.status?.health?.status || 'Unknown';
       matches = matches && healthFilters.some(filter => healthStatus === filter.value);
@@ -128,7 +127,7 @@ export function ArgoCDResourceList(props: {
       detailRowRenderer={renderApplicationDetails}
       noSelectClass={true}
       rowKeyField="name"
-      filterGroups={[syncFilterGroup, healthFilterGroup]}
+      filters={[syncFilter, healthFilter]}
       filterFunction={filterApplications}
     />
   );

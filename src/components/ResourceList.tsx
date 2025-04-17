@@ -1,5 +1,5 @@
 import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo } from "solid-js";
-import { FilterBar, FilterGroup, ActiveFilter } from "./FilterBar.tsx";
+import { FilterBar, Filter, ActiveFilter } from "./FilterBar.tsx";
 
 // Generic Resource type with required metadata properties
 type Resource = {
@@ -27,15 +27,15 @@ type DetailRowRenderer<T> = (item: T) => JSX.Element;
 type FilterFunction<T> = (resource: T, activeFilters: ActiveFilter[]) => boolean;
 
 // Common name filter group
-const nameFilterGroup: FilterGroup = {
+const nameFilter: Filter = {
   name: "Name",
   type: "text",
   placeholder: "Filter by name"
 };
 
 // Common filter function to check name
-const nameFilter = <T extends Resource>(resource: T, filter: ActiveFilter): boolean => {
-  if (filter.group !== "Name") return true;
+const filterName = <T extends Resource>(resource: T, filter: ActiveFilter): boolean => {
+  if (filter.filter !== "Name") return true;
   return resource.metadata.name.toLowerCase().includes(filter.value.toLowerCase());
 };
 
@@ -46,29 +46,29 @@ export function ResourceList<T extends Resource>(props: {
   onItemClick?: (item: T) => void;
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
-  filterGroups?: FilterGroup[];
+  filters?: Filter[];
   filterFunction?: FilterFunction<T>;
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
 
-  // Add name filter to the filter groups
-  const allFilterGroups = createMemo(() => {
-    return [nameFilterGroup, ...(props.filterGroups || [])];
+  // Add name filter to the filters
+  const allFilters = createMemo(() => {
+    return [nameFilter, ...(props.filters || [])];
   });
 
   // Enhanced filter function that also handles name filter
   const applyFilters = (resource: T, filters: ActiveFilter[]): boolean => {
     // Check name filter first
-    const nameFilters = filters.filter(f => f.group === "Name");
-    if (nameFilters.length > 0 && !nameFilters.every(f => nameFilter(resource, f))) {
+    const nameFilters = filters.filter(f => f.filter === "Name");
+    if (nameFilters.length > 0 && !nameFilters.every(f => filterName(resource, f))) {
       return false;
     }
     
     // If there's a custom filter function, apply it for other filters
     if (props.filterFunction) {
-      const otherFilters = filters.filter(f => f.group !== "Name");
+      const otherFilters = filters.filter(f => f.filter !== "Name");
       if (otherFilters.length > 0) {
         return props.filterFunction(resource, otherFilters);
       }
@@ -162,7 +162,7 @@ export function ResourceList<T extends Resource>(props: {
   return (
     <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>
       <FilterBar 
-        filterGroups={allFilterGroups()} 
+        filters={allFilters()} 
         activeFilters={activeFilters()} 
         onFilterChange={setActiveFilters} 
       />

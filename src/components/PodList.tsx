@@ -1,13 +1,12 @@
-import { JSX } from "solid-js";
 import type { Pod } from '../types/k8s.ts';
 import { ResourceList } from './ResourceList.tsx';
-import { FilterGroup, ActiveFilter } from './FilterBar.tsx';
+import { Filter, ActiveFilter } from './FilterBar.tsx';
 
 export function PodList(props: { 
   pods: Pod[]
 }) {
   // Define status filter options based on Kubernetes pod phases
-  const statusFilterGroup: FilterGroup = {
+  const statusFilter: Filter = {
     name: "Status",
     type: "select",
     options: [
@@ -26,7 +25,7 @@ export function PodList(props: {
     if (activeFilters.length === 0) return true;
 
     // Check if we have status filters
-    const statusFilters = activeFilters.filter(f => f.group === 'Status');
+    const statusFilters = activeFilters.filter(f => f.filter === 'Status');
     if (statusFilters.length > 0) {
       // If status filters are present, check if pod's status matches any of them
       return statusFilters.some(filter => pod.status.phase === filter.value);
@@ -116,7 +115,7 @@ export function PodList(props: {
     <ResourceList 
       resources={props.pods} 
       columns={columns}
-      filterGroups={[statusFilterGroup]} 
+      filters={[statusFilter]} 
       filterFunction={filterPods}
     />
   );
