@@ -754,10 +754,10 @@ details[open] summary {
 }
 
 .argocd-app-item h2 {
-  color: #06b6d4;
-  border-bottom: 2px solid #06b6d4;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--linear-text-primary);
+  margin-bottom: 8px;
 }
 
 .argocd-status {
@@ -870,18 +870,19 @@ details[open] summary {
 
 /* Kustomization Details */
 .kustomization-details {
-  background: var(--linear-bg);
-  min-height: 100vh;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
 }
 
 .kustomization-header {
-  background: var(--linear-bg);
-  border: 1px solid var(--linear-border);
-  border-radius: 8px;
-  box-shadow: var(--linear-shadow);
-  margin-bottom: 24px;
-  overflow: hidden;
+  flex-shrink: 0; /* Prevent header from shrinking */
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--linear-border);
+  background-color: var(--linear-bg);
 }
 
 .header-top {
@@ -1027,15 +1028,19 @@ details[open] summary {
 /* Resource Tree */
 .resource-tree-container {
   background: var(--linear-bg);
-  border: 1px solid var(--linear-border);
-  border-radius: 8px;
-  box-shadow: var(--linear-shadow);
   padding: 20px;
   overflow: auto;
+  flex: 1; /* Take remaining space */
 }
 
-.resource-tree {
-  min-height: 400px;
+.graph-container {
+  width: 100%;
+  height: 100%;
+}
+
+.graph-svg {
+  display: block; /* Remove default inline spacing */
+  /* background-color: lightgray; */
 }
 
 /* Loading State */

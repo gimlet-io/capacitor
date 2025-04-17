@@ -1,4 +1,4 @@
-import { Accessor, createEffect } from "solid-js";
+import { Accessor, createEffect, onMount, onCleanup } from "solid-js";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
 
@@ -82,15 +82,29 @@ export function ResourceTree(props: ResourceTreeProps) {
   let gRef: SVGGElement | undefined;
 
   const renderGraph = (g: graphlib.Graph) => {
-    if (!svgRef || !gRef || !g) return; 
-    dagre.layout(g);
+    if (!svgRef || !gRef || !g) return;
 
     // Clear previous content
     gRef.innerHTML = "";
 
+    // Default dimensions
+    let maxX = 0;
+    let maxY = 0;
+
+    dagre.layout(g);
+
+    // Get graph dimensions to set SVG size
+    maxX = 0;
+    maxY = 0;
+
     // Render nodes
     g.nodes().forEach((v: string) => {
       const node = g.node(v) as NodeData;
+
+      // Update max dimensions
+      maxX = Math.max(maxX, node.x! + node.width / 2);
+      maxY = Math.max(maxY, node.y! + node.height / 2);
+
       const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
       group.setAttribute(
         "transform",
@@ -166,6 +180,9 @@ export function ResourceTree(props: ResourceTreeProps) {
       path.setAttribute("stroke-dasharray", "5,2"); // Dashed line
       gRef?.appendChild(path);
     });
+
+    svgRef.setAttribute("width", `${maxX+40}px`);
+    svgRef.setAttribute("height", `${maxY+40}px`);
   };
 
   createEffect(() => {
@@ -173,9 +190,9 @@ export function ResourceTree(props: ResourceTreeProps) {
   });
 
   return (
-    <div class="resource-tree-visualization">
-      <svg ref={svgRef} width="100%" height="400">
-        <g ref={gRef} />
+    <div class="graph-container">
+      <svg ref={svgRef} class="graph-svg">
+        <g ref={gRef}></g>
       </svg>
     </div>
   );

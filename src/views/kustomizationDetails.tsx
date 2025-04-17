@@ -375,11 +375,9 @@ export function KustomizationDetails() {
                 </div>
               </header>
 
-              <main class="resource-tree-container">
-                <div class="resource-tree">
-                  <ResourceTree g={graph} />
-                </div>
-              </main>
+              <div class="resource-tree-container">
+                <ResourceTree g={graph} />
+              </div>
             </>
           );
         }}
