@@ -5,3 +5,4 @@ export { FluxResourceList } from './FluxResourceList.tsx';
 export { EventList } from './EventList.tsx';
 export { ArgoCDResourceList } from './ArgoCDResourceList.tsx';
 export { Combobox } from './Combobox.tsx';
+export { ResourceList } from './ResourceList.tsx';

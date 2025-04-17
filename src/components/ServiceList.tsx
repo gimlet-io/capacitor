@@ -1,104 +1,51 @@
-import { For, createSignal, onMount, onCleanup, createEffect } from "solid-js";
+import { JSX } from "solid-js";
 import type { Service } from '../types/k8s.ts';
+import { ResourceList } from './ResourceList.tsx';
 
 export function ServiceList(props: { 
   services: Service[]
 }) {
-  const [selectedIndex, setSelectedIndex] = createSignal(-1);
-  const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (props.services.length === 0) return;
-    
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, props.services.length - 1);
-        return newIndex;
-      });
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
-        return newIndex;
-      });
-    }
-  };
-
-  // Scroll selected item into view whenever selectedIndex changes
-  createEffect(() => {
-    const index = selectedIndex();
-    const container = listContainer();
-
-    if (index === -1 || !container) return;
-    
-    // Wait for the DOM to update
-    requestAnimationFrame(() => {
-      const rows = container.querySelectorAll('tbody tr');
-      if (index >= 0 && index < rows.length) {
-        const selectedRow = rows[index];
-        
-        // Calculate if element is in view
-        const containerRect = container.getBoundingClientRect();
-        const rowRect = selectedRow.getBoundingClientRect();
-
-        // Check if the element is not fully visible
-        if (rowRect.top < containerRect.top || rowRect.bottom > containerRect.bottom) {
-          // Use scrollIntoView with block: 'nearest' for smoother scrolling
-          selectedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
-        }
+  const columns = [
+    {
+      header: "NAME",
+      width: "30%",
+      accessor: (service: Service) => <>{service.metadata.name}</>,
+      title: (service: Service) => service.metadata.name
+    },
+    {
+      header: "TYPE",
+      width: "15%",
+      accessor: (service: Service) => <>{service.spec.type}</>
+    },
+    {
+      header: "CLUSTER-IP",
+      width: "15%",
+      accessor: (service: Service) => <>{service.spec.clusterIP}</>
+    },
+    {
+      header: "EXTERNAL-IP",
+      width: "15%",
+      accessor: (service: Service) => <>{service.spec.externalIPs?.join(', ') || 'None'}</>
+    },
+    {
+      header: "PORT(S)",
+      width: "15%",
+      accessor: (service: Service) => <>{service.spec.ports?.map(port => `${port.port}:${port.targetPort}/${port.protocol}`).join(', ') || 'None'}</>
+    },
+    {
+      header: "AGE",
+      width: "10%",
+      accessor: (service: Service) => {
+        if (!service.metadata.creationTimestamp) return <>N/A</>;
+        const startTime = new Date(service.metadata.creationTimestamp);
+        const now = new Date();
+        const diff = now.getTime() - startTime.getTime();
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
       }
-    });
-  });
+    }
+  ];
 
-  onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
-  });
-
-  onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown);
-  });
-
-  return (
-    <div class="resource-list-container" ref={setListContainer}>
-      <table class="resource-table">
-        <thead>
-          <tr>
-            <th style="width: 30%">NAME</th>
-            <th style="width: 15%">TYPE</th>
-            <th style="width: 15%">CLUSTER-IP</th>
-            <th style="width: 15%">EXTERNAL-IP</th>
-            <th style="width: 15%">PORT(S)</th>
-            <th style="width: 10%">AGE</th>
-          </tr>
-        </thead>
-        <tbody>
-          <For each={props.services}>
-            {(service, index) => (
-              <tr class={selectedIndex() === index() ? 'selected' : ''}>
-                <td title={service.metadata.name}>
-                  {service.metadata.name}
-                </td>
-                <td>{service.spec.type}</td>
-                <td>{service.spec.clusterIP}</td>
-                <td>{service.spec.externalIPs?.join(', ') || 'None'}</td>
-                <td>{service.spec.ports?.map(port => `${port.port}:${port.targetPort}/${port.protocol}`).join(', ') || 'None'}</td>
-                <td>
-                  {(() => {
-                    if (!service.metadata.creationTimestamp) return 'N/A';
-                    const startTime = new Date(service.metadata.creationTimestamp);
-                    const now = new Date();
-                    const diff = now.getTime() - startTime.getTime();
-                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                    return days > 0 ? `${days}d${hours}h` : `${hours}h`;
-                  })()}
-                </td>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
-    </div>
-  );
+  return <ResourceList resources={props.services} columns={columns} />;
 }
