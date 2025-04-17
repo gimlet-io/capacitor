@@ -1274,6 +1274,33 @@ td.message-cell {
   border-color: var(--linear-blue);
 }
 
+.filter-text-input {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.filter-text-input input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--linear-text-primary);
+  background-color: var(--linear-bg);
+}
+
+.filter-text-input input:focus {
+  outline: none;
+  border-color: var(--linear-blue);
+  box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.1);
+}
+
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .resource-table-wrapper {
   flex: 1;
   overflow: auto;

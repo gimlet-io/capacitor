@@ -20,11 +20,24 @@ type Column<T> = {
   title?: (item: T) => string;
 };
 
-// Detail row renderer function
+// Detail row renderer type
 type DetailRowRenderer<T> = (item: T) => JSX.Element;
 
 // Filter function type
 type FilterFunction<T> = (resource: T, activeFilters: ActiveFilter[]) => boolean;
+
+// Common name filter group
+const nameFilterGroup: FilterGroup = {
+  name: "Name",
+  type: "text",
+  placeholder: "Filter by name"
+};
+
+// Common filter function to check name
+const nameFilter = <T extends Resource>(resource: T, filter: ActiveFilter): boolean => {
+  if (filter.group !== "Name") return true;
+  return resource.metadata.name.toLowerCase().includes(filter.value.toLowerCase());
+};
 
 export function ResourceList<T extends Resource>(props: { 
   resources: T[];
@@ -40,13 +53,35 @@ export function ResourceList<T extends Resource>(props: {
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
 
+  // Add name filter to the filter groups
+  const allFilterGroups = createMemo(() => {
+    return [nameFilterGroup, ...(props.filterGroups || [])];
+  });
+
+  // Enhanced filter function that also handles name filter
+  const applyFilters = (resource: T, filters: ActiveFilter[]): boolean => {
+    // Check name filter first
+    const nameFilters = filters.filter(f => f.group === "Name");
+    if (nameFilters.length > 0 && !nameFilters.every(f => nameFilter(resource, f))) {
+      return false;
+    }
+    
+    // If there's a custom filter function, apply it for other filters
+    if (props.filterFunction) {
+      const otherFilters = filters.filter(f => f.group !== "Name");
+      if (otherFilters.length > 0) {
+        return props.filterFunction(resource, otherFilters);
+      }
+    }
+    
+    return true;
+  };
+
   const filteredResources = createMemo(() => {
-    if (!props.filterFunction || activeFilters().length === 0) {
+    if (activeFilters().length === 0) {
       return props.resources;
     }
-    return props.resources.filter(resource => 
-      props.filterFunction!(resource, activeFilters())
-    );
+    return props.resources.filter(resource => applyFilters(resource, activeFilters()));
   });
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -126,13 +161,11 @@ export function ResourceList<T extends Resource>(props: {
 
   return (
     <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>
-      {props.filterGroups && props.filterGroups.length > 0 && (
-        <FilterBar 
-          filterGroups={props.filterGroups} 
-          activeFilters={activeFilters()} 
-          onFilterChange={setActiveFilters} 
-        />
-      )}
+      <FilterBar 
+        filterGroups={allFilterGroups()} 
+        activeFilters={activeFilters()} 
+        onFilterChange={setActiveFilters} 
+      />
       
       <div ref={setListContainer} class="resource-table-wrapper">
         <table class="resource-table">

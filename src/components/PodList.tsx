@@ -9,6 +9,7 @@ export function PodList(props: {
   // Define status filter options based on Kubernetes pod phases
   const statusFilterGroup: FilterGroup = {
     name: "Status",
+    type: "select",
     options: [
       { label: "Running", value: "Running", color: "var(--linear-green)" },
       { label: "Pending", value: "Pending", color: "var(--linear-yellow)" },

@@ -14,12 +14,14 @@ export function FluxResourceList(props: {
   // Define Ready condition filter options
   const readyFilterGroup: FilterGroup = {
     name: "Ready",
+    type: "select",
     options: [
       { label: "Ready", value: ConditionStatus.True, color: "var(--linear-green)" },
       { label: "Not Ready", value: ConditionStatus.False, color: "var(--linear-red)" },
       { label: "Unknown", value: ConditionStatus.Unknown, color: "var(--linear-text-tertiary)" },
       { label: "Suspended", value: "Suspended", color: "var(--linear-blue)" }
-    ]
+    ],
+    multiSelect: true
   };
 
   // Define filter function

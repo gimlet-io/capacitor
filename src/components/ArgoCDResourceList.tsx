@@ -12,6 +12,7 @@ export function ArgoCDResourceList(props: {
   // Define sync status filter options
   const syncFilterGroup: FilterGroup = {
     name: "Sync Status",
+    type: "select",
     options: [
       { label: "Synced", value: "Synced", color: "var(--linear-green)" },
       { label: "OutOfSync", value: "OutOfSync", color: "var(--linear-red)" },
@@ -23,6 +24,7 @@ export function ArgoCDResourceList(props: {
   // Define health status filter options
   const healthFilterGroup: FilterGroup = {
     name: "Health",
+    type: "select",
     options: [
       { label: "Healthy", value: "Healthy", color: "var(--linear-green)" },
       { label: "Progressing", value: "Progressing", color: "var(--linear-blue)" },
