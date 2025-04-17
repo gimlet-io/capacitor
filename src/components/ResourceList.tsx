@@ -208,9 +208,6 @@ export function ResourceList<T extends Resource>(props: {
             </For>
           </tbody>
         </table>
-        {filteredResources().length === 0 && (
-          <div class="no-results">No resources match the selected filters</div>
-        )}
       </div>
     </div>
   );

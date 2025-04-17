@@ -1,7 +1,8 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, createResource, createEffect, onMount, untrack } from "solid-js";
-import { PodList, DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, Combobox } from "../components/index.ts";
-import type { Pod, Deployment, ServiceWithResources, Kustomization, Source, Event, ArgoCDApplication, Service, DeploymentWithResources, PodCondition, ContainerStatus } from "../types/k8s.ts";
+import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
+import { PodList, DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList } from "../components/index.ts";
+import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/FilterBar.tsx";
+import type { Pod, Deployment, ServiceWithResources, Kustomization, ArgoCDApplication, Service, DeploymentWithResources, PodCondition, ContainerStatus } from "../types/k8s.ts";
 import { For, Show } from "solid-js";
 import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
 import { watchResource } from "../watches.tsx";
@@ -11,10 +12,10 @@ type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
 
 export function Dashboard() {
   const [namespace, setNamespace] = createSignal<string>();
-  const [resourceFilter, setResourceFilter] = createSignal<ResourceType>('pods');
-
+  const [resourceType, setResourceType] = createSignal<ResourceType>('pods');
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
+  const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
 
   const CARD_TYPES = [
     { value: 'argocd', label: 'ArgoCD' },
@@ -61,6 +62,84 @@ export function Dashboard() {
     return nsList;
   });
 
+  // Define namespace filter options
+  const namespaceOptions = createMemo<FilterOption[]>(() => {
+    if (!namespaces()) return [{ value: 'all-namespaces', label: 'All Namespaces' }];
+    return [
+      { value: 'all-namespaces', label: 'All Namespaces' },
+      ...namespaces()!.map((ns: string) => ({ value: ns, label: ns }))
+    ];
+  });
+
+  // Define namespace filter
+  const namespaceFilter: Filter = {
+    name: "Namespace",
+    type: "select",
+    options: namespaceOptions(),
+    multiSelect: false
+  };
+
+  // Define resource type filter
+  const resourceTypeFilter: Filter = {
+    name: "ResourceType",
+    type: "select",
+    options: CARD_TYPES.map(type => ({ value: type.value, label: type.label })),
+    multiSelect: false
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    
+    // Update namespace and resourceType signals based on active filters
+    const namespaceFilter = filters.find(f => f.filter === "Namespace");
+    if (namespaceFilter) {
+      setNamespace(namespaceFilter.value);
+    }
+    
+    const resourceTypeFilter = filters.find(f => f.filter === "ResourceType");
+    if (resourceTypeFilter && 
+        (resourceTypeFilter.value === 'pods' || 
+         resourceTypeFilter.value === 'services' || 
+         resourceTypeFilter.value === 'deployments' || 
+         resourceTypeFilter.value === 'fluxcd' || 
+         resourceTypeFilter.value === 'argocd')) {
+      setResourceType(resourceTypeFilter.value);
+    }
+  };
+
+  // Update active filters when namespace or resourceType changes
+  createEffect(() => {
+    const currentNamespace = namespace();
+    const currentResourceType = resourceType();
+    
+    if (!currentNamespace || !currentResourceType) return;
+    
+    // Create new active filters array
+    let newFilters = [...activeFilters()];
+    
+    // Update namespace filter
+    const existingNamespaceIndex = newFilters.findIndex(f => f.filter === "Namespace");
+    if (existingNamespaceIndex >= 0) {
+      newFilters[existingNamespaceIndex] = { filter: "Namespace", value: currentNamespace };
+    } else {
+      newFilters.push({ filter: "Namespace", value: currentNamespace });
+    }
+    
+    // Update resource type filter
+    const existingResourceTypeIndex = newFilters.findIndex(f => f.filter === "ResourceType");
+    if (existingResourceTypeIndex >= 0) {
+      newFilters[existingResourceTypeIndex] = { filter: "ResourceType", value: currentResourceType };
+    } else {
+      newFilters.push({ filter: "ResourceType", value: currentResourceType });
+    }
+    
+    // Only update if needed to avoid infinite loops
+    if (JSON.stringify(newFilters) !== JSON.stringify(activeFilters())) {
+      setActiveFilters(newFilters);
+    }
+  });
+
   createEffect(() => {
     if (!namespaces()) {
       return;
@@ -77,7 +156,7 @@ export function Dashboard() {
     const view = VIEWS.find(v => v.id === selectedView());
     if (view) {
       setNamespace(view.namespace);
-      setResourceFilter(view.resourceType);
+      setResourceType(view.resourceType);
     }
   });
 
@@ -89,7 +168,7 @@ export function Dashboard() {
 
   // Call setupWatches when namespace or resource filter changes
   createEffect(() => {
-    setupWatches(namespace(), resourceFilter());
+    setupWatches(namespace(), resourceType());
   });
 
   const setupWatches = (ns: string | undefined, resourceFilter: ResourceType) => {
@@ -209,6 +288,11 @@ export function Dashboard() {
     setWatchControllers(controllers);
   };
 
+  // Update namespaceFilter options when namespaces resource changes
+  createEffect(() => {
+    namespaceFilter.options = namespaceOptions();
+  });
+
   return (
     <div class="layout">
       <main class="main-content">
@@ -224,32 +308,15 @@ export function Dashboard() {
             )}
           </For>
         </div>
+        
+        {/* Global Filters */}
+        <FilterBar 
+          filters={[namespaceFilter, resourceTypeFilter]}
+          activeFilters={activeFilters()}
+          onFilterChange={handleFilterChange}
+        />
+        
         <div class="controls">
-          <div class="namespace-combobox">
-            <Combobox
-              value={namespace() || ""}
-              options={[
-                { value: 'all-namespaces', label: 'All Namespaces' },
-                ...(namespaces()?.map((ns: string) => ({ value: ns, label: ns })) || [])
-              ]}
-              onSelect={(value: string) => {
-                setNamespace(value);
-              }}
-              hotkey="n"
-              placeholder="Select namespace"
-            />
-          </div>
-          <div class="combobox">
-            <Combobox
-              value={resourceFilter()}
-              options={CARD_TYPES.map(type => ({ value: type.value, label: type.label, hotkey: type.hotkey }))}
-              onSelect={(value: string) => {
-                setResourceFilter(value as 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd');
-              }}
-              placeholder="Select resource type"
-              disableKeyboardNavigation
-            />
-          </div>
           <span 
             class="watch-status" 
             style={{ "color": watchStatus() === "●" ? "var(--linear-green)" : "var(--linear-red)" } as any}
@@ -258,19 +325,19 @@ export function Dashboard() {
           </span>
         </div>
         <section class="resource-section full-width">
-          <Show when={resourceFilter() === 'services'}>
+          <Show when={resourceType() === 'services'}>
             <ServiceList services={services()} />
           </Show>
-          <Show when={resourceFilter() === 'deployments'}>
+          <Show when={resourceType() === 'deployments'}>
             <DeploymentList deployments={deployments()} />
           </Show>
-          <Show when={resourceFilter() === 'pods'}>
+          <Show when={resourceType() === 'pods'}>
             <PodList pods={pods()} />
           </Show>
-          <Show when={resourceFilter() === 'fluxcd'}>
+          <Show when={resourceType() === 'fluxcd'}>
             <FluxResourceList kustomizations={kustomizations()} />
           </Show>
-          <Show when={resourceFilter() === 'argocd'}>
+          <Show when={resourceType() === 'argocd'}>
             <ArgoCDResourceList applications={applications()} />
           </Show>
         </section>
