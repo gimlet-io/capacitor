@@ -1,4 +1,3 @@
-import { JSX } from "solid-js";
 import type { ArgoCDApplication } from '../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
 import { ResourceList } from './ResourceList.tsx';

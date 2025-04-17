@@ -117,12 +117,6 @@ export function ResourceList<T extends Resource>(props: {
                 }
               };
               
-              // Generate a unique key for each row based on index or provided key field
-              const keyValue = props.rowKeyField && 
-                                props.rowKeyField in resource.metadata ? 
-                                resource.metadata[props.rowKeyField] : 
-                                index();
-              
               return (
                 <>
                   <tr 

@@ -1,4 +1,3 @@
-import { JSX } from "solid-js";
 import type { DeploymentWithResources } from '../types/k8s.ts';
 import { ResourceList } from './ResourceList.tsx';
 

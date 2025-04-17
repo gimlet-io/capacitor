@@ -1,4 +1,3 @@
-import { JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { Kustomization, Source } from '../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
