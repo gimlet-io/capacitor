@@ -1201,10 +1201,18 @@ td.message-cell {
   font-size: 14px;
   cursor: pointer;
   color: var(--linear-text-primary);
+  transition: all 0.2s ease;
 }
 
 .filter-group-button:hover {
   background-color: var(--linear-bg-secondary);
+}
+
+.filter-group-button.has-active-filters {
+  background-color: var(--linear-blue-light);
+  border-color: var(--linear-blue);
+  color: var(--linear-blue);
+  font-weight: 500;
 }
 
 .filter-options {
@@ -1225,6 +1233,8 @@ td.message-cell {
 }
 
 .filter-option {
+  display: flex;
+  align-items: center;
   background-color: var(--linear-bg);
   border: 1px solid var(--linear-border);
   border-radius: 4px;
@@ -1244,6 +1254,24 @@ td.message-cell {
   background-color: var(--linear-blue-light);
   border-color: var(--linear-blue);
   font-weight: 500;
+}
+
+.checkbox {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--linear-border);
+  border-radius: 3px;
+  margin-right: 8px;
+  font-size: 11px;
+  color: var(--linear-bg);
+}
+
+.filter-option.active .checkbox {
+  background-color: var(--linear-blue);
+  border-color: var(--linear-blue);
 }
 
 .active-filters {

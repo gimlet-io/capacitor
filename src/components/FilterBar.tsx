@@ -72,6 +72,22 @@ export function FilterBar(props: {
     return option?.color || "var(--linear-border)";
   };
 
+  const getGroupButtonText = (groupName: string): string => {
+    const activeInGroup = props.activeFilters.filter(f => f.group === groupName);
+    
+    if (activeInGroup.length === 0) {
+      return `${groupName}`;
+    } else if (activeInGroup.length === 1) {
+      const option = props.filterGroups
+        .find(g => g.name === groupName)?.options
+        .find(o => o.value === activeInGroup[0].value);
+      
+      return `${groupName} is ${option?.label || activeInGroup[0].value}`;
+    } else {
+      return `${groupName} is any of ${activeInGroup.length} options`;
+    }
+  };
+
   // Handle click outside to close filter options
   const handleClickOutside = (event: MouseEvent) => {
     if (!activeGroup()) return;
@@ -100,42 +116,49 @@ export function FilterBar(props: {
     <div class="filter-bar">
       <div class="filter-groups">
         <For each={props.filterGroups}>
-          {(group) => (
-            <div 
-              class="filter-group" 
-              ref={el => filterGroupsRef.set(group.name, el)}
-            >
-              <button 
-                class="filter-group-button" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveGroup(current => current === group.name ? null : group.name);
-                }}
+          {(group) => {
+            const hasActiveFilters = () => props.activeFilters.some(f => f.group === group.name);
+            
+            return (
+              <div 
+                class="filter-group" 
+                ref={el => filterGroupsRef.set(group.name, el)}
               >
-                {group.name} +
-              </button>
-              <Show when={activeGroup() === group.name}>
-                <div class="filter-options">
-                  <For each={group.options}>
-                    {(option) => {
-                      const isActive = props.activeFilters.some(
-                        (f) => f.group === group.name && f.value === option.value
-                      );
-                      return (
-                        <button 
-                          class={`filter-option ${isActive ? 'active' : ''}`}
-                          style={option.color ? `border-color: ${option.color}` : ''}
-                          onClick={() => toggleFilter(group.name, option.value)}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    }}
-                  </For>
-                </div>
-              </Show>
-            </div>
-          )}
+                <button 
+                  class={`filter-group-button ${hasActiveFilters() ? 'has-active-filters' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveGroup(current => current === group.name ? null : group.name);
+                  }}
+                >
+                  {getGroupButtonText(group.name)}
+                </button>
+                <Show when={activeGroup() === group.name}>
+                  <div class="filter-options">
+                    <For each={group.options}>
+                      {(option) => {
+                        const isActive = props.activeFilters.some(
+                          (f) => f.group === group.name && f.value === option.value
+                        );
+                        return (
+                          <button 
+                            class={`filter-option ${isActive ? 'active' : ''}`}
+                            style={option.color ? `border-color: ${option.color}` : ''}
+                            onClick={() => toggleFilter(group.name, option.value)}
+                          >
+                            <span class="checkbox">
+                              {isActive ? '✓' : ''}
+                            </span>
+                            {option.label}
+                          </button>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </Show>
+              </div>
+            );
+          }}
         </For>
       </div>
       
