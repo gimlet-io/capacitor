@@ -1172,3 +1172,124 @@ td.message-cell {
   border: 1px solid var(--linear-border);
   color: var(--linear-text-primary);
 }
+
+/* Filter Bar Styles */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--linear-border);
+  margin-bottom: 16px;
+}
+
+.filter-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-group {
+  position: relative;
+}
+
+.filter-group-button {
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--linear-text-primary);
+}
+
+.filter-group-button:hover {
+  background-color: var(--linear-bg-secondary);
+}
+
+.filter-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 8px;
+  box-shadow: var(--linear-shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  margin-top: 4px;
+}
+
+.filter-option {
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--linear-text-primary);
+  transition: all 0.2s ease;
+}
+
+.filter-option:hover {
+  background-color: var(--linear-bg-secondary);
+}
+
+.filter-option.active {
+  background-color: var(--linear-blue-light);
+  border-color: var(--linear-blue);
+  font-weight: 500;
+}
+
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 16px;
+  padding: 3px 8px;
+  font-size: 13px;
+  color: var(--linear-text-primary);
+}
+
+.remove-filter {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 0 0 4px;
+  color: var(--linear-text-secondary);
+}
+
+.remove-filter:hover {
+  color: var(--linear-red);
+}
+
+.resource-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+}
+
+.no-results {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--linear-text-tertiary);
+  font-size: 14px;
+  font-style: italic;
+}

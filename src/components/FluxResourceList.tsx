@@ -1,13 +1,53 @@
+import { JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { Kustomization, Source } from '../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
 import { ResourceList } from './ResourceList.tsx';
+import { FilterGroup, ActiveFilter } from './FilterBar.tsx';
 
 export function FluxResourceList(props: { 
   kustomizations: Kustomization[],
   sources: Source[]
 }) {
   const navigate = useNavigate();
+
+  // Define Ready condition filter options
+  const readyFilterGroup: FilterGroup = {
+    name: "Ready",
+    options: [
+      { label: "Ready", value: ConditionStatus.True, color: "var(--linear-green)" },
+      { label: "Not Ready", value: ConditionStatus.False, color: "var(--linear-red)" },
+      { label: "Unknown", value: ConditionStatus.Unknown, color: "var(--linear-text-tertiary)" },
+      { label: "Suspended", value: "Suspended", color: "var(--linear-blue)" }
+    ]
+  };
+
+  // Define filter function
+  const filterKustomizations = (kustomization: Kustomization, activeFilters: ActiveFilter[]): boolean => {
+    // If no filters are applied, show all kustomizations
+    if (activeFilters.length === 0) return true;
+
+    // Check if we have ready condition filters
+    const readyFilters = activeFilters.filter(f => f.group === 'Ready');
+    if (readyFilters.length > 0) {
+      const readyCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Ready);
+      
+      // Check for suspended state specifically
+      if (readyFilters.some(f => f.value === 'Suspended')) {
+        if (kustomization.spec.suspend) return true;
+      }
+      
+      // Check for other condition statuses
+      return readyFilters.some(filter => {
+        if (filter.value === 'Suspended') {
+          return kustomization.spec.suspend;
+        }
+        return readyCondition?.status === filter.value;
+      });
+    }
+
+    return true;
+  };
 
   const handleKustomizationClick = (kustomization: Kustomization) => {
     navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`);
@@ -88,6 +128,8 @@ export function FluxResourceList(props: {
       detailRowRenderer={renderKustomizationDetails}
       noSelectClass={true}
       rowKeyField="name"
+      filterGroups={[readyFilterGroup]}
+      filterFunction={filterKustomizations}
     />
   );
 } 

@@ -1,9 +1,39 @@
+import { JSX } from "solid-js";
 import type { Pod } from '../types/k8s.ts';
 import { ResourceList } from './ResourceList.tsx';
+import { FilterGroup, ActiveFilter } from './FilterBar.tsx';
 
 export function PodList(props: { 
   pods: Pod[]
 }) {
+  // Define status filter options based on Kubernetes pod phases
+  const statusFilterGroup: FilterGroup = {
+    name: "Status",
+    options: [
+      { label: "Running", value: "Running", color: "var(--linear-green)" },
+      { label: "Pending", value: "Pending", color: "var(--linear-yellow)" },
+      { label: "Succeeded", value: "Succeeded", color: "var(--linear-blue)" },
+      { label: "Failed", value: "Failed", color: "var(--linear-red)" },
+      { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
+    ],
+    multiSelect: true
+  };
+
+  // Define filter function
+  const filterPods = (pod: Pod, activeFilters: ActiveFilter[]): boolean => {
+    // If no filters are applied, show all pods
+    if (activeFilters.length === 0) return true;
+
+    // Check if we have status filters
+    const statusFilters = activeFilters.filter(f => f.group === 'Status');
+    if (statusFilters.length > 0) {
+      // If status filters are present, check if pod's status matches any of them
+      return statusFilters.some(filter => pod.status.phase === filter.value);
+    }
+
+    return true;
+  };
+
   const columns = [
     {
       header: "NAME",
@@ -19,7 +49,29 @@ export function PodList(props: {
     {
       header: "STATUS",
       width: "10%",
-      accessor: (pod: Pod) => <>{pod.status.phase}</>
+      accessor: (pod: Pod) => {
+        const phase = pod.status.phase;
+        let color = "";
+        
+        switch (phase) {
+          case "Running":
+            color = "var(--linear-green)";
+            break;
+          case "Pending":
+            color = "var(--linear-yellow)";
+            break;
+          case "Succeeded":
+            color = "var(--linear-blue)";
+            break;
+          case "Failed":
+            color = "var(--linear-red)";
+            break;
+          default:
+            color = "var(--linear-text-tertiary)";
+        }
+        
+        return <span style={`color: ${color}; font-weight: 500;`}>{phase}</span>;
+      }
     },
     {
       header: "RESTARTS",
@@ -59,5 +111,12 @@ export function PodList(props: {
     }
   ];
 
-  return <ResourceList resources={props.pods} columns={columns} />;
+  return (
+    <ResourceList 
+      resources={props.pods} 
+      columns={columns}
+      filterGroups={[statusFilterGroup]} 
+      filterFunction={filterPods}
+    />
+  );
 }

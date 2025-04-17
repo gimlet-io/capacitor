@@ -1,4 +1,5 @@
-import { For, createSignal, onMount, onCleanup, createEffect, JSX } from "solid-js";
+import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo } from "solid-js";
+import { FilterBar, FilterGroup, ActiveFilter } from "./FilterBar.tsx";
 
 // Generic Resource type with required metadata properties
 type Resource = {
@@ -22,6 +23,9 @@ type Column<T> = {
 // Detail row renderer function
 type DetailRowRenderer<T> = (item: T) => JSX.Element;
 
+// Filter function type
+type FilterFunction<T> = (resource: T, activeFilters: ActiveFilter[]) => boolean;
+
 export function ResourceList<T extends Resource>(props: { 
   resources: T[];
   columns: Column<T>[];
@@ -29,17 +33,30 @@ export function ResourceList<T extends Resource>(props: {
   onItemClick?: (item: T) => void;
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
+  filterGroups?: FilterGroup[];
+  filterFunction?: FilterFunction<T>;
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
+  const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
+
+  const filteredResources = createMemo(() => {
+    if (!props.filterFunction || activeFilters().length === 0) {
+      return props.resources;
+    }
+    return props.resources.filter(resource => 
+      props.filterFunction!(resource, activeFilters())
+    );
+  });
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (props.resources.length === 0) return;
+    const resources = filteredResources();
+    if (resources.length === 0) return;
     
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, props.resources.length - 1);
+        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, resources.length - 1);
         return newIndex;
       });
     } else if (e.key === 'ArrowUp') {
@@ -50,11 +67,20 @@ export function ResourceList<T extends Resource>(props: {
       });
     } else if (e.key === 'Enter' && props.onItemClick) {
       const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length) {
-        props.onItemClick(props.resources[index]);
+      if (index !== -1 && index < resources.length) {
+        props.onItemClick(resources[index]);
       }
     }
   };
+
+  // Reset selectedIndex when filtered results change
+  createEffect(() => {
+    if (filteredResources().length === 0) {
+      setSelectedIndex(-1);
+    } else if (selectedIndex() >= filteredResources().length) {
+      setSelectedIndex(filteredResources().length - 1);
+    }
+  });
 
   // Scroll selected item into view whenever selectedIndex changes
   createEffect(() => {
@@ -99,47 +125,60 @@ export function ResourceList<T extends Resource>(props: {
   });
 
   return (
-    <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`} ref={setListContainer}>
-      <table class="resource-table">
-        <thead>
-          <tr>
-            {props.columns.map(column => (
-              <th style={`width: ${column.width}`}>{column.header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <For each={props.resources}>
-            {(resource, index) => {
-              const handleClick = () => {
-                if (props.onItemClick) {
-                  props.onItemClick(resource);
-                }
-              };
-              
-              return (
-                <>
-                  <tr 
-                    class={selectedIndex() === index() ? 'selected' : ''} 
-                    onClick={handleClick}
-                  >
-                    {props.columns.map(column => (
-                      <td title={column.title ? column.title(resource) : undefined}>
-                        {column.accessor(resource)}
-                      </td>
-                    ))}
-                  </tr>
-                  {props.detailRowRenderer && (
-                    <tr class={selectedIndex() === index() ? 'selected' : ''}>
-                      {props.detailRowRenderer(resource)}
+    <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>
+      {props.filterGroups && props.filterGroups.length > 0 && (
+        <FilterBar 
+          filterGroups={props.filterGroups} 
+          activeFilters={activeFilters()} 
+          onFilterChange={setActiveFilters} 
+        />
+      )}
+      
+      <div ref={setListContainer} class="resource-table-wrapper">
+        <table class="resource-table">
+          <thead>
+            <tr>
+              {props.columns.map(column => (
+                <th style={`width: ${column.width}`}>{column.header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <For each={filteredResources()}>
+              {(resource, index) => {
+                const handleClick = () => {
+                  if (props.onItemClick) {
+                    props.onItemClick(resource);
+                  }
+                };
+                
+                return (
+                  <>
+                    <tr 
+                      class={selectedIndex() === index() ? 'selected' : ''} 
+                      onClick={handleClick}
+                    >
+                      {props.columns.map(column => (
+                        <td title={column.title ? column.title(resource) : undefined}>
+                          {column.accessor(resource)}
+                        </td>
+                      ))}
                     </tr>
-                  )}
-                </>
-              );
-            }}
-          </For>
-        </tbody>
-      </table>
+                    {props.detailRowRenderer && (
+                      <tr class={selectedIndex() === index() ? 'selected' : ''}>
+                        {props.detailRowRenderer(resource)}
+                      </tr>
+                    )}
+                  </>
+                );
+              }}
+            </For>
+          </tbody>
+        </table>
+        {filteredResources().length === 0 && (
+          <div class="no-results">No resources match the selected filters</div>
+        )}
+      </div>
     </div>
   );
 } 
