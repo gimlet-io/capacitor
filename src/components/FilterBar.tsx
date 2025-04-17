@@ -1,4 +1,4 @@
-import { For, createSignal, Show, JSX, createEffect, onCleanup } from "solid-js";
+import { For, createSignal, Show, JSX, createEffect, onCleanup, createMemo } from "solid-js";
 
 export type FilterOption = {
   label: string;
@@ -117,7 +117,9 @@ export function FilterBar(props: {
       <div class="filter-groups">
         <For each={props.filterGroups}>
           {(group) => {
-            const hasActiveFilters = () => props.activeFilters.some(f => f.group === group.name);
+            const hasActiveFilters = createMemo(() => 
+              props.activeFilters.some(f => f.group === group.name)
+            );
             
             return (
               <div 
@@ -125,7 +127,10 @@ export function FilterBar(props: {
                 ref={el => filterGroupsRef.set(group.name, el)}
               >
                 <button 
-                  class={`filter-group-button ${hasActiveFilters() ? 'has-active-filters' : ''}`}
+                  classList={{ 
+                    "filter-group-button": true, 
+                    "has-active-filters": hasActiveFilters() 
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveGroup(current => current === group.name ? null : group.name);
@@ -137,17 +142,23 @@ export function FilterBar(props: {
                   <div class="filter-options">
                     <For each={group.options}>
                       {(option) => {
-                        const isActive = props.activeFilters.some(
-                          (f) => f.group === group.name && f.value === option.value
+                        const isActive = createMemo(() => 
+                          props.activeFilters.some(f => 
+                            f.group === group.name && f.value === option.value
+                          )
                         );
+                        
                         return (
                           <button 
-                            class={`filter-option ${isActive ? 'active' : ''}`}
+                            classList={{
+                              "filter-option": true,
+                              "active": isActive()
+                            }}
                             style={option.color ? `border-color: ${option.color}` : ''}
                             onClick={() => toggleFilter(group.name, option.value)}
                           >
                             <span class="checkbox">
-                              {isActive ? '✓' : ''}
+                              {isActive() ? '✓' : ''}
                             </span>
                             {option.label}
                           </button>
