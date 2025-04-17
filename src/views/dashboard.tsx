@@ -12,18 +12,16 @@ type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
 export function Dashboard() {
   const [namespace, setNamespace] = createSignal<string>();
   const [resourceFilter, setResourceFilter] = createSignal<ResourceType>('pods');
-  const [searchQuery, setSearchQuery] = createSignal("");
-  const [searchFocused, setSearchFocused] = createSignal(false);
 
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
   const CARD_TYPES = [
-    { value: 'argocd', label: 'ArgoCD', hotkey: 'a' },
-    { value: 'fluxcd', label: 'FluxCD', hotkey: 'f' },
-    { value: 'services', label: 'Services', hotkey: 's' },
-    { value: 'deployments', label: 'Deployments', hotkey: 'd' },
-    { value: 'pods', label: 'Pods', hotkey: 'p' }
+    { value: 'argocd', label: 'ArgoCD' },
+    { value: 'fluxcd', label: 'FluxCD' },
+    { value: 'services', label: 'Services' },
+    { value: 'deployments', label: 'Deployments' },
+    { value: 'pods', label: 'Pods' }
   ] as const;
 
   const VIEWS = [
@@ -54,9 +52,7 @@ export function Dashboard() {
   const [deployments, setDeployments] = createSignal<DeploymentWithResources[]>([]);
   const [services, setServices] = createSignal<ServiceWithResources[]>([]);
   const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
-  const [sources, setSources] = createSignal<Source[]>([]);
   const [applications, setApplications] = createSignal<ArgoCDApplication[]>([]);
-  const [events, setEvents] = createSignal<Event[]>([]);
 
   const [namespaces] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
@@ -85,60 +81,11 @@ export function Dashboard() {
     }
   });
 
-  // Handle keyboard shortcuts
-  onMount(() => {
-    document.addEventListener('keydown', (e) => {
-      // Focus search on '/'
-      if (e.key === '/' && !searchFocused()) {
-        e.preventDefault();
-        const searchInput = document.querySelector('.search-input') as HTMLInputElement;
-        if (searchInput) {
-          searchInput.focus();
-        }
-      }
-
-      // Resource type shortcuts
-      if (!searchFocused()) {
-        const cardType = CARD_TYPES.find(type => type.hotkey === e.key.toLowerCase());
-        if (cardType) {
-          e.preventDefault();
-          setResourceFilter(cardType.value);
-        }
-      }
-
-      // Handle Escape key to blur inputs
-      if (e.key === 'Escape') {
-        const searchInput = document.querySelector('.search-input') as HTMLInputElement;
-        if (searchInput) searchInput.blur();
-      }
-    });
-  });
-
   onCleanup(() => {
     untrack(() => {
       watchControllers().forEach(controller => controller.abort());
     });
   });
-
-  // Filter resources based on search query
-  const filteredPods = () => filterResources(pods(), searchQuery());
-  const filteredDeployments = () => filterResources(deployments(), searchQuery());
-  const filteredServices = () => filterResources(services(), searchQuery());
-  const filteredKustomizations = () => filterResources(kustomizations(), searchQuery());
-  const filteredSources = () => filterResources(sources(), searchQuery());
-  const filteredApplications = () => filterResources(applications(), searchQuery());
-
-  const filterResources = <T extends { metadata: { name: string; namespace: string } }>(
-    resources: T[],
-    query: string
-  ): T[] => {
-    if (!query) return resources;
-    const lowerQuery = query.toLowerCase();
-    return resources.filter(resource =>
-      resource.metadata.name.toLowerCase().includes(lowerQuery) ||
-      resource.metadata.namespace.toLowerCase().includes(lowerQuery)
-    );
-  };
 
   // Call setupWatches when namespace or resource filter changes
   createEffect(() => {
@@ -159,9 +106,7 @@ export function Dashboard() {
     setDeployments(() => []);
     setServices(() => []);
     setKustomizations(() => []);
-    setSources(() => []);
     setApplications(() => []);
-    setEvents(() => []);
 
     const watches = [];
 
@@ -305,18 +250,6 @@ export function Dashboard() {
               disableKeyboardNavigation
             />
           </div>
-          <div class="search-container">
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Search resources"
-              value={searchQuery()}
-              onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-            />
-            <span class="search-hotkey">/</span>
-          </div>
           <span 
             class="watch-status" 
             style={{ "color": watchStatus() === "●" ? "var(--linear-green)" : "var(--linear-red)" } as any}
@@ -326,19 +259,19 @@ export function Dashboard() {
         </div>
         <section class="resource-section full-width">
           <Show when={resourceFilter() === 'services'}>
-            <ServiceList services={filteredServices()} />
+            <ServiceList services={services()} />
           </Show>
           <Show when={resourceFilter() === 'deployments'}>
-            <DeploymentList deployments={filteredDeployments()} />
+            <DeploymentList deployments={deployments()} />
           </Show>
           <Show when={resourceFilter() === 'pods'}>
-            <PodList pods={filteredPods()} />
+            <PodList pods={pods()} />
           </Show>
           <Show when={resourceFilter() === 'fluxcd'}>
-            <FluxResourceList kustomizations={filteredKustomizations()} sources={filteredSources()} />
+            <FluxResourceList kustomizations={kustomizations()} />
           </Show>
           <Show when={resourceFilter() === 'argocd'}>
-            <ArgoCDResourceList applications={filteredApplications()} />
+            <ArgoCDResourceList applications={applications()} />
           </Show>
         </section>
       </main>

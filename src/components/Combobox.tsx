@@ -102,7 +102,6 @@ export function Combobox(props: ComboboxProps) {
         }}
         placeholder={props.placeholder}
       />
-      {props.hotkey && <span class="combobox-hotkey">{props.hotkey}</span>}
       <Show when={isOpen()}>
         <div class="combobox-dropdown">
           <For each={filteredOptions()}>
@@ -121,7 +120,6 @@ export function Combobox(props: ComboboxProps) {
                 }}
               >
                 {option.label}
-                {option.hotkey && <span class="combobox-option-hotkey">{option.hotkey}</span>}
               </div>
             )}
           </For>

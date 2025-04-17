@@ -176,45 +176,6 @@ h1 {
     padding-bottom: 1rem;
 }
 
-.search-container {
-    flex: 1;
-    position: relative;
-    box-sizing: border-box;
-}
-
-.search-input {
-    width: 100%;
-    padding: 0.5rem;
-    padding-right: 2.5rem;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    font-size: 14px;
-    box-sizing: border-box;
-}
-
-.search-hotkey {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #495057;
-    font-size: 12px;
-    background-color: #e9ecef;
-    padding: 0.25rem 0.5rem;
-    border-radius: 12px;
-    pointer-events: none;
-}
-
-.search-input:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.search-input::placeholder {
-    color: #6c757d;
-}
-
 /* Generic combobox styles */
 .combobox {
     position: relative;

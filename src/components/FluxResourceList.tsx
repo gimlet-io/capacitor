@@ -1,12 +1,11 @@
 import { useNavigate } from "@solidjs/router";
-import type { Kustomization, Source } from '../types/k8s.ts';
+import type { Kustomization } from '../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
 import { ResourceList } from './ResourceList.tsx';
 import { Filter, ActiveFilter } from './FilterBar.tsx';
 
 export function FluxResourceList(props: { 
   kustomizations: Kustomization[],
-  sources: Source[]
 }) {
   const navigate = useNavigate();
 
