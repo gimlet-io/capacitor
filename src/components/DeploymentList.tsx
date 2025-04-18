@@ -1,8 +1,9 @@
 import type { DeploymentWithResources } from '../types/k8s.ts';
-import { ResourceList } from './ResourceList.tsx';
-
+import { ResourceList } from './resourceList/ResourceList.tsx';
+import { ActiveFilter } from './filterBar/FilterBar.tsx';
 export function DeploymentList(props: { 
   deployments: DeploymentWithResources[]
+  activeFilters: ActiveFilter[]
 }) {
   const getPodColor = (status: string) => {
     switch (status) {
@@ -76,5 +77,5 @@ export function DeploymentList(props: {
     }
   ];
 
-  return <ResourceList resources={props.deployments} columns={columns} />;
+  return <ResourceList resources={props.deployments} columns={columns} activeFilters={props.activeFilters} />;
 }

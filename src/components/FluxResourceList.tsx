@@ -1,53 +1,35 @@
 import { useNavigate } from "@solidjs/router";
 import type { Kustomization } from '../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
-import { ResourceList } from './ResourceList.tsx';
-import { Filter, ActiveFilter } from './FilterBar.tsx';
+import { ResourceList } from './resourceList/ResourceList.tsx';
+import { Filter, ActiveFilter } from './filterBar/FilterBar.tsx';
+
+export const kustomizationReadyFilter: Filter = {
+  name: "Ready",
+  type: "select",
+  options: [
+    { label: "Ready", value: ConditionStatus.True, color: "var(--linear-green)" },
+    { label: "Not Ready", value: ConditionStatus.False, color: "var(--linear-red)" },
+    { label: "Unknown", value: ConditionStatus.Unknown, color: "var(--linear-text-tertiary)" },
+    { label: "Suspended", value: "Suspended", color: "var(--linear-blue)" }
+  ],
+  multiSelect: true,
+  filterFunction: (kustomization: Kustomization, value: string) => {
+    if (value === 'Suspended') {
+      if (kustomization.spec.suspend) return true;
+      else return false;
+    } else {
+      const readyCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Ready);
+      return readyCondition?.status === value;
+    }
+  }
+};
 
 export function FluxResourceList(props: { 
   kustomizations: Kustomization[],
+  activeFilters: ActiveFilter[]
 }) {
   const navigate = useNavigate();
-
-  // Define Ready condition filter options
-  const readyFilter: Filter = {
-    name: "Ready",
-    type: "select",
-    options: [
-      { label: "Ready", value: ConditionStatus.True, color: "var(--linear-green)" },
-      { label: "Not Ready", value: ConditionStatus.False, color: "var(--linear-red)" },
-      { label: "Unknown", value: ConditionStatus.Unknown, color: "var(--linear-text-tertiary)" },
-      { label: "Suspended", value: "Suspended", color: "var(--linear-blue)" }
-    ],
-    multiSelect: true
-  };
-
-  // Define filter function
-  const filterKustomizations = (kustomization: Kustomization, activeFilters: ActiveFilter[]): boolean => {
-    // If no filters are applied, show all kustomizations
-    if (activeFilters.length === 0) return true;
-
-    // Check if we have ready condition filters
-    const readyFilters = activeFilters.filter(f => f.filter === 'Ready');
-    if (readyFilters.length > 0) {
-      const readyCondition = kustomization.status?.conditions?.find(c => c.type === ConditionType.Ready);
-      
-      // Check for suspended state specifically
-      if (readyFilters.some(f => f.value === 'Suspended')) {
-        if (kustomization.spec.suspend) return true;
-      }
-      
-      // Check for other condition statuses
-      return readyFilters.some(filter => {
-        if (filter.value === 'Suspended') {
-          return kustomization.spec.suspend;
-        }
-        return readyCondition?.status === filter.value;
-      });
-    }
-
-    return true;
-  };
 
   const handleKustomizationClick = (kustomization: Kustomization) => {
     navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`);
@@ -124,12 +106,11 @@ export function FluxResourceList(props: {
     <ResourceList 
       resources={props.kustomizations} 
       columns={columns} 
+      activeFilters={props.activeFilters}
       onItemClick={handleKustomizationClick}
       detailRowRenderer={renderKustomizationDetails}
       noSelectClass={true}
       rowKeyField="name"
-      filters={[readyFilter]}
-      filterFunction={filterKustomizations}
     />
   );
 } 

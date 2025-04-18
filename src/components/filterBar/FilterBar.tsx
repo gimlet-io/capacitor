@@ -1,7 +1,6 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { For, createSignal, Show, createEffect, onCleanup, createMemo } from "solid-js";
 import { untrack } from "solid-js";
-
 export type FilterOption = {
   label: string;
   value: string;
@@ -16,10 +15,11 @@ export type Filter = {
   options?: FilterOption[];
   multiSelect?: boolean;
   placeholder?: string;
+  filterFunction: (resource: any, value: string) => boolean;
 };
 
 export type ActiveFilter = {
-  filter: string;
+  filter: Filter;
   value: string;
 };
 
@@ -36,7 +36,7 @@ export function FilterBar(props: {
   const toggleFilter = (filter: string, value: string) => {
     let newFilters: ActiveFilter[] = [...props.activeFilters];
     const existingIndex = newFilters.findIndex(
-      (f) => f.filter === filter && f.value === value
+      (f) => f.filter.name === filter && f.value === value
     );
 
     const filterDef = props.filters.find(f => f.name === filter);
@@ -48,9 +48,9 @@ export function FilterBar(props: {
       // Add new filter
       if (filterDef && !filterDef.multiSelect) {
         // If not multi-select, remove any existing filters from this filter
-        newFilters = newFilters.filter(f => f.filter !== filter);
+        newFilters = newFilters.filter(f => f.filter.name !== filter);
       }
-      newFilters.push({ filter, value });
+      newFilters.push({ filter: filterDef!, value });
     }
 
     props.onFilterChange(newFilters);
@@ -62,21 +62,21 @@ export function FilterBar(props: {
     
     // If value is empty, remove the filter
     if (!value.trim()) {
-      const newFilters = props.activeFilters.filter(f => f.filter !== filter);
+      const newFilters = props.activeFilters.filter(f => f.filter.name !== filter);
       props.onFilterChange(newFilters);
       return;
     }
     
     // Update or add the text filter
     const newFilters = [...props.activeFilters];
-    const existingIndex = newFilters.findIndex(f => f.filter === filter);
-    
+    const existingIndex = newFilters.findIndex(f => f.filter.name === filter);
+    const filterDef = props.filters.find(f => f.name === filter);
     if (existingIndex >= 0) {
       // Replace existing filter
-      newFilters[existingIndex] = { filter, value };
+      newFilters[existingIndex] = { filter: filterDef!, value };
     } else {
       // Add new filter
-      newFilters.push({ filter, value });
+      newFilters.push({ filter: filterDef!, value });
     }
     
     props.onFilterChange(newFilters);
@@ -84,7 +84,7 @@ export function FilterBar(props: {
 
   const getFilterButtonText = (filterName: string): string => {
     const filter = props.filters.find(f => f.name === filterName);
-    const activeInFilter = props.activeFilters.filter(f => f.filter === filterName);
+    const activeInFilter = props.activeFilters.filter(f => f.filter.name === filterName);
     
     if (activeInFilter.length === 0) {
       return `${filterName}`;
@@ -125,7 +125,7 @@ export function FilterBar(props: {
   // Initialize text input values from active filters
   createEffect(() => {
     const textFilters = props.activeFilters.filter(fl => {
-      const filter = props.filters.find(f => f.name === fl.filter);
+      const filter = props.filters.find(f => f.name === fl.filter.name);
       return filter?.type === "text";
     });
     
@@ -133,7 +133,7 @@ export function FilterBar(props: {
       untrack(() => {
         const newTextInputs = { ...textInputs() };
         textFilters.forEach(filter => {
-          newTextInputs[filter.filter] = filter.value;
+          newTextInputs[filter.filter.name] = filter.value;
         });
         setTextInputs(newTextInputs);
       });
@@ -164,7 +164,7 @@ export function FilterBar(props: {
         <For each={props.filters}>
           {(filter) => {
             const hasActiveFilters = createMemo(() => 
-              props.activeFilters.some(f => f.filter === filter.name)
+              props.activeFilters.some(f => f.filter.name === filter.name)
             );
             
             return (
@@ -206,7 +206,7 @@ export function FilterBar(props: {
                         {(option) => {
                           const isActive = createMemo(() => 
                             props.activeFilters.some(f => 
-                              f.filter === filter.name && f.value === option.value
+                              f.filter.name === filter.name && f.value === option.value
                             )
                           );
                           
@@ -237,4 +237,4 @@ export function FilterBar(props: {
       </div>
     </div>
   );
-} 
+}

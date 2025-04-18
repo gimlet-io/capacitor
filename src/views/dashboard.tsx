@@ -1,13 +1,15 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
-import { PodList, DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList } from "../components/index.ts";
-import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/FilterBar.tsx";
-import type { Pod, Deployment, ServiceWithResources, Kustomization, ArgoCDApplication, Service, DeploymentWithResources, PodCondition, ContainerStatus } from "../types/k8s.ts";
+import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
+import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/filterBar/FilterBar.tsx";
+import type { Pod, Deployment, ServiceWithResources, Kustomization, ArgoCDApplication, Service, DeploymentWithResources } from "../types/k8s.ts";
 import { For, Show } from "solid-js";
 import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
-
+import { podColumns, podsStatusFilter } from "../components/resourceList/PodList.tsx";
+import { kustomizationReadyFilter } from "../components/FluxResourceList.tsx";
+import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/ArgoCDResourceList.tsx";
 type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
 
 export function Dashboard() {
@@ -17,12 +19,12 @@ export function Dashboard() {
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
 
-  const CARD_TYPES = [
-    { value: 'argocd', label: 'ArgoCD' },
-    { value: 'fluxcd', label: 'FluxCD' },
-    { value: 'services', label: 'Services' },
-    { value: 'deployments', label: 'Deployments' },
-    { value: 'pods', label: 'Pods' }
+  const ResourceTypes = [
+    { value: 'argocd', label: 'ArgoCD', filters: [argocdApplicationSyncFilter, argocdApplicationHealthFilter] },
+    { value: 'fluxcd', label: 'FluxCD', filters: [kustomizationReadyFilter] },
+    { value: 'services', label: 'Services', filters: [] },
+    { value: 'deployments', label: 'Deployments', filters: [] },
+    { value: 'pods', label: 'Pods', filters: [podsStatusFilter] }
   ] as const;
 
   const VIEWS = [
@@ -62,7 +64,6 @@ export function Dashboard() {
     return nsList;
   });
 
-  // Define namespace filter options
   const namespaceOptions = createMemo<FilterOption[]>(() => {
     if (!namespaces()) return [{ value: 'all-namespaces', label: 'All Namespaces' }];
     return [
@@ -71,33 +72,41 @@ export function Dashboard() {
     ];
   });
 
-  // Define namespace filter
   const namespaceFilter: Filter = {
     name: "Namespace",
     type: "select",
     options: namespaceOptions(),
-    multiSelect: false
+    multiSelect: false,
+    filterFunction: () => true
   };
 
-  // Define resource type filter
   const resourceTypeFilter: Filter = {
     name: "ResourceType",
     type: "select",
-    options: CARD_TYPES.map(type => ({ value: type.value, label: type.label })),
-    multiSelect: false
+    options: ResourceTypes.map(type => ({ value: type.value, label: type.label })),
+    multiSelect: false,
+    filterFunction: () => true
   };
 
-  // Handle filter changes
+  const nameFilter: Filter = {
+    name: "Name",
+    type: "text",
+    placeholder: "Filter by name",
+    filterFunction: (resource: any, value: string) => {
+      return resource.metadata.name.toLowerCase().includes(value.toLowerCase());
+    }
+  };
+
   const handleFilterChange = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     
     // Update namespace and resourceType signals based on active filters
-    const namespaceFilter = filters.find(f => f.filter === "Namespace");
+    const namespaceFilter = filters.find(f => f.filter.name === "Namespace");
     if (namespaceFilter) {
       setNamespace(namespaceFilter.value);
     }
     
-    const resourceTypeFilter = filters.find(f => f.filter === "ResourceType");
+    const resourceTypeFilter = filters.find(f => f.filter.name === "ResourceType");
     if (resourceTypeFilter && 
         (resourceTypeFilter.value === 'pods' || 
          resourceTypeFilter.value === 'services' || 
@@ -116,22 +125,22 @@ export function Dashboard() {
     if (!currentNamespace || !currentResourceType) return;
     
     // Create new active filters array
-    let newFilters = [...activeFilters()];
+    const newFilters = [...activeFilters()];
     
     // Update namespace filter
-    const existingNamespaceIndex = newFilters.findIndex(f => f.filter === "Namespace");
+    const existingNamespaceIndex = newFilters.findIndex(f => f.filter.name === "Namespace");
     if (existingNamespaceIndex >= 0) {
-      newFilters[existingNamespaceIndex] = { filter: "Namespace", value: currentNamespace };
+      newFilters[existingNamespaceIndex] = { filter: namespaceFilter, value: currentNamespace };
     } else {
-      newFilters.push({ filter: "Namespace", value: currentNamespace });
+      newFilters.push({ filter: namespaceFilter, value: currentNamespace });
     }
     
     // Update resource type filter
-    const existingResourceTypeIndex = newFilters.findIndex(f => f.filter === "ResourceType");
+    const existingResourceTypeIndex = newFilters.findIndex(f => f.filter.name === "ResourceType");
     if (existingResourceTypeIndex >= 0) {
-      newFilters[existingResourceTypeIndex] = { filter: "ResourceType", value: currentResourceType };
+      newFilters[existingResourceTypeIndex] = { filter: resourceTypeFilter, value: currentResourceType };
     } else {
-      newFilters.push({ filter: "ResourceType", value: currentResourceType });
+      newFilters.push({ filter: resourceTypeFilter, value: currentResourceType });
     }
     
     // Only update if needed to avoid infinite loops
@@ -309,9 +318,8 @@ export function Dashboard() {
           </For>
         </div>
         
-        {/* Global Filters */}
         <FilterBar 
-          filters={[namespaceFilter, resourceTypeFilter]}
+          filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(ResourceTypes.find(t => t.value === resourceType())?.filters || [])]}
           activeFilters={activeFilters()}
           onFilterChange={handleFilterChange}
         />
@@ -326,19 +334,35 @@ export function Dashboard() {
         </div>
         <section class="resource-section full-width">
           <Show when={resourceType() === 'services'}>
-            <ServiceList services={services()} />
+            <ServiceList 
+              services={services()}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+            />
           </Show>
           <Show when={resourceType() === 'deployments'}>
-            <DeploymentList deployments={deployments()} />
+            <DeploymentList 
+              deployments={deployments()}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+            />
           </Show>
           <Show when={resourceType() === 'pods'}>
-            <PodList pods={pods()} />
+            <ResourceList 
+              resources={pods()} 
+              columns={podColumns}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+            />
           </Show>
           <Show when={resourceType() === 'fluxcd'}>
-            <FluxResourceList kustomizations={kustomizations()} />
+            <FluxResourceList 
+              kustomizations={kustomizations()}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+            />
           </Show>
           <Show when={resourceType() === 'argocd'}>
-            <ArgoCDResourceList applications={applications()} />
+            <ArgoCDResourceList 
+              applications={applications()}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+            />
           </Show>
         </section>
       </main>

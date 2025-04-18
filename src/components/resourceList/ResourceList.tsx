@@ -1,18 +1,6 @@
 import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo } from "solid-js";
-import { FilterBar, Filter, ActiveFilter } from "./FilterBar.tsx";
+import { ActiveFilter } from "../filterBar/FilterBar.tsx";
 
-// Generic Resource type with required metadata properties
-type Resource = {
-  metadata: {
-    name: string;
-    namespace?: string;
-    creationTimestamp?: string;
-    [key: string]: any;
-  };
-  [key: string]: any;
-};
-
-// Column definition
 type Column<T> = {
   header: string;
   width: string;
@@ -20,68 +8,25 @@ type Column<T> = {
   title?: (item: T) => string;
 };
 
-// Detail row renderer type
 type DetailRowRenderer<T> = (item: T) => JSX.Element;
 
-// Filter function type
-type FilterFunction<T> = (resource: T, activeFilters: ActiveFilter[]) => boolean;
-
-// Common name filter group
-const nameFilter: Filter = {
-  name: "Name",
-  type: "text",
-  placeholder: "Filter by name"
-};
-
-// Common filter function to check name
-const filterName = <T extends Resource>(resource: T, filter: ActiveFilter): boolean => {
-  if (filter.filter !== "Name") return true;
-  return resource.metadata.name.toLowerCase().includes(filter.value.toLowerCase());
-};
-
-export function ResourceList<T extends Resource>(props: { 
+export function ResourceList<T>(props: { 
   resources: T[];
   columns: Column<T>[];
   noSelectClass?: boolean;
   onItemClick?: (item: T) => void;
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
-  filters?: Filter[];
-  filterFunction?: FilterFunction<T>;
+  activeFilters: ActiveFilter[];
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
-  const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
-
-  // Add name filter to the filters
-  const allFilters = createMemo(() => {
-    return [nameFilter, ...(props.filters || [])];
-  });
-
-  // Enhanced filter function that also handles name filter
-  const applyFilters = (resource: T, filters: ActiveFilter[]): boolean => {
-    // Check name filter first
-    const nameFilters = filters.filter(f => f.filter === "Name");
-    if (nameFilters.length > 0 && !nameFilters.every(f => filterName(resource, f))) {
-      return false;
-    }
-    
-    // If there's a custom filter function, apply it for other filters
-    if (props.filterFunction) {
-      const otherFilters = filters.filter(f => f.filter !== "Name");
-      if (otherFilters.length > 0) {
-        return props.filterFunction(resource, otherFilters);
-      }
-    }
-    
-    return true;
-  };
 
   const filteredResources = createMemo(() => {
-    if (activeFilters().length === 0) {
+    if (props.activeFilters.length === 0) {
       return props.resources;
     }
-    return props.resources.filter(resource => applyFilters(resource, activeFilters()));
+    return props.resources.filter(resource => props.activeFilters.some(filter => filter.filter.filterFunction(resource, filter.value)));
   });
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -160,13 +105,7 @@ export function ResourceList<T extends Resource>(props: {
   });
 
   return (
-    <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>
-      <FilterBar 
-        filters={allFilters()} 
-        activeFilters={activeFilters()} 
-        onFilterChange={setActiveFilters} 
-      />
-      
+    <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>      
       <div ref={setListContainer} class="resource-table-wrapper">
         <table class="resource-table">
           <thead>

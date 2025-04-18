@@ -1,63 +1,44 @@
 import type { ArgoCDApplication } from '../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
-import { ResourceList } from './ResourceList.tsx';
-import { Filter, ActiveFilter } from './FilterBar.tsx';
+import { ResourceList } from './resourceList/ResourceList.tsx';
+import { Filter, ActiveFilter } from './filterBar/FilterBar.tsx';
+
+export const argocdApplicationSyncFilter: Filter = {
+  name: "Sync Status",
+  type: "select",
+  options: [
+    { label: "Synced", value: "Synced", color: "var(--linear-green)" },
+    { label: "OutOfSync", value: "OutOfSync", color: "var(--linear-red)" },
+    { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
+  ],
+  multiSelect: true,
+  filterFunction: (application: ArgoCDApplication, value: string) => {
+    return application.status?.sync?.status === value;
+  }
+};
+
+export const argocdApplicationHealthFilter: Filter = {
+  name: "Health",
+  type: "select",
+  options: [
+    { label: "Healthy", value: "Healthy", color: "var(--linear-green)" },
+    { label: "Progressing", value: "Progressing", color: "var(--linear-blue)" },
+    { label: "Degraded", value: "Degraded", color: "var(--linear-red)" },
+    { label: "Suspended", value: "Suspended", color: "var(--linear-text-tertiary)" },
+    { label: "Missing", value: "Missing", color: "var(--linear-yellow)" },
+    { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
+  ],
+  multiSelect: true,
+  filterFunction: (application: ArgoCDApplication, value: string) => {
+    return application.status?.health?.status === value;
+  }
+};
 
 export function ArgoCDResourceList(props: { 
   applications: ArgoCDApplication[]
+  activeFilters: ActiveFilter[]
 }) {
   const navigate = useNavigate();
-
-  // Define sync status filter options
-  const syncFilter: Filter = {
-    name: "Sync Status",
-    type: "select",
-    options: [
-      { label: "Synced", value: "Synced", color: "var(--linear-green)" },
-      { label: "OutOfSync", value: "OutOfSync", color: "var(--linear-red)" },
-      { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
-    ],
-    multiSelect: true
-  };
-
-  // Define health status filter options
-  const healthFilter: Filter = {
-    name: "Health",
-    type: "select",
-    options: [
-      { label: "Healthy", value: "Healthy", color: "var(--linear-green)" },
-      { label: "Progressing", value: "Progressing", color: "var(--linear-blue)" },
-      { label: "Degraded", value: "Degraded", color: "var(--linear-red)" },
-      { label: "Suspended", value: "Suspended", color: "var(--linear-text-tertiary)" },
-      { label: "Missing", value: "Missing", color: "var(--linear-yellow)" },
-      { label: "Unknown", value: "Unknown", color: "var(--linear-text-tertiary)" }
-    ],
-    multiSelect: true
-  };
-
-  // Define filter function
-  const filterApplications = (application: ArgoCDApplication, activeFilters: ActiveFilter[]): boolean => {
-    // If no filters are applied, show all applications
-    if (activeFilters.length === 0) return true;
-
-    let matches = true;
-
-    // Check if we have sync status filters
-    const syncFilters = activeFilters.filter(f => f.filter === 'Sync Status');
-    if (syncFilters.length > 0) {
-      const syncStatus = application.status?.sync?.status || 'Unknown';
-      matches = matches && syncFilters.some(filter => syncStatus === filter.value);
-    }
-
-    // Check if we have health status filters
-    const healthFilters = activeFilters.filter(f => f.filter === 'Health');
-    if (healthFilters.length > 0) {
-      const healthStatus = application.status?.health?.status || 'Unknown';
-      matches = matches && healthFilters.some(filter => healthStatus === filter.value);
-    }
-
-    return matches;
-  };
 
   const handleApplicationClick = (application: ArgoCDApplication) => {
     navigate(`/application/${application.metadata.namespace}/${application.metadata.name}`);
@@ -127,8 +108,7 @@ export function ArgoCDResourceList(props: {
       detailRowRenderer={renderApplicationDetails}
       noSelectClass={true}
       rowKeyField="name"
-      filters={[syncFilter, healthFilter]}
-      filterFunction={filterApplications}
+      activeFilters={props.activeFilters}
     />
   );
 } 
