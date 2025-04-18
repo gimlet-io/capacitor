@@ -164,18 +164,6 @@ h1 {
     overflow-y: auto;
 }
 
-.watch-status {
-    font-size: 1.2rem;
-    border-radius: 4px;
-}
-
-.controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
-}
-
 /* Generic combobox styles */
 .combobox {
     position: relative;
@@ -255,10 +243,6 @@ h1 {
     background-color: #e9ecef;
 }
 
-.watch-status {
-    color: #2ecc71;
-}
-
 @keyframes pulse {
     0% { opacity: 1; }
     50% { opacity: 0.5; }
@@ -266,7 +250,7 @@ h1 {
 }
 
 .watch-status.error {
-    color: #e74c3c;
+    color: var(--linear-red);
     animation: none;
 }
 
@@ -861,6 +845,7 @@ details[open] summary {
   padding: 4px 8px;
   border-radius: 4px;
   background: var(--linear-bg-secondary);
+  color: var(--linear-green);
 }
 
 .status-badges {
@@ -1108,8 +1093,15 @@ td.message-cell {
 /* Views */
 .views {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
   padding-bottom: 1rem;
+}
+
+.view-buttons {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .view-pill {

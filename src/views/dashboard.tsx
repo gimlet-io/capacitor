@@ -37,13 +37,13 @@ export function Dashboard() {
     { 
       id: 'fluxcd',
       label: 'FluxCD',
-      namespace: 'flux-system',
+      namespace: 'all-namespaces',
       resourceType: 'fluxcd' as ResourceType
     },
     { 
       id: 'argocd',
       label: 'ArgoCD',
-      namespace: 'argocd',
+      namespace: 'all-namespaces',
       resourceType: 'argocd' as ResourceType
     }
   ] as const;
@@ -306,16 +306,26 @@ export function Dashboard() {
     <div class="layout">
       <main class="main-content">
         <div class="views">
-          <For each={VIEWS}>
-            {(view) => (
-              <button
-                class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
-                onClick={() => setSelectedView(view.id)}
-              >
-                {view.label}
-              </button>
-            )}
-          </For>
+          <div class="view-buttons">
+            <For each={VIEWS}>
+              {(view) => (
+                <button
+                  class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedView(view.id)}
+                >
+                  {view.label}
+                </button>
+              )}
+            </For>
+          </div>
+          <span 
+            classList={{ 
+              "watch-status": true, 
+              "error": watchStatus() !== "●" 
+            }}
+          >
+            {watchStatus()}
+          </span>
         </div>
         
         <FilterBar 
@@ -323,15 +333,7 @@ export function Dashboard() {
           activeFilters={activeFilters()}
           onFilterChange={handleFilterChange}
         />
-        
-        <div class="controls">
-          <span 
-            class="watch-status" 
-            style={{ "color": watchStatus() === "●" ? "var(--linear-green)" : "var(--linear-red)" } as any}
-          >
-            {watchStatus()}
-          </span>
-        </div>
+
         <section class="resource-section full-width">
           <Show when={resourceType() === 'services'}>
             <ServiceList 
