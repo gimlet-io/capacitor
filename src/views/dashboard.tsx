@@ -166,6 +166,10 @@ export function Dashboard() {
     if (view) {
       setNamespace(view.namespace);
       setResourceType(view.resourceType);
+      untrack(() => {
+        const newFilters = activeFilters().filter(f => f.filter.name === "Namespace" || f.filter.name === "ResourceType");
+        setActiveFilters(newFilters);
+      });
     }
   });
 
