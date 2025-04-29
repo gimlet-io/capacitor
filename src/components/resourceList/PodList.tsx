@@ -1,6 +1,6 @@
 import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
-import { calculateAge } from './timeUtils.ts';
+import { useCalculateAge } from './timeUtils.ts';
 
 export const podsStatusFilter: Filter = {
   name: "PodStatus",
@@ -10,6 +10,7 @@ export const podsStatusFilter: Filter = {
     { label: "Pending", value: "Pending", color: "var(--linear-yellow)" },
     { label: "Succeeded", value: "Succeeded", color: "var(--linear-blue)" },
     { label: "Failed", value: "Failed", color: "var(--linear-red)" },
+    { label: "Terminating", value: "Terminating", color: "var(--linear-orange)" },
     {
       label: "Unknown",
       value: "Unknown",
@@ -18,7 +19,7 @@ export const podsStatusFilter: Filter = {
   ],
   multiSelect: true,
   filterFunction: (pod: Pod, value: string) => {
-    return pod.status.phase === value;
+    return pod.status.phase === value || (value === "Terminating" && pod.metadata.deletionTimestamp);
   },
 };
 
@@ -45,6 +46,10 @@ export const podColumns = [
     accessor: (pod: Pod) => {
       const phase = pod.status.phase;
       let color = "";
+
+      if (pod.metadata.deletionTimestamp) {
+        return <span style={`color: var(--linear-orange); font-weight: 500;`}>Terminating</span>;
+      }
 
       switch (phase) {
         case "Running":
@@ -81,7 +86,7 @@ export const podColumns = [
   {
     header: "AGE",
     width: "10%",
-    accessor: (pod: Pod) => calculateAge(pod.status.startTime || ''),
+    accessor: (pod: Pod) => useCalculateAge(pod.status.startTime || '')(),
   },
   {
     header: "IP",

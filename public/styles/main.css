@@ -65,6 +65,7 @@ table {
   --linear-yellow-light: #fff7e6;
   --linear-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   --linear-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --linear-orange: #FFA500; /* Example orange color */
 }
 
 /* Typography */

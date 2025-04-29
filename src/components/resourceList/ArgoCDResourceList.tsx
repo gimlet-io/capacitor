@@ -2,7 +2,7 @@ import type { ArgoCDApplication } from '../../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
 import { ResourceList } from './ResourceList.tsx';
 import { Filter, ActiveFilter } from '../filterBar/FilterBar.tsx';
-import { calculateAge } from './timeUtils.ts'; // Import the utility function
+import { useCalculateAge } from './timeUtils.ts';
 
 export const argocdApplicationSyncFilter: Filter = {
   name: "Sync Status",
@@ -55,6 +55,8 @@ export function ArgoCDResourceList(props: {
     </td>
   );
 
+  const age = useCalculateAge(props.applications[0].metadata.creationTimestamp || '');
+
   const columns = [
     {
       header: "NAME",
@@ -89,7 +91,7 @@ export function ArgoCDResourceList(props: {
     {
       header: "AGE",
       width: "10%",
-      accessor: (application: ArgoCDApplication) => calculateAge(application.metadata.creationTimestamp || ''), // Use the utility function
+      accessor: () => age(),
     }
   ];
 

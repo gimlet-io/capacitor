@@ -3,7 +3,7 @@ import type { Kustomization } from '../../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../../utils/conditions.ts';
 import { ResourceList } from './ResourceList.tsx';
 import { Filter, ActiveFilter } from '../filterBar/FilterBar.tsx';
-import { calculateAge } from './timeUtils.ts'; // Import the utility function
+import { useCalculateAge } from './timeUtils.ts';
 
 export const kustomizationReadyFilter: Filter = {
   name: "Ready",
@@ -58,7 +58,7 @@ export function FluxResourceList(props: {
     {
       header: "AGE",
       width: "5%",
-      accessor: (kustomization: Kustomization) => calculateAge(kustomization.metadata.creationTimestamp || ''), // Use the utility function
+      accessor: (kustomization: Kustomization) => useCalculateAge(kustomization.metadata.creationTimestamp || '')(),
     },
     {
       header: "READY",

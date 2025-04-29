@@ -14,6 +14,7 @@ export interface ObjectMeta {
         controller?: boolean;
         blockOwnerDeletion?: boolean;
     }>;
+    deletionTimestamp?: string;
 }
 
 export interface ListMeta {
