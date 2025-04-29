@@ -8,7 +8,6 @@ export function useCalculateAge(startTime: string) {
   const start = new Date(startTime);
   
   const updateAge = () => {
-    console.log("updateAge");
     const now = new Date();
     const diff = now.getTime() - start.getTime();
     const seconds = Math.floor(diff / 1000);

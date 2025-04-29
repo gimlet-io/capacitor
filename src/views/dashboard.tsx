@@ -1,5 +1,5 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
+import { createSignal, createResource, createEffect, untrack, createMemo, onMount } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
 import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/filterBar/FilterBar.tsx";
 import type { Pod, Deployment, ServiceWithResources, Kustomization, ArgoCDApplication, Service, DeploymentWithResources } from "../types/k8s.ts";
@@ -12,12 +12,65 @@ import { kustomizationReadyFilter } from "../components/resourceList/FluxResourc
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ArgoCDResourceList.tsx";
 type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
 
+interface View {
+  id: string;
+  label: string;
+  namespace: string;
+  resourceType: ResourceType;
+  isSystem?: boolean;
+  filters?: ActiveFilter[];
+}
+
+// Interface for storing serialized filters
+interface SerializableFilter {
+  filterId: string;
+  value: string;
+}
+
+interface SerializableView {
+  id: string;
+  label: string;
+  namespace: string;
+  resourceType: ResourceType;
+  isSystem?: boolean;
+  filters?: SerializableFilter[];
+}
+
+const SYSTEM_VIEWS: View[] = [
+  { 
+    id: 'pods',
+    label: 'Pods',
+    namespace: 'flux-system',
+    resourceType: 'pods' as ResourceType,
+    isSystem: true
+  },
+  { 
+    id: 'fluxcd',
+    label: 'FluxCD',
+    namespace: 'all-namespaces',
+    resourceType: 'fluxcd' as ResourceType,
+    isSystem: true
+  },
+  { 
+    id: 'argocd',
+    label: 'ArgoCD',
+    namespace: 'all-namespaces',
+    resourceType: 'argocd' as ResourceType,
+    isSystem: true
+  }
+];
+
 export function Dashboard() {
   const [namespace, setNamespace] = createSignal<string>();
   const [resourceType, setResourceType] = createSignal<ResourceType>('pods');
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
+  const [views, setViews] = createSignal<View[]>(SYSTEM_VIEWS);
+  const [selectedView, setSelectedView] = createSignal<string>(SYSTEM_VIEWS[0].id);
+  const [showNewViewForm, setShowNewViewForm] = createSignal(false);
+  const [newViewName, setNewViewName] = createSignal("");
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
 
   const ResourceTypes = [
     { value: 'argocd', label: 'ArgoCD', filters: [argocdApplicationSyncFilter, argocdApplicationHealthFilter] },
@@ -26,29 +79,6 @@ export function Dashboard() {
     { value: 'deployments', label: 'Deployments', filters: [] },
     { value: 'pods', label: 'Pods', filters: [podsStatusFilter] }
   ] as const;
-
-  const VIEWS = [
-    { 
-      id: 'pods',
-      label: 'Pods',
-      namespace: 'flux-system',
-      resourceType: 'pods' as ResourceType
-    },
-    { 
-      id: 'fluxcd',
-      label: 'FluxCD',
-      namespace: 'all-namespaces',
-      resourceType: 'fluxcd' as ResourceType
-    },
-    { 
-      id: 'argocd',
-      label: 'ArgoCD',
-      namespace: 'all-namespaces',
-      resourceType: 'argocd' as ResourceType
-    }
-  ] as const;
-
-  const [selectedView, setSelectedView] = createSignal(VIEWS[0].id);
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
@@ -95,6 +125,133 @@ export function Dashboard() {
     filterFunction: (resource: any, value: string) => {
       return resource.metadata.name.toLowerCase().includes(value.toLowerCase());
     }
+  };
+
+  // Central registry for all available filters - moved after filter definitions
+  const filterRegistry: Record<string, Filter> = {
+    "Namespace": namespaceFilter,
+    "ResourceType": resourceTypeFilter,
+    "Name": nameFilter,
+    "PodStatus": podsStatusFilter,
+    "Ready": kustomizationReadyFilter,
+    "Sync Status": argocdApplicationSyncFilter,
+    "Health": argocdApplicationHealthFilter
+  };
+
+  // Load custom views from localStorage on mount
+  onMount(() => {
+    try {
+      const storedViews = localStorage.getItem('customViews');
+      if (storedViews) {
+        const serializedViews = JSON.parse(storedViews) as SerializableView[];
+        
+        // Reconstruct views with proper filter functions
+        const customViews = serializedViews.map(serializedView => {
+          if (serializedView.filters) {
+            // Restore filter functions for each filter reference
+            const restoredFilters = serializedView.filters
+              .map(sf => {
+                const filterDef = filterRegistry[sf.filterId];
+                if (filterDef) {
+                  return {
+                    filter: filterDef,
+                    value: sf.value
+                  };
+                }
+                return null;
+              })
+              .filter(Boolean) as ActiveFilter[]; // Remove any null filters
+            
+            return { 
+              ...serializedView, 
+              filters: restoredFilters 
+            };
+          }
+          return serializedView;
+        }) as View[];
+        
+        setViews([...SYSTEM_VIEWS, ...customViews]);
+        console.log("Restored views with filter functions:", customViews);
+      }
+    } catch (error) {
+      console.error('Error loading custom views:', error);
+    }
+  });
+
+  // Save custom views to localStorage whenever they change
+  const saveCustomViews = (updatedViews: View[]) => {
+    try {
+      const customViews = updatedViews.filter(view => !view.isSystem);
+      
+      // Convert views to a serializable format
+      const serializableViews = customViews.map(view => {
+        // Process filters to make them serializable
+        const serializableFilters = view.filters?.map(activeFilter => ({
+          filterId: activeFilter.filter.name, // Store filter name as identifier
+          value: activeFilter.value
+        }));
+        
+        return {
+          ...view,
+          filters: serializableFilters
+        };
+      });
+      
+      localStorage.setItem('customViews', JSON.stringify(serializableViews));
+      console.log('Serialized and saved custom views:', serializableViews);
+    } catch (error) {
+      console.error('Error saving custom views:', error);
+    }
+  };
+
+  // Create a ref for the new view name input
+  let newViewNameInput: HTMLInputElement | undefined;
+
+  const createNewView = () => {
+    if (!newViewName()) return;
+    
+    const id = `custom-${Date.now()}`;
+    const newView: View = {
+      id,
+      label: newViewName(),
+      namespace: namespace() || 'all-namespaces',
+      resourceType: resourceType(),
+      filters: [...activeFilters()]
+    };
+    
+    const updatedViews = [...views(), newView];
+    setViews(updatedViews);
+    saveCustomViews(updatedViews);
+    setSelectedView(id);
+    setShowNewViewForm(false);
+    setNewViewName("");
+  };
+
+  const handleNewViewButtonClick = () => {
+    setShowNewViewForm(true);
+    setNewViewName("");
+    setTimeout(() => {
+      newViewNameInput?.focus();
+    }, 0);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      createNewView();
+    }
+  };
+
+  const deleteView = (id: string) => {
+    const updatedViews = views().filter(view => view.id !== id);
+    setViews(updatedViews);
+    saveCustomViews(updatedViews);
+    setSelectedView(SYSTEM_VIEWS[0].id);
+    setShowDeleteConfirmation(null);
+  };
+
+  const cancelNewView = () => {
+    setShowNewViewForm(false);
+    setNewViewName("");
   };
 
   const handleFilterChange = (filters: ActiveFilter[]) => {
@@ -162,13 +319,23 @@ export function Dashboard() {
 
   // Apply view when selected
   createEffect(() => {
-    const view = VIEWS.find(v => v.id === selectedView());
+    const viewId = selectedView();
+    const view = views().find(v => v.id === viewId);
+    
     if (view) {
       setNamespace(view.namespace);
       setResourceType(view.resourceType);
+      
       untrack(() => {
-        const newFilters = activeFilters().filter(f => f.filter.name === "Namespace" || f.filter.name === "ResourceType");
-        setActiveFilters(newFilters);
+        // For custom views with saved filters, apply all those filters
+        if (!view.isSystem && view.filters && view.filters.length > 0) {
+          setActiveFilters(view.filters);
+        } else {
+          // For system views, only keep namespace and resource type filters
+          const newFilters = activeFilters()
+            .filter(f => f.filter.name === "Namespace" || f.filter.name === "ResourceType");
+          setActiveFilters(newFilters);
+        }
       });
     }
   });
@@ -306,21 +473,97 @@ export function Dashboard() {
     namespaceFilter.options = namespaceOptions();
   });
 
+  // Update the current custom view whenever active filters change
+  createEffect(() => {
+    const viewId = selectedView();
+    const currentFilters = activeFilters();
+    const currentNamespace = namespace();
+    const currentResourceType = resourceType();
+    
+    // Use untrack to avoid circular dependency 
+    untrack(() => {
+      const view = views().find(v => v.id === viewId);
+      
+      // Only update non-system views
+      if (view && !view.isSystem) {
+        // Check if any properties have actually changed before updating
+        const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
+        const namespaceChanged = view.namespace !== currentNamespace;
+        const resourceTypeChanged = view.resourceType !== currentResourceType;
+        
+        // Only proceed if something has changed
+        if (filtersChanged || namespaceChanged || resourceTypeChanged) {
+          // Update this view with current filters and settings
+          const updatedView: View = {
+            ...view,
+            namespace: currentNamespace || 'all-namespaces',
+            resourceType: currentResourceType,
+            filters: [...currentFilters]
+          };
+          
+          // Update the view in the views list
+          const updatedViews = views().map(v => 
+            v.id === updatedView.id ? updatedView : v
+          );
+          
+          setViews(updatedViews);
+          saveCustomViews(updatedViews);
+          console.log('Custom view updated and saved:', updatedView.label);
+        }
+      }
+    });
+  });
+
+  // Set the default title and update it based on the selected view
+  createEffect(() => {
+    const defaultTitle = "Capacitor";
+    const currentView = views().find(view => view.id === selectedView());
+    document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
+  });
+
   return (
     <div class="layout">
       <main class="main-content">
         <div class="views">
           <div class="view-buttons">
-            <For each={VIEWS}>
+            <For each={views()}>
               {(view) => (
-                <button
-                  class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedView(view.id)}
-                >
-                  {view.label}
-                </button>
+                <div class="view-pill-container">
+                  <button
+                    class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedView(view.id)}
+                  >
+                    <span>{view.label}</span>
+                    {selectedView() === view.id && !view.isSystem && (
+                      <span 
+                        class="view-delete" 
+                        title="Delete view"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDeleteConfirmation(view.id);
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
+                  </button>
+                </div>
               )}
             </For>
+            {!showNewViewForm() ? (
+              <button
+                class="view-pill new-view"
+                onClick={handleNewViewButtonClick}
+              >
+                +
+              </button>
+            ) : (
+              <button
+                class="view-pill new-view-creating"
+              >
+                {newViewName() || "New View"}
+              </button>
+            )}
           </div>
           <span 
             classList={{ 
@@ -331,6 +574,49 @@ export function Dashboard() {
             {watchStatus()}
           </span>
         </div>
+        
+        {showNewViewForm() && (
+          <div class="new-view-form">
+            <input
+              type="text"
+              placeholder="View name"
+              value={newViewName()}
+              onInput={(e) => setNewViewName(e.currentTarget.value)}
+              onKeyDown={handleKeyDown}
+              ref={el => newViewNameInput = el}
+            />
+            <div class="new-view-actions">
+              <button class="new-view-cancel" onClick={cancelNewView}>Cancel</button>
+              <button 
+                class="new-view-save" 
+                onClick={createNewView}
+                disabled={!newViewName().trim()}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {showDeleteConfirmation() && (
+          <div class="delete-confirmation">
+            <p>Are you sure you want to delete this view?</p>
+            <div class="delete-actions">
+              <button 
+                class="delete-cancel" 
+                onClick={() => setShowDeleteConfirmation(null)}
+              >
+                Cancel
+              </button>
+              <button 
+                class="delete-confirm" 
+                onClick={() => deleteView(showDeleteConfirmation()!)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
         
         <FilterBar 
           filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(ResourceTypes.find(t => t.value === resourceType())?.filters || [])]}

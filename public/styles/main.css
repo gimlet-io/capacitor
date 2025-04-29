@@ -1105,7 +1105,24 @@ td.message-cell {
   gap: 0.5rem;
 }
 
+.view-pill-container {
+  position: relative;
+  display: flex;
+}
+
+.view-delete {
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+
+.view-delete:hover {
+  background-color: darkgray; /* Change color on hover for feedback */
+}
+
 .view-pill {
+  display: flex;
+  align-items: center; /* Center items vertically */
+  justify-content: space-between; /* Space between label and delete icon */
   padding: 0.5rem 1rem;
   border-radius: 5px;
   background-color: var(--linear-bg);
@@ -1125,6 +1142,105 @@ td.message-cell {
   background-color: var(--linear-bg-secondary);
   border: 1px solid var(--linear-border);
   color: var(--linear-text-primary);
+}
+
+.view-pill.new-view {
+  background-color: var(--linear-bg);
+  color: var(--linear-text-secondary);
+  border: 1px dashed var(--linear-border);
+}
+
+.view-pill.new-view:hover {
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-primary);
+}
+
+.view-pill.new-view-creating {
+  background-color: var(--linear-bg);
+  color: var(--linear-text-secondary);
+  border: 1px dashed var(--linear-border);
+  font-style: italic;
+}
+
+.new-view-form {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: var(--linear-bg-secondary);
+  border: 1px solid var(--linear-border);
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.new-view-form input {
+  padding: 0.5rem;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.new-view-form input:focus {
+  border-color: var(--linear-blue);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.1);
+}
+
+.new-view-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.new-view-cancel, .new-view-save, .delete-cancel, .delete-confirm {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid var(--linear-border);
+}
+
+.new-view-cancel, .delete-cancel {
+  background-color: var(--linear-bg);
+  color: var(--linear-text-secondary);
+}
+
+.new-view-save, .delete-confirm {
+  background-color: var(--linear-blue);
+  color: white;
+  border-color: var(--linear-blue);
+}
+
+.new-view-save:disabled {
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-tertiary);
+  border-color: var(--linear-border);
+  cursor: not-allowed;
+}
+
+.delete-confirm {
+  background-color: var(--linear-red);
+  border-color: var(--linear-red);
+}
+
+.delete-confirmation {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: var(--linear-red-light);
+  border: 1px solid var(--linear-red);
+  border-radius: 5px;
+  color: var(--linear-red);
+}
+
+.delete-confirmation p {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 /* Filter Bar Styles */
