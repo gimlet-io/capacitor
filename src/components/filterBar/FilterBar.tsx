@@ -112,6 +112,13 @@ export function FilterBar(props: {
       const option = filter?.options?.find(o => o.value === activeInFilter[0].value);
       return `${filterName} is ${option?.label || activeInFilter[0].value}`;
     } else {
+      const totalOptions = filter?.options?.length || 0;
+      if (activeInFilter.length === totalOptions - 1) {
+        const remainingOption = filter?.options?.find(o =>
+          !activeInFilter.some(active => active.value === o.value)
+        );
+        return `${filterName} is not ${remainingOption?.label || 'selected option'}`;
+      }
       return `${filterName} is any of ${activeInFilter.length} options`;
     }
   };
