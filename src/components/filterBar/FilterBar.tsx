@@ -56,6 +56,24 @@ export function FilterBar(props: {
     props.onFilterChange(newFilters);
   };
 
+  const toggleAllOptions = (filter: string, selectAll: boolean) => {
+    const filterDef = props.filters.find(f => f.name === filter);
+    if (!filterDef || !filterDef.options) return;
+    
+    let newFilters = [...props.activeFilters.filter(f => f.filter.name !== filter)];
+    
+    if (selectAll) {
+      // Add all options for this filter
+      const allOptions = filterDef.options.map(option => ({
+        filter: filterDef,
+        value: option.value
+      }));
+      newFilters = [...newFilters, ...allOptions];
+    }
+    
+    props.onFilterChange(newFilters);
+  };
+
   const applyTextFilter = (filter: string, value: string) => {
     // Update text input state
     setTextInputs(prev => ({ ...prev, [filter]: value }));
@@ -167,6 +185,16 @@ export function FilterBar(props: {
               props.activeFilters.some(f => f.filter.name === filter.name)
             );
             
+            const allOptionsSelected = createMemo(() => {
+              if (!filter.options || !filter.multiSelect) return false;
+              // Check if all regular options (not the "All" option) are selected
+              return filter.options.every(option => 
+                props.activeFilters.some(f => 
+                  f.filter.name === filter.name && f.value === option.value
+                )
+              );
+            });
+            
             return (
               <div 
                 class="filter-group" 
@@ -202,6 +230,22 @@ export function FilterBar(props: {
                     
                     {/* Select options filter */}
                     <Show when={filter.type !== "text" && filter.options}>
+                      {/* "All" option for multiselect filters */}
+                      <Show when={filter.multiSelect}>
+                        <button 
+                          class="filter-option all-option"
+                          classList={{
+                            "active": allOptionsSelected()
+                          }}
+                          onClick={() => toggleAllOptions(filter.name, !allOptionsSelected())}
+                        >
+                          <span class="checkbox">
+                            {allOptionsSelected() ? '✓' : ''}
+                          </span>
+                          All
+                        </button>
+                      </Show>
+                      
                       <For each={filter.options}>
                         {(option) => {
                           const isActive = createMemo(() => 
