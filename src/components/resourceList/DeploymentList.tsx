@@ -1,6 +1,8 @@
 import type { DeploymentWithResources } from '../../types/k8s.ts';
 import { ResourceList } from './ResourceList.tsx';
 import { ActiveFilter } from '../filterBar/FilterBar.tsx';
+import { calculateAge } from './timeUtils.ts'; // Import the utility function
+
 export function DeploymentList(props: { 
   deployments: DeploymentWithResources[]
   activeFilters: ActiveFilter[]
@@ -65,15 +67,7 @@ export function DeploymentList(props: {
     {
       header: "AGE",
       width: "10%",
-      accessor: (deployment: DeploymentWithResources) => {
-        if (!deployment.metadata.creationTimestamp) return <>N/A</>;
-        const startTime = new Date(deployment.metadata.creationTimestamp);
-        const now = new Date();
-        const diff = now.getTime() - startTime.getTime();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-      }
+      accessor: (deployment: DeploymentWithResources) => calculateAge(deployment.metadata.creationTimestamp || ''), // Use the utility function
     }
   ];
 

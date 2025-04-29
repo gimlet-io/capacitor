@@ -1,5 +1,6 @@
 import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { calculateAge } from './timeUtils.ts';
 
 export const podsStatusFilter: Filter = {
   name: "PodStatus",
@@ -80,25 +81,7 @@ export const podColumns = [
   {
     header: "AGE",
     width: "10%",
-    accessor: (pod: Pod) => {
-      if (!pod.status.startTime) return <>N/A</>;
-      const startTime = new Date(pod.status.startTime);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-      if (days > 0) {
-        return <>{`${days}d${hours}h`}</>;
-      } else if (hours > 0) {
-        return <>{`${hours}h${minutes}m`}</>;
-      } else {
-        return <>{`${minutes}m`}</>;
-      }
-    },
+    accessor: (pod: Pod) => calculateAge(pod.status.startTime || ''),
   },
   {
     header: "IP",
