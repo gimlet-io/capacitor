@@ -1,6 +1,6 @@
 import { For } from "solid-js/web";
 import { createSignal } from "solid-js";
-import type { Event } from "../types/k8s.ts";
+import type { Event } from "../../types/k8s.ts";
 
 export function EventList(props: { events: Event[] }) {
   const [showAll, setShowAll] = createSignal(false);

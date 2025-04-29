@@ -8,8 +8,8 @@ import { updateServiceMatchingResources, updateDeploymentMatchingResources } fro
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { podColumns, podsStatusFilter } from "../components/resourceList/PodList.tsx";
-import { kustomizationReadyFilter } from "../components/FluxResourceList.tsx";
-import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/ArgoCDResourceList.tsx";
+import { kustomizationReadyFilter } from "../components/resourceList/FluxResourceList.tsx";
+import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ArgoCDResourceList.tsx";
 type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
 
 export function Dashboard() {

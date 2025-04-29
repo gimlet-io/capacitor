@@ -1,7 +1,7 @@
-import type { ArgoCDApplication } from '../types/k8s.ts';
+import type { ArgoCDApplication } from '../../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
-import { ResourceList } from './resourceList/ResourceList.tsx';
-import { Filter, ActiveFilter } from './filterBar/FilterBar.tsx';
+import { ResourceList } from './ResourceList.tsx';
+import { Filter, ActiveFilter } from '../filterBar/FilterBar.tsx';
 
 export const argocdApplicationSyncFilter: Filter = {
   name: "Sync Status",

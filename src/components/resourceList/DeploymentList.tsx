@@ -1,6 +1,6 @@
-import type { DeploymentWithResources } from '../types/k8s.ts';
-import { ResourceList } from './resourceList/ResourceList.tsx';
-import { ActiveFilter } from './filterBar/FilterBar.tsx';
+import type { DeploymentWithResources } from '../../types/k8s.ts';
+import { ResourceList } from './ResourceList.tsx';
+import { ActiveFilter } from '../filterBar/FilterBar.tsx';
 export function DeploymentList(props: { 
   deployments: DeploymentWithResources[]
   activeFilters: ActiveFilter[]

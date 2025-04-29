@@ -1,6 +1,6 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createEffect, Show, For, onMount, onCleanup } from "solid-js";
-import { EventList } from "../EventList.tsx";
+import { EventList } from "../resourceList/EventList.tsx";
 import type { Event } from "../../types/k8s.ts";
 import { describeResource } from "../../utils/kubectlDescriber.ts";
 

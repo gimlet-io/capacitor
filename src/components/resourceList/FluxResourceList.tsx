@@ -1,8 +1,8 @@
 import { useNavigate } from "@solidjs/router";
-import type { Kustomization } from '../types/k8s.ts';
-import { ConditionType, ConditionStatus } from '../utils/conditions.ts';
-import { ResourceList } from './resourceList/ResourceList.tsx';
-import { Filter, ActiveFilter } from './filterBar/FilterBar.tsx';
+import type { Kustomization } from '../../types/k8s.ts';
+import { ConditionType, ConditionStatus } from '../../utils/conditions.ts';
+import { ResourceList } from './ResourceList.tsx';
+import { Filter, ActiveFilter } from '../filterBar/FilterBar.tsx';
 
 export const kustomizationReadyFilter: Filter = {
   name: "Ready",
