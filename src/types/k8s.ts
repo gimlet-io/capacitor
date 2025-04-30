@@ -490,4 +490,41 @@ export interface ReplicaSet {
 
 export interface ReplicaSetWithResources extends ReplicaSet {
   pods: Pod[];
+}
+
+// API Resource type definitions
+export interface ApiResource {
+  name: string;
+  singularName: string;
+  namespaced: boolean;
+  kind: string;
+  verbs: string[];
+  shortNames?: string[];
+  group?: string;
+  version?: string;
+}
+
+export interface ApiResourceList {
+  groupVersion: string;
+  apiVersion: string;
+  kind: string;
+  resources: ApiResource[];
+}
+
+export interface ApiGroup {
+  name: string;
+  versions: Array<{
+    groupVersion: string;
+    version: string;
+  }>;
+  preferredVersion: {
+    groupVersion: string;
+    version: string;
+  };
+}
+
+export interface ApiGroupList {
+  apiVersion: string;
+  kind: string;
+  groups: ApiGroup[];
 } 
