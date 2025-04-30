@@ -1,9 +1,6 @@
 import { createSignal, For, Show, createEffect, onMount, untrack } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 
-// View Types
-export type ResourceType = 'pods' | 'services' | 'deployments' | 'fluxcd' | 'argocd';
-
 export interface ActiveFilter {
   filter: Filter;
   value: string;
@@ -13,7 +10,7 @@ export interface View {
   id: string;
   label: string;
   namespace: string;
-  resourceType: ResourceType;
+  resourceType: string;
   isSystem?: boolean;
   filters?: ActiveFilter[];
 }
@@ -27,7 +24,7 @@ interface SerializableView {
   id: string;
   label: string;
   namespace: string;
-  resourceType: ResourceType;
+  resourceType: string;
   isSystem?: boolean;
   filters?: SerializableFilter[];
 }
@@ -38,21 +35,21 @@ const SYSTEM_VIEWS: View[] = [
     id: 'pods',
     label: 'Pods',
     namespace: 'flux-system',
-    resourceType: 'pods',
+    resourceType: 'core/Pod',
     isSystem: true
   },
   { 
     id: 'fluxcd',
     label: 'FluxCD',
     namespace: 'all-namespaces',
-    resourceType: 'fluxcd',
+    resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
     isSystem: true
   },
   { 
     id: 'argocd',
     label: 'ArgoCD',
     namespace: 'all-namespaces',
-    resourceType: 'argocd',
+    resourceType: 'argoproj.io/Application',
     isSystem: true
   }
 ];
@@ -129,7 +126,7 @@ export class ViewService {
     }
   }
   
-  createView(label: string, namespace: string, resourceType: ResourceType, filters: ActiveFilter[]): View {
+  createView(label: string, namespace: string, resourceType: string, filters: ActiveFilter[]): View {
     const id = `custom-${Date.now()}`;
     return {
       id,
@@ -149,9 +146,9 @@ export interface ViewBarProps {
   filterRegistry: Record<string, Filter>;
   watchStatus?: string;
   namespace: string;
-  resourceType: ResourceType;
+  resourceType: string;
   activeFilters: ActiveFilter[];
-  updateFilters: (namespace: string, resourceType: ResourceType, filters: ActiveFilter[]) => void;
+  updateFilters: (namespace: string, resourceType: string, filters: ActiveFilter[]) => void;
 }
 
 export function ViewBar(props: ViewBarProps) {

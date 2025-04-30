@@ -16,6 +16,7 @@ export type Filter = {
   multiSelect?: boolean;
   placeholder?: string;
   filterFunction: (resource: any, value: string) => boolean;
+  renderOption?: (option: FilterOption) => any;
 };
 
 export type ActiveFilter = {
@@ -100,7 +101,7 @@ export function FilterBar(props: {
     props.onFilterChange(newFilters);
   };
 
-  const getFilterButtonText = (filterName: string): string => {
+  const getFilterButtonText = (filterName: string): string | any => {
     const filter = props.filters.find(f => f.name === filterName);
     const activeInFilter = props.activeFilters.filter(f => f.filter.name === filterName);
     
@@ -273,7 +274,7 @@ export function FilterBar(props: {
                               <span class="checkbox">
                                 {isActive() ? '✓' : ''}
                               </span>
-                              {option.label}
+                              {filter.renderOption ? filter.renderOption(option) : option.label}
                             </button>
                           );
                         }}

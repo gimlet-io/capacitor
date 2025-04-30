@@ -1,4 +1,6 @@
 // Basic metadata interfaces
+import { Filter } from "../components/filterBar/FilterBar.tsx";
+
 export interface ObjectMeta {
     name: string;
     namespace: string;
@@ -502,6 +504,7 @@ export interface ApiResource {
   shortNames?: string[];
   group?: string;
   version?: string;
+  apiPath?: string;
 }
 
 export interface ApiResourceList {
@@ -527,4 +530,14 @@ export interface ApiGroupList {
   apiVersion: string;
   kind: string;
   groups: ApiGroup[];
+}
+
+export interface K8sResource {
+  id: string;
+  filters: Filter[];
+  group: string;
+  version: string;
+  kind: string;
+  apiPath: string;
+  name?: string;
 } 

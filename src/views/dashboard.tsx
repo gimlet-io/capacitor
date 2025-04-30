@@ -1,7 +1,7 @@
 import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
 import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/filterBar/FilterBar.tsx";
-import { ViewBar, ResourceType } from "../components/viewBar/ViewBar.tsx";
+import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import type { 
   Pod, 
   Deployment, 
@@ -12,8 +12,8 @@ import type {
   DeploymentWithResources,
   ApiResource,
   ApiResourceList,
-  ApiGroup,
-  ApiGroupList
+  ApiGroupList,
+  K8sResource
 } from "../types/k8s.ts";
 import { Show } from "solid-js";
 import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
@@ -26,20 +26,11 @@ import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 
 export function Dashboard() {
   const [namespace, setNamespace] = createSignal<string>();
-  const [resourceType, setResourceType] = createSignal<ResourceType>('pods');
+  const [resourceType, setResourceType] = createSignal<string>('core/Pod');
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
-  const [availableResources, setAvailableResources] = createSignal<Array<{value: string, label: string, filters: Filter[], group?: string, version?: string, kind?: string, apiPath?: string}>>([]);
-
-  // Base resource types with their filters
-  const baseResourceTypes = [
-    { value: 'argocd', label: 'ArgoCD', filters: [argocdApplicationSyncFilter, argocdApplicationHealthFilter] },
-    { value: 'fluxcd', label: 'FluxCD', filters: [kustomizationReadyFilter] },
-    { value: 'services', label: 'Services', filters: [] },
-    { value: 'deployments', label: 'Deployments', filters: [] },
-    { value: 'pods', label: 'Pods', filters: [podsStatusFilter] }
-  ];
+  const [availableResources, setAvailableResources] = createSignal<K8sResource[]>([]);
 
   // Resource state
   const [pods, setPods] = createSignal<Pod[]>([]);
@@ -48,6 +39,55 @@ export function Dashboard() {
   const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
   const [applications, setApplications] = createSignal<ArgoCDApplication[]>([]);
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
+
+  // Define core resource mappings (instead of baseResourceTypes)
+  const coreResourceMappings = [
+    { 
+      id: 'core/Pod',
+      filters: [podsStatusFilter],
+      kind: 'Pod',
+      group: 'core',
+      version: 'v1',
+      apiPath: '/k8s/api/v1',
+      name: 'pods'
+    },
+    { 
+      id: 'core/Service',
+      kind: 'Service', 
+      group: 'core',
+      version: 'v1',
+      apiPath: '/k8s/api/v1',
+      filters: [],
+      name: 'services'
+    },
+    { 
+      id: 'apps/Deployment',
+      kind: 'Deployment', 
+      group: 'apps',
+      version: 'v1',
+      apiPath: '/k8s/apis/apps/v1',
+      filters: [],
+      name: 'deployments'
+    },
+    { 
+      id: 'kustomize.toolkit.fluxcd.io/Kustomization',
+      kind: 'Kustomization', 
+      group: 'kustomize.toolkit.fluxcd.io',
+      version: 'v1',
+      apiPath: '/k8s/apis/kustomize.toolkit.fluxcd.io/v1',
+      filters: [kustomizationReadyFilter],
+      name: 'kustomizations'
+    },
+    { 
+      id: 'argoproj.io/Application',
+      kind: 'Application', 
+      group: 'argoproj.io',
+      version: 'v1alpha1',
+      apiPath: '/k8s/apis/argoproj.io/v1alpha1',
+      filters: [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
+      name: 'applications'
+    }
+  ];
 
   // Fetch available API resources
   const [apiResources] = createResource(async () => {
@@ -60,11 +100,16 @@ export function Dashboard() {
         group: '',
         version: 'v1',
         apiPath: '/k8s/api/v1'
-      }));
+      })).sort((a, b) => a.name.localeCompare(b.name)); // Sort core resources alphabetically
       
       // Fetch API groups
       const groupsResponse = await fetch('/k8s/apis');
       const groupsData = await groupsResponse.json() as ApiGroupList;
+      
+      // Prepare priority groups first (apps/v1 and networking.k8s.io/v1)
+      let appsResources: ApiResource[] = [];
+      let networkingResources: ApiResource[] = [];
+      let otherGroupResources: ApiResource[] = [];
       
       // Fetch resources for each API group
       const groupResourcesPromises = groupsData.groups.map(async (group) => {
@@ -72,20 +117,49 @@ export function Dashboard() {
           const groupVersionResponse = await fetch(`/k8s/apis/${group.preferredVersion.groupVersion}`);
           const groupVersionData = await groupVersionResponse.json() as ApiResourceList;
           
-          return groupVersionData.resources.map(resource => ({
+          const resources = groupVersionData.resources.map(resource => ({
             ...resource,
             group: group.name,
             version: group.preferredVersion.version,
             apiPath: `/k8s/apis/${group.preferredVersion.groupVersion}`
-          }));
+          })).sort((a, b) => a.name.localeCompare(b.name)); // Sort resources within each group
+          
+          return { 
+            groupName: group.name, 
+            resources 
+          };
         } catch (error) {
           console.error(`Error fetching resources for group ${group.name}:`, error);
-          return [];
+          return { 
+            groupName: group.name, 
+            resources: [] 
+          };
         }
       });
       
-      const groupResourcesArrays = await Promise.all(groupResourcesPromises);
-      const allApiResources = [...coreResources, ...groupResourcesArrays.flat()];
+      const groupResourcesResults = await Promise.all(groupResourcesPromises);
+      
+      // Sort groups alphabetically
+      groupResourcesResults.sort((a, b) => a.groupName.localeCompare(b.groupName));
+      
+      // Split into priority groups and others
+      for (const groupResult of groupResourcesResults) {
+        if (groupResult.groupName === 'apps') {
+          appsResources = groupResult.resources;
+        } else if (groupResult.groupName === 'networking.k8s.io') {
+          networkingResources = groupResult.resources;
+        } else {
+          otherGroupResources = [...otherGroupResources, ...groupResult.resources];
+        }
+      }
+      
+      // Combine all resources in the desired order: core -> apps -> networking -> others
+      const allApiResources = [
+        ...coreResources, 
+        ...appsResources,
+        ...networkingResources,
+        ...otherGroupResources
+      ];
       
       // Filter to include only resources that support listing (have 'list' in verbs)
       // and aren't subresources (don't contain '/')
@@ -102,29 +176,37 @@ export function Dashboard() {
 
   // Create the ResourceTypes dynamically based on API resources
   const ResourceTypes = createMemo(() => {
-    if (!apiResources()) {
-      return baseResourceTypes;
+    // Start with our core resources that we want to prioritize
+    const resources = [...coreResourceMappings];
+    
+    if (apiResources()) {
+      // Add additional resources from the API
+      const additionalResources = apiResources()!
+        .filter(resource => 
+          // Avoid duplicates with core resources by checking for existing value and kind+group combinations
+          !resources.some(existing => 
+            existing.id === `${resource.group || 'core'}/${resource.kind}` || 
+            (existing.kind === resource.kind && existing.group === resource.group)
+          ) &&
+          // Filter out some system resources we don't want to show
+          !['componentstatuses', 'bindings', 'endpoints'].includes(resource.name)
+        )
+        .map(resource => ({
+          id: `${resource.group || 'core'}/${resource.kind}`,
+          filters: [] as Filter[],
+          group: resource.group || 'core',
+          version: resource.version || 'v1',
+          kind: resource.kind,
+          apiPath: resource.apiPath || '/k8s/api/v1',
+          name: resource.name
+        }));
+      
+      resources.push(...additionalResources);
     }
 
-    // Create a set of new resource types from API resources
-    const resources = apiResources()!
-      .filter(resource => 
-        // Avoid duplicates with base types and filter out some system resources
-        !baseResourceTypes.some(base => base.value === resource.name) &&
-        !['componentstatuses', 'bindings', 'endpoints'].includes(resource.name)
-      )
-      .map(resource => ({
-        value: resource.name,
-        label: resource.kind,
-        filters: [],
-        group: resource.group,
-        version: resource.version,
-        kind: resource.kind,
-        apiPath: resource.apiPath
-      }));
-
-    setAvailableResources([...baseResourceTypes, ...resources]);
-    return [...baseResourceTypes, ...resources] as const;
+    console.log('resources', resources);
+    setAvailableResources(resources);
+    return resources;
   });
 
   const [namespaces] = createResource(async () => {
@@ -153,9 +235,24 @@ export function Dashboard() {
   const resourceTypeFilter: Filter = {
     name: "ResourceType",
     type: "select",
-    options: baseResourceTypes.map(type => ({ value: type.value, label: type.label })),
+    options: coreResourceMappings.map(type => ({ value: type.id, label: type.kind })),
     multiSelect: false,
-    filterFunction: () => true
+    filterFunction: () => true,
+    renderOption: (option) => {
+      const resource = availableResources().find(res => res.id === option.value);
+      if (!resource) {
+        return option.label;
+      }
+      
+      // Always show group, using "core" for resources without a specific group
+      const groupName = resource.group || "core";
+      
+      return (
+        <>
+          {resource.kind} <span style="color: var(--linear-text-tertiary);">&nbsp;{groupName}</span>
+        </>
+      );
+    }
   };
 
   const nameFilter: Filter = {
@@ -196,14 +293,14 @@ export function Dashboard() {
     const rtFilter = filters.find(f => f.filter.name === "ResourceType");
     if (rtFilter) {
       // Check if it's a valid resource type
-      const isValidResourceType = ResourceTypes().some(rt => rt.value === rtFilter.value);
+      const isValidResourceType = ResourceTypes().some(rt => rt.id === rtFilter.value);
       if (isValidResourceType) {
-        setResourceType(rtFilter.value as ResourceType);
+        setResourceType(rtFilter.value);
       }
     }
   };
 
-  const updateFilters = (ns: string, resType: ResourceType, filters: ActiveFilter[]) => {
+  const updateFilters = (ns: string, resType: string, filters: ActiveFilter[]) => {
     setNamespace(ns);
     setResourceType(resType);
     setActiveFilters(filters);
@@ -263,7 +360,7 @@ export function Dashboard() {
     setupWatches(namespace(), resourceType());
   });
 
-  const setupWatches = (ns: string | undefined, resourceFilter: ResourceType) => {
+  const setupWatches = (ns: string | undefined, resourceFilter: string) => {
     if (!ns) return;
     console.log('Setting up watches for namespace:', ns, 'resource type:', resourceFilter);
 
@@ -285,7 +382,7 @@ export function Dashboard() {
     const namespacePath = ns === 'all-namespaces' ? '' : `/namespaces/${ns}`;
 
     // Standard resource types
-    if (resourceFilter === 'pods' || resourceFilter === 'services' || resourceFilter === 'deployments') {
+    if (resourceFilter === 'core/Pod' || resourceFilter === 'core/Service' || resourceFilter === 'apps/Deployment') {
       watches.push(
         {
           path: `/k8s/api/v1${namespacePath}/pods?watch=true`,
@@ -339,7 +436,7 @@ export function Dashboard() {
       );
     }
 
-    if (resourceFilter === 'fluxcd') {
+    if (resourceFilter === 'kustomize.toolkit.fluxcd.io/Kustomization') {
       watches.push(
         {
           path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1${namespacePath}/kustomizations?watch=true`,
@@ -356,7 +453,7 @@ export function Dashboard() {
       );
     }
 
-    if (resourceFilter === 'argocd') {
+    if (resourceFilter === 'argoproj.io/Application') {
       watches.push(
         {
           path: `/k8s/apis/argoproj.io/v1alpha1${namespacePath}/applications?watch=true`,
@@ -374,17 +471,17 @@ export function Dashboard() {
     }
 
     // Dynamic resource watch
-    const selectedResource = availableResources().find(res => res.value === resourceFilter);
+    const selectedResource = availableResources().find(res => res.id === resourceFilter);
     
     if (selectedResource && 
-        !['pods', 'services', 'deployments', 'fluxcd', 'argocd'].includes(resourceFilter)) {
+        !['core/Pod', 'core/Service', 'apps/Deployment', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(resourceFilter)) {
       
       const apiPath = selectedResource.apiPath;
-      const resourcePlural = selectedResource.value;
+      const resourceName = selectedResource.name || resourceFilter;
       
-      if (apiPath && resourcePlural) {
+      if (apiPath && resourceName) {
         watches.push({
-          path: `${apiPath}${namespacePath}/${resourcePlural}?watch=true`,
+          path: `${apiPath}${namespacePath}/${resourceName}?watch=true`,
           callback: (event: { type: string; object: any }) => {
             if (event.type === 'ADDED') {
               setDynamicResources(prev => {
@@ -433,7 +530,10 @@ export function Dashboard() {
 
   // Update the options when ResourceTypes changes
   createEffect(() => {
-    resourceTypeFilter.options = ResourceTypes().map(type => ({ value: type.value, label: type.label }));
+    resourceTypeFilter.options = ResourceTypes().map(type => ({
+      value: type.id,
+      label: type.kind
+    }));
   });
 
   return (
@@ -449,45 +549,45 @@ export function Dashboard() {
         />
         
         <FilterBar 
-          filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(ResourceTypes().find(t => t.value === resourceType())?.filters || [])]}
+          filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(ResourceTypes().find(t => t.id === resourceType())?.filters || [])]}
           activeFilters={activeFilters()}
           onFilterChange={handleFilterChange}
         />
 
         <section class="resource-section full-width">
-          <Show when={resourceType() === 'services'}>
+          <Show when={resourceType() === 'core/Service'}>
             <ServiceList 
               services={services()}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
-          <Show when={resourceType() === 'deployments'}>
+          <Show when={resourceType() === 'apps/Deployment'}>
             <DeploymentList 
               deployments={deployments()}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
-          <Show when={resourceType() === 'pods'}>
+          <Show when={resourceType() === 'core/Pod'}>
             <ResourceList 
               resources={pods()} 
               columns={podColumns}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
-          <Show when={resourceType() === 'fluxcd'}>
+          <Show when={resourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
             <FluxResourceList 
               kustomizations={kustomizations()}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
-          <Show when={resourceType() === 'argocd'}>
+          <Show when={resourceType() === 'argoproj.io/Application'}>
             <ArgoCDResourceList 
               applications={applications()}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
           
-          <Show when={!['pods', 'services', 'deployments', 'fluxcd', 'argocd'].includes(resourceType())}>
+          <Show when={!['core/Pod', 'core/Service', 'apps/Deployment', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(resourceType())}>
             <ResourceList 
               resources={dynamicResources()[resourceType()] || []} 
               columns={[
