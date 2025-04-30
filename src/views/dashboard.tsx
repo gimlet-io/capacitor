@@ -120,36 +120,24 @@ export function Dashboard() {
     }
   });
 
-  createEffect(() => {
-    const resources: K8sResource[] = [];
-        
-    if (apiResources()) {
-      // Add additional resources from the API
-      const additionalResources = apiResources()!
-        .filter(resource => 
-          // Avoid duplicates with core resources by checking for existing value and kind+group combinations
-          !resources.some(existing => 
-            existing.id === `${resource.group || 'core'}/${resource.kind}` || 
-            (existing.kind === resource.kind && existing.group === resource.group)
-          ) &&
-          // Filter out some system resources we don't want to show
-          !['componentstatuses', 'bindings', 'endpoints'].includes(resource.name)
-        )
-        .map(resource => {
-          const resourceId = `${resource.group || 'core'}/${resource.kind}`;
-          return {
-            id: resourceId,
-            filters: dynamicResourceFilters[resourceId] || [],
-            group: resource.group || 'core',
-            version: resource.version || 'v1',
-            kind: resource.kind,
-            apiPath: resource.apiPath || '/k8s/api/v1',
-            name: resource.name
-          };
-        });
-      
-      resources.push(...additionalResources);
+  createEffect(() => {        
+    if (!apiResources()) {
+      return;
     }
+
+    const resources : K8sResource[] = apiResources()!
+      .map(resource => {
+        const resourceId = `${resource.group || 'core'}/${resource.kind}`;
+        return {
+          id: resourceId,
+          filters: dynamicResourceFilters[resourceId] || [],
+          group: resource.group || 'core',
+          version: resource.version || 'v1',
+          kind: resource.kind,
+          apiPath: resource.apiPath || '/k8s/api/v1',
+          name: resource.name
+        };
+      });
 
     setAvailableResources(resources);
   });
@@ -209,7 +197,7 @@ export function Dashboard() {
     }
   };
   
-  // Create filterRegistry dynamically from ResourceTypes
+  // Create filterRegistry dynamically from Available Resources
   createEffect(() => {
     const registry: Record<string, Filter> = {
       "Namespace": namespaceFilter,
