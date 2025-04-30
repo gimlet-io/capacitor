@@ -1,8 +1,7 @@
-// deno-lint-ignore-file jsx-button-has-type
-import { createSignal, createResource, createEffect, untrack, createMemo, onMount } from "solid-js";
+import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
 import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/filterBar/FilterBar.tsx";
-import { ViewBar, ViewService, View, ResourceType } from "../components/viewBar/ViewBar.tsx";
+import { ViewBar, ResourceType } from "../components/viewBar/ViewBar.tsx";
 import type { Pod, Deployment, ServiceWithResources, Kustomization, ArgoCDApplication, Service, DeploymentWithResources } from "../types/k8s.ts";
 import { Show } from "solid-js";
 import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
@@ -18,8 +17,6 @@ export function Dashboard() {
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
-  const [views, setViews] = createSignal<View[]>([]);
-  const [selectedView, setSelectedView] = createSignal<string>('');
 
   const ResourceTypes = [
     { value: 'argocd', label: 'ArgoCD', filters: [argocdApplicationSyncFilter, argocdApplicationHealthFilter] },
@@ -75,55 +72,23 @@ export function Dashboard() {
       return resource.metadata.name.toLowerCase().includes(value.toLowerCase());
     }
   };
-
-  // Central registry for all available filters - moved after filter definitions
-  const filterRegistry: Record<string, Filter> = {
-    "Namespace": namespaceFilter,
-    "ResourceType": resourceTypeFilter,
-    "Name": nameFilter,
-    "PodStatus": podsStatusFilter,
-    "Ready": kustomizationReadyFilter,
-    "Sync Status": argocdApplicationSyncFilter,
-    "Health": argocdApplicationHealthFilter
-  };
   
-  // Initialize view service
-  const viewService = new ViewService(filterRegistry);
+  // Create filterRegistry dynamically from ResourceTypes
+  const filterRegistry = createMemo<Record<string, Filter>>(() => {
+    const registry: Record<string, Filter> = {
+      "Namespace": namespaceFilter,
+      "Name": nameFilter,
+      "ResourceType": resourceTypeFilter,
+    };
 
-  // Load views on mount
-  onMount(() => {
-    const loadedViews = viewService.loadViews();
-    setViews(loadedViews);
-    if (loadedViews.length > 0) {
-      setSelectedView(loadedViews[0].id);
-    }
+    ResourceTypes.forEach(type => {
+      type.filters.forEach(filter => {
+        registry[filter.name] = filter;
+      });
+    });
+
+    return registry;
   });
-  
-  // Handle view selection
-  const handleViewSelect = (viewId: string) => {
-    setSelectedView(viewId);
-  };
-  
-  // Create a new view
-  const handleViewCreate = (viewName: string, ns: string, resType: ResourceType, filters: ActiveFilter[]) => {
-    const newView = viewService.createView(viewName, ns, resType, filters);
-    const updatedViews = [...views(), newView];
-    setViews(updatedViews);
-    viewService.saveCustomViews(updatedViews);
-    setSelectedView(newView.id);
-  };
-  
-  // Delete a view
-  const handleViewDelete = (viewId: string) => {
-    const updatedViews = views().filter(view => view.id !== viewId);
-    setViews(updatedViews);
-    viewService.saveCustomViews(updatedViews);
-    // Set selection to first system view
-    const systemViews = viewService.getSystemViews();
-    if (systemViews.length > 0) {
-      setSelectedView(systemViews[0].id);
-    }
-  };
 
   const handleFilterChange = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
@@ -143,6 +108,12 @@ export function Dashboard() {
          rtFilter.value === 'argocd')) {
       setResourceType(rtFilter.value);
     }
+  };
+
+  const updateFilters = (ns: string, resType: ResourceType, filters: ActiveFilter[]) => {
+    setNamespace(ns);
+    setResourceType(resType);
+    setActiveFilters(filters);
   };
 
   // Update active filters when namespace or resourceType changes
@@ -185,29 +156,6 @@ export function Dashboard() {
       setNamespace("flux-system");
     } else {
       setNamespace(namespaces()![0]);
-    }
-  });
-
-  // Apply view when selected
-  createEffect(() => {
-    const viewId = selectedView();
-    const view = views().find(v => v.id === viewId);
-    
-    if (view) {
-      setNamespace(view.namespace);
-      setResourceType(view.resourceType);
-      
-      untrack(() => {
-        // For custom views with saved filters, apply all those filters
-        if (!view.isSystem && view.filters && view.filters.length > 0) {
-          setActiveFilters(view.filters);
-        } else {
-          // For system views, only keep namespace and resource type filters
-          const newFilters = activeFilters()
-            .filter(f => f.filter.name === "Namespace" || f.filter.name === "ResourceType");
-          setActiveFilters(newFilters);
-        }
-      });
     }
   });
 
@@ -344,63 +292,12 @@ export function Dashboard() {
     namespaceFilter.options = namespaceOptions();
   });
 
-  // Update the current custom view whenever active filters change
-  createEffect(() => {
-    const viewId = selectedView();
-    const currentFilters = activeFilters();
-    const currentNamespace = namespace();
-    const currentResourceType = resourceType();
-    
-    // Use untrack to avoid circular dependency 
-    untrack(() => {
-      const view = views().find(v => v.id === viewId);
-      
-      // Only update non-system views
-      if (view && !view.isSystem) {
-        // Check if any properties have actually changed before updating
-        const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
-        const namespaceChanged = view.namespace !== currentNamespace;
-        const resourceTypeChanged = view.resourceType !== currentResourceType;
-        
-        // Only proceed if something has changed
-        if (filtersChanged || namespaceChanged || resourceTypeChanged) {
-          // Update this view with current filters and settings
-          const updatedView: View = {
-            ...view,
-            namespace: currentNamespace || 'all-namespaces',
-            resourceType: currentResourceType,
-            filters: [...currentFilters]
-          };
-          
-          // Update the view in the views list
-          const updatedViews = views().map(v => 
-            v.id === updatedView.id ? updatedView : v
-          );
-          
-          setViews(updatedViews);
-          viewService.saveCustomViews(updatedViews);
-          console.log('Custom view updated and saved:', updatedView.label);
-        }
-      }
-    });
-  });
-
-  // Set the default title and update it based on the selected view
-  createEffect(() => {
-    const defaultTitle = "Capacitor";
-    const currentView = views().find(view => view.id === selectedView());
-    document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
-  });
-
   return (
     <div class="layout">
       <main class="main-content">
         <ViewBar
-          views={views()}
-          selectedViewId={selectedView()}
-          onViewSelect={handleViewSelect}
-          onViewCreate={handleViewCreate}
-          onViewDelete={handleViewDelete}
+          filterRegistry={filterRegistry()}
+          updateFilters={updateFilters}
           watchStatus={watchStatus()}
           namespace={namespace() || 'all-namespaces'}
           resourceType={resourceType()}

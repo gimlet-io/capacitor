@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, createEffect, onMount, untrack } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 
 // View Types
@@ -124,7 +124,6 @@ export class ViewService {
       });
       
       localStorage.setItem('customViews', JSON.stringify(serializableViews));
-      console.log('Serialized and saved custom views:', serializableViews);
     } catch (error) {
       console.error('Error saving custom views:', error);
     }
@@ -146,24 +145,127 @@ export class ViewService {
   }
 }
 
-// ViewBar component
 export interface ViewBarProps {
-  views: View[];
-  selectedViewId: string;
-  onViewSelect: (viewId: string) => void;
-  onViewCreate: (viewName: string, namespace: string, resourceType: ResourceType, filters: ActiveFilter[]) => void;
-  onViewDelete: (viewId: string) => void;
+  filterRegistry: Record<string, Filter>;
   watchStatus?: string;
   namespace: string;
   resourceType: ResourceType;
   activeFilters: ActiveFilter[];
+  updateFilters: (namespace: string, resourceType: ResourceType, filters: ActiveFilter[]) => void;
 }
 
 export function ViewBar(props: ViewBarProps) {
   const [showNewViewForm, setShowNewViewForm] = createSignal(false);
   const [newViewName, setNewViewName] = createSignal("");
   const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
+  const [views, setViews] = createSignal<View[]>([]);
+  const [selectedView, setSelectedView] = createSignal<string>('');
   let newViewNameInput: HTMLInputElement | undefined;
+  
+  const viewService = new ViewService(props.filterRegistry);
+
+  // Load views on mount
+  onMount(() => {
+    const loadedViews = viewService.loadViews();
+    setViews(loadedViews);
+    if (loadedViews.length > 0) {
+      handleViewSelect(loadedViews[0].id);
+    }
+  });
+  
+  const handleViewSelect = (viewId: string) => {
+    setSelectedView(viewId);
+    const view = views().find(v => v.id === viewId);
+    if (view) {
+      // Notify parent component of view change
+      props.updateFilters(
+        view.namespace,
+        view.resourceType,
+        view.filters || []
+      );
+    }
+  };
+  
+  const handleViewCreate = (viewName: string) => {
+    if (!viewName.trim()) return;
+    
+    const newView = viewService.createView(
+      viewName,
+      props.namespace,
+      props.resourceType,
+      props.activeFilters
+    );
+    
+    const updatedViews = [...views(), newView];
+    setViews(updatedViews);
+    viewService.saveCustomViews(updatedViews);
+    handleViewSelect(newView.id);
+  };
+  
+  const handleViewDelete = (viewId: string) => {
+    const updatedViews = views().filter(view => view.id !== viewId);
+    setViews(updatedViews);
+    viewService.saveCustomViews(updatedViews);
+    
+    // Set selection to first system view
+    const systemViews = viewService.getSystemViews();
+    if (systemViews.length > 0) {
+      handleViewSelect(systemViews[0].id);
+    }
+  };
+
+  // Update the current custom view whenever active filters change
+  createEffect(() => {
+    let viewId: string | undefined;
+    untrack(() => {
+      viewId = selectedView();
+    })
+    
+    if (!viewId) {
+      return;
+    }
+
+    const currentFilters = props.activeFilters;
+    const currentNamespace = props.namespace;
+    const currentResourceType = props.resourceType;
+    
+    const view = views().find(v => v.id === viewId);
+    
+    if (!view || view.isSystem) {
+      return;
+    }
+    
+    // Check if any properties have actually changed before updating
+    const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
+    const namespaceChanged = view.namespace !== currentNamespace;
+    const resourceTypeChanged = view.resourceType !== currentResourceType;
+    
+    // Only proceed if something has changed
+    if (filtersChanged || namespaceChanged || resourceTypeChanged) {
+      // Update this view with current filters and settings
+      const updatedView: View = {
+        ...view,
+        namespace: currentNamespace,
+        resourceType: currentResourceType,
+        filters: [...currentFilters]
+      };
+      
+      // Update the view in the views list
+      const updatedViews = views().map(v => 
+        v.id === updatedView.id ? updatedView : v
+      );
+      
+      setViews(updatedViews);
+      viewService.saveCustomViews(updatedViews);
+    }
+  });
+
+  // Update document title based on selected view
+  createEffect(() => {
+    const defaultTitle = "Capacitor";
+    const currentView = views().find(view => view.id === selectedView());
+    document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
+  });
 
   const handleNewViewButtonClick = () => {
     setShowNewViewForm(true);
@@ -182,12 +284,7 @@ export function ViewBar(props: ViewBarProps) {
   const createNewView = () => {
     if (!newViewName().trim()) return;
     
-    props.onViewCreate(
-      newViewName(),
-      props.namespace,
-      props.resourceType,
-      props.activeFilters
-    );
+    handleViewCreate(newViewName());
     
     setShowNewViewForm(false);
     setNewViewName("");
@@ -202,15 +299,15 @@ export function ViewBar(props: ViewBarProps) {
     <>
       <div class="views">
         <div class="view-buttons">
-          <For each={props.views}>
+          <For each={views()}>
             {(view) => (
               <div class="view-pill-container">
                 <button
-                  class={`view-pill ${props.selectedViewId === view.id ? 'selected' : ''}`}
-                  onClick={() => props.onViewSelect(view.id)}
+                  class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
+                  onClick={() => handleViewSelect(view.id)}
                 >
                   <span>{view.label}</span>
-                  {props.selectedViewId === view.id && !view.isSystem && (
+                  {selectedView() === view.id && !view.isSystem && (
                     <span 
                       class="view-delete" 
                       title="Delete view"
@@ -289,7 +386,7 @@ export function ViewBar(props: ViewBarProps) {
             <button 
               class="delete-confirm" 
               onClick={() => {
-                props.onViewDelete(showDeleteConfirmation()!);
+                handleViewDelete(showDeleteConfirmation()!);
                 setShowDeleteConfirmation(null);
               }}
             >
