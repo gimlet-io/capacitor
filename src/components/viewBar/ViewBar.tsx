@@ -1,5 +1,6 @@
 import { createSignal, For, Show, createEffect, onMount, untrack } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
+import type { Accessor } from "solid-js";
 
 export interface ActiveFilter {
   filter: Filter;
@@ -54,27 +55,47 @@ const SYSTEM_VIEWS: View[] = [
   }
 ];
 
-// ViewService class
-export class ViewService {
-  private filterRegistry: Record<string, any>;
+export interface ViewBarProps {
+  filterRegistry: Accessor<Record<string, Filter>>;
+  watchStatus?: string;
+  namespace: string;
+  resourceType: string;
+  activeFilters: ActiveFilter[];
+  updateFilters: (namespace: string, resourceType: string, filters: ActiveFilter[]) => void;
+}
+
+export function ViewBar(props: ViewBarProps) {
+  const [showNewViewForm, setShowNewViewForm] = createSignal(false);
+  const [newViewName, setNewViewName] = createSignal("");
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
+  const [views, setViews] = createSignal<View[]>([]);
+  const [selectedView, setSelectedView] = createSignal<string>('');
+  let newViewNameInput: HTMLInputElement | undefined;
+
+  // Reload views when filterRegistry changes
+  createEffect(() => {
+    const registry = props.filterRegistry();
+    if (Object.keys(registry).length > 0) {
+      loadViews();
+    }
+  });
   
-  constructor(filterRegistry: Record<string, any>) {
-    this.filterRegistry = filterRegistry;
-  }
-  
-  loadViews(): View[] {
+  // Function to load views
+  const loadViews = () => {
     try {
       const storedViews = localStorage.getItem('customViews');
+      let customViews: View[] = [];
+      
       if (storedViews) {
         const serializedViews = JSON.parse(storedViews) as SerializableView[];
         
         // Reconstruct views with proper filter functions
-        const customViews = serializedViews.map(serializedView => {
-          if (serializedView.filters) {
+        customViews = serializedViews.map(serializedView => {
+          if (serializedView.filters) {            
             // Restore filter functions for each filter reference
             const restoredFilters = serializedView.filters
               .map((sf: SerializableFilter) => {
-                const filterDef = this.filterRegistry[sf.filterId];
+                const filterDef = props.filterRegistry()[sf.filterId];
                 if (filterDef) {
                   return {
                     filter: filterDef,
@@ -92,19 +113,28 @@ export class ViewService {
           }
           return serializedView;
         }) as View[];
-        
-        return [...SYSTEM_VIEWS, ...customViews];
+      }
+      
+      const loadedViews = [...SYSTEM_VIEWS, ...customViews];
+      setViews(loadedViews);
+      
+      // Maintain the current selection if possible or select the first view
+      const currentViewId = selectedView();
+      const viewExists = loadedViews.some(v => v.id === currentViewId);
+      
+      if (!viewExists && loadedViews.length > 0) {
+        handleViewSelect(loadedViews[0].id);
       }
     } catch (error) {
-      console.error('Error loading custom views:', error);
+      console.error('Error loading views:', error);
+      setViews([...SYSTEM_VIEWS]);
     }
-    
-    return [...SYSTEM_VIEWS];
-  }
+  };
   
-  saveCustomViews(views: View[]): void {
+  const saveCustomViews = (viewsToSave: View[]) => {
+    console.log('Saving views:', viewsToSave);
     try {
-      const customViews = views.filter(view => !view.isSystem);
+      const customViews = viewsToSave.filter(view => !view.isSystem);
       
       // Convert views to a serializable format
       const serializableViews = customViews.map(view => {
@@ -124,9 +154,9 @@ export class ViewService {
     } catch (error) {
       console.error('Error saving custom views:', error);
     }
-  }
+  };
   
-  createView(label: string, namespace: string, resourceType: string, filters: ActiveFilter[]): View {
+  const createView = (label: string, namespace: string, resourceType: string, filters: ActiveFilter[]) => {
     const id = `custom-${Date.now()}`;
     return {
       id,
@@ -135,40 +165,7 @@ export class ViewService {
       resourceType,
       filters: [...filters]
     };
-  }
-  
-  getSystemViews(): View[] {
-    return [...SYSTEM_VIEWS];
-  }
-}
-
-export interface ViewBarProps {
-  filterRegistry: Record<string, Filter>;
-  watchStatus?: string;
-  namespace: string;
-  resourceType: string;
-  activeFilters: ActiveFilter[];
-  updateFilters: (namespace: string, resourceType: string, filters: ActiveFilter[]) => void;
-}
-
-export function ViewBar(props: ViewBarProps) {
-  const [showNewViewForm, setShowNewViewForm] = createSignal(false);
-  const [newViewName, setNewViewName] = createSignal("");
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
-  const [views, setViews] = createSignal<View[]>([]);
-  const [selectedView, setSelectedView] = createSignal<string>('');
-  let newViewNameInput: HTMLInputElement | undefined;
-  
-  const viewService = new ViewService(props.filterRegistry);
-
-  // Load views on mount
-  onMount(() => {
-    const loadedViews = viewService.loadViews();
-    setViews(loadedViews);
-    if (loadedViews.length > 0) {
-      handleViewSelect(loadedViews[0].id);
-    }
-  });
+  };
   
   const handleViewSelect = (viewId: string) => {
     setSelectedView(viewId);
@@ -186,7 +183,7 @@ export function ViewBar(props: ViewBarProps) {
   const handleViewCreate = (viewName: string) => {
     if (!viewName.trim()) return;
     
-    const newView = viewService.createView(
+    const newView = createView(
       viewName,
       props.namespace,
       props.resourceType,
@@ -195,17 +192,17 @@ export function ViewBar(props: ViewBarProps) {
     
     const updatedViews = [...views(), newView];
     setViews(updatedViews);
-    viewService.saveCustomViews(updatedViews);
+    saveCustomViews(updatedViews);
     handleViewSelect(newView.id);
   };
   
   const handleViewDelete = (viewId: string) => {
     const updatedViews = views().filter(view => view.id !== viewId);
     setViews(updatedViews);
-    viewService.saveCustomViews(updatedViews);
+    saveCustomViews(updatedViews);
     
     // Set selection to first system view
-    const systemViews = viewService.getSystemViews();
+    const systemViews = SYSTEM_VIEWS;
     if (systemViews.length > 0) {
       handleViewSelect(systemViews[0].id);
     }
@@ -214,19 +211,18 @@ export function ViewBar(props: ViewBarProps) {
   // Update the current custom view whenever active filters change
   createEffect(() => {
     let viewId: string | undefined;
+    let view: View | undefined;
     untrack(() => {
       viewId = selectedView();
+      if (!viewId) {
+        return;
+      }
+      view = views().find(v => v.id === viewId);
     })
-    
-    if (!viewId) {
-      return;
-    }
 
     const currentFilters = props.activeFilters;
     const currentNamespace = props.namespace;
     const currentResourceType = props.resourceType;
-    
-    const view = views().find(v => v.id === viewId);
     
     if (!view || view.isSystem) {
       return;
@@ -253,7 +249,7 @@ export function ViewBar(props: ViewBarProps) {
       );
       
       setViews(updatedViews);
-      viewService.saveCustomViews(updatedViews);
+      saveCustomViews(updatedViews);
     }
   });
 

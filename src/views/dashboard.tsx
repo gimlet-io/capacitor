@@ -1,22 +1,14 @@
 import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
-import { FilterBar, Filter, ActiveFilter, FilterOption } from "../components/filterBar/FilterBar.tsx";
-import { ViewBar } from "../components/viewBar/ViewBar.tsx";
+import { FilterBar, Filter, FilterOption } from "../components/filterBar/FilterBar.tsx";
+import { ViewBar, ActiveFilter } from "../components/viewBar/ViewBar.tsx";
 import type { 
-  Pod, 
-  Deployment, 
-  ServiceWithResources, 
-  Kustomization, 
-  ArgoCDApplication, 
-  Service, 
-  DeploymentWithResources,
   ApiResource,
   ApiResourceList,
   ApiGroupList,
   K8sResource
 } from "../types/k8s.ts";
 import { Show } from "solid-js";
-import { updateServiceMatchingResources, updateDeploymentMatchingResources } from "../utils/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { podColumns, podsStatusFilter } from "../components/resourceList/PodList.tsx";
@@ -31,63 +23,17 @@ export function Dashboard() {
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
   const [availableResources, setAvailableResources] = createSignal<K8sResource[]>([]);
+  const [filterRegistry, setFilterRegistry] = createSignal<Record<string, Filter>>({});
 
   // Resource state
-  const [pods, setPods] = createSignal<Pod[]>([]);
-  const [deployments, setDeployments] = createSignal<DeploymentWithResources[]>([]);
-  const [services, setServices] = createSignal<ServiceWithResources[]>([]);
-  const [kustomizations, setKustomizations] = createSignal<Kustomization[]>([]);
-  const [applications, setApplications] = createSignal<ArgoCDApplication[]>([]);
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
 
-  // Define core resource mappings (instead of baseResourceTypes)
-  const coreResourceMappings = [
-    { 
-      id: 'core/Pod',
-      filters: [podsStatusFilter],
-      kind: 'Pod',
-      group: 'core',
-      version: 'v1',
-      apiPath: '/k8s/api/v1',
-      name: 'pods'
-    },
-    { 
-      id: 'core/Service',
-      kind: 'Service', 
-      group: 'core',
-      version: 'v1',
-      apiPath: '/k8s/api/v1',
-      filters: [],
-      name: 'services'
-    },
-    { 
-      id: 'apps/Deployment',
-      kind: 'Deployment', 
-      group: 'apps',
-      version: 'v1',
-      apiPath: '/k8s/apis/apps/v1',
-      filters: [],
-      name: 'deployments'
-    },
-    { 
-      id: 'kustomize.toolkit.fluxcd.io/Kustomization',
-      kind: 'Kustomization', 
-      group: 'kustomize.toolkit.fluxcd.io',
-      version: 'v1',
-      apiPath: '/k8s/apis/kustomize.toolkit.fluxcd.io/v1',
-      filters: [kustomizationReadyFilter],
-      name: 'kustomizations'
-    },
-    { 
-      id: 'argoproj.io/Application',
-      kind: 'Application', 
-      group: 'argoproj.io',
-      version: 'v1alpha1',
-      apiPath: '/k8s/apis/argoproj.io/v1alpha1',
-      filters: [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
-      name: 'applications'
-    }
-  ];
+  // Define dynamic resource filters
+  const dynamicResourceFilters: Record<string, Filter[]> = {
+    'kustomize.toolkit.fluxcd.io/Kustomization': [kustomizationReadyFilter],
+    'argoproj.io/Application': [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
+    'core/Pod': [podsStatusFilter]
+  };
 
   // Fetch available API resources
   const [apiResources] = createResource(async () => {
@@ -174,11 +120,9 @@ export function Dashboard() {
     }
   });
 
-  // Create the ResourceTypes dynamically based on API resources
-  const ResourceTypes = createMemo(() => {
-    // Start with our core resources that we want to prioritize
-    const resources = [...coreResourceMappings];
-    
+  createEffect(() => {
+    const resources: K8sResource[] = [];
+        
     if (apiResources()) {
       // Add additional resources from the API
       const additionalResources = apiResources()!
@@ -191,22 +135,23 @@ export function Dashboard() {
           // Filter out some system resources we don't want to show
           !['componentstatuses', 'bindings', 'endpoints'].includes(resource.name)
         )
-        .map(resource => ({
-          id: `${resource.group || 'core'}/${resource.kind}`,
-          filters: [] as Filter[],
-          group: resource.group || 'core',
-          version: resource.version || 'v1',
-          kind: resource.kind,
-          apiPath: resource.apiPath || '/k8s/api/v1',
-          name: resource.name
-        }));
+        .map(resource => {
+          const resourceId = `${resource.group || 'core'}/${resource.kind}`;
+          return {
+            id: resourceId,
+            filters: dynamicResourceFilters[resourceId] || [],
+            group: resource.group || 'core',
+            version: resource.version || 'v1',
+            kind: resource.kind,
+            apiPath: resource.apiPath || '/k8s/api/v1',
+            name: resource.name
+          };
+        });
       
       resources.push(...additionalResources);
     }
 
-    console.log('resources', resources);
     setAvailableResources(resources);
-    return resources;
   });
 
   const [namespaces] = createResource(async () => {
@@ -235,7 +180,7 @@ export function Dashboard() {
   const resourceTypeFilter: Filter = {
     name: "ResourceType",
     type: "select",
-    options: coreResourceMappings.map(type => ({ value: type.id, label: type.kind })),
+    options: availableResources().map(type => ({ value: type.id, label: type.kind })),
     multiSelect: false,
     filterFunction: () => true,
     renderOption: (option) => {
@@ -265,20 +210,20 @@ export function Dashboard() {
   };
   
   // Create filterRegistry dynamically from ResourceTypes
-  const filterRegistry = createMemo<Record<string, Filter>>(() => {
+  createEffect(() => {
     const registry: Record<string, Filter> = {
       "Namespace": namespaceFilter,
       "Name": nameFilter,
       "ResourceType": resourceTypeFilter,
     };
 
-    ResourceTypes().forEach(type => {
+    availableResources().forEach(type => {
       type.filters.forEach(filter => {
         registry[filter.name] = filter;
       });
     });
 
-    return registry;
+    setFilterRegistry(registry);
   });
 
   const handleFilterChange = (filters: ActiveFilter[]) => {
@@ -292,11 +237,7 @@ export function Dashboard() {
     
     const rtFilter = filters.find(f => f.filter.name === "ResourceType");
     if (rtFilter) {
-      // Check if it's a valid resource type
-      const isValidResourceType = ResourceTypes().some(rt => rt.id === rtFilter.value);
-      if (isValidResourceType) {
-        setResourceType(rtFilter.value);
-      }
+      setResourceType(rtFilter.value);
     }
   };
 
@@ -362,7 +303,6 @@ export function Dashboard() {
 
   const setupWatches = (ns: string | undefined, resourceFilter: string) => {
     if (!ns) return;
-    console.log('Setting up watches for namespace:', ns, 'resource type:', resourceFilter);
 
     // Cancel existing watches
     untrack(() => {
@@ -370,112 +310,15 @@ export function Dashboard() {
     });
 
     // Clear existing resources
-    setPods(() => []);
-    setDeployments(() => []);
-    setServices(() => []);
-    setKustomizations(() => []);
-    setApplications(() => []);
     setDynamicResources(() => ({}));
 
     const watches = [];
-
     const namespacePath = ns === 'all-namespaces' ? '' : `/namespaces/${ns}`;
 
-    // Standard resource types
-    if (resourceFilter === 'core/Pod' || resourceFilter === 'core/Service' || resourceFilter === 'apps/Deployment') {
-      watches.push(
-        {
-          path: `/k8s/api/v1${namespacePath}/pods?watch=true`,
-          callback: (event: { type: string; object: Pod }) => {
-            if (event.type === 'ADDED') {
-              setPods(prev => [...prev, event.object]);
-              setDeployments(prev => prev.map(deployment => updateDeploymentMatchingResources(deployment, pods())));
-              setServices(prev => prev.map(service => updateServiceMatchingResources(service, [...pods(), event.object], deployments())));
-            } else if (event.type === 'MODIFIED') {
-              setPods(prev => prev.map(p => p.metadata.name === event.object.metadata.name ? event.object : p));
-              setDeployments(prev => prev.map(deployment => updateDeploymentMatchingResources(deployment, pods())));
-              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-            } else if (event.type === 'DELETED') {
-              setPods(prev => prev.filter(p => p.metadata.name !== event.object.metadata.name));
-              setDeployments(prev => prev.map(deployment => updateDeploymentMatchingResources(deployment, pods())));
-              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-            }
-          }
-        },
-        {
-          path: `/k8s/apis/apps/v1${namespacePath}/deployments?watch=true`,
-          callback: (event: { type: string; object: Deployment }) => {
-            if (event.type === 'ADDED') {
-              setDeployments(prev => [...prev, updateDeploymentMatchingResources(event.object, pods())]);
-              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), [...deployments(), event.object])));
-            } else if (event.type === 'MODIFIED') {
-              setDeployments(prev => prev.map(d => d.metadata.name === event.object.metadata.name ? updateDeploymentMatchingResources(event.object, pods()) : d));
-              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-            } else if (event.type === 'DELETED') {
-              setDeployments(prev => prev.filter(d => d.metadata.name !== event.object.metadata.name));
-              setServices(prev => prev.map(service => updateServiceMatchingResources(service, pods(), deployments())));
-            }
-          }
-        },
-        {
-          path: `/k8s/api/v1${namespacePath}/services?watch=true`,
-          callback: (event: { type: string; object: Service }) => {
-            if (event.type === 'ADDED') {
-              setServices(prev => [...prev, updateServiceMatchingResources(event.object, pods(), deployments())]);
-            } else if (event.type === 'MODIFIED') {
-              setServices(prev => prev.map(s => 
-                s.metadata.name === event.object.metadata.name 
-                  ? updateServiceMatchingResources(event.object, pods(), deployments())
-                  : s
-              ));
-            } else if (event.type === 'DELETED') {
-              setServices(prev => prev.filter(s => s.metadata.name !== event.object.metadata.name));
-            }
-          }
-        }
-      );
-    }
-
-    if (resourceFilter === 'kustomize.toolkit.fluxcd.io/Kustomization') {
-      watches.push(
-        {
-          path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1${namespacePath}/kustomizations?watch=true`,
-          callback: (event: { type: string; object: Kustomization }) => {
-            if (event.type === 'ADDED') {
-              setKustomizations(prev => [...prev, event.object]);
-            } else if (event.type === 'MODIFIED') {
-              setKustomizations(prev => prev.map(k => k.metadata.name === event.object.metadata.name ? event.object : k));
-            } else if (event.type === 'DELETED') {
-              setKustomizations(prev => prev.filter(k => k.metadata.name !== event.object.metadata.name));
-            }
-          }
-        }
-      );
-    }
-
-    if (resourceFilter === 'argoproj.io/Application') {
-      watches.push(
-        {
-          path: `/k8s/apis/argoproj.io/v1alpha1${namespacePath}/applications?watch=true`,
-          callback: (event: { type: string; object: ArgoCDApplication }) => {
-            if (event.type === 'ADDED') {
-              setApplications(prev => [...prev, event.object]);
-            } else if (event.type === 'MODIFIED') {
-              setApplications(prev => prev.map(a => a.metadata.name === event.object.metadata.name ? event.object : a));
-            } else if (event.type === 'DELETED') {
-              setApplications(prev => prev.filter(a => a.metadata.name !== event.object.metadata.name));
-            }
-          }
-        }
-      );
-    }
-
-    // Dynamic resource watch
+    // Dynamic resource watch for all resources
     const selectedResource = availableResources().find(res => res.id === resourceFilter);
     
-    if (selectedResource && 
-        !['core/Pod', 'core/Service', 'apps/Deployment', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(resourceFilter)) {
-      
+    if (selectedResource) {
       const apiPath = selectedResource.apiPath;
       const resourceName = selectedResource.name || resourceFilter;
       
@@ -530,7 +373,7 @@ export function Dashboard() {
 
   // Update the options when ResourceTypes changes
   createEffect(() => {
-    resourceTypeFilter.options = ResourceTypes().map(type => ({
+    resourceTypeFilter.options = availableResources().map(type => ({
       value: type.id,
       label: type.kind
     }));
@@ -540,7 +383,7 @@ export function Dashboard() {
     <div class="layout">
       <main class="main-content">
         <ViewBar
-          filterRegistry={filterRegistry()}
+          filterRegistry={filterRegistry}
           updateFilters={updateFilters}
           watchStatus={watchStatus()}
           namespace={namespace() || 'all-namespaces'}
@@ -549,45 +392,47 @@ export function Dashboard() {
         />
         
         <FilterBar 
-          filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(ResourceTypes().find(t => t.id === resourceType())?.filters || [])]}
+          filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(availableResources().find(t => t.id === resourceType())?.filters || [])]}
           activeFilters={activeFilters()}
           onFilterChange={handleFilterChange}
         />
 
         <section class="resource-section full-width">
-          <Show when={resourceType() === 'core/Service'}>
-            <ServiceList 
-              services={services()}
+          {/* Special rendering for known resource types */}
+          <Show when={resourceType() === 'core/Pod'}>
+            <ResourceList 
+              resources={dynamicResources()['core/Pod'] || []} 
+              columns={podColumns}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'apps/Deployment'}>
             <DeploymentList 
-              deployments={deployments()}
+              deployments={dynamicResources()['apps/Deployment'] || []}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
-          <Show when={resourceType() === 'core/Pod'}>
-            <ResourceList 
-              resources={pods()} 
-              columns={podColumns}
+          <Show when={resourceType() === 'core/Service'}>
+            <ServiceList 
+              services={dynamicResources()['core/Service'] || []}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
             <FluxResourceList 
-              kustomizations={kustomizations()}
+              kustomizations={dynamicResources()['kustomize.toolkit.fluxcd.io/Kustomization'] || []}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'argoproj.io/Application'}>
             <ArgoCDResourceList 
-              applications={applications()}
+              applications={dynamicResources()['argoproj.io/Application'] || []}
               activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
             />
           </Show>
           
-          <Show when={!['core/Pod', 'core/Service', 'apps/Deployment', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(resourceType())}>
+          {/* Default rendering for other resource types */}
+          <Show when={!['core/Pod', 'apps/Deployment', 'core/Service', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(resourceType())}>
             <ResourceList 
               resources={dynamicResources()[resourceType()] || []} 
               columns={[
