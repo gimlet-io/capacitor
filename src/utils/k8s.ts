@@ -25,10 +25,11 @@ export const updateServiceMatchingResources = (service: Service, allPods: Pod[],
   };
 };
 
-export const updateDeploymentMatchingResources = (deployment: Deployment, allPods: Pod[]): DeploymentWithResources => {
+export const updateDeploymentMatchingResources = (deployment: Deployment, allPods: Pod[], replicaSets = []): DeploymentWithResources => {
   return {
     ...deployment,
     pods: getDeploymentMatchingPods(deployment, allPods),
+    replicaSets
   };
 };
 
