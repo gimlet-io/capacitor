@@ -1,6 +1,8 @@
+// deno-lint-ignore-file jsx-button-has-type
 import { createSignal, For, Show, createEffect, untrack } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
+import type { K8sResource } from "../../types/k8s.ts";
 
 export interface ActiveFilter {
   filter: Filter;
@@ -14,6 +16,7 @@ export interface View {
   resourceType: string;
   isSystem?: boolean;
   filters?: ActiveFilter[];
+  namespaced?: boolean;
 }
 
 interface SerializableFilter {
@@ -28,6 +31,7 @@ interface SerializableView {
   resourceType: string;
   isSystem?: boolean;
   filters?: SerializableFilter[];
+  namespaced?: boolean;
 }
 
 // System views definition
@@ -37,21 +41,24 @@ const SYSTEM_VIEWS: View[] = [
     label: 'Pods',
     namespace: 'flux-system',
     resourceType: 'core/Pod',
-    isSystem: true
+    isSystem: true,
+    namespaced: true
   },
   { 
     id: 'fluxcd',
     label: 'FluxCD',
     namespace: 'all-namespaces',
     resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
-    isSystem: true
+    isSystem: true,
+    namespaced: true
   },
   { 
     id: 'argocd',
     label: 'ArgoCD',
     namespace: 'all-namespaces',
     resourceType: 'argoproj.io/Application',
-    isSystem: true
+    isSystem: true,
+    namespaced: true
   }
 ];
 
@@ -62,6 +69,7 @@ export interface ViewBarProps {
   resourceType: string;
   activeFilters: ActiveFilter[];
   updateFilters: (namespace: string, resourceType: string, filters: ActiveFilter[]) => void;
+  namespaced: (resource: K8sResource | undefined) => boolean;
 }
 
 export function ViewBar(props: ViewBarProps) {
@@ -156,14 +164,15 @@ export function ViewBar(props: ViewBarProps) {
     }
   };
   
-  const createView = (label: string, namespace: string, resourceType: string, filters: ActiveFilter[]) => {
+  const createView = (label: string, namespace: string, resourceType: string, filters: ActiveFilter[], resourceIsNamespaced: boolean) => {
     const id = `custom-${Date.now()}`;
     return {
       id,
       label,
       namespace,
       resourceType,
-      filters: [...filters]
+      filters: [...filters],
+      namespaced: resourceIsNamespaced
     };
   };
   
@@ -183,11 +192,21 @@ export function ViewBar(props: ViewBarProps) {
   const handleViewCreate = (viewName: string) => {
     if (!viewName.trim()) return;
     
+    // Find the selected resource to determine if it's namespaced
+    const resources = Object.values(props.filterRegistry())
+      .filter(f => f.name === "ResourceType")
+      .flatMap(f => f.options || [])
+      .map(option => ({ id: option.value }));
+    
+    const selectedResource = resources.find(r => r.id === props.resourceType);
+    const resourceIsNamespaced = props.namespaced(selectedResource as K8sResource);
+    
     const newView = createView(
       viewName,
       props.namespace,
       props.resourceType,
-      props.activeFilters
+      props.activeFilters,
+      resourceIsNamespaced
     );
     
     const updatedViews = [...views(), newView];
@@ -218,29 +237,40 @@ export function ViewBar(props: ViewBarProps) {
         return;
       }
       view = views().find(v => v.id === viewId);
-    })
+    });
+
+    if (!view || view.isSystem) {
+      return;
+    }
 
     const currentFilters = props.activeFilters;
     const currentNamespace = props.namespace;
     const currentResourceType = props.resourceType;
     
-    if (!view || view.isSystem) {
-      return;
-    }
+    // Find the selected resource
+    const resources = Object.values(props.filterRegistry())
+      .filter(f => f.name === "ResourceType")
+      .flatMap(f => f.options || [])
+      .map(option => ({ id: option.value }));
+    
+    const selectedResource = resources.find(r => r.id === currentResourceType);
+    const currentNamespaced = props.namespaced(selectedResource as K8sResource);
     
     // Check if any properties have actually changed before updating
     const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
     const namespaceChanged = view.namespace !== currentNamespace;
     const resourceTypeChanged = view.resourceType !== currentResourceType;
+    const namespacedChanged = view.namespaced !== currentNamespaced;
     
     // Only proceed if something has changed
-    if (filtersChanged || namespaceChanged || resourceTypeChanged) {
+    if (filtersChanged || namespaceChanged || resourceTypeChanged || namespacedChanged) {
       // Update this view with current filters and settings
       const updatedView: View = {
         ...view,
         namespace: currentNamespace,
         resourceType: currentResourceType,
-        filters: [...currentFilters]
+        filters: [...currentFilters],
+        namespaced: currentNamespaced
       };
       
       // Update the view in the views list

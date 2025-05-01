@@ -540,4 +540,5 @@ export interface K8sResource {
   kind: string;
   apiPath: string;
   name?: string;
+  namespaced: boolean;
 } 

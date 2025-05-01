@@ -120,28 +120,6 @@ export function Dashboard() {
     }
   });
 
-  createEffect(() => {        
-    if (!apiResources()) {
-      return;
-    }
-
-    const resources : K8sResource[] = apiResources()!
-      .map(resource => {
-        const resourceId = `${resource.group || 'core'}/${resource.kind}`;
-        return {
-          id: resourceId,
-          filters: dynamicResourceFilters[resourceId] || [],
-          group: resource.group || 'core',
-          version: resource.version || 'v1',
-          kind: resource.kind,
-          apiPath: resource.apiPath || '/k8s/api/v1',
-          name: resource.name
-        };
-      });
-
-    setAvailableResources(resources);
-  });
-
   const [namespaces] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
     const data = await response.json();
@@ -163,6 +141,15 @@ export function Dashboard() {
     options: namespaceOptions(),
     multiSelect: false,
     filterFunction: () => true
+  };
+
+  const nameFilter: Filter = {
+    name: "Name",
+    type: "text",
+    placeholder: "Filter by name",
+    filterFunction: (resource: any, value: string) => {
+      return resource.metadata.name.toLowerCase().includes(value.toLowerCase());
+    }
   };
 
   // Create a reactive computed value for the resourceTypeFilter
@@ -190,26 +177,53 @@ export function Dashboard() {
     }
   }));
 
-  const nameFilter: Filter = {
-    name: "Name",
-    type: "text",
-    placeholder: "Filter by name",
-    filterFunction: (resource: any, value: string) => {
-      return resource.metadata.name.toLowerCase().includes(value.toLowerCase());
+  // Update namespaceFilter options when namespaces resource changes
+  createEffect(() => {
+    namespaceFilter.options = namespaceOptions();
+  });
+
+  createEffect(() => {        
+    if (!apiResources()) {
+      return;
     }
-  };
+
+    const resources : K8sResource[] = apiResources()!
+      .map(resource => {
+        const resourceId = `${resource.group || 'core'}/${resource.kind}`;
+        const resourceFilters = [];
+        if (resource.namespaced) {
+          resourceFilters.push(namespaceFilter);
+        }
+        resourceFilters.push(nameFilter);
+        resourceFilters.push(...(dynamicResourceFilters[resourceId] || []));
+
+        return {
+          id: resourceId,
+          filters: resourceFilters,
+          group: resource.group || 'core',
+          version: resource.version || 'v1',
+          kind: resource.kind,
+          apiPath: resource.apiPath || '/k8s/api/v1',
+          name: resource.name,
+          namespaced: resource.namespaced
+        };
+      });
+
+    setAvailableResources(resources);
+  });
   
   // Create filterRegistry dynamically from Available Resources
   createEffect(() => {
     const registry: Record<string, Filter> = {
-      "Namespace": namespaceFilter,
-      "Name": nameFilter,
       "ResourceType": resourceTypeFilter(),
     };
 
+    // Add all filters from all resources to the registry
     availableResources().forEach(type => {
       type.filters.forEach(filter => {
-        registry[filter.name] = filter;
+        if (!registry[filter.name]) {
+          registry[filter.name] = filter;
+        }
       });
     });
 
@@ -223,6 +237,8 @@ export function Dashboard() {
     const nsFilter = filters.find(f => f.filter.name === "Namespace");
     if (nsFilter) {
       setNamespace(nsFilter.value);
+    } else {
+      setNamespace(''); // Clear namespace if filter is removed
     }
     
     const rtFilter = filters.find(f => f.filter.name === "ResourceType");
@@ -237,31 +253,22 @@ export function Dashboard() {
     setActiveFilters(filters);
   };
 
-  // Update active filters when namespace or resourceType changes
+  // Update active filters when resourceType changes
   createEffect(() => {
-    const currentNamespace = namespace();
     const currentResourceType = resourceType();
+    if (!currentResourceType) return;
     
-    if (!currentNamespace || !currentResourceType) return;
+    const selectedResource = availableResources().find(res => res.id === currentResourceType);
+    if (!selectedResource) return;
     
-    // Create new active filters array
-    const newFilters = [...activeFilters()];
+    // Create new active filters array with resource type filter
+    const newFilters = activeFilters().filter(f => f.filter.name !== "ResourceType");
     
-    // Update namespace filter
-    const existingNamespaceIndex = newFilters.findIndex(f => f.filter.name === "Namespace");
-    if (existingNamespaceIndex >= 0) {
-      newFilters[existingNamespaceIndex] = { filter: namespaceFilter, value: currentNamespace };
-    } else {
-      newFilters.push({ filter: namespaceFilter, value: currentNamespace });
-    }
-    
-    // Update resource type filter
-    const existingResourceTypeIndex = newFilters.findIndex(f => f.filter.name === "ResourceType");
-    if (existingResourceTypeIndex >= 0) {
-      newFilters[existingResourceTypeIndex] = { filter: resourceTypeFilter(), value: currentResourceType };
-    } else {
-      newFilters.push({ filter: resourceTypeFilter(), value: currentResourceType });
-    }
+    // Add resource type filter
+    newFilters.push({ 
+      filter: resourceTypeFilter(), 
+      value: currentResourceType 
+    });
     
     // Only update if needed to avoid infinite loops
     if (JSON.stringify(newFilters) !== JSON.stringify(activeFilters())) {
@@ -269,6 +276,7 @@ export function Dashboard() {
     }
   });
 
+  // Set default namespace when namespaces are loaded
   createEffect(() => {
     if (!namespaces()) {
       return;
@@ -292,7 +300,7 @@ export function Dashboard() {
   });
 
   const setupWatches = (ns: string | undefined, resourceFilter: string) => {
-    if (!ns) return;
+    if (!resourceFilter) return;
 
     // Cancel existing watches
     untrack(() => {
@@ -303,18 +311,23 @@ export function Dashboard() {
     setDynamicResources(() => ({}));
 
     const watches = [];
-    const namespacePath = ns === 'all-namespaces' ? '' : `/namespaces/${ns}`;
-
-    // Dynamic resource watch for all resources
     const selectedResource = availableResources().find(res => res.id === resourceFilter);
     
     if (selectedResource) {
       const apiPath = selectedResource.apiPath;
       const resourceName = selectedResource.name || resourceFilter;
+      const isNamespaced = selectedResource.namespaced;
+      
+      // Only use namespace path if the resource is namespaced and we have a valid namespace
+      let watchPath = `${apiPath}/${resourceName}?watch=true`;
+      
+      if (isNamespaced && ns && ns !== 'all-namespaces') {
+        watchPath = `${apiPath}/namespaces/${ns}/${resourceName}?watch=true`;
+      }
       
       if (apiPath && resourceName) {
         watches.push({
-          path: `${apiPath}${namespacePath}/${resourceName}?watch=true`,
+          path: watchPath,
           callback: (event: { type: string; object: any }) => {
             if (event.type === 'ADDED') {
               setDynamicResources(prev => {
@@ -356,11 +369,6 @@ export function Dashboard() {
     setWatchControllers(controllers);
   };
 
-  // Update namespaceFilter options when namespaces resource changes
-  createEffect(() => {
-    namespaceFilter.options = namespaceOptions();
-  });
-
   return (
     <div class="layout">
       <main class="main-content">
@@ -371,10 +379,11 @@ export function Dashboard() {
           namespace={namespace() || 'all-namespaces'}
           resourceType={resourceType()}
           activeFilters={activeFilters()}
+          namespaced={(resource) => resource?.namespaced ?? true}
         />
         
         <FilterBar 
-          filters={[namespaceFilter, resourceTypeFilter(), nameFilter, ...(availableResources().find(t => t.id === resourceType())?.filters || [])]}
+          filters={[resourceTypeFilter(), ...(availableResources().find(t => t.id === resourceType())?.filters || [])]}
           activeFilters={activeFilters()}
           onFilterChange={handleFilterChange}
         />
@@ -385,31 +394,31 @@ export function Dashboard() {
             <ResourceList 
               resources={dynamicResources()['core/Pod'] || []} 
               columns={podColumns}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'apps/Deployment'}>
             <DeploymentList 
               deployments={dynamicResources()['apps/Deployment'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'core/Service'}>
             <ServiceList 
               services={dynamicResources()['core/Service'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
             <FluxResourceList 
               kustomizations={dynamicResources()['kustomize.toolkit.fluxcd.io/Kustomization'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
             />
           </Show>
           <Show when={resourceType() === 'argoproj.io/Application'}>
             <ArgoCDResourceList 
               applications={dynamicResources()['argoproj.io/Application'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
             />
           </Show>
           
@@ -434,7 +443,7 @@ export function Dashboard() {
                   accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
                 }
               ]}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "Namespace" && f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
             />
           </Show>
         </section>
