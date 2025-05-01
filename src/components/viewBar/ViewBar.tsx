@@ -2,7 +2,6 @@
 import { createSignal, For, Show, createEffect, untrack } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
-import type { K8sResource } from "../../types/k8s.ts";
 
 export interface ActiveFilter {
   filter: Filter;
@@ -12,11 +11,9 @@ export interface ActiveFilter {
 export interface View {
   id: string;
   label: string;
-  namespace: string;
   resourceType: string;
   isSystem?: boolean;
   filters?: ActiveFilter[];
-  namespaced?: boolean;
 }
 
 interface SerializableFilter {
@@ -27,49 +24,41 @@ interface SerializableFilter {
 interface SerializableView {
   id: string;
   label: string;
-  namespace: string;
   resourceType: string;
   isSystem?: boolean;
   filters?: SerializableFilter[];
-  namespaced?: boolean;
 }
 
-// System views definition
-const SYSTEM_VIEWS: View[] = [
+const SERIALIZED_SYSTEM_VIEWS: SerializableView[] = [
   { 
     id: 'pods',
     label: 'Pods',
-    namespace: 'flux-system',
     resourceType: 'core/Pod',
     isSystem: true,
-    namespaced: true
+    filters: [{ filterId: 'Namespace', value: 'all-namespaces' }]
   },
   { 
     id: 'fluxcd',
     label: 'FluxCD',
-    namespace: 'all-namespaces',
     resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
     isSystem: true,
-    namespaced: true
+    filters: [{ filterId: 'Namespace', value: 'flux-system' }]
   },
   { 
     id: 'argocd',
     label: 'ArgoCD',
-    namespace: 'all-namespaces',
     resourceType: 'argoproj.io/Application',
     isSystem: true,
-    namespaced: true
+    filters: [{ filterId: 'Namespace', value: 'argocd' }]
   }
 ];
 
 export interface ViewBarProps {
   filterRegistry: Accessor<Record<string, Filter>>;
   watchStatus?: string;
-  namespace: string;
   resourceType: string;
   activeFilters: ActiveFilter[];
-  updateFilters: (namespace: string, resourceType: string, filters: ActiveFilter[]) => void;
-  namespaced: (resource: K8sResource | undefined) => boolean;
+  updateFilters: (resourceType: string, filters: ActiveFilter[]) => void;
 }
 
 export function ViewBar(props: ViewBarProps) {
@@ -88,54 +77,62 @@ export function ViewBar(props: ViewBarProps) {
     }
   });
   
-  // Function to load views
+  // Helper function to deserialize views
+  const deserializeViews = (serializedViews: SerializableView[]): View[] => {
+    return serializedViews.map(serializedView => {
+      if (serializedView.filters) {            
+        // Restore filter functions for each filter reference
+        const restoredFilters = serializedView.filters
+          .map((sf: SerializableFilter) => {
+            const filterDef = props.filterRegistry()[sf.filterId];
+            if (filterDef) {
+              return {
+                filter: filterDef,
+                value: sf.value
+              };
+            }
+            return null;
+          })
+          .filter(Boolean) as ActiveFilter[]; // Remove any null filters
+        
+        return { 
+          ...serializedView, 
+          filters: restoredFilters 
+        };
+      }
+      return serializedView;
+    }) as View[];
+  };
+  
   const loadViews = () => {
     try {
+      // First load and deserialize system views
+      const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
+      
+      // Then load custom views from storage
       const storedViews = localStorage.getItem('customViews');
       let customViews: View[] = [];
       
       if (storedViews) {
-        const serializedViews = JSON.parse(storedViews) as SerializableView[];
-        
-        // Reconstruct views with proper filter functions
-        customViews = serializedViews.map(serializedView => {
-          if (serializedView.filters) {            
-            // Restore filter functions for each filter reference
-            const restoredFilters = serializedView.filters
-              .map((sf: SerializableFilter) => {
-                const filterDef = props.filterRegistry()[sf.filterId];
-                if (filterDef) {
-                  return {
-                    filter: filterDef,
-                    value: sf.value
-                  };
-                }
-                return null;
-              })
-              .filter(Boolean) as ActiveFilter[]; // Remove any null filters
-            
-            return { 
-              ...serializedView, 
-              filters: restoredFilters 
-            };
-          }
-          return serializedView;
-        }) as View[];
+        const serializedCustomViews = JSON.parse(storedViews) as SerializableView[];
+        customViews = deserializeViews(serializedCustomViews);
       }
       
-      const loadedViews = [...SYSTEM_VIEWS, ...customViews];
-      setViews(loadedViews);
+      const allViews = [...systemViews, ...customViews];
+      setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
       const currentViewId = selectedView();
-      const viewExists = loadedViews.some(v => v.id === currentViewId);
+      const viewExists = allViews.some(v => v.id === currentViewId);
       
-      if (!viewExists && loadedViews.length > 0) {
-        handleViewSelect(loadedViews[0].id);
+      if (!viewExists && allViews.length > 0) {
+        handleViewSelect(allViews[0].id);
       }
     } catch (error) {
       console.error('Error loading views:', error);
-      setViews([...SYSTEM_VIEWS]);
+      // Even if there's an error, we should still try to load system views
+      const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
+      setViews(systemViews);
     }
   };
   
@@ -164,49 +161,38 @@ export function ViewBar(props: ViewBarProps) {
     }
   };
   
-  const createView = (label: string, namespace: string, resourceType: string, filters: ActiveFilter[], resourceIsNamespaced: boolean) => {
+  const createView = (label: string, resourceType: string, filters: ActiveFilter[]) => {
     const id = `custom-${Date.now()}`;
     return {
       id,
       label,
-      namespace,
       resourceType,
-      filters: [...filters],
-      namespaced: resourceIsNamespaced
+      filters: [...filters]
     };
   };
   
   const handleViewSelect = (viewId: string) => {
     setSelectedView(viewId);
-    const view = views().find(v => v.id === viewId);
+  };
+
+  createEffect(() => {
+    const view = views().find(v => v.id === selectedView());
     if (view) {
       // Notify parent component of view change
       props.updateFilters(
-        view.namespace,
         view.resourceType,
         view.filters || []
       );
     }
-  };
+  });
   
   const handleViewCreate = (viewName: string) => {
     if (!viewName.trim()) return;
     
-    // Find the selected resource to determine if it's namespaced
-    const resources = Object.values(props.filterRegistry())
-      .filter(f => f.name === "ResourceType")
-      .flatMap(f => f.options || [])
-      .map(option => ({ id: option.value }));
-    
-    const selectedResource = resources.find(r => r.id === props.resourceType);
-    const resourceIsNamespaced = props.namespaced(selectedResource as K8sResource);
-    
     const newView = createView(
       viewName,
-      props.namespace,
       props.resourceType,
-      props.activeFilters,
-      resourceIsNamespaced
+      props.activeFilters
     );
     
     const updatedViews = [...views(), newView];
@@ -221,7 +207,7 @@ export function ViewBar(props: ViewBarProps) {
     saveCustomViews(updatedViews);
     
     // Set selection to first system view
-    const systemViews = SYSTEM_VIEWS;
+    const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
     if (systemViews.length > 0) {
       handleViewSelect(systemViews[0].id);
     }
@@ -244,33 +230,19 @@ export function ViewBar(props: ViewBarProps) {
     }
 
     const currentFilters = props.activeFilters;
-    const currentNamespace = props.namespace;
     const currentResourceType = props.resourceType;
-    
-    // Find the selected resource
-    const resources = Object.values(props.filterRegistry())
-      .filter(f => f.name === "ResourceType")
-      .flatMap(f => f.options || [])
-      .map(option => ({ id: option.value }));
-    
-    const selectedResource = resources.find(r => r.id === currentResourceType);
-    const currentNamespaced = props.namespaced(selectedResource as K8sResource);
     
     // Check if any properties have actually changed before updating
     const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
-    const namespaceChanged = view.namespace !== currentNamespace;
     const resourceTypeChanged = view.resourceType !== currentResourceType;
-    const namespacedChanged = view.namespaced !== currentNamespaced;
     
     // Only proceed if something has changed
-    if (filtersChanged || namespaceChanged || resourceTypeChanged || namespacedChanged) {
+    if (filtersChanged || resourceTypeChanged) {
       // Update this view with current filters and settings
       const updatedView: View = {
         ...view,
-        namespace: currentNamespace,
         resourceType: currentResourceType,
-        filters: [...currentFilters],
-        namespaced: currentNamespaced
+        filters: [...currentFilters]
       };
       
       // Update the view in the views list

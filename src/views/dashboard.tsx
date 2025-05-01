@@ -247,10 +247,17 @@ export function Dashboard() {
     }
   };
 
-  const updateFilters = (ns: string, resType: string, filters: ActiveFilter[]) => {
-    setNamespace(ns);
-    setResourceType(resType);
+  const updateFilters = (resourceType: string, filters: ActiveFilter[]) => {
+    setResourceType(resourceType);
     setActiveFilters(filters);
+    
+    // Extract namespace from filters if present
+    const namespaceFilter = filters.find(f => f.filter.name === "Namespace");
+    if (namespaceFilter) {
+      setNamespace(namespaceFilter.value);
+    } else {
+      setNamespace('');
+    }
   };
 
   // Update active filters when resourceType changes
@@ -376,10 +383,8 @@ export function Dashboard() {
           filterRegistry={filterRegistry}
           updateFilters={updateFilters}
           watchStatus={watchStatus()}
-          namespace={namespace() || 'all-namespaces'}
           resourceType={resourceType()}
           activeFilters={activeFilters()}
-          namespaced={(resource) => resource?.namespaced ?? true}
         />
         
         <FilterBar 
