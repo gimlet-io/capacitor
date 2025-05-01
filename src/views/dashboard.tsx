@@ -577,31 +577,31 @@ export function Dashboard() {
             <ResourceList 
               resources={dynamicResources()['core/Pod'] || []} 
               columns={podColumns}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           <Show when={resourceType() === 'apps/Deployment'}>
             <DeploymentList 
               deployments={dynamicResources()['apps/Deployment'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           <Show when={resourceType() === 'core/Service'}>
             <ServiceList 
               services={dynamicResources()['core/Service'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           <Show when={resourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
             <FluxResourceList 
               kustomizations={dynamicResources()['kustomize.toolkit.fluxcd.io/Kustomization'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           <Show when={resourceType() === 'argoproj.io/Application'}>
             <ArgoCDResourceList 
               applications={dynamicResources()['argoproj.io/Application'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           
@@ -626,7 +626,7 @@ export function Dashboard() {
                   accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
                 }
               ]}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType")}
+              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
         </section>

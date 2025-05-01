@@ -137,7 +137,6 @@ export function ViewBar(props: ViewBarProps) {
   };
   
   const saveCustomViews = (viewsToSave: View[]) => {
-    console.log('Saving views:', viewsToSave);
     try {
       const customViews = viewsToSave.filter(view => !view.isSystem);
       
@@ -215,6 +214,10 @@ export function ViewBar(props: ViewBarProps) {
 
   // Update the current custom view whenever active filters change
   createEffect(() => {
+    // Explicitly track these dependencies to ensure effect reruns when they change
+    const currentFilters = props.activeFilters;
+    const currentResourceType = props.resourceType;
+    
     let viewId: string | undefined;
     let view: View | undefined;
     untrack(() => {
@@ -228,9 +231,6 @@ export function ViewBar(props: ViewBarProps) {
     if (!view || view.isSystem) {
       return;
     }
-
-    const currentFilters = props.activeFilters;
-    const currentResourceType = props.resourceType;
     
     // Check if any properties have actually changed before updating
     const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
