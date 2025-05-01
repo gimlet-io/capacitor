@@ -165,11 +165,13 @@ export function Dashboard() {
     filterFunction: () => true
   };
 
-  const resourceTypeFilter: Filter = {
+  // Create a reactive computed value for the resourceTypeFilter
+  const resourceTypeFilter = createMemo<Filter>(() => ({
     name: "ResourceType",
     type: "select",
     options: availableResources().map(type => ({ value: type.id, label: type.kind })),
     multiSelect: false,
+    searchable: true,
     filterFunction: () => true,
     renderOption: (option) => {
       const resource = availableResources().find(res => res.id === option.value);
@@ -186,7 +188,7 @@ export function Dashboard() {
         </>
       );
     }
-  };
+  }));
 
   const nameFilter: Filter = {
     name: "Name",
@@ -202,7 +204,7 @@ export function Dashboard() {
     const registry: Record<string, Filter> = {
       "Namespace": namespaceFilter,
       "Name": nameFilter,
-      "ResourceType": resourceTypeFilter,
+      "ResourceType": resourceTypeFilter(),
     };
 
     availableResources().forEach(type => {
@@ -256,9 +258,9 @@ export function Dashboard() {
     // Update resource type filter
     const existingResourceTypeIndex = newFilters.findIndex(f => f.filter.name === "ResourceType");
     if (existingResourceTypeIndex >= 0) {
-      newFilters[existingResourceTypeIndex] = { filter: resourceTypeFilter, value: currentResourceType };
+      newFilters[existingResourceTypeIndex] = { filter: resourceTypeFilter(), value: currentResourceType };
     } else {
-      newFilters.push({ filter: resourceTypeFilter, value: currentResourceType });
+      newFilters.push({ filter: resourceTypeFilter(), value: currentResourceType });
     }
     
     // Only update if needed to avoid infinite loops
@@ -359,14 +361,6 @@ export function Dashboard() {
     namespaceFilter.options = namespaceOptions();
   });
 
-  // Update the options when ResourceTypes changes
-  createEffect(() => {
-    resourceTypeFilter.options = availableResources().map(type => ({
-      value: type.id,
-      label: type.kind
-    }));
-  });
-
   return (
     <div class="layout">
       <main class="main-content">
@@ -380,7 +374,7 @@ export function Dashboard() {
         />
         
         <FilterBar 
-          filters={[namespaceFilter, resourceTypeFilter, nameFilter, ...(availableResources().find(t => t.id === resourceType())?.filters || [])]}
+          filters={[namespaceFilter, resourceTypeFilter(), nameFilter, ...(availableResources().find(t => t.id === resourceType())?.filters || [])]}
           activeFilters={activeFilters()}
           onFilterChange={handleFilterChange}
         />

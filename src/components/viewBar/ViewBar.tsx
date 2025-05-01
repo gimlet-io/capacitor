@@ -1,4 +1,4 @@
-import { createSignal, For, Show, createEffect, onMount, untrack } from "solid-js";
+import { createSignal, For, Show, createEffect, untrack } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
 

@@ -17,6 +17,7 @@ export type Filter = {
   placeholder?: string;
   filterFunction: (resource: any, value: string) => boolean;
   renderOption?: (option: FilterOption) => any;
+  searchable?: boolean;
 };
 
 export type ActiveFilter = {
@@ -31,8 +32,10 @@ export function FilterBar(props: {
 }) {
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
+  const [optionSearchInputs, setOptionSearchInputs] = createSignal<Record<string, string>>({});
   const filtersRef = new Map<string, HTMLDivElement>();
   const textInputRefs = new Map<string, HTMLInputElement>();
+  const optionSearchInputRefs = new Map<string, HTMLInputElement>();
 
   const toggleFilter = (filter: string, value: string) => {
     let newFilters: ActiveFilter[] = [...props.activeFilters];
@@ -101,10 +104,10 @@ export function FilterBar(props: {
     props.onFilterChange(newFilters);
   };
 
-  const getFilterButtonText = (filterName: string): string | any => {
+  const getFilterButtonText = (filterName: string): string => {
     const filter = props.filters.find(f => f.name === filterName);
     const activeInFilter = props.activeFilters.filter(f => f.filter.name === filterName);
-    
+
     if (activeInFilter.length === 0) {
       return `${filterName}`;
     } else if (filter?.type === "text") {
@@ -166,13 +169,29 @@ export function FilterBar(props: {
     }
   });
 
-  // Focus and select text input when the filter is opened
+  // Clear option search input when filter changes
   createEffect(() => {
     if (activeFilter()) {
-      const inputRef = textInputRefs.get(activeFilter()!);
-      if (inputRef) {
-        inputRef.focus();
-        inputRef.select();
+      const currentFilter = activeFilter()!;
+      untrack(() => {
+        if (!optionSearchInputs()[currentFilter]) {
+          setOptionSearchInputs(prev => ({ ...prev, [currentFilter]: "" }));
+        }  
+      })
+
+      // Focus the appropriate input
+      const filter = props.filters.find(f => f.name === currentFilter);
+      if (filter?.type === "text") {
+        const inputRef = textInputRefs.get(currentFilter);
+        if (inputRef) {
+          inputRef.focus();
+          inputRef.select();
+        }
+      } else if (filter?.searchable) {
+        const searchInputRef = optionSearchInputRefs.get(currentFilter);
+        if (searchInputRef) {
+          searchInputRef.focus();
+        }
       }
     }
   });
@@ -182,6 +201,19 @@ export function FilterBar(props: {
       // Close the filter on Enter or Escape
       setActiveFilter(null);
     }
+  };
+
+  // Filter options based on search input
+  const getFilteredOptions = (filter: Filter) => {
+    if (!filter.options) return [];
+    
+    const searchTerm = optionSearchInputs()[filter.name]?.toLowerCase() || "";
+    if (!searchTerm) return filter.options;
+    
+    return filter.options.filter(option => 
+      option.label.toLowerCase().includes(searchTerm) || 
+      option.value.toLowerCase().includes(searchTerm)
+    );
   };
 
   return (
@@ -238,6 +270,20 @@ export function FilterBar(props: {
                     
                     {/* Select options filter */}
                     <Show when={filter.type !== "text" && filter.options}>
+                      {/* Search input for options */}
+                      <Show when={filter.searchable}>
+                        <div class="option-search-input filter-text-input">
+                          <input
+                            type="text"
+                            placeholder={`Search ${filter.name.toLowerCase()}...`}
+                            value={optionSearchInputs()[filter.name] || ""}
+                            onInput={(e) => setOptionSearchInputs(prev => ({ ...prev, [filter.name]: e.currentTarget.value }))}
+                            ref={el => optionSearchInputRefs.set(filter.name, el)}
+                            onKeyDown={handleKeyDown}
+                          />
+                        </div>
+                      </Show>
+                      
                       {/* "All" option for multiselect filters */}
                       <Show when={filter.multiSelect}>
                         <button 
@@ -254,7 +300,7 @@ export function FilterBar(props: {
                         </button>
                       </Show>
                       
-                      <For each={filter.options}>
+                      <For each={getFilteredOptions(filter)}>
                         {(option) => {
                           const isActive = createMemo(() => 
                             props.activeFilters.some(f => 
