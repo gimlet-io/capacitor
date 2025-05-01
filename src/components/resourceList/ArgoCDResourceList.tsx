@@ -55,8 +55,6 @@ export function ArgoCDResourceList(props: {
     </td>
   );
 
-  const age = useCalculateAge(props.applications[0].metadata.creationTimestamp || '');
-
   const columns = [
     {
       header: "NAME",
@@ -91,7 +89,7 @@ export function ArgoCDResourceList(props: {
     {
       header: "AGE",
       width: "10%",
-      accessor: () => age(),
+      accessor: (application: ArgoCDApplication) => useCalculateAge(application.metadata.creationTimestamp || '')(),
     }
   ];
 
