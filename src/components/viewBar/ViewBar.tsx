@@ -1,7 +1,8 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, For, Show, createEffect, untrack } from "solid-js";
+import { createSignal, For, Show, createEffect, untrack, onMount, onCleanup } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
+import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 
 export interface ActiveFilter {
   filter: Filter;
@@ -174,6 +175,13 @@ export function ViewBar(props: ViewBarProps) {
     setSelectedView(viewId);
   };
 
+  const selectViewByIndex = (index: number) => {
+    const viewsList = views();
+    if (index >= 0 && index < viewsList.length) {
+      handleViewSelect(viewsList[index].id);
+    }
+  };
+
   createEffect(() => {
     const view = views().find(v => v.id === selectedView());
     if (view) {
@@ -211,6 +219,26 @@ export function ViewBar(props: ViewBarProps) {
       handleViewSelect(systemViews[0].id);
     }
   };
+
+  // Handle view keyboard shortcuts
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // Check for Ctrl + number to switch views
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      const num = parseInt(e.key);
+      if (!isNaN(num) && num >= 1 && num <= 9) {
+        e.preventDefault();
+        selectViewByIndex(num - 1);
+      }
+    }
+  };
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+  });
+
+  onCleanup(() => {
+    window.removeEventListener('keydown', handleKeyDown);
+  });
 
   // Update the current custom view whenever active filters change
   createEffect(() => {
@@ -270,7 +298,7 @@ export function ViewBar(props: ViewBarProps) {
     }, 0);
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleFormKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       createNewView();
     }
@@ -295,7 +323,7 @@ export function ViewBar(props: ViewBarProps) {
       <div class="views">
         <div class="view-buttons">
           <For each={views()}>
-            {(view) => (
+            {(view, index) => (
               <div class="view-pill-container">
                 <button
                   class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
@@ -333,16 +361,26 @@ export function ViewBar(props: ViewBarProps) {
             </button>
           )}
         </div>
-        <Show when={props.watchStatus}>
-          <span 
-            classList={{ 
-              "watch-status": true, 
-              "error": props.watchStatus !== "●" 
-            }}
-          >
-            {props.watchStatus}
-          </span>
-        </Show>
+        
+        <div class="view-right-section">
+          <div class="keyboard-shortcut-container">
+            <KeyboardShortcuts 
+              shortcuts={[{ key: `Ctrl+1,2,3...`, description: 'Switch view' }]}
+              resourceSelected={true}
+            />
+          </div>
+          
+          <Show when={props.watchStatus}>
+            <span 
+              classList={{ 
+                "watch-status": true, 
+                "error": props.watchStatus !== "●" 
+              }}
+            >
+              {props.watchStatus}
+            </span>
+          </Show>
+        </div>
       </div>
       
       {showNewViewForm() && (
@@ -352,7 +390,7 @@ export function ViewBar(props: ViewBarProps) {
             placeholder="View name"
             value={newViewName()}
             onInput={(e) => setNewViewName(e.currentTarget.value)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleFormKeyDown}
             ref={el => newViewNameInput = el}
           />
           <div class="new-view-actions">

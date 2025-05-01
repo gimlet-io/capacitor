@@ -1,6 +1,8 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { For, createSignal, Show, createEffect, onCleanup, createMemo } from "solid-js";
+import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount } from "solid-js";
 import { untrack } from "solid-js";
+import { KeyboardShortcuts, getFilterShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
+
 export type FilterOption = {
   label: string;
   value: string;
@@ -127,13 +129,58 @@ export function FilterBar(props: {
     }
   };
 
-  // Handle click outside to close filter options
-  const handleClickOutside = (event: MouseEvent) => {
-    if (!activeFilter()) return;
+  // Helper function to focus the appropriate input for a filter
+  const focusFilterInput = (filterName: string, retryOnFail = true) => {
+    const filter = props.filters.find(f => f.name === filterName);
+    if (!filter) return;
+
+    // Use setTimeout to ensure the DOM has updated before focusing
+    setTimeout(() => {
+      if (filter.type === "text") {
+        // Focus the text input for text filters
+        const inputRef = textInputRefs.get(filterName);
+        if (inputRef) {
+          inputRef.focus();
+          inputRef.select(); // Also select any existing text for easy replacement
+        }
+      } else if (filterName === "Namespace" || filter.searchable) {
+        // For Namespace filter or any searchable filter
+        const searchInputRef = optionSearchInputRefs.get(filterName);
+        if (searchInputRef) {
+          searchInputRef.focus();
+        } else if (retryOnFail) {
+          // If we couldn't find the search input immediately, try again after a longer delay
+          setTimeout(() => {
+            focusFilterInput(filterName, false); // Retry once, but don't keep retrying
+          }, 50);
+        }
+      }
+    }, 20); // Small timeout to ensure DOM updates
+  };
+
+  // Open specific filter by name
+  const openFilter = (filterName: string) => {
+    const filter = props.filters.find(f => f.name === filterName);
+    if (filter) {
+      setActiveFilter(filterName);
+      focusFilterInput(filterName);
+    }
+  };
+
+  // Global keyboard shortcuts handler
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // Only handle key shortcuts when user is not typing in inputs
+    if (e.target instanceof HTMLInputElement || 
+        e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
     
-    const activeFilterRef = filtersRef.get(activeFilter()!);
-    if (activeFilterRef && !activeFilterRef.contains(event.target as Node)) {
-      setActiveFilter(null);
+    if (e.key === "n" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      openFilter("Namespace");
+    } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      openFilter("ResourceType");
     }
   };
 
@@ -149,6 +196,11 @@ export function FilterBar(props: {
   // Clean up event listener when component unmounts
   onCleanup(() => {
     document.removeEventListener('click', handleClickOutside);
+    window.removeEventListener('keydown', handleKeyDown);
+  });
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
   });
 
   // Initialize text input values from active filters
@@ -180,23 +232,11 @@ export function FilterBar(props: {
       })
 
       // Focus the appropriate input
-      const filter = props.filters.find(f => f.name === currentFilter);
-      if (filter?.type === "text") {
-        const inputRef = textInputRefs.get(currentFilter);
-        if (inputRef) {
-          inputRef.focus();
-          inputRef.select();
-        }
-      } else if (filter?.searchable) {
-        const searchInputRef = optionSearchInputRefs.get(currentFilter);
-        if (searchInputRef) {
-          searchInputRef.focus();
-        }
-      }
+      focusFilterInput(currentFilter, false); // No retry needed for normal filter changes
     }
   });
 
-  const handleKeyDown = (event: KeyboardEvent) => {
+  const handleInputKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Enter" || event.key === "Escape") {
       // Close the filter on Enter or Escape
       setActiveFilter(null);
@@ -214,6 +254,16 @@ export function FilterBar(props: {
       option.label.toLowerCase().includes(searchTerm) || 
       option.value.toLowerCase().includes(searchTerm)
     );
+  };
+
+  // Handle click outside to close filter options
+  const handleClickOutside = (event: MouseEvent) => {
+    if (!activeFilter()) return;
+    
+    const activeFilterRef = filtersRef.get(activeFilter()!);
+    if (activeFilterRef && !activeFilterRef.contains(event.target as Node)) {
+      setActiveFilter(null);
+    }
   };
 
   return (
@@ -251,6 +301,12 @@ export function FilterBar(props: {
                   }}
                 >
                   {getFilterButtonText(filter.name)}
+                  {filter.name === "Namespace" && (
+                    <span class="combobox-hotkey">n</span>
+                  )}
+                  {filter.name === "ResourceType" && (
+                    <span class="combobox-hotkey">r</span>
+                  )}
                 </button>
                 <Show when={activeFilter() === filter.name}>
                   <div class="filter-options">
@@ -263,7 +319,7 @@ export function FilterBar(props: {
                           value={textInputs()[filter.name] || ""}
                           onInput={(e) => applyTextFilter(filter.name, e.currentTarget.value)}
                           ref={el => textInputRefs.set(filter.name, el)}
-                          onKeyDown={handleKeyDown}
+                          onKeyDown={handleInputKeyDown}
                         />
                       </div>
                     </Show>
@@ -271,7 +327,7 @@ export function FilterBar(props: {
                     {/* Select options filter */}
                     <Show when={filter.type !== "text" && filter.options}>
                       {/* Search input for options */}
-                      <Show when={filter.searchable}>
+                      <Show when={filter.searchable || filter.name === "Namespace"}>
                         <div class="option-search-input filter-text-input">
                           <input
                             type="text"
@@ -279,7 +335,7 @@ export function FilterBar(props: {
                             value={optionSearchInputs()[filter.name] || ""}
                             onInput={(e) => setOptionSearchInputs(prev => ({ ...prev, [filter.name]: e.currentTarget.value }))}
                             ref={el => optionSearchInputRefs.set(filter.name, el)}
-                            onKeyDown={handleKeyDown}
+                            onKeyDown={handleInputKeyDown}
                           />
                         </div>
                       </Show>
@@ -332,6 +388,13 @@ export function FilterBar(props: {
             );
           }}
         </For>
+      </div>
+      
+      <div class="keyboard-shortcut-container">
+        <KeyboardShortcuts
+          shortcuts={getFilterShortcuts()}
+          resourceSelected={true}
+        />
       </div>
     </div>
   );

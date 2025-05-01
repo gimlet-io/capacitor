@@ -1,6 +1,7 @@
-import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo } from "solid-js";
+import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo, Show } from "solid-js";
 import { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
+import { KeyboardShortcuts, getResourceShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 
 type Column<T> = {
   header: string;
@@ -43,11 +44,74 @@ export function ResourceList<T>(props: {
     setDrawerOpen(false);
   };
 
+  const deleteResource = async () => {
+    const index = selectedIndex();
+    console.log(index);
+    
+    if (index !== -1 && index < filteredResources().length) {
+      const resource = filteredResources()[index] as any;
+      if (!resource || !resource.metadata) return;
+      
+      const resourceName = resource.metadata.name;
+      const resourceKind = resource.kind;
+      
+      // Show browser's native confirmation dialog
+      const confirmed = window.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
+      
+      if (!confirmed) return;
+      
+      try {
+        // Determine API path based on resource kind and group
+        const group = resource.apiVersion?.includes('/') 
+          ? resource.apiVersion.split('/')[0] 
+          : '';
+        const version = resource.apiVersion?.includes('/') 
+          ? resource.apiVersion.split('/')[1] 
+          : resource.apiVersion || 'v1';
+        
+        let apiPath = '';
+        if (!group || group === 'core') {
+          apiPath = `/k8s/api/${version}`;
+        } else {
+          apiPath = `/k8s/apis/${group}/${version}`;
+        }
+        
+        // Build the full delete URL
+        let deleteUrl = '';
+        if (resource.metadata.namespace) {
+          deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+        } else {
+          deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+        }
+        
+        // Send delete request
+        const response = await fetch(deleteUrl, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to delete resource: ${response.statusText}`);
+        }
+        
+        // Resource will be removed from the UI when the watch detects the DELETE event
+      } catch (error) {
+        console.error('Error deleting resource:', error);
+        // Show error in an alert
+        window.alert(`Error deleting resource: ${error}`);
+      }
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const resources = filteredResources();
     if (resources.length === 0) return;
     
-    if (e.key === 'ArrowDown') {
+    console.log(e.key);
+
+    if (e.key === 'd' && e.ctrlKey) {
+        e.preventDefault();
+        deleteResource(); 
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
         const newIndex = prev === -1 ? 0 : Math.min(prev + 1, resources.length - 1);
@@ -140,6 +204,13 @@ export function ResourceList<T>(props: {
 
   return (
     <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>      
+      <div class="keyboard-shortcut-container">
+        <KeyboardShortcuts
+          shortcuts={getResourceShortcuts()}
+          resourceSelected={selectedIndex() !== -1}
+        />
+      </div>
+      
       <div ref={setListContainer} class="resource-table-wrapper">
         <table class="resource-table">
           <thead>

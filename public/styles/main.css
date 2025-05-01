@@ -1246,7 +1246,6 @@ td.message-cell {
 /* Filter Bar Styles */
 .filter-bar {
   display: flex;
-  flex-direction: column;
   gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid var(--linear-border);
@@ -1255,6 +1254,7 @@ td.message-cell {
 
 .filter-groups {
   display: flex;
+  flex: 1;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -1371,6 +1371,7 @@ td.message-cell {
   overflow: auto;
   height: 100%;
   width: 100%;
+  margin-top: 16px;
 }
 
 .no-results {
@@ -1517,4 +1518,41 @@ td.message-cell {
   text-align: center;
   color: var(--linear-text-tertiary);
   font-size: 14px;
+}
+
+/* Keyboard Shortcuts Styles */
+.keyboard-shortcut-container {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: 14px;
+}
+
+.keyboard-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--linear-text-secondary);
+  font-size: 13px;
+}
+
+.shortcut-key {
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-secondary);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--linear-border);
+  white-space: nowrap;
+}
+
+.shortcut-description {
+  color: var(--linear-text-primary);
+}
+
+.view-right-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
 }
