@@ -102,9 +102,32 @@ export function ResourceList<T>(props: {
     }
   };
 
+  const shouldIgnoreKeyboardEvents = () => {
+    // Ignore keyboard events when:
+    // 1. Any input element is focused
+    // 2. Any .filter-options element is visible in the DOM
+    if (document.activeElement instanceof HTMLInputElement || 
+        document.activeElement instanceof HTMLTextAreaElement) {
+      return true;
+    }
+    
+    // Check if any filter dropdown is open
+    const openFilterOptions = document.querySelector('.filter-options');
+    if (openFilterOptions) {
+      return true;
+    }
+    
+    return false;
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const resources = filteredResources();
     if (resources.length === 0) return;
+    
+    // Don't process keyboard shortcuts if we should ignore them
+    if (shouldIgnoreKeyboardEvents()) {
+      return;
+    }
     
     console.log(e.key);
 

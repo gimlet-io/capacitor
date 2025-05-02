@@ -181,17 +181,28 @@ h1 {
     box-sizing: border-box;
 }
 
-.combobox-hotkey {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #495057;
-    font-size: 12px;
-    background-color: #e9ecef;
-    padding: 0.25rem 0.5rem;
-    border-radius: 12px;
-    pointer-events: none;
+/* Keyboard shortcut styles */
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-secondary);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--linear-border);
+  white-space: nowrap;
+  margin-left: 6px;
+  line-height: 1;
+  font-weight: normal;
+  height: 18px;
+}
+
+.filter-group-button .shortcut-key {
+  font-weight: normal;
+  height: 14px;
+  box-sizing: border-box;
 }
 
 .combobox-input:focus {
@@ -1272,6 +1283,10 @@ td.message-cell {
   cursor: pointer;
   color: var(--linear-text-primary);
   transition: all 0.2s ease;
+  white-space: nowrap;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .filter-group-button:hover {
@@ -1283,6 +1298,7 @@ td.message-cell {
   border-color: var(--linear-blue);
   color: var(--linear-blue);
   font-weight: 500;
+  max-width: none;
 }
 
 .filter-options {
@@ -1293,13 +1309,33 @@ td.message-cell {
   background-color: var(--linear-bg);
   border: 1px solid var(--linear-border);
   border-radius: 4px;
-  padding: 8px;
+  padding: 0;
   box-shadow: var(--linear-shadow-hover);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 150px;
+  min-width: 200px;
   margin-top: 4px;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.filter-options-search-container {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--linear-bg);
+  padding: 8px;
+  border-bottom: 1px solid var(--linear-border);
+}
+
+.filter-options-scroll-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 250px;
 }
 
 .filter-option {
@@ -1324,6 +1360,16 @@ td.message-cell {
   background-color: var(--linear-blue-light);
   border-color: var(--linear-blue);
   font-weight: 500;
+}
+
+.filter-option.highlighted {
+  background-color: var(--linear-blue-light);
+  border-color: var(--linear-blue);
+}
+
+.filter-option.active.highlighted {
+  background-color: var(--linear-blue);
+  color: white;
 }
 
 .checkbox {
@@ -1520,7 +1566,7 @@ td.message-cell {
   font-size: 14px;
 }
 
-/* Keyboard Shortcuts Styles */
+/* Keyboard Shortcuts Container Styles */
 .keyboard-shortcut-container {
   display: flex;
   align-items: center;
@@ -1531,19 +1577,9 @@ td.message-cell {
 .keyboard-shortcut {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   color: var(--linear-text-secondary);
   font-size: 13px;
-}
-
-.shortcut-key {
-  background-color: var(--linear-bg-secondary);
-  color: var(--linear-text-secondary);
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--linear-border);
-  white-space: nowrap;
 }
 
 .shortcut-description {

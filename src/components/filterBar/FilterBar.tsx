@@ -35,6 +35,7 @@ export function FilterBar(props: {
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [optionSearchInputs, setOptionSearchInputs] = createSignal<Record<string, string>>({});
+  const [highlightedOptionIndex, setHighlightedOptionIndex] = createSignal<number>(-1);
   const filtersRef = new Map<string, HTMLDivElement>();
   const textInputRefs = new Map<string, HTMLInputElement>();
   const optionSearchInputRefs = new Map<string, HTMLInputElement>();
@@ -162,8 +163,42 @@ export function FilterBar(props: {
   const openFilter = (filterName: string) => {
     const filter = props.filters.find(f => f.name === filterName);
     if (filter) {
+      // Clear any existing search for this filter
+      if (filter.type !== 'text' && (filter.searchable || filterName === "Namespace")) {
+        setOptionSearchInputs(prev => ({ ...prev, [filterName]: "" }));
+      }
+      
       setActiveFilter(filterName);
-      focusFilterInput(filterName);
+      
+      // Find active filter selection (if any)
+      let initialIndex = -1;
+      
+      if (filter.type !== 'text' && filter.options) {
+        // For multi-select, find the first selected option
+        // For single-select, find the selected option
+        const activeFilterForType = props.activeFilters.find(f => f.filter.name === filterName);
+        
+        if (activeFilterForType && filter.options) {
+          const selectedOptionIndex = filter.options.findIndex(
+            option => option.value === activeFilterForType.value
+          );
+          
+          if (selectedOptionIndex >= 0) {
+            initialIndex = selectedOptionIndex;
+          }
+        }
+      }
+      
+      // Set initial highlighted index and schedule scrolling
+      setHighlightedOptionIndex(initialIndex);
+      
+      // Schedule focus and scrolling
+      setTimeout(() => {
+        focusFilterInput(filterName);
+        if (initialIndex >= 0) {
+          scrollHighlightedOptionIntoView(filterName);
+        }
+      }, 50);
     }
   };
 
@@ -226,23 +261,86 @@ export function FilterBar(props: {
     if (activeFilter()) {
       const currentFilter = activeFilter()!;
       untrack(() => {
+        // Initialize empty search if needed
         if (!optionSearchInputs()[currentFilter]) {
           setOptionSearchInputs(prev => ({ ...prev, [currentFilter]: "" }));
-        }  
-      })
+        }
+        
+        // Find and set the highlighted index based on active filter selection
+        const filter = props.filters.find(f => f.name === currentFilter);
+        if (filter && filter.type !== 'text' && filter.options) {
+          const activeFilterForType = props.activeFilters.find(f => f.filter.name === currentFilter);
+          
+          if (activeFilterForType) {
+            const options = getFilteredOptions(filter);
+            const selectedOptionIndex = options.findIndex(
+              option => option.value === activeFilterForType.value
+            );
+            
+            if (selectedOptionIndex >= 0) {
+              setHighlightedOptionIndex(selectedOptionIndex);
+              // Schedule scrolling after DOM update
+              setTimeout(() => scrollHighlightedOptionIntoView(currentFilter), 50);
+            }
+          }
+        }
+      });
 
       // Focus the appropriate input
       focusFilterInput(currentFilter, false); // No retry needed for normal filter changes
     }
   });
 
-  const handleInputKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Enter" || event.key === "Escape") {
-      // Close the filter on Enter or Escape
+  const handleFilterInputKeyDown = (event: KeyboardEvent, filter: Filter) => {
+    // Stop event propagation to prevent triggering global shortcuts
+    event.stopPropagation();
+    
+    if (event.key === "Enter") {
+      // Close the filter on Enter
       setActiveFilter(null);
+    } else if (event.key === "Escape") {
+      // Close the filter on Escape without making a selection
+      setActiveFilter(null);
+    } 
+    
+    // If this is a text filter, we don't need the navigation logic
+    if (filter.type === "text") return;
+    
+    const filteredOptions = getFilteredOptions(filter);
+    const currentHighlight = highlightedOptionIndex();
+    
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (filteredOptions.length > 0) {
+        // First check if we need to move past the "All" option
+        if (filter.multiSelect && currentHighlight === -1) {
+          setHighlightedOptionIndex(0);
+        } else {
+          setHighlightedOptionIndex(prev => 
+            prev < filteredOptions.length - 1 ? prev + 1 : prev
+          );
+        }
+        // Schedule scrolling of the newly highlighted element into view
+        setTimeout(() => scrollHighlightedOptionIntoView(filter.name), 0);
+      }
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (filteredOptions.length > 0) {
+        // If we have an "All" option, check if we need to move to it
+        if (filter.multiSelect && currentHighlight === 0) {
+          setHighlightedOptionIndex(-1);
+        } else {
+          setHighlightedOptionIndex(prev => prev > 0 ? prev - 1 : prev);
+        }
+        // Schedule scrolling of the newly highlighted element into view
+        setTimeout(() => scrollHighlightedOptionIntoView(filter.name), 0);
+      }
+    } else if (event.key === "Enter" && currentHighlight >= 0 && currentHighlight < filteredOptions.length) {
+      // Select the highlighted option on Enter
+      toggleFilter(filter.name, filteredOptions[currentHighlight].value);
     }
   };
-
+  
   // Filter options based on search input
   const getFilteredOptions = (filter: Filter) => {
     if (!filter.options) return [];
@@ -263,6 +361,50 @@ export function FilterBar(props: {
     const activeFilterRef = filtersRef.get(activeFilter()!);
     if (activeFilterRef && !activeFilterRef.contains(event.target as Node)) {
       setActiveFilter(null);
+    }
+  };
+
+  // Helper function to scroll the highlighted option into view
+  const scrollHighlightedOptionIntoView = (filterName: string) => {
+    const filterRef = filtersRef.get(filterName);
+    if (!filterRef) return;
+    
+    const highlightIndex = highlightedOptionIndex();
+    
+    // Select the appropriate element to scroll to
+    let elementToScroll: HTMLElement | null = null;
+    
+    if (highlightIndex === -1) {
+      // This is the "All" option
+      elementToScroll = filterRef.querySelector('.filter-option.all-option') as HTMLElement;
+    } else {
+      // This is a regular option
+      const options = Array.from(
+        filterRef.querySelectorAll('.filter-options-scroll-container .filter-option:not(.all-option)')
+      ) as HTMLElement[];
+      
+      if (options.length > highlightIndex) {
+        elementToScroll = options[highlightIndex];
+      }
+    }
+    
+    if (elementToScroll) {
+      // Get the parent scrollable container
+      const optionsContainer = filterRef.querySelector('.filter-options-scroll-container') as HTMLElement;
+      if (!optionsContainer) return;
+      
+      // Calculate whether the element is in view
+      const containerRect = optionsContainer.getBoundingClientRect();
+      const elementRect = elementToScroll.getBoundingClientRect();
+      
+      // Check if element is not fully visible
+      if (elementRect.top < containerRect.top || 
+          elementRect.bottom > containerRect.bottom) {
+        elementToScroll.scrollIntoView({
+          block: 'nearest',
+          behavior: 'instant'
+        });
+      }
     }
   };
 
@@ -302,25 +444,27 @@ export function FilterBar(props: {
                 >
                   {getFilterButtonText(filter.name)}
                   {filter.name === "Namespace" && (
-                    <span class="combobox-hotkey">n</span>
+                    <span class="shortcut-key">n</span>
                   )}
                   {filter.name === "ResourceType" && (
-                    <span class="combobox-hotkey">r</span>
+                    <span class="shortcut-key">r</span>
                   )}
                 </button>
                 <Show when={activeFilter() === filter.name}>
                   <div class="filter-options">
                     {/* Text input filter */}
                     <Show when={filter.type === "text"}>
-                      <div class="filter-text-input">
-                        <input
-                          type="text"
-                          placeholder={filter.placeholder || `Filter by ${filter.name.toLowerCase()}`}
-                          value={textInputs()[filter.name] || ""}
-                          onInput={(e) => applyTextFilter(filter.name, e.currentTarget.value)}
-                          ref={el => textInputRefs.set(filter.name, el)}
-                          onKeyDown={handleInputKeyDown}
-                        />
+                      <div class="filter-options-search-container">
+                        <div class="filter-text-input">
+                          <input
+                            type="text"
+                            placeholder={filter.placeholder || `Filter by ${filter.name.toLowerCase()}`}
+                            value={textInputs()[filter.name] || ""}
+                            onInput={(e) => applyTextFilter(filter.name, e.currentTarget.value)}
+                            ref={el => textInputRefs.set(filter.name, el)}
+                            onKeyDown={(e) => handleFilterInputKeyDown(e, filter)}
+                          />
+                        </div>
                       </div>
                     </Show>
                     
@@ -328,59 +472,72 @@ export function FilterBar(props: {
                     <Show when={filter.type !== "text" && filter.options}>
                       {/* Search input for options */}
                       <Show when={filter.searchable || filter.name === "Namespace"}>
-                        <div class="option-search-input filter-text-input">
-                          <input
-                            type="text"
-                            placeholder={`Search ${filter.name.toLowerCase()}...`}
-                            value={optionSearchInputs()[filter.name] || ""}
-                            onInput={(e) => setOptionSearchInputs(prev => ({ ...prev, [filter.name]: e.currentTarget.value }))}
-                            ref={el => optionSearchInputRefs.set(filter.name, el)}
-                            onKeyDown={handleInputKeyDown}
-                          />
+                        <div class="filter-options-search-container">
+                          <div class="option-search-input filter-text-input">
+                            <input
+                              type="text"
+                              placeholder={`Search ${filter.name.toLowerCase()}...`}
+                              value={optionSearchInputs()[filter.name] || ""}
+                              onInput={(e) => {
+                                setOptionSearchInputs(prev => ({ ...prev, [filter.name]: e.currentTarget.value }));
+                                setHighlightedOptionIndex(-1); // Reset highlight when search changes
+                              }}
+                              ref={el => optionSearchInputRefs.set(filter.name, el)}
+                              onKeyDown={(e) => handleFilterInputKeyDown(e, filter)}
+                            />
+                          </div>
                         </div>
                       </Show>
                       
-                      {/* "All" option for multiselect filters */}
-                      <Show when={filter.multiSelect}>
-                        <button 
-                          class="filter-option all-option"
-                          classList={{
-                            "active": allOptionsSelected()
+                      <div class="filter-options-scroll-container">
+                        {/* "All" option for multiselect filters */}
+                        <Show when={filter.multiSelect}>
+                          <button 
+                            class="filter-option all-option"
+                            classList={{
+                              "active": allOptionsSelected(),
+                              "highlighted": highlightedOptionIndex() === -1
+                            }}
+                            onClick={() => toggleAllOptions(filter.name, !allOptionsSelected())}
+                          >
+                            <span class="checkbox">
+                              {allOptionsSelected() ? '✓' : ''}
+                            </span>
+                            All
+                          </button>
+                        </Show>
+                        
+                        <For each={getFilteredOptions(filter)}>
+                          {(option, index) => {
+                            const isActive = createMemo(() => 
+                              props.activeFilters.some(f => 
+                                f.filter.name === filter.name && f.value === option.value
+                              )
+                            );
+                            
+                            const isHighlighted = createMemo(() => 
+                              highlightedOptionIndex() === index()
+                            );
+                            
+                            return (
+                              <button 
+                                classList={{
+                                  "filter-option": true,
+                                  "active": isActive(),
+                                  "highlighted": isHighlighted()
+                                }}
+                                style={option.color ? `border-color: ${option.color}` : ''}
+                                onClick={() => toggleFilter(filter.name, option.value)}
+                              >
+                                <span class="checkbox">
+                                  {isActive() ? '✓' : ''}
+                                </span>
+                                {filter.renderOption ? filter.renderOption(option) : option.label}
+                              </button>
+                            );
                           }}
-                          onClick={() => toggleAllOptions(filter.name, !allOptionsSelected())}
-                        >
-                          <span class="checkbox">
-                            {allOptionsSelected() ? '✓' : ''}
-                          </span>
-                          All
-                        </button>
-                      </Show>
-                      
-                      <For each={getFilteredOptions(filter)}>
-                        {(option) => {
-                          const isActive = createMemo(() => 
-                            props.activeFilters.some(f => 
-                              f.filter.name === filter.name && f.value === option.value
-                            )
-                          );
-                          
-                          return (
-                            <button 
-                              classList={{
-                                "filter-option": true,
-                                "active": isActive()
-                              }}
-                              style={option.color ? `border-color: ${option.color}` : ''}
-                              onClick={() => toggleFilter(filter.name, option.value)}
-                            >
-                              <span class="checkbox">
-                                {isActive() ? '✓' : ''}
-                              </span>
-                              {filter.renderOption ? filter.renderOption(option) : option.label}
-                            </button>
-                          );
-                        }}
-                      </For>
+                        </For>
+                      </div>
                     </Show>
                   </div>
                 </Show>
