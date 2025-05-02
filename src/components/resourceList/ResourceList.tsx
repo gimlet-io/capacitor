@@ -128,8 +128,6 @@ export function ResourceList<T>(props: {
     if (shouldIgnoreKeyboardEvents()) {
       return;
     }
-    
-    console.log(e.key);
 
     if (e.key === 'd' && e.ctrlKey) {
         e.preventDefault();

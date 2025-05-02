@@ -87,65 +87,11 @@ h1 {
   line-height: 1.3;
 }
 
-.pod-list {
-    display: grid;
-    gap: 1rem;
-}
-
-.pod-item {
-    border: 1px solid #ddd;
-    padding: 1rem;
-    border-radius: 4px;
-}
-
 .status-Running { color: green; }
 .status-Pending { color: orange; }
 .status-Failed { color: red; }
 
-.resource-item {
-    background: var(--card-bg);
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    min-width: 0;
-}
-
 .deployment-item { border-left: 4px solid #3498db; }
-.service-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.service-item h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--text-primary);
-}
-
-.service-item p {
-    margin: 0;
-    color: var(--text-secondary);
-}
-
-.service-item details {
-    margin-top: 0.5rem;
-}
-
-.service-item details summary {
-    cursor: pointer;
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.service-item .selectors {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.5rem;
-    background: var(--bg-secondary);
-    border-radius: 4px;
-}
 
 .pod-item, .deployment-item {
     background: var(--bg-secondary);
@@ -165,23 +111,6 @@ h1 {
     overflow-y: auto;
 }
 
-/* Generic combobox styles */
-.combobox {
-    position: relative;
-    width: 250px;
-}
-
-.combobox-input {
-    width: 100%;
-    padding: 0.5rem;
-    padding-right: 2.5rem;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    font-size: 14px;
-    box-sizing: border-box;
-}
-
-/* Keyboard shortcut styles */
 .shortcut-key {
   display: inline-flex;
   align-items: center;
@@ -268,169 +197,6 @@ h1 {
 
 .resource-section.full-width {
     grid-column: 1 / -1;
-}
-
-.kustomization-item {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-left: 4px solid #6f42c1;
-}
-
-.kustomization-item h2 {
-    color: #6f42c1;
-    border-bottom: 2px solid #6f42c1;
-}
-
-.condition {
-    padding: 8px;
-    margin: 4px 0;
-    border-radius: 4px;
-}
-
-.condition.true {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-}
-
-.condition.false {
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-}
-
-.condition.unknown {
-    background-color: #fff3cd;
-    border: 1px solid #ffeeba;
-}
-
-.health-check {
-    padding: 8px;
-    margin: 4px 0;
-    background-color: #e9ecef;
-    border-radius: 4px;
-}
-
-.inventory-entry {
-    padding: 8px;
-    margin: 4px 0;
-    background-color: #e9ecef;
-    border-radius: 4px;
-    font-family: monospace;
-}
-
-.flux-source-item {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-}
-
-.flux-source-item h2 {
-    color: #6f42c1;
-    border-bottom: 2px solid #6f42c1;
-}
-
-.source-details {
-    padding: 8px;
-    margin: 8px 0;
-    background-color: #e9ecef;
-    border-radius: 4px;
-}
-
-.artifact {
-    padding: 8px;
-    margin: 8px 0;
-    background-color: #e9ecef;
-    border-radius: 4px;
-    font-family: monospace;
-}
-
-.artifact p {
-    margin: 4px 0;
-}
-
-.source-details ul {
-    margin: 4px 0;
-    padding-left: 16px;
-}
-
-.source-details li {
-    margin: 2px 0;
-}
-
-.flux-resources {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-}
-
-.flux-resources .resource-list {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-}
-
-.flux-resources h2 {
-    color: #6f42c1;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid #6f42c1;
-}
-
-/* Kustomization card styles */
-.kustomization-item {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-left: 4px solid #6f42c1;
-}
-
-.kustomization-item h2 {
-    color: #6f42c1;
-    border-bottom: 2px solid #6f42c1;
-}
-
-/* Source card styles */
-.flux-source-item {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-}
-
-/* OCI Repository */
-.flux-source-item[data-kind="OCIRepository"] {
-    border-left: 4px solid #20c997;
-}
-
-.flux-source-item[data-kind="OCIRepository"] h2 {
-    color: #20c997;
-    border-bottom: 2px solid #20c997;
-}
-
-/* Helm Repository */
-.flux-source-item[data-kind="HelmRepository"] {
-    border-left: 4px solid #fd7e14;
-}
-
-.flux-source-item[data-kind="HelmRepository"] h2 {
-    color: #fd7e14;
-    border-bottom: 2px solid #fd7e14;
-}
-
-/* Helm Chart */
-.flux-source-item[data-kind="HelmChart"] {
-    border-left: 4px solid #e83e8c;
-}
-
-.flux-source-item[data-kind="HelmChart"] h2 {
-    color: #e83e8c;
-    border-bottom: 2px solid #e83e8c;
-}
-
-/* Git Repository */
-.flux-source-item[data-kind="GitRepository"] {
-    border-left: 4px solid #17a2b8;
-}
-
-.flux-source-item[data-kind="GitRepository"] h2 {
-    color: #17a2b8;
-    border-bottom: 2px solid #17a2b8;
 }
 
 .events-list {
@@ -587,116 +353,7 @@ h1 {
   white-space: normal;
 }
 
-/* Artifact URL styling */
-.flux-source-item code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.85rem;
-  background-color: #f1f5f9;
-  padding: 0.2rem 0.4rem;
-  border-radius: 0.25rem;
-  border: 1px solid #e2e8f0;
-  word-break: break-all;
-  max-width: 100%;
-  display: block;
-  margin-top: 0.25rem;
-}
-
-/* Kustomization Item Styles */
-.kustomization-item {
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  background-color: white;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-  border-left: 4px solid #6f42c1;
-}
-
-/* Override the status-based left borders to keep consistent purple for kustomization items */
-.kustomization-item.ready,
-.kustomization-item.not-ready,
-.kustomization-item.reconciling,
-.kustomization-item.stalled,
-.kustomization-item.unknown {
-  border-left: 4px solid #6f42c1;
-}
-
-/* Condition Details */
-.conditions {
-  display: grid;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.condition {
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-}
-
-.condition p {
-  margin: 0.25rem 0;
-  font-size: 0.875rem;
-}
-
-.condition.true {
-  background-color: #f0fdf4;
-  border-color: #bbf7d0;
-}
-
-.condition.false {
-  background-color: #fef2f2;
-  border-color: #fecaca;
-}
-
-.condition.unknown {
-  background-color: #f9fafb;
-  border-color: #e5e7eb;
-}
-
-/* Details Summary */
-details summary {
-  cursor: pointer;
-  padding: 0.5rem 0;
-  font-weight: 500;
-  color: #4b5563;
-}
-
-details summary:hover {
-  color: #111827;
-}
-
-details[open] summary {
-  margin-bottom: 0.5rem;
-}
-
-/* ArgoCD Application Styles */
-.argocd-app-item {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-left: 4px solid #06b6d4; /* Default teal color for ArgoCD */
-}
-
-.argocd-app-item h2 {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--linear-text-primary);
-  margin-bottom: 8px;
-}
-
-.argocd-status {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 0.5rem 0 1rem 0;
-  flex-wrap: wrap;
-}
-
-/* Sync status badges */
+/* Sync status badges - these are used in applicationDetails.tsx */
 .status-badge.sync-synced {
   background-color: #10b981; /* Green */
   color: white;
@@ -712,7 +369,7 @@ details[open] summary {
   color: white;
 }
 
-/* Health status badges */
+/* Health status badges - these are used in applicationDetails.tsx */
 .status-badge.health-healthy {
   background-color: var(--linear-green); /* Green */
   color: white;
@@ -741,59 +398,6 @@ details[open] summary {
 .status-badge.health-unknown {
   background-color: var(--linear-gray); /* Gray */
   color: white;
-}
-
-/* Resources styling */
-.resources {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.resource {
-  padding: 0.75rem;
-  border-radius: 0.375rem;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-}
-
-.resource.synced,
-.resource.healthy {
-  border-left: 3px solid var(--linear-green);
-}
-
-.resource.outofsynced,
-.resource.degraded {
-  border-left: 3px solid var(--linear-red);
-}
-
-.resource.progressing {
-  border-left: 3px solid var(--linear-blue);
-}
-
-.resource.suspended {
-  border-left: 3px solid var(--linear-purple);
-}
-
-.resource.unknown {
-  border-left: 3px solid var(--linear-gray);
-}
-
-/* History item styling */
-.history-item {
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  border-radius: 0.375rem;
-  background-color: #f3f4f6;
-  border: 1px solid #e5e7eb;
-}
-
-.sync-policy {
-  margin: 1rem 0;
-  padding: 0.75rem;
-  background-color: #f3f4f6;
-  border-radius: 0.375rem;
-  border: 1px solid #e5e7eb;
 }
 
 /* Kustomization Details */
@@ -875,6 +479,7 @@ details[open] summary {
   gap: 4px;
 }
 
+/* Health status badges (for kustomization reconciliation) */
 .health-badge.true {
   background: var(--linear-green-light);
   color: var(--linear-green);
@@ -982,7 +587,7 @@ details[open] summary {
   font-size: 14px;
 }
 
-/* Node Styles */
+/* Node and Edge styles - these are used with ResourceTree.tsx */
 .node {
   background: var(--linear-bg);
   border: 1px solid var(--linear-border);
@@ -1048,6 +653,7 @@ details[open] summary {
   stroke-width: 2px;
 }
 
+/* Resource table styles */
 .resource-table {
     width: 100%;
     border-collapse: collapse;
@@ -1102,7 +708,7 @@ td.message-cell {
   white-space: normal;
 }
 
-/* Views */
+/* View components - used in ViewBar.tsx */
 .views {
   display: flex;
   justify-content: space-between;
