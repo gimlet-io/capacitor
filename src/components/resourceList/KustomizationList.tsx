@@ -26,7 +26,7 @@ export const kustomizationReadyFilter: Filter = {
   }
 };
 
-export function FluxResourceList(props: { 
+export function KustomizationList(props: { 
   kustomizations: Kustomization[],
   activeFilters: ActiveFilter[]
 }) {

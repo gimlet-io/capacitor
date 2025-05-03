@@ -12,8 +12,8 @@ import { Show } from "solid-js";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { podColumns, podsStatusFilter } from "../components/resourceList/PodList.tsx";
-import { kustomizationReadyFilter } from "../components/resourceList/FluxResourceList.tsx";
-import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ArgoCDResourceList.tsx";
+import { kustomizationReadyFilter } from "../components/resourceList/KustomizationList.tsx";
+import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ApplicationList.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { updateDeploymentMatchingResources, updateServiceMatchingResources } from "../utils/k8s.ts";
 
