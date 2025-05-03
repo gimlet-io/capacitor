@@ -427,7 +427,12 @@ export function Dashboard() {
                   });
                 }
                 
-                return { ...prev, [resourceFilter]: [...current, enhancedResource] };
+                // Add new resource and sort alphabetically by name
+                const updatedResources = [...current, enhancedResource].sort((a, b) => 
+                  a.metadata.name.localeCompare(b.metadata.name)
+                );
+                
+                return { ...prev, [resourceFilter]: updatedResources };
               });
             } else if (event.type === 'MODIFIED') {
               setDynamicResources(prev => {
@@ -507,10 +512,14 @@ export function Dashboard() {
               
               // Update dynamic resources state
               setDynamicResources(prev => {
-                // Update the extra resource collection
+                // Update the extra resource collection and sort alphabetically
+                const sortedExtraResources = [...extraResources[extraResourceType]].sort((a, b) => 
+                  a.metadata.name.localeCompare(b.metadata.name)
+                );
+                
                 const newState = { 
                   ...prev,
-                  [extraResourceType]: extraResources[extraResourceType] 
+                  [extraResourceType]: sortedExtraResources
                 };
                 
                 // Update the main resources using the updater function
