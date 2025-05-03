@@ -291,6 +291,32 @@ export function FilterBar(props: {
     }
   });
 
+  // Watch for changes in option search inputs to highlight single remaining option
+  createEffect(() => {
+    const currentFilter = activeFilter();
+    if (!currentFilter) return;
+    
+    const filter = props.filters.find(f => f.name === currentFilter);
+    if (!filter || filter.type === "text" || !filter.options) return;
+    
+    const searchTerm = optionSearchInputs()[currentFilter]?.toLowerCase() || "";
+    if (!searchTerm) return;
+    
+    // Get filtered options based on search
+    const filteredOptions = filter.options.filter(option => 
+      option.label.toLowerCase().includes(searchTerm) || 
+      option.value.toLowerCase().includes(searchTerm)
+    );
+    
+    // If exactly one option remains, automatically highlight it
+    if (filteredOptions.length === 1) {
+      setHighlightedOptionIndex(0);
+      setTimeout(() => scrollHighlightedOptionIntoView(currentFilter), 0);
+    } else {
+      setHighlightedOptionIndex(-1);
+    }
+  });
+
   const handleFilterInputKeyDown = (event: KeyboardEvent, filter: Filter) => {
     // Stop event propagation to prevent triggering global shortcuts
     event.stopPropagation();
@@ -480,7 +506,10 @@ export function FilterBar(props: {
                               value={optionSearchInputs()[filter.name] || ""}
                               onInput={(e) => {
                                 setOptionSearchInputs(prev => ({ ...prev, [filter.name]: e.currentTarget.value }));
-                                setHighlightedOptionIndex(-1); // Reset highlight when search changes
+                                // We'll let the effect handle highlighting if there's exactly one option
+                                if (e.currentTarget.value === "") {
+                                  setHighlightedOptionIndex(-1); // Reset highlight when search is cleared
+                                }
                               }}
                               ref={el => optionSearchInputRefs.set(filter.name, el)}
                               onKeyDown={(e) => handleFilterInputKeyDown(e, filter)}
