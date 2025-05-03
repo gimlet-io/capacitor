@@ -422,8 +422,8 @@ export function Dashboard() {
                 if (extraWatchesForResource && extraWatchesForResource.length > 0) {
                   // Apply all updaters to the new resource
                   extraWatchesForResource.forEach(config => {
-                    const extraResources = extraResources[config.resourceType] || [];
-                    enhancedResource = config.updater(enhancedResource, extraResources);
+                    const relatedResources = extraResources[config.resourceType] || [];
+                    enhancedResource = config.updater(enhancedResource, relatedResources);
                   });
                 }
                 
@@ -440,8 +440,8 @@ export function Dashboard() {
                 if (extraWatchesForResource && extraWatchesForResource.length > 0) {
                   // Apply all updaters to the modified resource
                   extraWatchesForResource.forEach(config => {
-                    const extraResources = extraResources[config.resourceType] || [];
-                    enhancedResource = config.updater(enhancedResource, extraResources);
+                    const relatedResources = extraResources[config.resourceType] || [];
+                    enhancedResource = config.updater(enhancedResource, relatedResources);
                   });
                 }
                 
