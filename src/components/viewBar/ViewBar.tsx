@@ -3,12 +3,7 @@ import { createSignal, For, Show, createEffect, untrack, onMount, onCleanup } fr
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
-
-export interface ActiveFilter {
-  filter: Filter;
-  value: string;
-}
-
+import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 export interface View {
   id: string;
   label: string;
@@ -68,6 +63,7 @@ export function ViewBar(props: ViewBarProps) {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
   const [views, setViews] = createSignal<View[]>([]);
   const [selectedView, setSelectedView] = createSignal<string>('');
+  let previousSelectedView: string | null = null;
   let newViewNameInput: HTMLInputElement | undefined;
 
   // Reload views when filterRegistry changes
@@ -104,6 +100,10 @@ export function ViewBar(props: ViewBarProps) {
       return serializedView;
     }) as View[];
   };
+
+  onMount(() => {
+    loadViews();
+  });
   
   const loadViews = () => {
     try {
@@ -127,7 +127,7 @@ export function ViewBar(props: ViewBarProps) {
       const viewExists = allViews.some(v => v.id === currentViewId);
       
       if (!viewExists && allViews.length > 0) {
-        handleViewSelect(allViews[0].id);
+        setSelectedView(allViews[0].id);
       }
     } catch (error) {
       console.error('Error loading views:', error);
@@ -170,20 +170,24 @@ export function ViewBar(props: ViewBarProps) {
       filters: [...filters]
     };
   };
-  
-  const handleViewSelect = (viewId: string) => {
-    setSelectedView(viewId);
-  };
 
   const selectViewByIndex = (index: number) => {
     const viewsList = views();
     if (index >= 0 && index < viewsList.length) {
-      handleViewSelect(viewsList[index].id);
+      setSelectedView(viewsList[index].id);
     }
   };
 
   createEffect(() => {
-    const view = views().find(v => v.id === selectedView());
+    let view: View | undefined;
+    const selectedViewId = selectedView();
+    if (selectedViewId === previousSelectedView) {
+      return;
+    }
+
+    untrack(() => {
+      view = views().find(v => v.id === selectedViewId);
+    })
     if (view) {
       // Notify parent component of view change
       props.updateFilters(
@@ -191,6 +195,7 @@ export function ViewBar(props: ViewBarProps) {
         view.filters || []
       );
     }
+    previousSelectedView = selectedViewId;
   });
   
   const handleViewCreate = (viewName: string) => {
@@ -205,7 +210,7 @@ export function ViewBar(props: ViewBarProps) {
     const updatedViews = [...views(), newView];
     setViews(updatedViews);
     saveCustomViews(updatedViews);
-    handleViewSelect(newView.id);
+    setSelectedView(newView.id);
   };
   
   const handleViewDelete = (viewId: string) => {
@@ -216,7 +221,7 @@ export function ViewBar(props: ViewBarProps) {
     // Set selection to first system view
     const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
     if (systemViews.length > 0) {
-      handleViewSelect(systemViews[0].id);
+      setSelectedView(systemViews[0].id);
     }
   };
 
@@ -327,7 +332,7 @@ export function ViewBar(props: ViewBarProps) {
               <div class="view-pill-container">
                 <button
                   class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
-                  onClick={() => handleViewSelect(view.id)}
+                  onClick={() => setSelectedView(view.id)}
                 >
                   <span>{view.label}</span>
                   {selectedView() === view.id && !view.isSystem && (

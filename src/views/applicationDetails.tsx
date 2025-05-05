@@ -14,10 +14,12 @@ import type {
 import { watchResource } from "../watches.tsx";
 import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
+import { useFilterStore } from "../store/filterStore.tsx";
 
 export function ApplicationDetails() {
   const params = useParams();
   const navigate = useNavigate();
+  const filterStore = useFilterStore();
 
   // Initialize state for the specific kustomization and its related resources
   const [argoCDApplication, setArgoCDApplication] = createSignal<ArgoCDApplication | null>(null);
@@ -292,6 +294,11 @@ export function ApplicationDetails() {
     return g;
   };
 
+  const handleBackClick = () => {
+    // Global filter state is already maintained by the filter store
+    navigate("/");
+  };
+
   return (
     <div class="kustomization-details">
       <Show when={argoCDApplication()} fallback={<div class="loading">Loading...</div>}>
@@ -308,7 +315,7 @@ export function ApplicationDetails() {
               <header class="kustomization-header">
                 <div class="header-top">
                   <div class="header-left">
-                    <button class="back-button" onClick={() => navigate("/")}>
+                    <button class="back-button" onClick={handleBackClick}>
                       <span class="icon">←</span> Back
                     </button>
                     <h1>{application.metadata.name}</h1>

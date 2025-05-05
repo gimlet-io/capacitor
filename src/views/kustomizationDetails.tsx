@@ -15,10 +15,12 @@ import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
 import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
+import { useFilterStore } from "../store/filterStore.tsx";
 
 export function KustomizationDetails() {
   const params = useParams();
   const navigate = useNavigate();
+  const filterStore = useFilterStore();
 
   // Initialize state for the specific kustomization and its related resources
   const [kustomization, setKustomization] = createSignal<Kustomization | null>(null);
@@ -293,6 +295,11 @@ export function KustomizationDetails() {
     return g;
   };
 
+  const handleBackClick = () => {
+    // Global filter state is already maintained by the filter store
+    navigate("/");
+  };
+
   return (
     <div class="kustomization-details">
       <Show when={kustomization()} fallback={<div class="loading">Loading...</div>}>
@@ -311,7 +318,7 @@ export function KustomizationDetails() {
               <header class="kustomization-header">
                 <div class="header-top">
                   <div class="header-left">
-                    <button class="back-button" onClick={() => navigate("/")}>
+                    <button class="back-button" onClick={handleBackClick}>
                       <span class="icon">←</span> Back
                     </button>
                     <h1>{metadata.name}</h1>

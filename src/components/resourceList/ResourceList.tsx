@@ -1,4 +1,4 @@
-import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo, Show } from "solid-js";
+import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo } from "solid-js";
 import { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, getResourceShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";

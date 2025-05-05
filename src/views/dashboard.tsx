@@ -1,7 +1,7 @@
 import { createSignal, createResource, createEffect, untrack, createMemo } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
 import { FilterBar, Filter, FilterOption } from "../components/filterBar/FilterBar.tsx";
-import { ViewBar, ActiveFilter } from "../components/viewBar/ViewBar.tsx";
+import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import type { 
   ApiResource,
   ApiResourceList,
@@ -16,13 +16,12 @@ import { kustomizationReadyFilter } from "../components/resourceList/Kustomizati
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ApplicationList.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { updateDeploymentMatchingResources, updateServiceMatchingResources } from "../utils/k8s.ts";
+import { useFilterStore } from "../store/filterStore.tsx";
 
 export function Dashboard() {
-  const [namespace, setNamespace] = createSignal<string>();
-  const [resourceType, setResourceType] = createSignal<string>('core/Pod');
+  const filterStore = useFilterStore();
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
-  const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
   const [availableResources, setAvailableResources] = createSignal<K8sResource[]>([]);
   const [filterRegistry, setFilterRegistry] = createSignal<Record<string, Filter>>({});
 
@@ -293,46 +292,16 @@ export function Dashboard() {
     setFilterRegistry(registry);
   });
 
-  const handleFilterChange = (filters: ActiveFilter[]) => {
-    setActiveFilters(filters);
-    
-    // Update namespace and resourceType signals based on active filters
-    const nsFilter = filters.find(f => f.filter.name === "Namespace");
-    if (nsFilter) {
-      setNamespace(nsFilter.value);
-    } else {
-      setNamespace(''); // Clear namespace if filter is removed
-    }
-    
-    const rtFilter = filters.find(f => f.filter.name === "ResourceType");
-    if (rtFilter) {
-      setResourceType(rtFilter.value);
-    }
-  };
-
-  const updateFilters = (resourceType: string, filters: ActiveFilter[]) => {
-    setResourceType(resourceType);
-    setActiveFilters(filters);
-    
-    // Extract namespace from filters if present
-    const namespaceFilter = filters.find(f => f.filter.name === "Namespace");
-    if (namespaceFilter) {
-      setNamespace(namespaceFilter.value);
-    } else {
-      setNamespace('');
-    }
-  };
-
   // Update active filters when resourceType changes
   createEffect(() => {
-    const currentResourceType = resourceType();
+    const currentResourceType = filterStore.getResourceType();
     if (!currentResourceType) return;
     
     const selectedResource = availableResources().find(res => res.id === currentResourceType);
     if (!selectedResource) return;
     
     // Create new active filters array with resource type filter
-    const newFilters = activeFilters().filter(f => f.filter.name !== "ResourceType");
+    const newFilters = filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType");
     
     // Add resource type filter
     newFilters.push({ 
@@ -341,8 +310,8 @@ export function Dashboard() {
     });
     
     // Only update if needed to avoid infinite loops
-    if (JSON.stringify(newFilters) !== JSON.stringify(activeFilters())) {
-      setActiveFilters(newFilters);
+    if (JSON.stringify(newFilters) !== JSON.stringify(filterStore.activeFilters)) {
+      filterStore.setActiveFilters(newFilters);
     }
   });
 
@@ -351,10 +320,25 @@ export function Dashboard() {
     if (!namespaces()) {
       return;
     }
-    if (namespaces().includes("flux-system")) {
-      setNamespace("flux-system");
-    } else {
-      setNamespace(namespaces()![0]);
+    
+    // Check if we need to set a default namespace filter
+    const currentNamespace = filterStore.getNamespace();
+    if (!currentNamespace) {
+      // Get available namespaces
+      const namespaceList = namespaces();
+      const defaultNamespace = namespaceList[0];
+      
+      // Find the namespace filter in filterRegistry
+      const registry = filterRegistry();
+      const namespaceFilter = registry["Namespace"];
+      
+      if (namespaceFilter) {
+        // Add a namespace filter
+        filterStore.setActiveFilters([
+          ...filterStore.activeFilters,
+          { filter: namespaceFilter, value: defaultNamespace }
+        ]);
+      }
     }
   });
 
@@ -366,7 +350,7 @@ export function Dashboard() {
 
   // Call setupWatches when namespace or resource filter changes
   createEffect(() => {
-    setupWatches(namespace(), resourceType());
+    setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
   });
 
   // Maintain resources for each extra watch
@@ -568,56 +552,56 @@ export function Dashboard() {
       <main class="main-content">
         <ViewBar
           filterRegistry={filterRegistry}
-          updateFilters={updateFilters}
+          updateFilters={filterStore.updateFilters}
           watchStatus={watchStatus()}
-          resourceType={resourceType()}
-          activeFilters={activeFilters()}
+          resourceType={filterStore.getResourceType()}
+          activeFilters={filterStore.activeFilters}
         />
         
         <FilterBar 
-          filters={[resourceTypeFilter(), ...(availableResources().find(t => t.id === resourceType())?.filters || [])]}
-          activeFilters={activeFilters()}
-          onFilterChange={handleFilterChange}
+          filters={[resourceTypeFilter(), ...(availableResources().find(t => t.id === filterStore.getResourceType())?.filters || [])]}
+          activeFilters={filterStore.activeFilters}
+          onFilterChange={filterStore.setActiveFilters}
         />
 
         <section class="resource-section full-width">
           {/* Special rendering for known resource types */}
-          <Show when={resourceType() === 'core/Pod'}>
+          <Show when={filterStore.getResourceType() === 'core/Pod'}>
             <ResourceList 
               resources={dynamicResources()['core/Pod'] || []} 
               columns={podColumns}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
-          <Show when={resourceType() === 'apps/Deployment'}>
+          <Show when={filterStore.getResourceType() === 'apps/Deployment'}>
             <DeploymentList 
               deployments={dynamicResources()['apps/Deployment'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
-          <Show when={resourceType() === 'core/Service'}>
+          <Show when={filterStore.getResourceType() === 'core/Service'}>
             <ServiceList 
               services={dynamicResources()['core/Service'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
-          <Show when={resourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
+          <Show when={filterStore.getResourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
             <FluxResourceList 
               kustomizations={dynamicResources()['kustomize.toolkit.fluxcd.io/Kustomization'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
-          <Show when={resourceType() === 'argoproj.io/Application'}>
+          <Show when={filterStore.getResourceType() === 'argoproj.io/Application'}>
             <ArgoCDResourceList 
               applications={dynamicResources()['argoproj.io/Application'] || []}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           
           {/* Default rendering for other resource types */}
-          <Show when={!['core/Pod', 'apps/Deployment', 'core/Service', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(resourceType())}>
+          <Show when={!['core/Pod', 'apps/Deployment', 'core/Service', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(filterStore.getResourceType())}>
             <ResourceList 
-              resources={dynamicResources()[resourceType()] || []} 
+              resources={dynamicResources()[filterStore.getResourceType()] || []} 
               columns={[
                 { 
                   header: "Name", 
@@ -635,7 +619,7 @@ export function Dashboard() {
                   accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
                 }
               ]}
-              activeFilters={activeFilters().filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
         </section>
