@@ -691,7 +691,7 @@ h1 {
 
 .resource-list-container {
   width: 100%;
-  height: calc(100vh - 200px); /* subtract header/nav height */
+  height: calc(100vh - 175px); /* subtract header/nav height */
   max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1020,8 +1020,8 @@ td.message-cell {
 
 .resource-table-wrapper {
   flex: 1;
-  overflow: auto;
-  height: 100%;
+  overflow-y: auto;
+  height: calc(100vh - 215px);
   width: 100%;
   margin-top: 16px;
 }
