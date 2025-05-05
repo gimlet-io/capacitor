@@ -14,12 +14,10 @@ import type {
 import { watchResource } from "../watches.tsx";
 import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
-import { useFilterStore } from "../store/filterStore.tsx";
 
 export function ApplicationDetails() {
   const params = useParams();
   const navigate = useNavigate();
-  const filterStore = useFilterStore();
 
   // Initialize state for the specific kustomization and its related resources
   const [argoCDApplication, setArgoCDApplication] = createSignal<ArgoCDApplication | null>(null);

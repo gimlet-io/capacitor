@@ -4,6 +4,8 @@ import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
+import { useFilterStore } from "../../store/filterStore.tsx";
+
 export interface View {
   id: string;
   label: string;
@@ -62,9 +64,8 @@ export function ViewBar(props: ViewBarProps) {
   const [newViewName, setNewViewName] = createSignal("");
   const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
   const [views, setViews] = createSignal<View[]>([]);
-  const [selectedView, setSelectedView] = createSignal<string>('');
-  let previousSelectedView: string | null = null;
   let newViewNameInput: HTMLInputElement | undefined;
+  const filterStore = useFilterStore();
 
   // Reload views when filterRegistry changes
   createEffect(() => {
@@ -123,11 +124,11 @@ export function ViewBar(props: ViewBarProps) {
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
-      const currentViewId = selectedView();
+      const currentViewId = filterStore.selectedView;
       const viewExists = allViews.some(v => v.id === currentViewId);
       
       if (!viewExists && allViews.length > 0) {
-        setSelectedView(allViews[0].id);
+        filterStore.setSelectedView(allViews[0].id);
       }
     } catch (error) {
       console.error('Error loading views:', error);
@@ -188,14 +189,14 @@ export function ViewBar(props: ViewBarProps) {
   const selectViewByIndex = (index: number) => {
     const viewsList = views();
     if (index >= 0 && index < viewsList.length) {
-      setSelectedView(viewsList[index].id);
+      filterStore.setSelectedView(viewsList[index].id);
     }
   };
 
   createEffect(() => {
     let view: View | undefined;
-    const selectedViewId = selectedView();
-    if (selectedViewId === previousSelectedView) {
+    const selectedViewId = filterStore.selectedView;
+    if (selectedViewId === filterStore.previousSelectedView) {
       return;
     }
 
@@ -221,7 +222,6 @@ export function ViewBar(props: ViewBarProps) {
       
       props.setFilters(filters);
     }
-    previousSelectedView = selectedViewId;
   });
   
   const handleViewCreate = (viewName: string) => {
@@ -236,7 +236,7 @@ export function ViewBar(props: ViewBarProps) {
     const updatedViews = [...views(), newView];
     setViews(updatedViews);
     saveCustomViews(updatedViews);
-    setSelectedView(newView.id);
+    filterStore.setSelectedView(newView.id);
   };
   
   const handleViewDelete = (viewId: string) => {
@@ -247,7 +247,7 @@ export function ViewBar(props: ViewBarProps) {
     // Set selection to first system view
     const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
     if (systemViews.length > 0) {
-      setSelectedView(systemViews[0].id);
+      filterStore.setSelectedView(systemViews[0].id);
     }
   };
 
@@ -280,7 +280,7 @@ export function ViewBar(props: ViewBarProps) {
     let viewId: string | undefined;
     let view: View | undefined;
     untrack(() => {
-      viewId = selectedView();
+      viewId = filterStore.selectedView;
       if (!viewId) {
         return;
       }
@@ -318,7 +318,7 @@ export function ViewBar(props: ViewBarProps) {
   // Update document title based on selected view
   createEffect(() => {
     const defaultTitle = "Capacitor";
-    const currentView = views().find(view => view.id === selectedView());
+    const currentView = views().find(view => view.id === filterStore.selectedView);
     document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
   });
 
@@ -358,11 +358,11 @@ export function ViewBar(props: ViewBarProps) {
             {(view, index) => (
               <div class="view-pill-container">
                 <button
-                  class={`view-pill ${selectedView() === view.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedView(view.id)}
+                  class={`view-pill ${filterStore.selectedView === view.id ? 'selected' : ''}`}
+                  onClick={() => filterStore.setSelectedView(view.id)}
                 >
                   <span>{view.label}</span>
-                  {selectedView() === view.id && !view.isSystem && (
+                  {filterStore.selectedView === view.id && !view.isSystem && (
                     <span 
                       class="view-delete" 
                       title="Delete view"
