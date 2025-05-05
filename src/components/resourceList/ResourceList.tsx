@@ -144,9 +144,9 @@ export function ResourceList<T>(props: {
         const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
         return newIndex;
       });
-    } else if (e.key === 'Enter' && props.onItemClick) {
+    } else if (e.key === 'Enter') {
       const index = selectedIndex();
-      if (index !== -1 && index < resources.length) {
+      if (index !== -1 && index < resources.length && props.onItemClick) {
         props.onItemClick(resources[index]);
       }
     } else if (e.key === 'd') {

@@ -26,6 +26,7 @@ export function KeyboardShortcuts(props: {
 
 // Define shortcuts used by ResourceList and other components
 export const getResourceShortcuts = (): KeyboardShortcut[] => [
+  { key: "Enter", description: "Open details", isContextual: true },
   { key: "d", description: "Describe", isContextual: true },
   { key: "y", description: "YAML", isContextual: true },
   { key: "e", description: "Events", isContextual: true },
