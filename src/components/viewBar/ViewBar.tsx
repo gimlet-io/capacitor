@@ -163,11 +163,25 @@ export function ViewBar(props: ViewBarProps) {
   
   const createView = (label: string, resourceType: string, filters: ActiveFilter[]) => {
     const id = `custom-${Date.now()}`;
+    
+    // Make sure we have the ResourceType filter
+    const resourceTypeFilter = props.filterRegistry()["ResourceType"];
+    const existingResourceTypeFilter = filters.find(f => f.filter.name === "ResourceType");
+    
+    let viewFilters = [...filters];
+    if (!existingResourceTypeFilter) {
+      // Add ResourceType filter if it doesn't exist
+      viewFilters = [
+        { filter: resourceTypeFilter, value: resourceType },
+        ...viewFilters
+      ];
+    }
+    
     return {
       id,
       label,
       resourceType,
-      filters: [...filters]
+      filters: viewFilters
     };
   };
 
@@ -190,7 +204,22 @@ export function ViewBar(props: ViewBarProps) {
     })
 
     if (view) {
-      props.setFilters(view.filters || []);
+      // Make sure the filters include ResourceType filter with the view's resourceType
+      const filters = view.filters || [];
+      const hasResourceTypeFilter = filters.some(f => f.filter.name === "ResourceType");
+      
+      if (!hasResourceTypeFilter && view.resourceType) {
+        // If ResourceType filter is missing, add it
+        const resourceTypeFilterObj = props.filterRegistry()["ResourceType"];
+        if (resourceTypeFilterObj) {
+          filters.push({
+            filter: resourceTypeFilterObj,
+            value: view.resourceType
+          });
+        }
+      }
+      
+      props.setFilters(filters);
     }
     previousSelectedView = selectedViewId;
   });

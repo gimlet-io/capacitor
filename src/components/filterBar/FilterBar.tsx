@@ -34,6 +34,7 @@ export function FilterBar(props: {
 }) {
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
+  const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
   const [optionSearchInputs, setOptionSearchInputs] = createSignal<Record<string, string>>({});
   const [highlightedOptionIndex, setHighlightedOptionIndex] = createSignal<number>(-1);
   const filtersRef = new Map<string, HTMLDivElement>();
@@ -49,8 +50,11 @@ export function FilterBar(props: {
     const filterDef = props.filters.find(f => f.name === filter);
     
     if (existingIndex >= 0) {
-      // Remove filter if it's already active
-      newFilters.splice(existingIndex, 1);
+      // Only allow deselection for multi-select filters
+      if (filterDef?.multiSelect) {
+        // Remove filter if it's already active
+        newFilters.splice(existingIndex, 1);
+      }
     } else {
       // Add new filter
       if (filterDef && !filterDef.multiSelect) {
@@ -81,8 +85,14 @@ export function FilterBar(props: {
     props.onFilterChange(newFilters);
   };
 
+  // Update pending text input without applying filter
+  const updatePendingTextInput = (filter: string, value: string) => {
+    setPendingTextInputs(prev => ({ ...prev, [filter]: value }));
+  };
+  
+  // Apply the text filter (used when Enter is pressed or filter is closed)
   const applyTextFilter = (filter: string, value: string) => {
-    // Update text input state
+    // Update text input state to match the value being applied
     setTextInputs(prev => ({ ...prev, [filter]: value }));
     
     // If value is empty, remove the filter
@@ -96,6 +106,7 @@ export function FilterBar(props: {
     const newFilters = [...props.activeFilters];
     const existingIndex = newFilters.findIndex(f => f.filter.name === filter);
     const filterDef = props.filters.find(f => f.name === filter);
+    
     if (existingIndex >= 0) {
       // Replace existing filter
       newFilters[existingIndex] = { filter: filterDef!, value };
@@ -166,6 +177,12 @@ export function FilterBar(props: {
       // Clear any existing search for this filter
       if (filter.type !== 'text' && (filter.searchable || filterName === "Namespace")) {
         setOptionSearchInputs(prev => ({ ...prev, [filterName]: "" }));
+      }
+      
+      // For text filters, initialize the pending text input with current value
+      if (filter.type === 'text') {
+        const currentValue = textInputs()[filterName] || '';
+        setPendingTextInputs(prev => ({ ...prev, [filterName]: currentValue }));
       }
       
       setActiveFilter(filterName);
@@ -248,10 +265,18 @@ export function FilterBar(props: {
     if (textFilters.length > 0) {
       untrack(() => {
         const newTextInputs = { ...textInputs() };
+        const newPendingTextInputs = { ...pendingTextInputs() };
+        
         textFilters.forEach(filter => {
           newTextInputs[filter.filter.name] = filter.value;
+          // Only update pending if not currently being edited
+          if (!activeFilter() || activeFilter() !== filter.filter.name) {
+            newPendingTextInputs[filter.filter.name] = filter.value;
+          }
         });
+        
         setTextInputs(newTextInputs);
+        setPendingTextInputs(newPendingTextInputs);
       });
     }
   });
@@ -322,9 +347,23 @@ export function FilterBar(props: {
     event.stopPropagation();
     
     if (event.key === "Enter") {
+      // For text filters, apply the pending text input value
+      if (filter.type === "text") {
+        const filterName = filter.name;
+        const pendingValue = pendingTextInputs()[filterName] || "";
+        applyTextFilter(filterName, pendingValue);
+      }
+      
       // Close the filter on Enter
       setActiveFilter(null);
     } else if (event.key === "Escape") {
+      // For text filters, reset to the last applied value
+      if (filter.type === "text") {
+        const filterName = filter.name;
+        const currentValue = textInputs()[filterName] || "";
+        setPendingTextInputs(prev => ({ ...prev, [filterName]: currentValue }));
+      }
+      
       // Close the filter on Escape without making a selection
       setActiveFilter(null);
     } 
@@ -386,6 +425,15 @@ export function FilterBar(props: {
     
     const activeFilterRef = filtersRef.get(activeFilter()!);
     if (activeFilterRef && !activeFilterRef.contains(event.target as Node)) {
+      // If there's an active text filter, apply its pending value
+      const currentFilter = activeFilter();
+      const filter = props.filters.find(f => f.name === currentFilter);
+      
+      if (filter && filter.type === "text") {
+        const pendingValue = pendingTextInputs()[filter.name] || "";
+        applyTextFilter(filter.name, pendingValue);
+      }
+      
       setActiveFilter(null);
     }
   };
@@ -485,8 +533,8 @@ export function FilterBar(props: {
                           <input
                             type="text"
                             placeholder={filter.placeholder || `Filter by ${filter.name.toLowerCase()}`}
-                            value={textInputs()[filter.name] || ""}
-                            onInput={(e) => applyTextFilter(filter.name, e.currentTarget.value)}
+                            value={pendingTextInputs()[filter.name] || ""}
+                            onInput={(e) => updatePendingTextInput(filter.name, e.currentTarget.value)}
                             ref={el => textInputRefs.set(filter.name, el)}
                             onKeyDown={(e) => handleFilterInputKeyDown(e, filter)}
                           />
@@ -548,15 +596,26 @@ export function FilterBar(props: {
                               highlightedOptionIndex() === index()
                             );
                             
+                            // Check if this is a non-deselectable option (single select with active selection)
+                            const isNonDeselectable = createMemo(() => 
+                              !filter.multiSelect && isActive()
+                            );
+                            
                             return (
                               <button 
                                 classList={{
                                   "filter-option": true,
                                   "active": isActive(),
-                                  "highlighted": isHighlighted()
+                                  "highlighted": isHighlighted(),
+                                  "non-deselectable": isNonDeselectable()
                                 }}
                                 style={option.color ? `border-color: ${option.color}` : ''}
-                                onClick={() => toggleFilter(filter.name, option.value)}
+                                onClick={() => {
+                                  // Only allow toggling if it's multiselect or not currently active
+                                  if (filter.multiSelect || !isActive()) {
+                                    toggleFilter(filter.name, option.value);
+                                  }
+                                }}
                               >
                                 <span class="checkbox">
                                   {isActive() ? '✓' : ''}
