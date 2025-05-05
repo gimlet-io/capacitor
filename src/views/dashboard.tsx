@@ -300,14 +300,16 @@ export function Dashboard() {
     const selectedResource = availableResources().find(res => res.id === currentResourceType);
     if (!selectedResource) return;
     
-    // Create new active filters array with resource type filter
-    const newFilters = filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType");
-    
-    // Add resource type filter
-    newFilters.push({ 
-      filter: resourceTypeFilter(), 
-      value: currentResourceType 
-    });
+    // Create a completely new array of filters
+    const newFilters = [
+      // Add the ResourceType filter first
+      { 
+        filter: resourceTypeFilter(), 
+        value: currentResourceType 
+      },
+      // Include all other non-ResourceType filters
+      ...filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType")
+    ];
     
     // Only update if needed to avoid infinite loops
     if (JSON.stringify(newFilters) !== JSON.stringify(filterStore.activeFilters)) {
@@ -552,7 +554,7 @@ export function Dashboard() {
       <main class="main-content">
         <ViewBar
           filterRegistry={filterRegistry}
-          updateFilters={filterStore.updateFilters}
+          setFilters={filterStore.setActiveFilters}
           watchStatus={watchStatus()}
           resourceType={filterStore.getResourceType()}
           activeFilters={filterStore.activeFilters}

@@ -54,7 +54,7 @@ export interface ViewBarProps {
   watchStatus?: string;
   resourceType: string;
   activeFilters: ActiveFilter[];
-  updateFilters: (resourceType: string, filters: ActiveFilter[]) => void;
+  setFilters: (filters: ActiveFilter[]) => void;
 }
 
 export function ViewBar(props: ViewBarProps) {
@@ -188,12 +188,9 @@ export function ViewBar(props: ViewBarProps) {
     untrack(() => {
       view = views().find(v => v.id === selectedViewId);
     })
+
     if (view) {
-      // Notify parent component of view change
-      props.updateFilters(
-        view.resourceType,
-        view.filters || []
-      );
+      props.setFilters(view.filters || []);
     }
     previousSelectedView = selectedViewId;
   });
@@ -271,10 +268,11 @@ export function ViewBar(props: ViewBarProps) {
     
     // Only proceed if something has changed
     if (filtersChanged || resourceTypeChanged) {
-      // Update this view with current filters and settings
+      // Create a completely new view with updated properties
       const updatedView: View = {
         ...view,
         resourceType: currentResourceType,
+        // Make a fresh copy of the filters array
         filters: [...currentFilters]
       };
       

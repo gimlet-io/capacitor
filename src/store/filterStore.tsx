@@ -6,7 +6,6 @@ interface FilterState {
   setActiveFilters: (filters: ActiveFilter[]) => void;
   getResourceType: () => string;
   getNamespace: () => string;
-  updateFilters: (resourceType: string, filters: ActiveFilter[]) => void;
 }
 
 const FilterContext = createContext<FilterState>();
@@ -24,31 +23,15 @@ export function FilterProvider(props: { children: JSX.Element }) {
     return nsFilter ? nsFilter.value : '';
   };
 
-  const updateFilters = (resourceType: string, filters: ActiveFilter[]) => {
-    // Ensure we have a ResourceType filter
-    const withoutResourceTypeFilter = filters.filter(f => f.filter.name !== "ResourceType");
-    
-    // Find the ResourceType filter in the existing filters
-    const existingResourceTypeFilter = activeFilters().find(f => f.filter.name === "ResourceType");
-
-    if (existingResourceTypeFilter) {
-      // Create a new filter with the updated value but same filter object
-      setActiveFilters([
-        { filter: existingResourceTypeFilter.filter, value: resourceType },
-        ...withoutResourceTypeFilter
-      ]);
-    } else {
-      // Just set the filters as is (should have ResourceType already)
-      setActiveFilters(filters);
-    }
+  const setFilters = (filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
   };
 
   const store: FilterState = {
     get activeFilters() { return activeFilters(); },
-    setActiveFilters,
+    setActiveFilters: setFilters,
     getResourceType,
-    getNamespace,
-    updateFilters
+    getNamespace
   };
 
   return (
