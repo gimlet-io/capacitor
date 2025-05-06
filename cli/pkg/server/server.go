@@ -60,6 +60,15 @@ func (s *Server) Setup() {
 		return s.wsHandler.HandleWebSocket(c)
 	})
 
+	// Add endpoint for getting kubeconfig contexts
+	s.echo.GET("/api/contexts", func(c echo.Context) error {
+		contexts := s.k8sClient.GetContexts()
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"contexts": contexts,
+			"current":  s.k8sClient.CurrentContext,
+		})
+	})
+
 	// Kubernetes API proxy endpoints
 	// Match all routes starting with /k8s
 	s.echo.Any("/k8s*", func(c echo.Context) error {

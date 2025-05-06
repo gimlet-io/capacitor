@@ -294,13 +294,35 @@ export function Dashboard() {
   return (
     <div class="layout">
       <main class="main-content">
-        <ViewBar
-          filterRegistry={() => filterStore.filterRegistry}
-          setFilters={filterStore.setActiveFilters}
-          watchStatus={watchStatus()}
-          resourceType={filterStore.getResourceType()}
-          activeFilters={filterStore.activeFilters}
-        />
+        <div class="header-section">
+          {/* Context display on the left */}
+          <Show when={apiResourceStore.contextInfo}>
+            <div class="context-display">
+              <span class="context-label">Current Context:</span>
+              <span class="context-name">{apiResourceStore.contextInfo?.current}</span>
+              <Show when={watchStatus}>
+                <span 
+                  classList={{ 
+                    "watch-status": true, 
+                    "error": watchStatus() !== "●" 
+                  }}
+                >
+                  {watchStatus()}
+                </span>
+              </Show>
+            </div>
+          </Show>
+          
+          {/* Views taking all horizontal space */}
+          <div class="views-container">
+            <ViewBar
+              filterRegistry={() => filterStore.filterRegistry}
+              resourceType={filterStore.getResourceType()}
+              activeFilters={filterStore.activeFilters}
+              setFilters={filterStore.setActiveFilters}
+            />
+          </div>
+        </div>
 
         <FilterBar
           filters={[resourceTypeFilter(), ...(filterStore.availableResources.find(t => t.id === filterStore.getResourceType())?.filters || [])]}

@@ -190,11 +190,6 @@ h1 {
     100% { opacity: 1; }
 }
 
-.watch-status.error {
-    color: var(--linear-red);
-    animation: none;
-}
-
 .resource-section.full-width {
     grid-column: 1 / -1;
 }
@@ -455,15 +450,6 @@ h1 {
   font-size: 16px;
 }
 
-.watch-status {
-  font-size: 14px;
-  font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: var(--linear-bg-secondary);
-  color: var(--linear-green);
-}
-
 .status-badges {
   display: flex;
   flex-wrap: wrap; /* This allows the badges to wrap onto the next line */
@@ -714,12 +700,69 @@ td.message-cell {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  padding-bottom: 1rem;
+  width: 100%;
+  min-height: 30px; /* Ensure minimum height consistency */
+}
+
+/* Header section with ViewBar and Context display */
+.header-section {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 12px;
+}
+
+/* Context display */
+.context-display {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  background-color: var(--linear-bg-secondary);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  font-size: 13px;
+  flex-shrink: 0; /* Don't shrink */
+  height: 30px; /* Match height with view-pill */
+  box-sizing: border-box;
+}
+
+.context-label {
+  color: var(--linear-text-tertiary);
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+.context-name {
+  color: var(--linear-text-primary);
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.watch-status {
+  color: var(--linear-green);
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.watch-status.error {
+  color: var(--linear-red);
+  animation: none;
+}
+
+/* Views container */
+.views-container {
+  flex-grow: 1; /* Take all available space */
+  overflow: hidden;
 }
 
 .view-buttons {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  flex-grow: 1;
+  align-items: center;
 }
 
 .view-pill-container {
@@ -740,7 +783,7 @@ td.message-cell {
   display: flex;
   align-items: center; /* Center items vertically */
   justify-content: space-between; /* Space between label and delete icon */
-  padding: 0.5rem 1rem;
+  padding: 0.3rem 1rem;
   border-radius: 5px;
   background-color: var(--linear-bg);
   color: var(--linear-text-secondary);
@@ -748,6 +791,8 @@ td.message-cell {
   cursor: pointer;
   border: 1px solid var(--linear-border);
   transition: all 0.2s ease;
+  height: 30px; /* Set consistent height */
+  box-sizing: border-box;
 }
 
 .view-pill:hover {
@@ -1195,6 +1240,13 @@ td.message-cell {
 .view-right-section {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 14px;
+  flex-shrink: 0; /* Don't shrink */
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }

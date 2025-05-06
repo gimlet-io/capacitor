@@ -25,7 +25,7 @@ Deno.serve({ port: 8001 }, async (req: Request) => {
     }
   
     // 🔁 Proxy HTTP
-    if (url.pathname.startsWith("/k8s")) {
+    if (url.pathname.startsWith("/k8s") || url.pathname.startsWith("/api/")) {
       const proxyResp = await fetch(`${API_PROXY_TARGET}${url.pathname}${url.search}`, {
         method: req.method,
         headers: req.headers,

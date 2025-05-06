@@ -1,9 +1,24 @@
 import { createContext, createResource, useContext, JSX } from "solid-js";
 import type { ApiResource, ApiResourceList, ApiGroupList } from "../types/k8s.ts";
 
+// Define types for the context information
+export interface KubeContext {
+  name: string;
+  isCurrent: boolean;
+  namespace?: string;
+  clusterName?: string;
+  user?: string;
+}
+
+interface ContextInfo {
+  contexts: KubeContext[];
+  current: string;
+}
+
 interface ApiResourceState {
   apiResources: ApiResource[] | undefined;
   namespaces: string[] | undefined;
+  contextInfo: ContextInfo | undefined;
 }
 
 const ApiResourceContext = createContext<ApiResourceState>();
@@ -100,9 +115,25 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     return nsList;
   });
 
+  // Fetch context information from the API
+  const [contextInfo] = createResource(async () => {
+    try {
+      const response = await fetch('/api/contexts');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch contexts: ${response.statusText}`);
+      }
+      const data = await response.json() as ContextInfo;
+      return data;
+    } catch (error) {
+      console.error("Error fetching context information:", error);
+      return { contexts: [], current: "" };
+    }
+  });
+
   const store: ApiResourceState = {
     get apiResources() { return apiResources(); },
-    get namespaces() { return namespaces(); }
+    get namespaces() { return namespaces(); },
+    get contextInfo() { return contextInfo(); }
   };
 
   return (

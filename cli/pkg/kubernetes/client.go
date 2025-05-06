@@ -14,10 +14,11 @@ import (
 
 // Client wraps the Kubernetes client with additional functionality
 type Client struct {
-	Clientset      *kubernetes.Clientset
-	Config         *rest.Config
-	CurrentContext string
-	ContextConfig  *api.Context
+	Clientset         *kubernetes.Clientset
+	Config            *rest.Config
+	CurrentContext    string
+	ContextConfig     *api.Context
+	AvailableContexts map[string]*api.Context
 }
 
 // NewClient creates a new Kubernetes client
@@ -26,6 +27,7 @@ func NewClient(kubeconfig string, inCluster bool, insecureSkipTLSVerify bool) (*
 	var err error
 	var currentContext string
 	var contextConfig *api.Context
+	var availableContexts map[string]*api.Context
 
 	if inCluster {
 		// In-cluster configuration
@@ -34,6 +36,7 @@ func NewClient(kubeconfig string, inCluster bool, insecureSkipTLSVerify bool) (*
 			return nil, fmt.Errorf("error creating in-cluster config: %w", err)
 		}
 		currentContext = "in-cluster"
+		availableContexts = map[string]*api.Context{"in-cluster": nil}
 	} else {
 		// Out-of-cluster configuration
 		if kubeconfig == "" {
@@ -53,6 +56,8 @@ func NewClient(kubeconfig string, inCluster bool, insecureSkipTLSVerify bool) (*
 		// Get current context
 		currentContext = apiConfig.CurrentContext
 		contextConfig = apiConfig.Contexts[currentContext]
+		// Get available contexts
+		availableContexts = apiConfig.Contexts
 
 		// Log details about the current context
 		log.Printf("Using kubeconfig context: %s", currentContext)
@@ -121,9 +126,41 @@ func NewClient(kubeconfig string, inCluster bool, insecureSkipTLSVerify bool) (*
 	}
 
 	return &Client{
-		Clientset:      clientset,
-		Config:         config,
-		CurrentContext: currentContext,
-		ContextConfig:  contextConfig,
+		Clientset:         clientset,
+		Config:            config,
+		CurrentContext:    currentContext,
+		ContextConfig:     contextConfig,
+		AvailableContexts: availableContexts,
 	}, nil
+}
+
+// GetContexts returns the available contexts from the kubeconfig file
+// and marks the current active context
+type ContextInfo struct {
+	Name        string `json:"name"`
+	IsCurrent   bool   `json:"isCurrent"`
+	Namespace   string `json:"namespace,omitempty"`
+	ClusterName string `json:"clusterName,omitempty"`
+	User        string `json:"user,omitempty"`
+}
+
+func (c *Client) GetContexts() []ContextInfo {
+	contexts := make([]ContextInfo, 0, len(c.AvailableContexts))
+
+	for name, ctx := range c.AvailableContexts {
+		contextInfo := ContextInfo{
+			Name:      name,
+			IsCurrent: name == c.CurrentContext,
+		}
+
+		if ctx != nil {
+			contextInfo.Namespace = ctx.Namespace
+			contextInfo.ClusterName = ctx.Cluster
+			contextInfo.User = ctx.AuthInfo
+		}
+
+		contexts = append(contexts, contextInfo)
+	}
+
+	return contexts
 }

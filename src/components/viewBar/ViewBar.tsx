@@ -1,5 +1,5 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, For, Show, createEffect, untrack, onMount, onCleanup } from "solid-js";
+import { createSignal, For, createEffect, untrack, onMount, onCleanup } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import type { Accessor } from "solid-js";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
@@ -53,7 +53,6 @@ const SERIALIZED_SYSTEM_VIEWS: SerializableView[] = [
 
 export interface ViewBarProps {
   filterRegistry: Accessor<Record<string, Filter>>;
-  watchStatus?: string;
   resourceType: string;
   activeFilters: ActiveFilter[];
   setFilters: (filters: ActiveFilter[]) => void;
@@ -401,17 +400,6 @@ export function ViewBar(props: ViewBarProps) {
               resourceSelected={true}
             />
           </div>
-          
-          <Show when={props.watchStatus}>
-            <span 
-              classList={{ 
-                "watch-status": true, 
-                "error": props.watchStatus !== "●" 
-              }}
-            >
-              {props.watchStatus}
-            </span>
-          </Show>
         </div>
       </div>
       
