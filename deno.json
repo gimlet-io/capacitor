@@ -2,6 +2,7 @@
   "tasks": {
     "build": "deno run --watch-exclude=public --no-clear-screen --allow-read --allow-write --allow-run --allow-net --allow-env bundle.ts",
     "watch": "deno run --watch=src/ --watch-exclude=public --no-clear-screen --allow-read --allow-write --allow-run --allow-net --allow-env bundle.ts",
+    "serve": "deno run --allow-net --allow-read dev_server.ts",
     "embed": "deno run --allow-read --allow-write embed.ts",
     "package": "deno compile --allow-read --allow-write --allow-run --allow-net --output ./dist/next ./build/cli.ts"
   },
