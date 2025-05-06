@@ -7,3 +7,4 @@ fixtures/
 todo.md
 .cursor/
 .spec/
+cli/cmd/__debug*

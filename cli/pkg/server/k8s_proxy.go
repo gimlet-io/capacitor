@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/labstack/echo/v4"
-	"github.com/laszlo/k8s-proxy/pkg/kubernetes"
 	"k8s.io/client-go/rest"
 )
 

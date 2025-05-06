@@ -1,4 +1,4 @@
-module github.com/laszlo/k8s-proxy
+module github.com/gimlet-io/capacitor
 
 go 1.23.0
 

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
-	"github.com/laszlo/k8s-proxy/pkg/kubernetes"
 )
 
 // ClientMessage represents a message from the client

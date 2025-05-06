@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gimlet-io/capacitor/pkg/config"
+	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/laszlo/k8s-proxy/pkg/config"
-	"github.com/laszlo/k8s-proxy/pkg/kubernetes"
 )
 
 // Server represents the API server

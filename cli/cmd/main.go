@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/laszlo/k8s-proxy/pkg/config"
-	"github.com/laszlo/k8s-proxy/pkg/kubernetes"
-	"github.com/laszlo/k8s-proxy/pkg/server"
+	"github.com/gimlet-io/capacitor/pkg/config"
+	"github.com/gimlet-io/capacitor/pkg/kubernetes"
+	"github.com/gimlet-io/capacitor/pkg/server"
 )
 
 func main() {
