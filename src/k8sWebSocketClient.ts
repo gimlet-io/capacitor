@@ -95,9 +95,7 @@ export class K8sWebSocketClient {
    * @param callback The callback function to call when events are received
    * @returns A function that unsubscribes from the watch
    */
-  async watchResource(path: string, callback: (event: any) => void): Promise<() => void> {
-    console.log('watchResource', path);
-    
+  async watchResource(path: string, callback: (event: any) => void): Promise<() => void> {    
     // Store the callback
     this.subscribers.set(path, callback);
     
