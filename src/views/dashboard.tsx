@@ -1,4 +1,4 @@
-import { createSignal, createEffect, untrack, createMemo, Show } from "solid-js";
+import { createSignal, createEffect, untrack, createMemo, Show, onMount } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
@@ -16,6 +16,9 @@ export function Dashboard() {
   
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
+  const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
+  
+  let contextDropdownRef: HTMLDivElement | undefined;
 
   // Resource state
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
@@ -85,8 +88,47 @@ export function Dashboard() {
   // Create resourceTypeFilter memo from the store
   const resourceTypeFilter = createMemo(() => filterStore.resourceTypeFilter);
 
-
+  // Function to switch to a new context
+  const handleContextSwitch = async (contextName: string) => {
+    if (contextName === apiResourceStore.contextInfo?.current) {
+      setContextMenuOpen(false);
+      return;
+    }
+    
+    try {
+      await apiResourceStore.switchContext(contextName);
+      
+      // Cancel existing watches
+      untrack(() => {
+        watchControllers().forEach(controller => controller.abort());
+      });
+      
+      // Clear existing resources
+      setDynamicResources(() => ({}));
+      
+      // Set up new watches with the new context
+      setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
+      
+      setContextMenuOpen(false);
+    } catch (error) {
+      console.error("Error switching context:", error);
+      // You could add an error notification here
+    }
+  };
+  
+  // Handle clicks outside the context dropdown
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (contextDropdownRef && !contextDropdownRef.contains(e.target as Node)) {
+      setContextMenuOpen(false);
+    }
+  };
+  
+  onMount(() => {
+    document.addEventListener('mousedown', handleOutsideClick);
+  });
+  
   onCleanup(() => {
+    document.removeEventListener('mousedown', handleOutsideClick);
     untrack(() => {
       watchControllers().forEach(controller => controller.abort());
     });
@@ -297,18 +339,42 @@ export function Dashboard() {
         <div class="header-section">
           {/* Context display on the left */}
           <Show when={apiResourceStore.contextInfo}>
-            <div class="context-display">
-              <span class="context-label">Current Context:</span>
-              <span class="context-name">{apiResourceStore.contextInfo?.current}</span>
-              <Show when={watchStatus}>
-                <span 
-                  classList={{ 
-                    "watch-status": true, 
-                    "error": watchStatus() !== "●" 
-                  }}
-                >
-                  {watchStatus()}
-                </span>
+            <div class="context-dropdown" ref={contextDropdownRef}>
+              <div 
+                class="context-display" 
+                onClick={() => setContextMenuOpen(!contextMenuOpen())}
+              >
+                <span class="context-label">Current Context:</span>
+                <span class="context-name">{apiResourceStore.contextInfo?.current}</span>
+                <span class="context-dropdown-arrow">▼</span>
+                <Show when={watchStatus}>
+                  <span 
+                    classList={{ 
+                      "watch-status": true, 
+                      "error": watchStatus() !== "●" 
+                    }}
+                  >
+                    {watchStatus()}
+                  </span>
+                </Show>
+              </div>
+              
+              <Show when={contextMenuOpen()}>
+                <div class="context-menu">
+                  {apiResourceStore.contextInfo?.contexts.map(context => (
+                    <div 
+                      class={`context-menu-item ${context.isCurrent ? 'active' : ''}`}
+                      onClick={() => handleContextSwitch(context.name)}
+                    >
+                      <span class="context-menu-name">{context.name}</span>
+                      {context.clusterName && (
+                        <span class="context-menu-details">
+                          Cluster: {context.clusterName}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </Show>
             </div>
           </Show>

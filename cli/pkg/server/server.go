@@ -69,6 +69,56 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for switching context
+	s.echo.POST("/api/contexts/switch", func(c echo.Context) error {
+		var req struct {
+			Context string `json:"context"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Check if context exists
+		contexts := s.k8sClient.GetContexts()
+		contextExists := false
+		for _, ctx := range contexts {
+			if ctx.Name == req.Context {
+				contextExists = true
+				break
+			}
+		}
+
+		if !contextExists {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Context not found",
+			})
+		}
+
+		// Switch context
+		err := s.k8sClient.SwitchContext(req.Context)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to switch context: %v", err),
+			})
+		}
+
+		// Recreate the Kubernetes proxy with the new context
+		k8sProxy, err := NewKubernetesProxy(s.k8sClient)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Error recreating Kubernetes proxy: %v", err),
+			})
+		}
+		s.k8sProxy = k8sProxy
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Switched to context %s", req.Context),
+			"context": req.Context,
+		})
+	})
+
 	// Kubernetes API proxy endpoints
 	// Match all routes starting with /k8s
 	s.echo.Any("/k8s*", func(c echo.Context) error {

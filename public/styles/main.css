@@ -712,6 +712,12 @@ td.message-cell {
   gap: 12px;
 }
 
+/* Context dropdown */
+.context-dropdown {
+  position: relative;
+  flex-shrink: 0;
+}
+
 /* Context display */
 .context-display {
   display: flex;
@@ -721,9 +727,14 @@ td.message-cell {
   border: 1px solid var(--linear-border);
   border-radius: 4px;
   font-size: 13px;
-  flex-shrink: 0; /* Don't shrink */
   height: 30px; /* Match height with view-pill */
   box-sizing: border-box;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.context-display:hover {
+  background-color: var(--linear-bg);
 }
 
 .context-label {
@@ -738,17 +749,65 @@ td.message-cell {
   margin-right: 8px;
 }
 
+.context-dropdown-arrow {
+  font-size: 10px;
+  color: var(--linear-text-tertiary);
+  margin-right: 8px;
+  margin-top: 2px;
+}
+
 .watch-status {
   color: var(--linear-green);
   font-size: 14px;
   line-height: 1;
   display: flex;
-  align-items: center;
 }
 
 .watch-status.error {
   color: var(--linear-red);
-  animation: none;
+}
+
+/* Context menu */
+.context-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 250px;
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  box-shadow: var(--linear-shadow-hover);
+  z-index: 100;
+  margin-top: 4px;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: background-color 0.2s ease;
+}
+
+.context-menu-item:hover {
+  background-color: var(--linear-bg-secondary);
+}
+
+.context-menu-item.active {
+  background-color: var(--linear-blue-light);
+}
+
+.context-menu-name {
+  font-weight: 500;
+  color: var(--linear-text-primary);
+  margin-bottom: 2px;
+}
+
+.context-menu-details {
+  font-size: 11px;
+  color: var(--linear-text-tertiary);
 }
 
 /* Views container */

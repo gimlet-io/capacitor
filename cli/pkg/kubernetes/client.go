@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
 	"k8s.io/client-go/kubernetes"
@@ -163,4 +164,66 @@ func (c *Client) GetContexts() []ContextInfo {
 	}
 
 	return contexts
+}
+
+// SwitchContext switches to a different Kubernetes context
+func (c *Client) SwitchContext(contextName string) error {
+	// Check if the context exists
+	ctx, exists := c.AvailableContexts[contextName]
+	if !exists {
+		return fmt.Errorf("context %s not found", contextName)
+	}
+
+	// If we're in-cluster, we can't switch contexts
+	if c.CurrentContext == "in-cluster" {
+		return fmt.Errorf("cannot switch context when running in-cluster")
+	}
+
+	// Find kubeconfig path
+	kubeconfig := ""
+	if os.Getenv("KUBECONFIG") != "" {
+		kubeconfig = os.Getenv("KUBECONFIG")
+	} else if home := homedir.HomeDir(); home != "" {
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	} else {
+		return fmt.Errorf("kubeconfig not found")
+	}
+
+	// Create config with new context
+	configOverrides := &clientcmd.ConfigOverrides{
+		CurrentContext: contextName,
+	}
+
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+		configOverrides,
+	)
+
+	// Build new REST config
+	config, err := clientConfig.ClientConfig()
+	if err != nil {
+		return fmt.Errorf("error building config from kubeconfig: %w", err)
+	}
+
+	// Create new clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("error creating clientset: %w", err)
+	}
+
+	// Update client
+	c.Clientset = clientset
+	c.Config = config
+	c.CurrentContext = contextName
+	c.ContextConfig = ctx
+
+	log.Printf("Switched to context: %s", contextName)
+	if ctx != nil {
+		log.Printf("Cluster: %s, Namespace: %s, User: %s",
+			ctx.Cluster,
+			ctx.Namespace,
+			ctx.AuthInfo)
+	}
+
+	return nil
 }

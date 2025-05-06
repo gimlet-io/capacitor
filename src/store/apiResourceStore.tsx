@@ -1,4 +1,4 @@
-import { createContext, createResource, useContext, JSX } from "solid-js";
+import { createContext, createResource, useContext, JSX, createSignal } from "solid-js";
 import type { ApiResource, ApiResourceList, ApiGroupList } from "../types/k8s.ts";
 
 // Define types for the context information
@@ -19,12 +19,16 @@ interface ApiResourceState {
   apiResources: ApiResource[] | undefined;
   namespaces: string[] | undefined;
   contextInfo: ContextInfo | undefined;
+  switchContext: (contextName: string) => Promise<void>;
+  isSwitchingContext: boolean;
 }
 
 const ApiResourceContext = createContext<ApiResourceState>();
 
 export function ApiResourceProvider(props: { children: JSX.Element }) {
-  const [apiResources] = createResource(async () => {
+  const [isSwitchingContext, setIsSwitchingContext] = createSignal(false);
+  
+  const [apiResources, { refetch: refetchApiResources }] = createResource(async () => {
     try {
       // Fetch core API resources (v1)
       const coreResponse = await fetch('/k8s/api/v1');
@@ -108,7 +112,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     }
   });
 
-  const [namespaces] = createResource(async () => {
+  const [namespaces, { refetch: refetchNamespaces }] = createResource(async () => {
     const response = await fetch('/k8s/api/v1/namespaces');
     const data = await response.json();
     const nsList = data.items.map((ns: { metadata: { name: string } }) => ns.metadata.name);
@@ -116,7 +120,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
   });
 
   // Fetch context information from the API
-  const [contextInfo] = createResource(async () => {
+  const [contextInfo, { refetch: refetchContexts }] = createResource(async () => {
     try {
       const response = await fetch('/api/contexts');
       if (!response.ok) {
@@ -130,10 +134,45 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     }
   });
 
+  // Function to switch Kubernetes context
+  const switchContext = async (contextName: string) => {
+    if (isSwitchingContext()) return;
+    
+    try {
+      setIsSwitchingContext(true);
+      
+      const response = await fetch('/api/contexts/switch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ context: contextName }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to switch context');
+      }
+      
+      // Refetch data with the new context
+      await refetchContexts();
+      await refetchApiResources();
+      await refetchNamespaces();
+      
+    } catch (error) {
+      console.error('Error switching context:', error);
+      throw error;
+    } finally {
+      setIsSwitchingContext(false);
+    }
+  };
+
   const store: ApiResourceState = {
     get apiResources() { return apiResources(); },
     get namespaces() { return namespaces(); },
-    get contextInfo() { return contextInfo(); }
+    get contextInfo() { return contextInfo(); },
+    switchContext,
+    get isSwitchingContext() { return isSwitchingContext(); }
   };
 
   return (
