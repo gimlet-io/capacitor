@@ -83,7 +83,7 @@ export function Dashboard() {
   };
 
   // Create resourceTypeFilter memo from the store
-  const resourceTypeFilter = createMemo(() => apiResourceStore.resourceTypeFilter);
+  const resourceTypeFilter = createMemo(() => filterStore.resourceTypeFilter);
 
 
   onCleanup(() => {
@@ -122,7 +122,7 @@ export function Dashboard() {
     });
     
     const watches = [];
-    const selectedResource = apiResourceStore.availableResources.find(res => res.id === resourceFilter);
+    const selectedResource = filterStore.availableResources.find(res => res.id === resourceFilter);
     
     if (selectedResource) {
       const apiPath = selectedResource.apiPath;
@@ -206,7 +206,7 @@ export function Dashboard() {
         // For each extra watch configuration
         extraWatchesForResource.forEach(config => {
           const extraResourceType = config.resourceType;
-          const extraResource = apiResourceStore.availableResources.find(res => res.id === extraResourceType);
+          const extraResource = filterStore.availableResources.find(res => res.id === extraResourceType);
           
           if (!extraResource) return;
           
@@ -295,7 +295,7 @@ export function Dashboard() {
     <div class="layout">
       <main class="main-content">
         <ViewBar
-          filterRegistry={() => apiResourceStore.filterRegistry}
+          filterRegistry={() => filterStore.filterRegistry}
           setFilters={filterStore.setActiveFilters}
           watchStatus={watchStatus()}
           resourceType={filterStore.getResourceType()}
@@ -303,7 +303,7 @@ export function Dashboard() {
         />
 
         <FilterBar
-          filters={[resourceTypeFilter(), ...(apiResourceStore.availableResources.find(t => t.id === filterStore.getResourceType())?.filters || [])]}
+          filters={[resourceTypeFilter(), ...(filterStore.availableResources.find(t => t.id === filterStore.getResourceType())?.filters || [])]}
           activeFilters={filterStore.activeFilters}
           onFilterChange={filterStore.setActiveFilters}
         />
