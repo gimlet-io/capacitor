@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/http"
 
 	"github.com/gimlet-io/capacitor/pkg/config"
@@ -18,6 +19,7 @@ type Server struct {
 	k8sClient *kubernetes.Client
 	wsHandler *WebSocketHandler
 	k8sProxy  *KubernetesProxy
+	embedFS   fs.FS // embedded file system for static files
 }
 
 // New creates a new server instance
@@ -50,8 +52,19 @@ func (s *Server) Setup() {
 	s.echo.Use(middleware.Recover())
 	s.echo.Use(middleware.CORS())
 
-	// Serve static files if configured
-	if s.config.StaticFilesDirectory != "" {
+	// Serve embedded static files if available
+	if s.embedFS != nil {
+		// Try to use the embedded file system
+		fsys, err := fs.Sub(s.embedFS, "public")
+		if err == nil {
+			assetHandler := http.FileServer(http.FS(fsys))
+			s.echo.GET("/*", echo.WrapHandler(assetHandler))
+			s.echo.GET("/", echo.WrapHandler(assetHandler))
+		} else {
+			s.echo.Logger.Warn("Failed to create sub-filesystem from embedded files:", err)
+		}
+	} else if s.config.StaticFilesDirectory != "" {
+		// Fall back to directory on the filesystem
 		s.echo.Static("/", s.config.StaticFilesDirectory)
 	}
 

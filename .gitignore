@@ -8,3 +8,5 @@ todo.md
 .cursor/
 .spec/
 cli/cmd/__debug*
+cli/next-*
+cli/pkg/server/public/

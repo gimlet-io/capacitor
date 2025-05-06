@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -13,6 +16,24 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/gimlet-io/capacitor/pkg/server"
 )
+
+// openBrowser opens the default browser with the provided URL
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	return cmd.Start()
+}
 
 func main() {
 	// Load configuration
@@ -43,6 +64,9 @@ func main() {
 		log.Fatalf("Error creating server: %v", err)
 	}
 
+	// Use embedded files if available
+	srv = server.NewWithEmbeddedFiles(srv)
+
 	// Setup routes
 	srv.Setup()
 
@@ -57,6 +81,14 @@ func main() {
 	log.Printf("Server started on %s:%d", cfg.Address, cfg.Port)
 	log.Printf("Kubernetes proxy available at http://%s:%d/k8s", cfg.Address, cfg.Port)
 	log.Printf("WebSocket endpoint available at ws://%s:%d/ws", cfg.Address, cfg.Port)
+
+	// Open browser
+	serverURL := fmt.Sprintf("http://%s:%d", cfg.Address, cfg.Port)
+	log.Printf("Opening browser at %s", serverURL)
+	if err := openBrowser(serverURL); err != nil {
+		log.Printf("Warning: Could not open browser: %v", err)
+	}
+
 	if cfg.InsecureSkipTLSVerify {
 		log.Printf("WARNING: TLS certificate verification is disabled. This is insecure and should only be used for development.")
 	}
