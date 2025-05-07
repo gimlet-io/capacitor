@@ -14,7 +14,7 @@ export class K8sWebSocketClient {
    * Creates a new K8sWebSocketClient
    * @param baseUrl The base URL of the Kubernetes proxy server (without /ws)
    */
-  constructor(private baseUrl: string) {
+  constructor() {
     this.connect();
   }
   
@@ -28,7 +28,7 @@ export class K8sWebSocketClient {
     }
     
     this.connectionPromise = new Promise((resolve, reject) => {
-      const wsUrl = `${this.baseUrl.replace(/^http/, 'ws')}/ws`;
+      const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
       console.log(`Connecting to WebSocket at ${wsUrl}`);
       
       this.ws = new WebSocket(wsUrl);
@@ -181,14 +181,9 @@ export class K8sWebSocketClient {
 // Singleton instance for use throughout the application
 let instance: K8sWebSocketClient | null = null;
 
-/**
- * Gets the singleton instance of the K8sWebSocketClient
- * @param baseUrl The base URL of the Kubernetes proxy server
- * @returns The K8sWebSocketClient instance
- */
-export function getWebSocketClient(baseUrl: string = "http://localhost:8080"): K8sWebSocketClient {
+export function getWebSocketClient(): K8sWebSocketClient {
   if (!instance) {
-    instance = new K8sWebSocketClient(baseUrl);
+    instance = new K8sWebSocketClient();
   }
   return instance;
-} 
+}
