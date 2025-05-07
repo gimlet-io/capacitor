@@ -2,7 +2,7 @@ import { useNavigate } from "@solidjs/router";
 import type { Kustomization } from '../../types/k8s.ts';
 import { ConditionType, ConditionStatus } from '../../utils/conditions.ts';
 import { ResourceList } from './ResourceList.tsx';
-import { Filter, ActiveFilter } from '../filterBar/FilterBar.tsx';
+import { Filter } from '../filterBar/FilterBar.tsx';
 import { useCalculateAge } from './timeUtils.ts';
 
 export const kustomizationReadyFilter: Filter = {
@@ -28,7 +28,6 @@ export const kustomizationReadyFilter: Filter = {
 
 export function KustomizationList(props: { 
   kustomizations: Kustomization[],
-  activeFilters: ActiveFilter[]
 }) {
   const navigate = useNavigate();
 
@@ -99,7 +98,6 @@ export function KustomizationList(props: {
     <ResourceList 
       resources={props.kustomizations} 
       columns={columns} 
-      activeFilters={props.activeFilters}
       onItemClick={handleKustomizationClick}
       detailRowRenderer={renderKustomizationDetails}
       noSelectClass={true}

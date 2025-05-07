@@ -1,7 +1,6 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, For, createEffect, untrack, onMount, onCleanup } from "solid-js";
 import type { Filter } from "../filterBar/FilterBar.tsx";
-import type { Accessor } from "solid-js";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
@@ -9,53 +8,40 @@ import { useFilterStore } from "../../store/filterStore.tsx";
 export interface View {
   id: string;
   label: string;
-  resourceType: string;
   isSystem?: boolean;
-  filters?: ActiveFilter[];
+  filters: ActiveFilter[];
 }
 
-interface SerializableFilter {
-  filterId: string;
-  value: string;
-}
-
-interface SerializableView {
-  id: string;
-  label: string;
-  resourceType: string;
-  isSystem?: boolean;
-  filters?: SerializableFilter[];
-}
-
-const SERIALIZED_SYSTEM_VIEWS: SerializableView[] = [
+const SYSTEM_VIEWS: View[] = [
   { 
     id: 'pods',
     label: 'Pods',
-    resourceType: 'core/Pod',
     isSystem: true,
-    filters: [{ filterId: 'Namespace', value: 'all-namespaces' }]
+    filters: [
+      { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }]
   },
   { 
     id: 'fluxcd',
     label: 'FluxCD',
-    resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
     isSystem: true,
-    filters: [{ filterId: 'Namespace', value: 'flux-system' }]
+    filters: [
+      { name: 'ResourceType', value: 'kustomize.toolkit.fluxcd.io/Kustomization' },
+      { name: 'Namespace', value: 'flux-system' }]
   },
   { 
     id: 'argocd',
     label: 'ArgoCD',
-    resourceType: 'argoproj.io/Application',
     isSystem: true,
-    filters: [{ filterId: 'Namespace', value: 'argocd' }]
+    filters: [
+      { name: 'ResourceType', value: 'argoproj.io/Application' },
+      { name: 'Namespace', value: 'argocd' }]
   }
 ];
 
 export interface ViewBarProps {
-  filterRegistry: Accessor<Record<string, Filter>>;
-  resourceType: string;
   activeFilters: ActiveFilter[];
-  setFilters: (filters: ActiveFilter[]) => void;
+  setActiveFilters: (filters: ActiveFilter[]) => void;
 }
 
 export function ViewBar(props: ViewBarProps) {
@@ -65,61 +51,22 @@ export function ViewBar(props: ViewBarProps) {
   const [views, setViews] = createSignal<View[]>([]);
   let newViewNameInput: HTMLInputElement | undefined;
   const filterStore = useFilterStore();
-
-  // Reload views when filterRegistry changes
-  createEffect(() => {
-    const registry = props.filterRegistry();
-    if (Object.keys(registry).length > 0) {
-      loadViews();
-    }
-  });
   
-  // Helper function to deserialize views
-  const deserializeViews = (serializedViews: SerializableView[]): View[] => {
-    return serializedViews.map(serializedView => {
-      if (serializedView.filters) {            
-        // Restore filter functions for each filter reference
-        const restoredFilters = serializedView.filters
-          .map((sf: SerializableFilter) => {
-            const filterDef = props.filterRegistry()[sf.filterId];
-            if (filterDef) {
-              return {
-                filter: filterDef,
-                value: sf.value
-              };
-            }
-            return null;
-          })
-          .filter(Boolean) as ActiveFilter[]; // Remove any null filters
-        
-        return { 
-          ...serializedView, 
-          filters: restoredFilters 
-        };
-      }
-      return serializedView;
-    }) as View[];
-  };
-
   onMount(() => {
     loadViews();
   });
   
   const loadViews = () => {
     try {
-      // First load and deserialize system views
-      const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
-      
-      // Then load custom views from storage
+      // Load custom views from storage
       const storedViews = localStorage.getItem('customViews');
       let customViews: View[] = [];
       
       if (storedViews) {
-        const serializedCustomViews = JSON.parse(storedViews) as SerializableView[];
-        customViews = deserializeViews(serializedCustomViews);
+        customViews = JSON.parse(storedViews) as View[];
       }
       
-      const allViews = [...systemViews, ...customViews];
+      const allViews = [...SYSTEM_VIEWS, ...customViews];
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
@@ -132,8 +79,7 @@ export function ViewBar(props: ViewBarProps) {
     } catch (error) {
       console.error('Error loading views:', error);
       // Even if there's an error, we should still try to load system views
-      const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
-      setViews(systemViews);
+      setViews(SYSTEM_VIEWS);
     }
   };
   
@@ -145,7 +91,7 @@ export function ViewBar(props: ViewBarProps) {
       const serializableViews = customViews.map(view => {
         // Process filters to make them serializable
         const serializableFilters = view.filters?.map((activeFilter: ActiveFilter) => ({
-          filterId: activeFilter.filter.name, // Store filter name as identifier
+          name: activeFilter.name, // Store filter name as identifier
           value: activeFilter.value
         }));
         
@@ -161,27 +107,11 @@ export function ViewBar(props: ViewBarProps) {
     }
   };
   
-  const createView = (label: string, resourceType: string, filters: ActiveFilter[]) => {
-    const id = `custom-${Date.now()}`;
-    
-    // Make sure we have the ResourceType filter
-    const resourceTypeFilter = props.filterRegistry()["ResourceType"];
-    const existingResourceTypeFilter = filters.find(f => f.filter.name === "ResourceType");
-    
-    let viewFilters = [...filters];
-    if (!existingResourceTypeFilter) {
-      // Add ResourceType filter if it doesn't exist
-      viewFilters = [
-        { filter: resourceTypeFilter, value: resourceType },
-        ...viewFilters
-      ];
-    }
-    
-    return {
-      id,
+  const createView = (label: string, filters: ActiveFilter[]) => {
+  return {
+      id: `custom-${Date.now()}`,
       label,
-      resourceType,
-      filters: viewFilters
+      filters: filters
     };
   };
 
@@ -191,7 +121,8 @@ export function ViewBar(props: ViewBarProps) {
       filterStore.setSelectedView(viewsList[index].id);
     }
   };
-
+  
+  // Update active filters when view changes
   createEffect(() => {
     let view: View | undefined;
     const selectedViewId = filterStore.selectedView;
@@ -204,33 +135,14 @@ export function ViewBar(props: ViewBarProps) {
     })
 
     if (view) {
-      // Make sure the filters include ResourceType filter with the view's resourceType
-      const filters = view.filters || [];
-      const hasResourceTypeFilter = filters.some(f => f.filter.name === "ResourceType");
-      
-      if (!hasResourceTypeFilter && view.resourceType) {
-        // If ResourceType filter is missing, add it
-        const resourceTypeFilterObj = props.filterRegistry()["ResourceType"];
-        if (resourceTypeFilterObj) {
-          filters.push({
-            filter: resourceTypeFilterObj,
-            value: view.resourceType
-          });
-        }
-      }
-      
-      props.setFilters(filters);
+      props.setActiveFilters(view.filters);
     }
   });
   
   const handleViewCreate = (viewName: string) => {
     if (!viewName.trim()) return;
     
-    const newView = createView(
-      viewName,
-      props.resourceType,
-      props.activeFilters
-    );
+    const newView = createView(viewName, props.activeFilters);
     
     const updatedViews = [...views(), newView];
     setViews(updatedViews);
@@ -242,12 +154,7 @@ export function ViewBar(props: ViewBarProps) {
     const updatedViews = views().filter(view => view.id !== viewId);
     setViews(updatedViews);
     saveCustomViews(updatedViews);
-    
-    // Set selection to first system view
-    const systemViews = deserializeViews(SERIALIZED_SYSTEM_VIEWS);
-    if (systemViews.length > 0) {
-      filterStore.setSelectedView(systemViews[0].id);
-    }
+    filterStore.setSelectedView(SYSTEM_VIEWS[0].id);
   };
 
   // Handle view keyboard shortcuts
@@ -272,9 +179,8 @@ export function ViewBar(props: ViewBarProps) {
 
   // Update the current custom view whenever active filters change
   createEffect(() => {
-    // Explicitly track these dependencies to ensure effect reruns when they change
+    // Explicitly track dependencies to ensure effect reruns when they change
     const currentFilters = props.activeFilters;
-    const currentResourceType = props.resourceType;
     
     let viewId: string | undefined;
     let view: View | undefined;
@@ -292,26 +198,23 @@ export function ViewBar(props: ViewBarProps) {
     
     // Check if any properties have actually changed before updating
     const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
-    const resourceTypeChanged = view.resourceType !== currentResourceType;
-    
-    // Only proceed if something has changed
-    if (filtersChanged || resourceTypeChanged) {
-      // Create a completely new view with updated properties
-      const updatedView: View = {
-        ...view,
-        resourceType: currentResourceType,
-        // Make a fresh copy of the filters array
-        filters: [...currentFilters]
-      };
-      
-      // Update the view in the views list
-      const updatedViews = views().map(v => 
-        v.id === updatedView.id ? updatedView : v
-      );
-      
-      setViews(updatedViews);
-      saveCustomViews(updatedViews);
+    if (!filtersChanged) {
+      return;
     }
+
+    // Create a completely new view with updated properties
+    const updatedView: View = {
+      ...view,
+      filters: [...currentFilters]
+    };
+    
+    // Update the view in the views list
+    const updatedViews = views().map(v => 
+      v.id === updatedView.id ? updatedView : v
+    );
+    
+    setViews(updatedViews);
+    saveCustomViews(updatedViews);
   });
 
   // Update document title based on selected view

@@ -1,9 +1,7 @@
 import type { Service } from '../types/k8s.ts';
 import { ResourceList } from './resourceList/ResourceList.tsx';
-import { ActiveFilter } from './filterBar/FilterBar.tsx';
 export function ServiceList(props: { 
   services: Service[]
-  activeFilters: ActiveFilter[]
 }) {
   const columns = [
     {
@@ -47,5 +45,5 @@ export function ServiceList(props: {
     }
   ];
 
-  return <ResourceList resources={props.services} columns={columns} activeFilters={props.activeFilters} />;
+  return <ResourceList resources={props.services} columns={columns} />;
 }

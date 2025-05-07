@@ -15,7 +15,6 @@ export const watchResource = async (path: string, callback: (event: any) => void
     
     // Handle abort
     controller.signal.addEventListener('abort', () => {
-      console.log('Aborting watch:', path);
       unsubscribe();
     });
   } catch (error) {

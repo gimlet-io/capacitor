@@ -1,7 +1,7 @@
 import type { ArgoCDApplication } from '../../types/k8s.ts';
 import { useNavigate } from "@solidjs/router";
 import { ResourceList } from './ResourceList.tsx';
-import { Filter, ActiveFilter } from '../filterBar/FilterBar.tsx';
+import { Filter } from '../filterBar/FilterBar.tsx';
 import { useCalculateAge } from './timeUtils.ts';
 
 export const argocdApplicationSyncFilter: Filter = {
@@ -37,7 +37,6 @@ export const argocdApplicationHealthFilter: Filter = {
 
 export function ArgoCDResourceList(props: { 
   applications: ArgoCDApplication[]
-  activeFilters: ActiveFilter[]
 }) {
   const navigate = useNavigate();
 
@@ -101,7 +100,6 @@ export function ArgoCDResourceList(props: {
       detailRowRenderer={renderApplicationDetails}
       noSelectClass={true}
       rowKeyField="name"
-      activeFilters={props.activeFilters}
     />
   );
 } 

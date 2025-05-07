@@ -1,5 +1,4 @@
-import { For, createSignal, onMount, onCleanup, createEffect, JSX, createMemo } from "solid-js";
-import { ActiveFilter } from "../filterBar/FilterBar.tsx";
+import { For, createSignal, onMount, onCleanup, createEffect, JSX } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, getResourceShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 
@@ -19,20 +18,12 @@ export function ResourceList<T>(props: {
   onItemClick?: (item: T) => void;
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
-  activeFilters: ActiveFilter[];
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
-
-  const filteredResources = createMemo(() => {
-    if (props.activeFilters.length === 0) {
-      return props.resources;
-    }
-    return props.resources.filter(resource => props.activeFilters.some(filter => filter.filter.filterFunction(resource, filter.value)));
-  });
 
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
     setSelectedResource(() => resource);
@@ -48,8 +39,8 @@ export function ResourceList<T>(props: {
     const index = selectedIndex();
     console.log(index);
     
-    if (index !== -1 && index < filteredResources().length) {
-      const resource = filteredResources()[index] as any;
+    if (index !== -1 && index < props.resources.length) {
+      const resource = props.resources[index] as any;
       if (!resource || !resource.metadata) return;
       
       const resourceName = resource.metadata.name;
@@ -121,8 +112,7 @@ export function ResourceList<T>(props: {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    const resources = filteredResources();
-    if (resources.length === 0) return;
+    if (props.resources.length === 0) return;
     
     // Don't process keyboard shortcuts if we should ignore them
     if (shouldIgnoreKeyboardEvents()) {
@@ -135,7 +125,7 @@ export function ResourceList<T>(props: {
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, resources.length - 1);
+        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, props.resources.length - 1);
         return newIndex;
       });
     } else if (e.key === 'ArrowUp') {
@@ -146,38 +136,38 @@ export function ResourceList<T>(props: {
       });
     } else if (e.key === 'Enter') {
       const index = selectedIndex();
-      if (index !== -1 && index < resources.length && props.onItemClick) {
-        props.onItemClick(resources[index]);
+      if (index !== -1 && index < props.resources.length && props.onItemClick) {
+        props.onItemClick(props.resources[index]);
       }
     } else if (e.key === 'd') {
       const index = selectedIndex();
-      if (index !== -1 && index < resources.length) {
-        openDrawer("describe", resources[index]);
+      if (index !== -1 && index < props.resources.length) {
+        openDrawer("describe", props.resources[index]);
       }
     } else if (e.key === 'y') {
       const index = selectedIndex();
-      if (index !== -1 && index < resources.length) {
-        openDrawer("yaml", resources[index]);
+      if (index !== -1 && index < props.resources.length) {
+        openDrawer("yaml", props.resources[index]);
       }
     } else if (e.key === 'e') {
       const index = selectedIndex();
-      if (index !== -1 && index < resources.length) {
-        openDrawer("events", resources[index]);
+      if (index !== -1 && index < props.resources.length) {
+        openDrawer("events", props.resources[index]);
       }
     } else if (e.key === 'l') {
       const index = selectedIndex();
-      if (index !== -1 && index < resources.length) {
-        openDrawer("logs", resources[index]);
+      if (index !== -1 && index < props.resources.length) {
+        openDrawer("logs", props.resources[index]);
       }
     }
   };
 
   // Reset selectedIndex when filtered results change
   createEffect(() => {
-    if (filteredResources().length === 0) {
+    if (props.resources.length === 0) {
       setSelectedIndex(-1);
-    } else if (selectedIndex() >= filteredResources().length) {
-      setSelectedIndex(filteredResources().length - 1);
+    } else if (selectedIndex() >= props.resources.length) {
+      setSelectedIndex(props.resources.length - 1);
     }
   });
 
@@ -242,7 +232,7 @@ export function ResourceList<T>(props: {
             </tr>
           </thead>
           <tbody>
-            <For each={filteredResources()}>
+            <For each={props.resources}>
               {(resource, index) => {
                 const handleClick = () => {
                   setSelectedIndex(index());

@@ -23,7 +23,7 @@ export type Filter = {
 };
 
 export type ActiveFilter = {
-  filter: Filter;
+  name: string;
   value: string;
 };
 
@@ -44,7 +44,7 @@ export function FilterBar(props: {
   const toggleFilter = (filter: string, value: string) => {
     let newFilters: ActiveFilter[] = [...props.activeFilters];
     const existingIndex = newFilters.findIndex(
-      (f) => f.filter.name === filter && f.value === value
+      (f) => f.name === filter && f.value === value
     );
 
     const filterDef = props.filters.find(f => f.name === filter);
@@ -59,9 +59,9 @@ export function FilterBar(props: {
       // Add new filter
       if (filterDef && !filterDef.multiSelect) {
         // If not multi-select, remove any existing filters from this filter
-        newFilters = newFilters.filter(f => f.filter.name !== filter);
+        newFilters = newFilters.filter(f => f.name !== filter);
       }
-      newFilters.push({ filter: filterDef!, value });
+      newFilters.push({ name: filterDef!.name, value });
     }
 
     props.onFilterChange(newFilters);
@@ -71,12 +71,12 @@ export function FilterBar(props: {
     const filterDef = props.filters.find(f => f.name === filter);
     if (!filterDef || !filterDef.options) return;
     
-    let newFilters = [...props.activeFilters.filter(f => f.filter.name !== filter)];
+    let newFilters = [...props.activeFilters.filter(f => f.name !== filter)];
     
     if (selectAll) {
       // Add all options for this filter
       const allOptions = filterDef.options.map(option => ({
-        filter: filterDef,
+        name: filterDef.name,
         value: option.value
       }));
       newFilters = [...newFilters, ...allOptions];
@@ -97,22 +97,22 @@ export function FilterBar(props: {
     
     // If value is empty, remove the filter
     if (!value.trim()) {
-      const newFilters = props.activeFilters.filter(f => f.filter.name !== filter);
+      const newFilters = props.activeFilters.filter(f => f.name !== filter);
       props.onFilterChange(newFilters);
       return;
     }
     
     // Update or add the text filter
     const newFilters = [...props.activeFilters];
-    const existingIndex = newFilters.findIndex(f => f.filter.name === filter);
+    const existingIndex = newFilters.findIndex(f => f.name === filter);
     const filterDef = props.filters.find(f => f.name === filter);
     
     if (existingIndex >= 0) {
       // Replace existing filter
-      newFilters[existingIndex] = { filter: filterDef!, value };
+      newFilters[existingIndex] = { name: filterDef!.name, value };
     } else {
       // Add new filter
-      newFilters.push({ filter: filterDef!, value });
+      newFilters.push({ name: filterDef!.name, value });
     }
     
     props.onFilterChange(newFilters);
@@ -120,7 +120,7 @@ export function FilterBar(props: {
 
   const getFilterButtonText = (filterName: string): string => {
     const filter = props.filters.find(f => f.name === filterName);
-    const activeInFilter = props.activeFilters.filter(f => f.filter.name === filterName);
+    const activeInFilter = props.activeFilters.filter(f => f.name === filterName);
 
     if (activeInFilter.length === 0) {
       return `${filterName}`;
@@ -193,7 +193,7 @@ export function FilterBar(props: {
       if (filter.type !== 'text' && filter.options) {
         // For multi-select, find the first selected option
         // For single-select, find the selected option
-        const activeFilterForType = props.activeFilters.find(f => f.filter.name === filterName);
+        const activeFilterForType = props.activeFilters.find(f => f.name === filterName);
         
         if (activeFilterForType && filter.options) {
           const selectedOptionIndex = filter.options.findIndex(
@@ -258,7 +258,7 @@ export function FilterBar(props: {
   // Initialize text input values from active filters
   createEffect(() => {
     const textFilters = props.activeFilters.filter(fl => {
-      const filter = props.filters.find(f => f.name === fl.filter.name);
+      const filter = props.filters.find(f => f.name === fl.name);
       return filter?.type === "text";
     });
     
@@ -268,10 +268,10 @@ export function FilterBar(props: {
         const newPendingTextInputs = { ...pendingTextInputs() };
         
         textFilters.forEach(filter => {
-          newTextInputs[filter.filter.name] = filter.value;
+          newTextInputs[filter.name] = filter.value;
           // Only update pending if not currently being edited
-          if (!activeFilter() || activeFilter() !== filter.filter.name) {
-            newPendingTextInputs[filter.filter.name] = filter.value;
+          if (!activeFilter() || activeFilter() !== filter.name) {
+            newPendingTextInputs[filter.name] = filter.value;
           }
         });
         
@@ -294,7 +294,7 @@ export function FilterBar(props: {
         // Find and set the highlighted index based on active filter selection
         const filter = props.filters.find(f => f.name === currentFilter);
         if (filter && filter.type !== 'text' && filter.options) {
-          const activeFilterForType = props.activeFilters.find(f => f.filter.name === currentFilter);
+          const activeFilterForType = props.activeFilters.find(f => f.name === currentFilter);
           
           if (activeFilterForType) {
             const options = getFilteredOptions(filter);
@@ -488,7 +488,7 @@ export function FilterBar(props: {
         <For each={props.filters}>
           {(filter) => {
             const hasActiveFilters = createMemo(() => 
-              props.activeFilters.some(f => f.filter.name === filter.name)
+              props.activeFilters.some(f => f.name === filter.name)
             );
             
             const allOptionsSelected = createMemo(() => {
@@ -496,7 +496,7 @@ export function FilterBar(props: {
               // Check if all regular options (not the "All" option) are selected
               return filter.options.every(option => 
                 props.activeFilters.some(f => 
-                  f.filter.name === filter.name && f.value === option.value
+                  f.name === filter.name && f.value === option.value
                 )
               );
             });
@@ -588,7 +588,7 @@ export function FilterBar(props: {
                           {(option, index) => {
                             const isActive = createMemo(() => 
                               props.activeFilters.some(f => 
-                                f.filter.name === filter.name && f.value === option.value
+                                f.name === filter.name && f.value === option.value
                               )
                             );
                             

@@ -7,28 +7,35 @@ import { kustomizationReadyFilter } from "../components/resourceList/Kustomizati
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ApplicationList.tsx";
 
 interface FilterState {
-  activeFilters: ActiveFilter[];
+  filters: Filter[]; // all filters
+  filterRegistry: Record<string, Filter>;
+
+  activeFilters: ActiveFilter[]; // filters that have set with a value
   setActiveFilters: (filters: ActiveFilter[]) => void;
-  getResourceType: () => string;
-  getNamespace: () => string;
+
+  k8sResources: K8sResource[];
+
+  getResourceType: () => string | undefined;
+  getNamespace: () => string | undefined;
+  
   selectedView: string;
   previousSelectedView: string | null;
   setSelectedView: (viewId: string) => void;
-  availableResources: K8sResource[];
-  filterRegistry: Record<string, Filter>;
-  namespaceOptions: FilterOption[];
-  resourceTypeFilter: Filter;
-  nameFilter: Filter;
-  namespaceFilter: Filter;
 }
 
 const FilterContext = createContext<FilterState>();
+
+const dynamicResourceFilters: Record<string, Filter[]> = {
+  'kustomize.toolkit.fluxcd.io/Kustomization': [kustomizationReadyFilter],
+  'argoproj.io/Application': [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
+  'core/Pod': [podsStatusFilter]
+};
 
 export function FilterProvider(props: { children: JSX.Element }) {
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
   const [selectedView, setSelectedView] = createSignal<string>('');
   const [previousSelectedView, setPreviousSelectedView] = createSignal<string | null>(null);
-  const [availableResources, setAvailableResources] = createSignal<K8sResource[]>([]);
+  const [k8sResources, setK8sResources] = createSignal<K8sResource[]>([]);
   const [filterRegistry, setFilterRegistry] = createSignal<Record<string, Filter>>({});
   const apiResourceStore = useApiResourceStore();
 
@@ -42,13 +49,11 @@ export function FilterProvider(props: { children: JSX.Element }) {
   };
 
   const getResourceType = () => {
-    const rtFilter = activeFilters().find(f => f.filter.name === "ResourceType");
-    return rtFilter ? rtFilter.value : 'core/Pod'; // Default value
+   return activeFilters().find(f => f.name === "ResourceType")?.value;
   };
 
   const getNamespace = () => {
-    const nsFilter = activeFilters().find(f => f.filter.name === "Namespace");
-    return nsFilter ? nsFilter.value : '';
+    return activeFilters().find(f => f.name === "Namespace")?.value;
   };
 
   const namespaceOptions = createMemo<FilterOption[]>(() => {
@@ -60,30 +65,23 @@ export function FilterProvider(props: { children: JSX.Element }) {
     ];
   });
 
-  const namespaceFilter: Filter = {
+  const namespaceFilter = createMemo<Filter>(() => ({
     name: "Namespace",
     type: "select" as FilterType,
     get options() { return namespaceOptions(); },
     multiSelect: false,
     filterFunction: () => true
-  };
+  }));
 
-  // Define dynamic resource filters
-  const dynamicResourceFilters: Record<string, Filter[]> = {
-    'kustomize.toolkit.fluxcd.io/Kustomization': [kustomizationReadyFilter],
-    'argoproj.io/Application': [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
-    'core/Pod': [podsStatusFilter]
-  };
-
-  const resourceTypeFilter = (): Filter => ({
+  const resourceTypeFilter = createMemo<Filter>(() => ({
     name: "ResourceType",
     type: "select" as FilterType,
-    options: availableResources().map(type => ({ value: type.id, label: type.kind })),
+    options: k8sResources().map(type => ({ value: type.id, label: type.kind })),
     multiSelect: false,
     searchable: true,
     filterFunction: () => true,
     renderOption: (option: FilterOption) => {
-      const resource = availableResources().find(res => res.id === option.value);
+      const resource = k8sResources().find(res => res.id === option.value);
       if (!resource) {
         return option.label;
       }
@@ -97,29 +95,25 @@ export function FilterProvider(props: { children: JSX.Element }) {
         </>
       );
     }
-  });
-
-  const setFilters = (filters: ActiveFilter[]) => {
-    setActiveFilters(filters);
-  };
+  }));
 
   // Update active filters when resourceType changes
   createEffect(() => {
     const currentResourceType = getResourceType();
     if (!currentResourceType) return;
     
-    const selectedResource = availableResources().find(res => res.id === currentResourceType);
+    const selectedResource = k8sResources().find(res => res.id === currentResourceType);
     if (!selectedResource) return;
     
     // Create a completely new array of filters
     const newFilters = [
       // Add the ResourceType filter first
       { 
-        filter: resourceTypeFilter(), 
+        name: resourceTypeFilter().name, 
         value: currentResourceType 
       },
       // Include all other non-ResourceType filters
-      ...activeFilters().filter(f => f.filter.name !== "ResourceType")
+      ...activeFilters().filter(f => f.name !== "ResourceType")
     ];
     
     // Only update if needed to avoid infinite loops
@@ -128,35 +122,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
     }
   });
 
-  // Check for necessary filter initialization
-  const initializeFiltersIfNeeded = () => {
-    if (!apiResourceStore.namespaces || availableResources().length === 0) {
-      return; // Not ready to initialize yet
-    }
-    
-    // Check if we need to set a default namespace filter
-    const currentNamespace = getNamespace();
-    if (!currentNamespace) {
-      // Get available namespaces
-      const namespaceList = apiResourceStore.namespaces;
-      if (!namespaceList || namespaceList.length === 0) return;
-      
-      const defaultNamespace = namespaceList[0];
-      
-      // Find the namespace filter in filterRegistry
-      const namespaceFilterFromRegistry = filterRegistry()["Namespace"];
-      
-      if (namespaceFilterFromRegistry) {
-        // Add a namespace filter
-        setActiveFilters([
-          ...activeFilters(),
-          { filter: namespaceFilterFromRegistry, value: defaultNamespace }
-        ]);
-      }
-    }
-  };
-
-  // Setup availableResources when apiResources changes
+  // Setup k8sResources when apiResources changes
   createEffect(() => {        
     const apiResources = apiResourceStore.apiResources;
     if (!apiResources) {
@@ -168,7 +134,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
         const resourceId = `${resource.group || 'core'}/${resource.kind}`;
         const resourceFilters = [];
         if (resource.namespaced) {
-          resourceFilters.push(namespaceFilter);
+          resourceFilters.push(namespaceFilter());
         }
         resourceFilters.push(nameFilter);
         
@@ -186,7 +152,11 @@ export function FilterProvider(props: { children: JSX.Element }) {
         };
       });
 
-    setAvailableResources(resources);
+    setK8sResources(resources);
+  });
+
+  const filters = createMemo<Filter[]>(() => {
+    return [resourceTypeFilter(), ...(k8sResources().find(res => res.id === getResourceType())?.filters || [])];
   });
   
   // Create filterRegistry dynamically from Available Resources
@@ -196,7 +166,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
     };
 
     // Add all filters from all resources to the registry
-    availableResources().forEach(type => {
+    k8sResources().forEach(type => {
       type.filters.forEach(filter => {
         if (!registry[filter.name]) {
           registry[filter.name] = filter;
@@ -205,13 +175,6 @@ export function FilterProvider(props: { children: JSX.Element }) {
     });
 
     setFilterRegistry(registry);
-  });
-
-  // Auto-initialize filters when store data is ready
-  createEffect(() => {
-    if (apiResourceStore.namespaces && availableResources().length > 0) {
-      initializeFiltersIfNeeded();
-    }
   });
 
   // Handle view changes - keep this simple for integration with ViewBar
@@ -224,19 +187,20 @@ export function FilterProvider(props: { children: JSX.Element }) {
   });
 
   const store: FilterState = {
+    get filters() { return filters(); },
+    get filterRegistry() { return filterRegistry(); },
+
     get activeFilters() { return activeFilters(); },
-    setActiveFilters: setFilters,
+    setActiveFilters: setActiveFilters,
     getResourceType,
     getNamespace,
+
+    get k8sResources() { return k8sResources(); },
+
+    
     get selectedView() { return selectedView(); },
     get previousSelectedView() { return previousSelectedView(); },
     setSelectedView: setSelectedView,
-    get availableResources() { return availableResources(); },
-    get filterRegistry() { return filterRegistry(); },
-    get namespaceOptions() { return namespaceOptions(); },
-    get resourceTypeFilter() { return resourceTypeFilter(); },
-    get nameFilter() { return nameFilter; },
-    get namespaceFilter() { return namespaceFilter; }
   };
 
   return (

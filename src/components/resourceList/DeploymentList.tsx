@@ -1,11 +1,9 @@
 import type { DeploymentWithResources } from '../../types/k8s.ts';
 import { ResourceList } from './ResourceList.tsx';
-import { ActiveFilter } from '../filterBar/FilterBar.tsx';
 import { useCalculateAge } from './timeUtils.ts';
 
 export function DeploymentList(props: { 
   deployments: DeploymentWithResources[]
-  activeFilters: ActiveFilter[]
 }) {
   const getPodColor = (status: string) => {
     switch (status) {
@@ -71,5 +69,5 @@ export function DeploymentList(props: {
     }
   ];
 
-  return <ResourceList resources={props.deployments} columns={columns} activeFilters={props.activeFilters} />;
+  return <ResourceList resources={props.deployments} columns={columns}/>;
 }

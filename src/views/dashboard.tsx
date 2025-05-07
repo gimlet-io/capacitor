@@ -1,4 +1,4 @@
-import { createSignal, createEffect, untrack, createMemo, Show, onMount } from "solid-js";
+import { createSignal, createEffect, untrack, Show, onMount, createMemo } from "solid-js";
 import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
@@ -85,9 +85,6 @@ export function Dashboard() {
     ]
   };
 
-  // Create resourceTypeFilter memo from the store
-  const resourceTypeFilter = createMemo(() => filterStore.resourceTypeFilter);
-
   // Function to switch to a new context
   const handleContextSwitch = async (contextName: string) => {
     if (contextName === apiResourceStore.contextInfo?.current) {
@@ -149,8 +146,8 @@ export function Dashboard() {
    * @param ns The selected namespace or undefined for all namespaces
    * @param resourceFilter The selected resource type to watch
    */
-  const setupWatches = (ns: string | undefined, resourceFilter: string) => {
-    if (!resourceFilter) return;
+  const setupWatches = (ns: string | undefined, resourceType: string | undefined) => {
+    if (!resourceType) return;
 
     // Cancel existing watches
     untrack(() => {
@@ -164,164 +161,158 @@ export function Dashboard() {
     });
     
     const watches = [];
-    const selectedResource = filterStore.availableResources.find(res => res.id === resourceFilter);
+
+    const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+    if (!k8sResource) return;
+  
+    // Only use namespace path if the resource is namespaced and we have a valid namespace
+    let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+    if (k8sResource.namespaced && ns && ns !== 'all-namespaces') {
+      watchPath = `${k8sResource.apiPath}/namespaces/${ns}/${k8sResource.name}?watch=true`;
+    }
     
-    if (selectedResource) {
-      const apiPath = selectedResource.apiPath;
-      const resourceName = selectedResource.name || resourceFilter;
-      const isNamespaced = selectedResource.namespaced;
-      
-      // Only use namespace path if the resource is namespaced and we have a valid namespace
-      let watchPath = `${apiPath}/${resourceName}?watch=true`;
-      if (isNamespaced && ns && ns !== 'all-namespaces') {
-        watchPath = `${apiPath}/namespaces/${ns}/${resourceName}?watch=true`;
-      }
-      
-      if (apiPath && resourceName) {
-        watches.push({
-          path: watchPath,
-          callback: (event: { type: string; object: any }) => {
-            if (event.type === 'ADDED') {
-              setDynamicResources(prev => {
-                const current = prev[resourceFilter] || [];
-                
-                // Check if we need to apply extra resource updates
-                const extraWatchesForResource = extraWatches[resourceFilter];
-                let enhancedResource = event.object;
-                
-                if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-                  // Apply all updaters to the new resource
-                  extraWatchesForResource.forEach(config => {
-                    const relatedResources = extraResources[config.resourceType] || [];
-                    enhancedResource = config.updater(enhancedResource, relatedResources);
-                  });
-                }
-                
-                // Add new resource and sort alphabetically by name
-                const updatedResources = [...current, enhancedResource].sort((a, b) => 
-                  a.metadata.name.localeCompare(b.metadata.name)
-                );
-                
-                return { ...prev, [resourceFilter]: updatedResources };
-              });
-            } else if (event.type === 'MODIFIED') {
-              setDynamicResources(prev => {
-                const current = prev[resourceFilter] || [];
-                
-                // Check if we need to apply extra resource updates
-                const extraWatchesForResource = extraWatches[resourceFilter];
-                let enhancedResource = event.object;
-                
-                if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-                  // Apply all updaters to the modified resource
-                  extraWatchesForResource.forEach(config => {
-                    const relatedResources = extraResources[config.resourceType] || [];
-                    enhancedResource = config.updater(enhancedResource, relatedResources);
-                  });
-                }
-                
-                return { 
-                  ...prev, 
-                  [resourceFilter]: current.map((res: any) => 
-                    res.metadata.name === event.object.metadata.name ? enhancedResource : res
-                  )
-                };
-              });
-            } else if (event.type === 'DELETED') {
-              setDynamicResources(prev => {
-                const current = prev[resourceFilter] || [];
-                return { 
-                  ...prev, 
-                  [resourceFilter]: current.filter((res: any) => 
-                    res.metadata.name !== event.object.metadata.name
-                  )
-                };
+    watches.push({
+      path: watchPath,
+      callback: (event: { type: string; object: any }) => {
+        if (event.type === 'ADDED') {
+          setDynamicResources(prev => {
+            const current = prev[k8sResource.id] || [];
+            
+            // Check if we need to apply extra resource updates
+            const extraWatchesForResource = extraWatches[k8sResource.id];
+            let enhancedResource = event.object;
+            
+            if (extraWatchesForResource && extraWatchesForResource.length > 0) {
+              // Apply all updaters to the new resource
+              extraWatchesForResource.forEach(config => {
+                const relatedResources = extraResources[config.resourceType] || [];
+                enhancedResource = config.updater(enhancedResource, relatedResources);
               });
             }
-          }
-        });
+            
+            // Add new resource and sort alphabetically by name
+            const updatedResources = [...current, enhancedResource].sort((a, b) => 
+              a.metadata.name.localeCompare(b.metadata.name)
+            );
+            
+            return { ...prev, [k8sResource.id]: updatedResources };
+          });
+        } else if (event.type === 'MODIFIED') {
+          setDynamicResources(prev => {
+            const current = prev[k8sResource.id] || [];
+            
+            // Check if we need to apply extra resource updates
+            const extraWatchesForResource = extraWatches[k8sResource.id];
+            let enhancedResource = event.object;
+            
+            if (extraWatchesForResource && extraWatchesForResource.length > 0) {
+              // Apply all updaters to the modified resource
+              extraWatchesForResource.forEach(config => {
+                const relatedResources = extraResources[config.resourceType] || [];
+                enhancedResource = config.updater(enhancedResource, relatedResources);
+              });
+            }
+            
+            return { 
+              ...prev, 
+              [k8sResource.id]: current.map((res: any) => 
+                res.metadata.name === event.object.metadata.name ? enhancedResource : res
+              )
+            };
+          });
+        } else if (event.type === 'DELETED') {
+          setDynamicResources(prev => {
+            const current = prev[k8sResource.id] || [];
+            return { 
+              ...prev, 
+              [k8sResource.id]: current.filter((res: any) => 
+                res.metadata.name !== event.object.metadata.name
+              )
+            };
+          });
+        }
       }
+    });
 
-      // Set up extra watches if configured for this resource type
-      const extraWatchesForResource = extraWatches[resourceFilter];
-      if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-        // For each extra watch configuration
-        extraWatchesForResource.forEach(config => {
-          const extraResourceType = config.resourceType;
-          const extraResource = filterStore.availableResources.find(res => res.id === extraResourceType);
-          
-          if (!extraResource) return;
-          
-          // Determine the API path for this resource
-          const extraApiPath = config.apiPath || extraResource.apiPath;
-          const extraResourceName = extraResource.name;
-          const extraIsNamespaced = config.isNamespaced !== undefined ? config.isNamespaced : extraResource.namespaced;
-          
-          // Set up watch for this extra resource
-          let extraWatchPath = `${extraApiPath}/${extraResourceName}?watch=true`;
-          if (extraIsNamespaced && ns && ns !== 'all-namespaces') {
-            extraWatchPath = `${extraApiPath}/namespaces/${ns}/${extraResourceName}?watch=true`;
-          }
-          
-          watches.push({
-            path: extraWatchPath,
-            callback: (event: { type: string; object: any }) => {
-              // Update cache based on event type
-              if (event.type === 'ADDED') {
-                extraResources[extraResourceType] = [
-                  ...(extraResources[extraResourceType] || []),
-                  event.object
-                ];
-              } else if (event.type === 'MODIFIED') {
-                extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
-                  .map(item => item.metadata.name === event.object.metadata.name ? event.object : item);
-              } else if (event.type === 'DELETED') {
-                extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
-                  .filter(item => item.metadata.name !== event.object.metadata.name);
+    // Set up extra watches if configured for this resource type
+    const extraWatchesForResource = extraWatches[k8sResource.id];
+    if (extraWatchesForResource && extraWatchesForResource.length > 0) {
+      // For each extra watch configuration
+      extraWatchesForResource.forEach(config => {
+        const extraResourceType = config.resourceType;
+        const extraResource = filterStore.k8sResources.find(res => res.id === extraResourceType);
+        
+        if (!extraResource) return;
+        
+        // Determine the API path for this resource
+        const extraApiPath = config.apiPath || extraResource.apiPath;
+        const extraResourceName = extraResource.name;
+        const extraIsNamespaced = config.isNamespaced !== undefined ? config.isNamespaced : extraResource.namespaced;
+        
+        // Set up watch for this extra resource
+        let extraWatchPath = `${extraApiPath}/${extraResourceName}?watch=true`;
+        if (extraIsNamespaced && ns && ns !== 'all-namespaces') {
+          extraWatchPath = `${extraApiPath}/namespaces/${ns}/${extraResourceName}?watch=true`;
+        }
+        
+        watches.push({
+          path: extraWatchPath,
+          callback: (event: { type: string; object: any }) => {
+            // Update cache based on event type
+            if (event.type === 'ADDED') {
+              extraResources[extraResourceType] = [
+                ...(extraResources[extraResourceType] || []),
+                event.object
+              ];
+            } else if (event.type === 'MODIFIED') {
+              extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
+                .map(item => item.metadata.name === event.object.metadata.name ? event.object : item);
+            } else if (event.type === 'DELETED') {
+              extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
+                .filter(item => item.metadata.name !== event.object.metadata.name);
+            }
+            
+            // Update dynamic resources state
+            setDynamicResources(prev => {
+              // Update the extra resource collection and sort alphabetically
+              const sortedExtraResources = [...extraResources[extraResourceType]].sort((a, b) => 
+                a.metadata.name.localeCompare(b.metadata.name)
+              );
+              
+              const newState = { 
+                ...prev,
+                [extraResourceType]: sortedExtraResources
+              };
+              
+              // Update the main resources using the updater function
+              const mainResources = prev[resourceType] || [];
+              if (mainResources.length > 0) {
+                // Apply this updater to each main resource
+                let updatedResources = mainResources.map(resource => 
+                  config.updater(resource, extraResources[extraResourceType] || [])
+                );
+                
+                // For resources with multiple watches, we need to make sure all updaters are applied
+                const otherExtraWatches = extraWatchesForResource.filter(w => w !== config);
+                if (otherExtraWatches.length > 0) {
+                  otherExtraWatches.forEach(otherConfig => {
+                    // Get the cache for this other watch type
+                    const otherResources = extraResources[otherConfig.resourceType] || [];
+                    // Apply the other updater to each resource
+                    updatedResources = updatedResources.map(resource => 
+                      otherConfig.updater(resource, otherResources)
+                    );
+                  });
+                }
+                
+                newState[resourceType] = updatedResources;
               }
               
-              // Update dynamic resources state
-              setDynamicResources(prev => {
-                // Update the extra resource collection and sort alphabetically
-                const sortedExtraResources = [...extraResources[extraResourceType]].sort((a, b) => 
-                  a.metadata.name.localeCompare(b.metadata.name)
-                );
-                
-                const newState = { 
-                  ...prev,
-                  [extraResourceType]: sortedExtraResources
-                };
-                
-                // Update the main resources using the updater function
-                const mainResources = prev[resourceFilter] || [];
-                if (mainResources.length > 0) {
-                  // Apply this updater to each main resource
-                  let updatedResources = mainResources.map(resource => 
-                    config.updater(resource, extraResources[extraResourceType] || [])
-                  );
-                  
-                  // For resources with multiple watches, we need to make sure all updaters are applied
-                  const otherExtraWatches = extraWatchesForResource.filter(w => w !== config);
-                  if (otherExtraWatches.length > 0) {
-                    otherExtraWatches.forEach(otherConfig => {
-                      // Get the cache for this other watch type
-                      const otherResources = extraResources[otherConfig.resourceType] || [];
-                      // Apply the other updater to each resource
-                      updatedResources = updatedResources.map(resource => 
-                        otherConfig.updater(resource, otherResources)
-                      );
-                    });
-                  }
-                  
-                  newState[resourceFilter] = updatedResources;
-                }
-                
-                return newState;
-              });
-            }
-          });
+              return newState;
+            });
+          }
         });
-      }
+      });
     }
 
     const controllers = watches.map(({ path, callback }) => {
@@ -332,6 +323,15 @@ export function Dashboard() {
 
     setWatchControllers(controllers);
   };
+
+  // Filter resources based on active filters
+  const filteredResources = createMemo(() => {
+    const resources = dynamicResources()[filterStore.getResourceType() || ''] || [];
+    const filters = filterStore.activeFilters.filter(filter => filter.name !== "ResourceType" && filter.name !== "Namespace");
+    if (filters.length === 0) { return resources }
+
+    return resources.filter(resource => filters.some(filter => filterStore.filterRegistry[filter.name]?.filterFunction(resource, filter.value)));
+  });
 
   return (
     <div class="layout">
@@ -382,16 +382,14 @@ export function Dashboard() {
           {/* Views taking all horizontal space */}
           <div class="views-container">
             <ViewBar
-              filterRegistry={() => filterStore.filterRegistry}
-              resourceType={filterStore.getResourceType()}
               activeFilters={filterStore.activeFilters}
-              setFilters={filterStore.setActiveFilters}
+              setActiveFilters={filterStore.setActiveFilters}
             />
           </div>
         </div>
 
         <FilterBar
-          filters={[resourceTypeFilter(), ...(filterStore.availableResources.find(t => t.id === filterStore.getResourceType())?.filters || [])]}
+          filters={filterStore.filters}
           activeFilters={filterStore.activeFilters}
           onFilterChange={filterStore.setActiveFilters}
         />
@@ -400,40 +398,35 @@ export function Dashboard() {
           {/* Special rendering for known resource types */}
           <Show when={filterStore.getResourceType() === 'core/Pod'}>
             <ResourceList 
-              resources={dynamicResources()['core/Pod'] || []} 
+              resources={filteredResources()}
               columns={podColumns}
-              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
           <Show when={filterStore.getResourceType() === 'apps/Deployment'}>
             <DeploymentList 
-              deployments={dynamicResources()['apps/Deployment'] || []}
-              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              deployments={filteredResources()}
             />
           </Show>
           <Show when={filterStore.getResourceType() === 'core/Service'}>
             <ServiceList 
-              services={dynamicResources()['core/Service'] || []}
-              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              services={filteredResources()}
             />
           </Show>
           <Show when={filterStore.getResourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
             <FluxResourceList 
-              kustomizations={dynamicResources()['kustomize.toolkit.fluxcd.io/Kustomization'] || []}
-              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              kustomizations={filteredResources()}
             />
           </Show>
           <Show when={filterStore.getResourceType() === 'argoproj.io/Application'}>
             <ArgoCDResourceList 
-              applications={dynamicResources()['argoproj.io/Application'] || []}
-              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
+              applications={filteredResources()}
             />
           </Show>
           
           {/* Default rendering for other resource types */}
-          <Show when={!['core/Pod', 'apps/Deployment', 'core/Service', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(filterStore.getResourceType())}>
+          <Show when={!['core/Pod', 'apps/Deployment', 'core/Service', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(filterStore.getResourceType() || 'core/Pod')}>
             <ResourceList 
-              resources={dynamicResources()[filterStore.getResourceType()] || []} 
+              resources={filteredResources()} 
               columns={[
                 { 
                   header: "Name", 
@@ -451,7 +444,6 @@ export function Dashboard() {
                   accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
                 }
               ]}
-              activeFilters={filterStore.activeFilters.filter(f => f.filter.name !== "ResourceType" && f.filter.name !== "Namespace")}
             />
           </Show>
         </section>
