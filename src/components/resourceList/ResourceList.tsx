@@ -18,6 +18,7 @@ export function ResourceList<T>(props: {
   onItemClick?: (item: T) => void;
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
+  onReconcile?: (item: T) => void;
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
@@ -93,6 +94,59 @@ export function ResourceList<T>(props: {
     }
   };
 
+  const reconcileResource = async () => {
+    const index = selectedIndex();
+    
+    if (index !== -1 && index < props.resources.length) {
+      const resource = props.resources[index] as any;
+      if (!resource || !resource.metadata) return;
+      
+      // If we have a custom reconcile handler, use it
+      if (props.onReconcile) {
+        props.onReconcile(props.resources[index]);
+        return;
+      }
+      
+      // Otherwise use the default implementation
+      // Check if resource is a Flux resource
+      const apiGroup = resource.apiVersion?.split('/')[0] || '';
+      if (!apiGroup.includes('fluxcd.io') && !apiGroup.includes('toolkit.fluxcd.io')) {
+        window.alert("This action only applies to Flux CD resources");
+        return;
+      }
+      
+      const resourceName = resource.metadata.name;
+      const resourceKind = resource.kind;
+      
+      try {
+        // Call the reconcile API
+        const response = await fetch('/api/flux/reconcile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            kind: resourceKind,
+            name: resourceName,
+            namespace: resource.metadata.namespace
+          }),
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to reconcile: ${response.statusText}`);
+        }
+        
+        // Show success message
+        window.alert(`Successfully reconciled ${resourceKind}/${resourceName}: ${result.message}`);
+      } catch (error) {
+        console.error('Error reconciling resource:', error);
+        window.alert(`Error reconciling resource: ${error}`);
+      }
+    }
+  };
+
   const shouldIgnoreKeyboardEvents = () => {
     // Ignore keyboard events when:
     // 1. Any input element is focused
@@ -122,6 +176,9 @@ export function ResourceList<T>(props: {
     if (e.key === 'd' && e.ctrlKey) {
         e.preventDefault();
         deleteResource(); 
+    } else if (e.key === 'r' && e.ctrlKey) {
+        e.preventDefault();
+        reconcileResource();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {

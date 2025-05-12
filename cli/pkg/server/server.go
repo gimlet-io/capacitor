@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gimlet-io/capacitor/pkg/config"
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
@@ -16,6 +17,9 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/kubectl/pkg/describe"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Server represents the API server
@@ -135,6 +139,113 @@ func (s *Server) Setup() {
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Switched to context %s", req.Context),
 			"context": req.Context,
+		})
+	})
+
+	// Add endpoint for reconciling Flux resources
+	s.echo.POST("/api/flux/reconcile", func(c echo.Context) error {
+		var req struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Verify required fields
+		if req.Kind == "" || req.Name == "" || req.Namespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Kind, name, and namespace are required fields",
+			})
+		}
+
+		// Get the Kubernetes client
+		clientset := s.k8sClient.Clientset
+
+		// Create a context
+		ctx := context.Background()
+
+		// Instead of using the CLI command, we'll use the Kubernetes API to add a reconcile annotation
+		// This is the same approach the Flux CLI uses under the hood
+
+		// Generate the resource name and namespace
+		resourceName := req.Name
+		resourceNamespace := req.Namespace
+
+		// Request immediate reconciliation by adding/updating the reconcile annotation
+		// This is what the Flux CLI does behind the scenes
+		patchData := fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, metav1.Now().Format(time.RFC3339Nano))
+
+		var err error
+		var output string
+
+		// Normalize kind to lowercase for case-insensitive comparison
+		kind := req.Kind
+
+		// Map of supported Flux resource kinds to their API path
+		resourceAPIs := map[string]string{
+			"kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
+			"helmrelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
+			"gitrepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
+			"helmrepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
+			"helmchart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
+			"ocirepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
+			"bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
+			"alert":           "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/alerts/%s",
+			"provider":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/providers/%s",
+			"receiver":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/receivers/%s",
+			"imagepolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
+			"imagerepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
+			"imageupdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+		}
+
+		// Convert to lowercase for case-insensitive lookup
+		apiPath, found := resourceAPIs[kind]
+		if !found {
+			// Try with first letter capitalized for variants like "Kustomization" vs "kustomization"
+			if len(kind) > 0 {
+				lowercaseKind := kind
+				if 'A' <= kind[0] && kind[0] <= 'Z' {
+					lowercaseKind = string(kind[0]+'a'-'A') + kind[1:]
+				}
+
+				apiPath, found = resourceAPIs[lowercaseKind]
+				if !found {
+					return c.JSON(http.StatusBadRequest, map[string]string{
+						"error":          fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
+						"supportedKinds": "Supported kinds: kustomization, helmrelease, gitrepository, helmrepository, etc.",
+					})
+				}
+				kind = lowercaseKind
+			}
+		}
+
+		// Patch the resource to trigger reconciliation
+		_, err = clientset.
+			RESTClient().
+			Patch(types.MergePatchType).
+			AbsPath(fmt.Sprintf(apiPath, resourceNamespace, resourceName)).
+			Body([]byte(patchData)).
+			DoRaw(ctx)
+
+		output = fmt.Sprintf("%s %s/%s reconciliation requested", kind, resourceNamespace, resourceName)
+
+		if err != nil {
+			log.Printf("Error reconciling Flux resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error":     fmt.Sprintf("Failed to reconcile resource: %v", err),
+				"kind":      kind,
+				"name":      resourceName,
+				"namespace": resourceNamespace,
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Successfully reconciled %s/%s", kind, resourceName),
+			"output":  output,
 		})
 	})
 

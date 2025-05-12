@@ -46,6 +46,28 @@ export function KustomizationList(props: {
       </div>
     </td>
   );
+  
+  const handleReconcile = async (kustomization: Kustomization) => {
+    try {
+      await fetch('/api/flux/reconcile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          kind: "kustomization",
+          name: kustomization.metadata.name,
+          namespace: kustomization.metadata.namespace
+        }),
+      });
+      
+      // No need to show status - Kubernetes will update the resource status
+      // and it will reflect in the UI when the watch detects the changes
+      
+    } catch (error) {
+      console.error('Error reconciling resource:', error);
+    }
+  };
 
   const columns = [
     {
@@ -102,6 +124,7 @@ export function KustomizationList(props: {
       detailRowRenderer={renderKustomizationDetails}
       noSelectClass={true}
       rowKeyField="name"
+      onReconcile={handleReconcile}
     />
   );
 } 
