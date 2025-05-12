@@ -60,6 +60,8 @@ export interface PodStatus {
     podIP?: string;
     startTime?: string;
     containerStatuses?: ContainerStatus[];
+    initContainerStatuses?: ContainerStatus[];
+    reason?: string;
 }
 
 export interface PodCondition {
