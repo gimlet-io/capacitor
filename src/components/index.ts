@@ -6,3 +6,4 @@ export { ArgoCDResourceList } from './resourceList/ApplicationList.tsx';
 export { ResourceList } from './resourceList/ResourceList.tsx';
 export { FilterBar } from './filterBar/FilterBar.tsx';
 export { ResourceDrawer } from './resourceDetail/ResourceDrawer.tsx';
+export { StatefulSetList } from './resourceList/StatefulSetList.tsx';

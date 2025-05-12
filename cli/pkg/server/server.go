@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gimlet-io/capacitor/pkg/config"
@@ -245,6 +246,107 @@ func (s *Server) Setup() {
 
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Successfully reconciled %s/%s", kind, resourceName),
+			"output":  output,
+		})
+	})
+
+	// Add endpoint for scaling Kubernetes resources
+	s.echo.POST("/api/scale", func(c echo.Context) error {
+		var req struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+			Replicas  int32  `json:"replicas"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Verify required fields
+		if req.Kind == "" || req.Name == "" || req.Namespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Kind, name, and namespace are required fields",
+			})
+		}
+
+		// Create a context
+		ctx := context.Background()
+
+		var output string
+
+		// Normalize kind to lowercase for case-insensitive comparison
+		kind := req.Kind
+
+		// Get the Kubernetes client
+		clientset := s.k8sClient.Clientset
+
+		switch strings.ToLower(kind) {
+		case "deployment", "deployments":
+			// Scale deployment
+			scale, err := clientset.
+				AppsV1().
+				Deployments(req.Namespace).
+				GetScale(ctx, req.Name, metav1.GetOptions{})
+			if err != nil {
+				log.Printf("Error getting deployment scale: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to get deployment scale: %v", err),
+				})
+			}
+
+			// Update replicas
+			scale.Spec.Replicas = req.Replicas
+			_, err = clientset.
+				AppsV1().
+				Deployments(req.Namespace).
+				UpdateScale(ctx, req.Name, scale, metav1.UpdateOptions{})
+			if err != nil {
+				log.Printf("Error scaling deployment: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to scale deployment: %v", err),
+				})
+			}
+
+			output = fmt.Sprintf("Deployment %s/%s scaled to %d replicas", req.Namespace, req.Name, req.Replicas)
+
+		case "statefulset", "statefulsets":
+			// Scale statefulset
+			scale, err := clientset.
+				AppsV1().
+				StatefulSets(req.Namespace).
+				GetScale(ctx, req.Name, metav1.GetOptions{})
+			if err != nil {
+				log.Printf("Error getting statefulset scale: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to get statefulset scale: %v", err),
+				})
+			}
+
+			// Update replicas
+			scale.Spec.Replicas = req.Replicas
+			_, err = clientset.
+				AppsV1().
+				StatefulSets(req.Namespace).
+				UpdateScale(ctx, req.Name, scale, metav1.UpdateOptions{})
+			if err != nil {
+				log.Printf("Error scaling statefulset: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to scale statefulset: %v", err),
+				})
+			}
+
+			output = fmt.Sprintf("StatefulSet %s/%s scaled to %d replicas", req.Namespace, req.Name, req.Replicas)
+
+		default:
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Unsupported resource kind for scaling: %s. Only Deployment and StatefulSet are supported", req.Kind),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Successfully scaled %s/%s to %d replicas", kind, req.Name, req.Replicas),
 			"output":  output,
 		})
 	})

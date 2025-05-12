@@ -1,9 +1,9 @@
-import type { DeploymentWithResources } from '../../types/k8s.ts';
+import type { StatefulSetWithResources } from '../../types/k8s.ts';
 import { ResourceList } from './ResourceList.tsx';
 import { useCalculateAge } from './timeUtils.ts';
 
-export function DeploymentList(props: { 
-  deployments: DeploymentWithResources[]
+export function StatefulSetList(props: { 
+  statefulSets: StatefulSetWithResources[]
 }) {
   const getPodColor = (status: string) => {
     switch (status) {
@@ -18,7 +18,7 @@ export function DeploymentList(props: {
     }
   };
 
-  const handleScale = async (deployment: DeploymentWithResources, replicas: number) => {
+  const handleScale = async (statefulSet: StatefulSetWithResources, replicas: number) => {
     try {
       const response = await fetch('/api/scale', {
         method: 'POST',
@@ -26,9 +26,9 @@ export function DeploymentList(props: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          kind: "deployment",
-          name: deployment.metadata.name,
-          namespace: deployment.metadata.namespace,
+          kind: "statefulset",
+          name: statefulSet.metadata.name,
+          namespace: statefulSet.metadata.namespace,
           replicas: replicas
         }),
       });
@@ -40,8 +40,8 @@ export function DeploymentList(props: {
       
       // Success - the UI will update when the watch detects the changes
     } catch (error) {
-      console.error('Error scaling deployment:', error);
-      window.alert(`Error scaling deployment: ${error}`);
+      console.error('Error scaling statefulset:', error);
+      window.alert(`Error scaling statefulset: ${error}`);
       throw error;
     }
   };
@@ -50,20 +50,20 @@ export function DeploymentList(props: {
     {
       header: "NAME",
       width: "30%",
-      accessor: (deployment: DeploymentWithResources) => <>{deployment.metadata.name}</>,
-      title: (deployment: DeploymentWithResources) => deployment.metadata.name
+      accessor: (statefulSet: StatefulSetWithResources) => <>{statefulSet.metadata.name}</>,
+      title: (statefulSet: StatefulSetWithResources) => statefulSet.metadata.name
     },
     {
       header: "READY",
       width: "10%",
-      accessor: (deployment: DeploymentWithResources) => <>{deployment.status.readyReplicas || 0}/{deployment.spec.replicas}</>
+      accessor: (statefulSet: StatefulSetWithResources) => <>{statefulSet.status.readyReplicas || 0}/{statefulSet.spec.replicas}</>,
     },
     {
       header: "PODS",
       width: "10%",
-      accessor: (deployment: DeploymentWithResources) => (
+      accessor: (statefulSet: StatefulSetWithResources) => (
         <>
-          {deployment.pods?.map(pod => (
+          {statefulSet.pods?.map(pod => (
             <span 
               title={pod.metadata.name} 
               style={{
@@ -81,25 +81,15 @@ export function DeploymentList(props: {
       )
     },
     {
-      header: "UP-TO-DATE",
-      width: "10%",
-      accessor: (deployment: DeploymentWithResources) => <>{deployment.status.updatedReplicas || 0}</>
-    },
-    {
-      header: "AVAILABLE",
-      width: "10%",
-      accessor: (deployment: DeploymentWithResources) => <>{deployment.status.availableReplicas || 0}</>
-    },
-    {
       header: "AGE",
       width: "10%",
-      accessor: (deployment: DeploymentWithResources) => useCalculateAge(deployment.metadata.creationTimestamp || '')(),
+      accessor: (statefulSet: StatefulSetWithResources) => useCalculateAge(statefulSet.metadata.creationTimestamp || '')(),
     }
   ];
 
   return <ResourceList 
-    resources={props.deployments} 
-    columns={columns}
+    resources={props.statefulSets} 
+    columns={columns} 
     onScale={handleScale}
   />;
-}
+} 

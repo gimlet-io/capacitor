@@ -33,6 +33,7 @@ export const getResourceShortcuts = (): KeyboardShortcut[] => [
   { key: "l", description: "Logs", isContextual: true },
   { key: "Ctrl+d", description: "Delete resource", isContextual: true },
   { key: "Ctrl+r", description: "Reconcile resource", isContextual: true },
+  { key: "Ctrl+s", description: "Scale resource", isContextual: true },
   { key: "↑/↓", description: "Navigate list" },
 ];
 

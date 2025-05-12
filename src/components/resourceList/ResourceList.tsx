@@ -19,6 +19,7 @@ export function ResourceList<T>(props: {
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
   onReconcile?: (item: T) => void;
+  onScale?: (item: T, replicas: number) => Promise<void>;
 }) {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
@@ -147,6 +148,41 @@ export function ResourceList<T>(props: {
     }
   };
 
+  const scaleResource = async () => {
+    const index = selectedIndex();
+    
+    if (index !== -1 && index < props.resources.length) {
+      if (!props.onScale) {
+        return; // This resource doesn't support scaling
+      }
+      
+      // Ask for the desired number of replicas
+      const resource = props.resources[index] as any;
+      if (!resource || !resource.metadata) return;
+      
+      // Try to get current replicas to show in the prompt
+      const currentReplicas = resource.spec?.replicas || '0';
+      
+      const input = window.prompt(`Enter desired number of replicas for ${resource.kind || 'resource'} "${resource.metadata.name}":`, currentReplicas.toString());
+      
+      // Check if user canceled or entered an invalid number
+      if (input === null) return;
+      
+      const replicas = parseInt(input, 10);
+      if (isNaN(replicas) || replicas < 0) {
+        window.alert("Please enter a valid non-negative number");
+        return;
+      }
+      
+      try {
+        await props.onScale(props.resources[index], replicas);
+      } catch (error) {
+        console.error('Error scaling resource:', error);
+        window.alert(`Error scaling resource: ${error}`);
+      }
+    }
+  };
+
   const shouldIgnoreKeyboardEvents = () => {
     // Ignore keyboard events when:
     // 1. Any input element is focused
@@ -179,6 +215,9 @@ export function ResourceList<T>(props: {
     } else if (e.key === 'r' && e.ctrlKey) {
         e.preventDefault();
         reconcileResource();
+    } else if (e.key === 's' && e.ctrlKey) {
+        e.preventDefault();
+        scaleResource();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {

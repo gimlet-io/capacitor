@@ -543,4 +543,56 @@ export interface K8sResource {
   apiPath: string;
   name?: string;
   namespaced: boolean;
+}
+
+// StatefulSet related interfaces
+export interface StatefulSetSpec {
+  replicas?: number;
+  selector: {
+    matchLabels: { [key: string]: string };
+  };
+  serviceName: string;
+  template: {
+    metadata: ObjectMeta;
+    spec: PodSpec;
+  };
+  volumeClaimTemplates?: Array<{
+    metadata: ObjectMeta;
+    spec: {
+      accessModes: string[];
+      resources: {
+        requests: {
+          storage: string;
+        };
+      };
+      storageClassName?: string;
+    };
+  }>;
+}
+
+export interface StatefulSetStatus {
+  availableReplicas: number;
+  readyReplicas: number;
+  replicas: number;
+  updatedReplicas: number;
+  currentReplicas?: number;
+}
+
+export interface StatefulSet {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: StatefulSetSpec;
+  status: StatefulSetStatus;
+}
+
+export interface StatefulSetList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: StatefulSet[];
+}
+
+export interface StatefulSetWithResources extends StatefulSet {
+  pods: Pod[];
 } 
