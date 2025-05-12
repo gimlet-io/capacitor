@@ -4,12 +4,18 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"log"
 	"net/http"
 
 	"github.com/gimlet-io/capacitor/pkg/config"
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/kubectl/pkg/describe"
 )
 
 // Server represents the API server
@@ -132,6 +138,27 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for describing Kubernetes resources using kubectl describe
+	s.echo.GET("/api/describe/:namespace/:kind/:name", func(c echo.Context) error {
+		namespace := c.Param("namespace")
+		kind := c.Param("kind")
+		name := c.Param("name")
+		apiVersion := c.QueryParam("apiVersion")
+
+		log.Printf("Describing resource: %s/%s in namespace %s with apiVersion '%s'", kind, name, namespace, apiVersion)
+
+		output, err := s.describeResourceWithKubectl(namespace, kind, name, apiVersion)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to describe resource: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"output": output,
+		})
+	})
+
 	// Kubernetes API proxy endpoints
 	// Match all routes starting with /k8s
 	s.echo.Any("/k8s*", func(c echo.Context) error {
@@ -142,6 +169,96 @@ func (s *Server) Setup() {
 	s.echo.GET("/healthz", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
+}
+
+// getResourceGVK gets the GroupVersionKind for a resource
+func (s *Server) getResourceGVK(kind, apiVersion string) (schema.GroupVersionKind, error) {
+	// Create a GVK with the provided apiVersion
+	if apiVersion != "" {
+		gv, err := schema.ParseGroupVersion(apiVersion)
+		if err != nil {
+			return schema.GroupVersionKind{}, fmt.Errorf("invalid apiVersion '%s': %w", apiVersion, err)
+		}
+
+		return schema.GroupVersionKind{
+			Group:   gv.Group,
+			Version: gv.Version,
+			Kind:    kind,
+		}, nil
+	}
+
+	// If no apiVersion provided, assume it's a core resource
+	return schema.GroupVersionKind{
+		Group:   "",
+		Version: "v1",
+		Kind:    kind,
+	}, nil
+}
+
+// describeResourceWithKubectl describes a Kubernetes resource using the official kubectl describe package
+func (s *Server) describeResourceWithKubectl(namespace, kind, name, apiVersion string) (string, error) {
+	// Create a ConfigFlags struct from the current Kubernetes client config
+	configFlags := genericclioptions.NewConfigFlags(true)
+
+	// Set the namespace
+	if namespace != "" {
+		configFlags.Namespace = &namespace
+	}
+
+	// Set other config parameters from our client
+	configFlags.Context = &s.k8sClient.CurrentContext
+	configFlags.APIServer = &s.k8sClient.Config.Host
+	configFlags.BearerToken = &s.k8sClient.Config.BearerToken
+	if s.k8sClient.Config.CAFile != "" {
+		configFlags.CAFile = &s.k8sClient.Config.CAFile
+	}
+	configFlags.Insecure = &s.k8sClient.Config.Insecure
+
+	// Create a discovery client
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.k8sClient.Config)
+	if err != nil {
+		return "", fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	// Get the resource mapping
+	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
+	if err != nil {
+		return "", fmt.Errorf("failed to get API group resources: %w", err)
+	}
+
+	mapper := restmapper.NewDiscoveryRESTMapper(groupResources)
+
+	// Get the exact GVK
+	gvk, err := s.getResourceGVK(kind, apiVersion)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the REST mapping
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return "", fmt.Errorf("failed to get REST mapping: %w", err)
+	}
+
+	// Get the appropriate describer for this resource
+	describer, err := describe.Describer(configFlags, mapping)
+	if err != nil {
+		return "", fmt.Errorf("failed to create describer: %w", err)
+	}
+
+	// Set the describe settings
+	settings := describe.DescriberSettings{
+		ShowEvents: true,
+		ChunkSize:  500,
+	}
+
+	// Call the describer
+	result, err := describer.Describe(namespace, name, settings)
+	if err != nil {
+		return "", fmt.Errorf("error describing resource: %w", err)
+	}
+
+	return result, nil
 }
 
 // Start starts the server

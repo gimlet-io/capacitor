@@ -1,8 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, createEffect, Show, For, onMount, onCleanup } from "solid-js";
+import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";
 import type { Event } from "../../types/k8s.ts";
-import { describeResource } from "../../utils/kubectlDescriber.ts";
 
 type DrawerTab = "describe" | "yaml" | "events" | "logs";
 
@@ -27,30 +26,24 @@ export function ResourceDrawer(props: {
     try {
       const kind = props.resource.kind || "unknown";
       const name = props.resource.metadata.name;
-      const namespace = props.resource.metadata.namespace;
+      const namespace = props.resource.metadata.namespace || "";
       const apiVersion = props.resource.apiVersion || "";
       
-      // Use kubectl proxy to get the resource
-      const isNamespaced = namespace && namespace !== '';
-      const resourcePath = apiVersion.includes('/') 
-        ? `/k8s/apis/${apiVersion}` 
-        : `/k8s/api/${apiVersion || 'v1'}`;
-      
-      const url = isNamespaced
-        ? `${resourcePath}/namespaces/${namespace}/${kind.toLowerCase()}s/${name}`
-        : `${resourcePath}/${kind.toLowerCase()}s/${name}`;
-      
-      // First get the resource to make sure it exists
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch resource: ${response.statusText}`);
+      // Construct the URL with apiVersion as a query parameter if available
+      let url = `/api/describe/${namespace}/${kind}/${name}`;
+      if (apiVersion) {
+        url += `?apiVersion=${encodeURIComponent(apiVersion)}`;
       }
       
-      // Format the resource using the kubectl-like formatter from the utility
-      const resourceData = await response.json();
-      const describeCmd = `kubectl describe ${kind.toLowerCase()} ${name}${isNamespaced ? ` -n ${namespace}` : ''}`;
-      const formattedOutput = describeResource(resourceData);
-      setDescribeData(`Command: ${describeCmd}\n\n${formattedOutput}`);
+      // Call the backend API for describe data
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch describe data: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const describeCmd = `kubectl describe ${kind.toLowerCase()} ${name}${namespace ? ` -n ${namespace}` : ''}`;
+      setDescribeData(`Command: ${describeCmd}\n\n${data.output}`);
     } catch (error) {
       console.error("Error fetching describe data:", error);
       setDescribeData(`Error fetching describe data: ${error instanceof Error ? error.message : String(error)}`);
