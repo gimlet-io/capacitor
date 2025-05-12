@@ -17,6 +17,9 @@ export function ResourceDrawer(props: {
   const [events, setEvents] = createSignal<Event[]>([]);
   const [logs, setLogs] = createSignal<string>("");
   const [loading, setLoading] = createSignal<boolean>(true);
+  let describeContentRef: HTMLPreElement | undefined;
+  let yamlContentRef: HTMLPreElement | undefined;
+  let logsContentRef: HTMLPreElement | undefined;
 
   // Fetch the describe data when the drawer opens
   const fetchDescribeData = async () => {
@@ -49,13 +52,17 @@ export function ResourceDrawer(props: {
       setDescribeData(`Error fetching describe data: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
+      // Focus the describe content after loading
+      if (activeTab() === "describe") {
+        setTimeout(() => describeContentRef?.focus(), 50);
+      }
     }
   };
 
   // Fetch the YAML data when the drawer opens
   const fetchYamlData = async () => {
     if (!props.resource) return;
-    
+
     setLoading(true);
     try {
       const kind = props.resource.kind || "unknown";
@@ -85,6 +92,10 @@ export function ResourceDrawer(props: {
       setYamlData(`Error fetching YAML data: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
+      // Focus the yaml content after loading
+      if (activeTab() === "yaml") {
+        setTimeout(() => yamlContentRef?.focus(), 50);
+      }
     }
   };
 
@@ -174,12 +185,36 @@ export function ResourceDrawer(props: {
       setLogs(`Error fetching logs: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
+      // Focus the logs content after loading
+      if (activeTab() === "logs") {
+        setTimeout(() => logsContentRef?.focus(), 50);
+      }
     }
   };
+
+  // Focus appropriate content when tab changes
+  createEffect(() => {
+    const tab = activeTab();
+    
+    if (!loading() && props.isOpen) {
+      setTimeout(() => {
+        if (tab === "describe" && describeContentRef) {
+          describeContentRef.focus();
+        } else if (tab === "yaml" && yamlContentRef) {
+          yamlContentRef.focus();
+        } else if (tab === "logs" && logsContentRef) {
+          logsContentRef.focus();
+        }
+      }, 50);
+    }
+  });
 
   // Load data when the drawer opens or the active tab changes
   createEffect(() => {
     if (props.isOpen) {
+      // Reset loading state whenever the tab changes
+      setLoading(true);
+      
       if (activeTab() === "describe") {
         fetchDescribeData();
       } else if (activeTab() === "yaml") {
@@ -196,20 +231,41 @@ export function ResourceDrawer(props: {
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!props.isOpen) return;
     
+    // Stop propagation to prevent ResourceList from handling these events
+    e.stopPropagation();
+    
     if (e.key === "Escape") {
       e.preventDefault();
       props.onClose();
+    }
+    
+    // Tab shortcuts
+    if (e.key === "1" || e.key === "d") {
+      e.preventDefault();
+      setActiveTab("describe");
+    } else if (e.key === "2" || e.key === "y") {
+      e.preventDefault();
+      setActiveTab("yaml");
+    } else if (e.key === "3" || e.key === "e") {
+      e.preventDefault();
+      setActiveTab("events");
+    } else if (e.key === "4" || e.key === "l") {
+      // Only switch to logs tab if it's available
+      if (props.resource?.kind === "Pod" || props.resource?.kind === "Deployment") {
+        e.preventDefault();
+        setActiveTab("logs");
+      }
     }
   };
 
   // Set up keyboard event listener
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
   });
 
   // Clean up event listener
   onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keydown', handleKeyDown, true);
   });
 
   return (
@@ -258,11 +314,11 @@ export function ResourceDrawer(props: {
             </Show>
             
             <Show when={activeTab() === "describe" && !loading()}>
-              <pre class="describe-content">{describeData()}</pre>
+              <pre class="describe-content" ref={describeContentRef} tabIndex={0} style="outline: none;">{describeData()}</pre>
             </Show>
             
             <Show when={activeTab() === "yaml" && !loading()}>
-              <pre class="yaml-content">{yamlData()}</pre>
+              <pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;">{yamlData()}</pre>
             </Show>
             
             <Show when={activeTab() === "events" && !loading()}>
@@ -273,7 +329,7 @@ export function ResourceDrawer(props: {
             
             <Show when={activeTab() === "logs" && !loading()}>
               <Show when={logs()} fallback={<div class="no-logs">No logs available</div>}>
-                <pre class="logs-content">{logs()}</pre>
+                <pre class="logs-content" ref={logsContentRef} tabIndex={0} style="outline: none;">{logs()}</pre>
               </Show>
             </Show>
           </div>
