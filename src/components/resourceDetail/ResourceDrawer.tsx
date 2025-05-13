@@ -21,6 +21,13 @@ export function ResourceDrawer(props: {
   let yamlContentRef: HTMLPreElement | undefined;
   let logsContentRef: HTMLPreElement | undefined;
 
+  // Watch for changes to initialTab prop
+  createEffect(() => {
+    if (props.initialTab) {
+      setActiveTab(props.initialTab);
+    }
+  });
+
   // Fetch the describe data when the drawer opens
   const fetchDescribeData = async () => {
     if (!props.resource) return;
