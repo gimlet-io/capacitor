@@ -1,6 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";
+import { LogsViewer } from "./LogsViewer.tsx";
 import type { Event } from "../../types/k8s.ts";
 import { stringify } from "@std/yaml";
 
@@ -16,11 +17,10 @@ export function ResourceDrawer(props: {
   const [describeData, setDescribeData] = createSignal<string>("");
   const [yamlData, setYamlData] = createSignal<string>("");
   const [events, setEvents] = createSignal<Event[]>([]);
-  const [logs, setLogs] = createSignal<string>("");
   const [loading, setLoading] = createSignal<boolean>(true);
+  
   let describeContentRef: HTMLPreElement | undefined;
   let yamlContentRef: HTMLPreElement | undefined;
-  let logsContentRef: HTMLPreElement | undefined;
 
   // Watch for changes to initialTab prop
   createEffect(() => {
@@ -134,72 +134,6 @@ export function ResourceDrawer(props: {
     }
   };
 
-  // Fetch logs for the selected resource
-  const fetchResourceLogs = async () => {
-    if (!props.resource) return;
-    
-    setLoading(true);
-    try {
-      const kind = props.resource.kind;
-      const name = props.resource.metadata.name;
-      const namespace = props.resource.metadata.namespace;
-      
-      if (!namespace) {
-        setLogs("Namespace is required to fetch logs");
-        return;
-      }
-      
-      // Only fetch logs for Pods or Deployments
-      if (kind === "Pod") {
-        // Directly fetch logs for the pod
-        const logsUrl = `/k8s/api/v1/namespaces/${namespace}/pods/${name}/log`;
-        const response = await fetch(logsUrl);
-        const logsText = await response.text();
-        setLogs(logsText);
-      } else if (kind === "Deployment") {
-        // For deployments, we need to find a pod first
-        const labelSelector = props.resource.spec?.selector?.matchLabels;
-        if (!labelSelector) {
-          setLogs("No label selector found for this deployment");
-          return;
-        }
-        
-        // Convert labels to string format for the API
-        const selectorString = Object.entries(labelSelector)
-          .map(([key, value]) => `${key}=${value}`)
-          .join(',');
-        
-        // Find pods for this deployment
-        const podsUrl = `/k8s/api/v1/namespaces/${namespace}/pods?labelSelector=${selectorString}`;
-        const podsResponse = await fetch(podsUrl);
-        const podsData = await podsResponse.json();
-        
-        if (!podsData.items || podsData.items.length === 0) {
-          setLogs("No pods found for this deployment");
-          return;
-        }
-        
-        // Get logs from the first pod
-        const pod = podsData.items[0];
-        const logsUrl = `/k8s/api/v1/namespaces/${namespace}/pods/${pod.metadata.name}/log`;
-        const logsResponse = await fetch(logsUrl);
-        const logsText = await logsResponse.text();
-        setLogs(logsText);
-      } else {
-        setLogs("Logs are only available for Pod and Deployment resources");
-      }
-    } catch (error) {
-      console.error("Error fetching resource logs:", error);
-      setLogs(`Error fetching logs: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setLoading(false);
-      // Focus the logs content after loading
-      if (activeTab() === "logs") {
-        setTimeout(() => logsContentRef?.focus(), 50);
-      }
-    }
-  };
-
   // Focus appropriate content when tab changes
   createEffect(() => {
     const tab = activeTab();
@@ -210,8 +144,6 @@ export function ResourceDrawer(props: {
           describeContentRef.focus();
         } else if (tab === "yaml" && yamlContentRef) {
           yamlContentRef.focus();
-        } else if (tab === "logs" && logsContentRef) {
-          logsContentRef.focus();
         }
       }, 50);
     }
@@ -221,7 +153,10 @@ export function ResourceDrawer(props: {
   createEffect(() => {
     if (props.isOpen) {
       // Reset loading state whenever the tab changes
-      setLoading(true);
+      // Only set loading for non-logs tabs, as LogsViewer manages its own loading state
+      if (activeTab() !== "logs") {
+        setLoading(true);
+      }
       
       if (activeTab() === "describe") {
         fetchDescribeData();
@@ -229,8 +164,6 @@ export function ResourceDrawer(props: {
         fetchYamlData();
       } else if (activeTab() === "events") {
         fetchResourceEvents();
-      } else if (activeTab() === "logs") {
-        fetchResourceLogs();
       }
     }
   });
@@ -317,28 +250,37 @@ export function ResourceDrawer(props: {
           </div>
           
           <div class="drawer-content">
-            <Show when={loading()}>
-              <div class="drawer-loading">Loading...</div>
-            </Show>
-            
-            <Show when={activeTab() === "describe" && !loading()}>
-              <pre class="describe-content" ref={describeContentRef} tabIndex={0} style="outline: none;">{describeData()}</pre>
-            </Show>
-            
-            <Show when={activeTab() === "yaml" && !loading()}>
-              <pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;">{yamlData()}</pre>
-            </Show>
-            
-            <Show when={activeTab() === "events" && !loading()}>
-              <Show when={events().length > 0} fallback={<div class="no-events">No events found</div>}>
-                <EventList events={events()} />
+            <Show when={activeTab() === "describe"}>
+              <Show when={loading()}>
+                <div class="drawer-loading">Loading...</div>
+              </Show>
+              <Show when={!loading()}>
+                <pre class="describe-content" ref={describeContentRef} tabIndex={0} style="outline: none;">{describeData()}</pre>
               </Show>
             </Show>
             
-            <Show when={activeTab() === "logs" && !loading()}>
-              <Show when={logs()} fallback={<div class="no-logs">No logs available</div>}>
-                <pre class="logs-content" ref={logsContentRef} tabIndex={0} style="outline: none;">{logs()}</pre>
+            <Show when={activeTab() === "yaml"}>
+              <Show when={loading()}>
+                <div class="drawer-loading">Loading...</div>
               </Show>
+              <Show when={!loading()}>
+                <pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;">{yamlData()}</pre>
+              </Show>
+            </Show>
+            
+            <Show when={activeTab() === "events"}>
+              <Show when={loading()}>
+                <div class="drawer-loading">Loading...</div>
+              </Show>
+              <Show when={!loading()}>
+                <Show when={events().length > 0} fallback={<div class="no-events">No events found</div>}>
+                  <EventList events={events()} />
+                </Show>
+              </Show>
+            </Show>
+            
+            <Show when={activeTab() === "logs"}>
+              <LogsViewer resource={props.resource} isOpen={activeTab() === "logs"} />
             </Show>
           </div>
         </div>
