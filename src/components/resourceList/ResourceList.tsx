@@ -2,7 +2,7 @@ import { For, createSignal, onMount, onCleanup, createEffect, JSX } from "solid-
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-
+import { ResourceTypeConfig } from "../../config/resourceTypeConfigs.tsx";
 type Column<T> = {
   header: string;
   width: string;
@@ -19,13 +19,7 @@ export interface ResourceCommand {
 
 export function ResourceList<T>(props: { 
   resources: T[];
-  columns: Column<T>[];
-  noSelectClass?: boolean;
-  onItemClick?: (item: any, navigate: any) => void;
-  detailRowRenderer?: DetailRowRenderer<T>;
-  rowKeyField?: string; // String key for resource.metadata
-  commands?: ResourceCommand[];
-  logsCapable?: boolean;
+  resourceTypeConfig: ResourceTypeConfig;
 }) {
   const navigate = useNavigate();
 
@@ -113,7 +107,7 @@ export function ResourceList<T>(props: {
       }
     ];
 
-    if (props.logsCapable) {
+    if (props.resourceTypeConfig.logsCapable) {
       builtInCommands.push({
         shortcut: { key: "l", description: "Logs", isContextual: true },
         handler: (resource) => openDrawer("logs", resource)
@@ -126,7 +120,7 @@ export function ResourceList<T>(props: {
     });
     
     // Combine with provided commands
-    return [...builtInCommands, ...(props.commands || [])];
+    return [...builtInCommands, ...(props.resourceTypeConfig.commands || [])];
   };
 
   // Find a command by its shortcut key
@@ -200,8 +194,8 @@ export function ResourceList<T>(props: {
       return;
     } else if (e.key === 'Enter') {
       const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length && props.onItemClick) {
-        props.onItemClick(props.resources[index], navigate);
+      if (index !== -1 && index < props.resources.length && props.resourceTypeConfig.onItemClick) {
+        props.resourceTypeConfig.onItemClick(props.resources[index], navigate);
       }
       return;
     }
@@ -238,7 +232,7 @@ export function ResourceList<T>(props: {
       
       // If we have detail rows, we need to select the main row
       let rows: NodeListOf<HTMLTableRowElement>;
-      if (props.detailRowRenderer) {
+      if (props.resourceTypeConfig.detailRowRenderer) {
         rows = container.querySelectorAll('tbody tr:nth-child(odd)');
       } else {
         rows = container.querySelectorAll('tbody tr');
@@ -274,7 +268,7 @@ export function ResourceList<T>(props: {
   });
 
   return (
-    <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>      
+    <div class={`resource-list-container ${props.resourceTypeConfig.noSelectClass ? 'no-select' : ''}`}>      
       <div class="keyboard-shortcut-container">
         <KeyboardShortcuts
           shortcuts={getAvailableShortcuts()}
@@ -286,7 +280,7 @@ export function ResourceList<T>(props: {
         <table class="resource-table">
           <thead>
             <tr>
-              {props.columns.map(column => (
+              {props.resourceTypeConfig.columns.map(column => (
                 <th style={`width: ${column.width}`}>{column.header}</th>
               ))}
             </tr>
@@ -296,8 +290,8 @@ export function ResourceList<T>(props: {
               {(resource, index) => {
                 const handleClick = () => {
                   setSelectedIndex(index());
-                  if (props.onItemClick) {
-                    props.onItemClick(resource, navigate);
+                  if (props.resourceTypeConfig.onItemClick) {
+                    props.resourceTypeConfig.onItemClick(resource, navigate);
                   }
                 };
                 
@@ -307,15 +301,15 @@ export function ResourceList<T>(props: {
                       class={selectedIndex() === index() ? 'selected' : ''} 
                       onClick={handleClick}
                     >
-                      {props.columns.map(column => (
+                      {props.resourceTypeConfig.columns.map(column => (
                         <td title={column.title ? column.title(resource) : undefined}>
                           {column.accessor(resource)}
                         </td>
                       ))}
                     </tr>
-                    {props.detailRowRenderer && (
+                    {props.resourceTypeConfig.detailRowRenderer && (
                       <tr class={selectedIndex() === index() ? 'selected' : ''}>
-                        {props.detailRowRenderer(resource)}
+                        {props.resourceTypeConfig.detailRowRenderer(resource)}
                       </tr>
                     )}
                   </>

@@ -336,7 +336,25 @@ export function Dashboard() {
   // Look up the current resource type configuration
   const currentResourceConfig = createMemo(() => {
     const resourceType = filterStore.getResourceType();
-    return resourceType ? resourceTypeConfigs[resourceType] : undefined;
+    return resourceType && resourceTypeConfigs[resourceType] ? resourceTypeConfigs[resourceType] : {
+      columns: [
+        { 
+          header: "Name", 
+          width: "40%", 
+          accessor: (item) => <>{item.metadata?.name || ""}</> 
+        },
+        { 
+          header: "Namespace", 
+          width: "30%", 
+          accessor: (item) => <>{item.metadata?.namespace || ""}</> 
+        },
+        { 
+          header: "Age", 
+          width: "30%", 
+          accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
+        }
+      ]
+    };
   });
 
   return (
@@ -401,43 +419,10 @@ export function Dashboard() {
         />
 
         <section class="resource-section full-width">
-          {/* Display resources based on configuration */}
-          <Show when={currentResourceConfig()}>
-            <ResourceList 
-              resources={filteredResources()}
-              columns={currentResourceConfig()!.columns}
-              detailRowRenderer={currentResourceConfig()!.detailRowRenderer}
-              noSelectClass={currentResourceConfig()!.noSelectClass}
-              rowKeyField={currentResourceConfig()!.rowKeyField}
-              onItemClick={currentResourceConfig()!.onItemClick}
-              commands={currentResourceConfig()!.commands}
-              logsCapable={currentResourceConfig()!.logsCapable}
-            />
-          </Show>
-          
-          {/* Default rendering for unknown resource types */}
-          <Show when={!currentResourceConfig()}>
-            <ResourceList 
-              resources={filteredResources()} 
-              columns={[
-                { 
-                  header: "Name", 
-                  width: "40%", 
-                  accessor: (item) => <>{item.metadata?.name || ""}</> 
-                },
-                { 
-                  header: "Namespace", 
-                  width: "30%", 
-                  accessor: (item) => <>{item.metadata?.namespace || ""}</> 
-                },
-                { 
-                  header: "Age", 
-                  width: "30%", 
-                  accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
-                }
-              ]}
-            />
-          </Show>
+          <ResourceList 
+            resources={filteredResources()}
+            resourceTypeConfig={currentResourceConfig()!}
+          />
         </section>
       </main>
     </div>
