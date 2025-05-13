@@ -1380,6 +1380,45 @@ td.message-cell {
   flex-shrink: 0; /* Don't shrink */
 }
 
+.logs-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px;
+  margin: 0;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  overflow: auto;
+  height: 100%;
+}
+
+.log-line {
+  display: flex;
+  padding: 1px 0;
+}
+
+.log-timestamp {
+  color: #6a9955;
+  margin-right: 8px;
+  flex-shrink: 0;
+  user-select: text;
+}
+
+.log-container {
+  margin-right: 8px;
+  font-weight: bold;
+  flex-shrink: 0;
+  user-select: text;
+}
+
+.log-message {
+  flex-grow: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
