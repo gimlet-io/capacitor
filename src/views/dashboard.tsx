@@ -411,6 +411,7 @@ export function Dashboard() {
               rowKeyField={currentResourceConfig()!.rowKeyField}
               onItemClick={currentResourceConfig()!.onItemClick}
               commands={currentResourceConfig()!.commands}
+              logsCapable={currentResourceConfig()!.logsCapable}
             />
           </Show>
           

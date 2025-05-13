@@ -25,6 +25,7 @@ export function ResourceList<T>(props: {
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
   commands?: ResourceCommand[];
+  logsCapable?: boolean;
 }) {
   const navigate = useNavigate();
 
@@ -99,10 +100,6 @@ export function ResourceList<T>(props: {
     // Built-in commands that apply to all resources
     const builtInCommands: ResourceCommand[] = [
       {
-        shortcut: { key: "Ctrl+d", description: "Delete resource", isContextual: true },
-        handler: handleDeleteResource
-      },
-      {
         shortcut: { key: "d", description: "Describe", isContextual: true },
         handler: (resource) => openDrawer("describe", resource)
       },
@@ -113,12 +110,20 @@ export function ResourceList<T>(props: {
       {
         shortcut: { key: "e", description: "Events", isContextual: true },
         handler: (resource) => openDrawer("events", resource)
-      },
-      {
-        shortcut: { key: "l", description: "Logs", isContextual: true },
-        handler: (resource) => openDrawer("logs", resource)
       }
     ];
+
+    if (props.logsCapable) {
+      builtInCommands.push({
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: (resource) => openDrawer("logs", resource)
+      });
+    }
+
+    builtInCommands.push({
+      shortcut: { key: "Ctrl+d", description: "Delete resource", isContextual: true },
+      handler: handleDeleteResource
+    });
     
     // Combine with provided commands
     return [...builtInCommands, ...(props.commands || [])];

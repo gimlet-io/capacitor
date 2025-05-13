@@ -27,12 +27,14 @@ export interface ResourceTypeConfig {
   rowKeyField?: string;
   onItemClick?: (item: any, navigate: any) => void;
   commands?: ResourceCommand[];
+  logsCapable?: boolean;
 }
 
 // Define the centralized resource configurations
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
-    columns: podColumns
+    columns: podColumns,
+    logsCapable: true
   },
   
   'apps/Deployment': {
@@ -42,7 +44,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "Ctrl+s", description: "Scale deployment", isContextual: true },
         handler: handleScale
       }
-    ]
+    ],
+    logsCapable: true
   },
   
   'apps/StatefulSet': {
@@ -52,7 +55,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "Ctrl+s", description: "Scale statefulset", isContextual: true },
         handler: handleScale
       }
-    ]
+    ],
+    logsCapable: true
   },
   
   'core/Service': {
