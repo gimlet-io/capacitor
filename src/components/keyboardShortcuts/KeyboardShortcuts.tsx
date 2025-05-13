@@ -24,19 +24,6 @@ export function KeyboardShortcuts(props: {
   );
 }
 
-// Define shortcuts used by ResourceList and other components
-export const getResourceShortcuts = (): KeyboardShortcut[] => [
-  { key: "Enter", description: "Open details", isContextual: true },
-  { key: "d", description: "Describe", isContextual: true },
-  { key: "y", description: "YAML", isContextual: true },
-  { key: "e", description: "Events", isContextual: true },
-  { key: "l", description: "Logs", isContextual: true },
-  { key: "Ctrl+d", description: "Delete resource", isContextual: true },
-  { key: "Ctrl+r", description: "Reconcile resource", isContextual: true },
-  { key: "Ctrl+s", description: "Scale resource", isContextual: true },
-  { key: "↑/↓", description: "Navigate list" },
-];
-
 export const getFilterShortcuts = (): KeyboardShortcut[] => [
   { key: "n", description: "Namespace filter" },
   { key: "r", description: "Resource type filter" },

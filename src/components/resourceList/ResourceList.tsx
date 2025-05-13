@@ -184,6 +184,20 @@ export function ResourceList<T>(props: {
         return newIndex;
       });
       return;
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => {
+        const newIndex = prev === -1 ? 0 : Math.min(prev + 20, props.resources.length - 1);
+        return newIndex;
+      });
+      return;
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => {
+        const newIndex = prev === -1 ? 0 : Math.max(prev - 20, 0);
+        return newIndex;
+      });
+      return;
     } else if (e.key === 'Enter') {
       const index = selectedIndex();
       if (index !== -1 && index < props.resources.length && props.resourceTypeConfig.onItemClick) {
