@@ -1,15 +1,14 @@
 import { createSignal, createEffect, untrack, Show, onMount, createMemo } from "solid-js";
-import { DeploymentList, ServiceList, FluxResourceList, ArgoCDResourceList, ResourceList } from "../components/index.ts";
+import { ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
-import { podColumns } from "../components/resourceList/PodList.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { updateDeploymentMatchingResources, updateServiceMatchingResources } from "../utils/k8s.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
-import { StatefulSetList } from "../components/resourceList/StatefulSetList.tsx";
+import { resourceTypeConfigs } from "../config/resourceTypeConfigs.tsx";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
@@ -334,6 +333,12 @@ export function Dashboard() {
     return resources.filter(resource => filters.some(filter => filterStore.filterRegistry[filter.name]?.filterFunction(resource, filter.value)));
   });
 
+  // Look up the current resource type configuration
+  const currentResourceConfig = createMemo(() => {
+    const resourceType = filterStore.getResourceType();
+    return resourceType ? resourceTypeConfigs[resourceType] : undefined;
+  });
+
   return (
     <div class="layout">
       <main class="main-content">
@@ -396,41 +401,21 @@ export function Dashboard() {
         />
 
         <section class="resource-section full-width">
-          {/* Special rendering for known resource types */}
-          <Show when={filterStore.getResourceType() === 'core/Pod'}>
+          {/* Display resources based on configuration */}
+          <Show when={currentResourceConfig()}>
             <ResourceList 
               resources={filteredResources()}
-              columns={podColumns}
-            />
-          </Show>
-          <Show when={filterStore.getResourceType() === 'apps/Deployment'}>
-            <DeploymentList 
-              deployments={filteredResources()}
-            />
-          </Show>
-          <Show when={filterStore.getResourceType() === 'apps/StatefulSet'}>
-            <StatefulSetList 
-              statefulSets={filteredResources()}
-            />
-          </Show>
-          <Show when={filterStore.getResourceType() === 'core/Service'}>
-            <ServiceList 
-              services={filteredResources()}
-            />
-          </Show>
-          <Show when={filterStore.getResourceType() === 'kustomize.toolkit.fluxcd.io/Kustomization'}>
-            <FluxResourceList 
-              kustomizations={filteredResources()}
-            />
-          </Show>
-          <Show when={filterStore.getResourceType() === 'argoproj.io/Application'}>
-            <ArgoCDResourceList 
-              applications={filteredResources()}
+              columns={currentResourceConfig()!.columns}
+              detailRowRenderer={currentResourceConfig()!.detailRowRenderer}
+              noSelectClass={currentResourceConfig()!.noSelectClass}
+              rowKeyField={currentResourceConfig()!.rowKeyField}
+              onItemClick={currentResourceConfig()!.onItemClick}
+              commands={currentResourceConfig()!.commands}
             />
           </Show>
           
-          {/* Default rendering for other resource types */}
-          <Show when={!['core/Pod', 'apps/Deployment', 'apps/StatefulSet', 'core/Service', 'kustomize.toolkit.fluxcd.io/Kustomization', 'argoproj.io/Application'].includes(filterStore.getResourceType() || 'core/Pod')}>
+          {/* Default rendering for unknown resource types */}
+          <Show when={!currentResourceConfig()}>
             <ResourceList 
               resources={filteredResources()} 
               columns={[

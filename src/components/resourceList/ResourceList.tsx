@@ -1,6 +1,7 @@
 import { For, createSignal, onMount, onCleanup, createEffect, JSX } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
-import { KeyboardShortcuts, getResourceShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
+import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
+import { useNavigate } from "@solidjs/router";
 
 type Column<T> = {
   header: string;
@@ -11,16 +12,22 @@ type Column<T> = {
 
 type DetailRowRenderer<T> = (item: T) => JSX.Element;
 
+export interface ResourceCommand {
+  shortcut: KeyboardShortcut;
+  handler: (item: any) => void | Promise<void>;
+}
+
 export function ResourceList<T>(props: { 
   resources: T[];
   columns: Column<T>[];
   noSelectClass?: boolean;
-  onItemClick?: (item: T) => void;
+  onItemClick?: (item: any, navigate: any) => void;
   detailRowRenderer?: DetailRowRenderer<T>;
   rowKeyField?: string; // String key for resource.metadata
-  onReconcile?: (item: T) => void;
-  onScale?: (item: T, replicas: number) => Promise<void>;
+  commands?: ResourceCommand[];
 }) {
+  const navigate = useNavigate();
+
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
@@ -37,149 +44,110 @@ export function ResourceList<T>(props: {
     setDrawerOpen(false);
   };
 
-  const deleteResource = async () => {
-    const index = selectedIndex();
-    console.log(index);
+  const handleDeleteResource = async (resource: any) => {
+    if (!resource || !resource.metadata) return;
     
-    if (index !== -1 && index < props.resources.length) {
-      const resource = props.resources[index] as any;
-      if (!resource || !resource.metadata) return;
+    const resourceName = resource.metadata.name;
+    const resourceKind = resource.kind;
+    
+    // Show browser's native confirmation dialog
+    const confirmed = window.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
+    
+    if (!confirmed) return;
+    
+    try {
+      // Determine API path based on resource kind and group
+      const group = resource.apiVersion?.includes('/') 
+        ? resource.apiVersion.split('/')[0] 
+        : '';
+      const version = resource.apiVersion?.includes('/') 
+        ? resource.apiVersion.split('/')[1] 
+        : resource.apiVersion || 'v1';
       
-      const resourceName = resource.metadata.name;
-      const resourceKind = resource.kind;
-      
-      // Show browser's native confirmation dialog
-      const confirmed = window.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
-      
-      if (!confirmed) return;
-      
-      try {
-        // Determine API path based on resource kind and group
-        const group = resource.apiVersion?.includes('/') 
-          ? resource.apiVersion.split('/')[0] 
-          : '';
-        const version = resource.apiVersion?.includes('/') 
-          ? resource.apiVersion.split('/')[1] 
-          : resource.apiVersion || 'v1';
-        
-        let apiPath = '';
-        if (!group || group === 'core') {
-          apiPath = `/k8s/api/${version}`;
-        } else {
-          apiPath = `/k8s/apis/${group}/${version}`;
-        }
-        
-        // Build the full delete URL
-        let deleteUrl = '';
-        if (resource.metadata.namespace) {
-          deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
-        } else {
-          deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
-        }
-        
-        // Send delete request
-        const response = await fetch(deleteUrl, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to delete resource: ${response.statusText}`);
-        }
-        
-        // Resource will be removed from the UI when the watch detects the DELETE event
-      } catch (error) {
-        console.error('Error deleting resource:', error);
-        // Show error in an alert
-        window.alert(`Error deleting resource: ${error}`);
+      let apiPath = '';
+      if (!group || group === 'core') {
+        apiPath = `/k8s/api/${version}`;
+      } else {
+        apiPath = `/k8s/apis/${group}/${version}`;
       }
+      
+      // Build the full delete URL
+      let deleteUrl = '';
+      if (resource.metadata.namespace) {
+        deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+      } else {
+        deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+      }
+      
+      // Send delete request
+      const response = await fetch(deleteUrl, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete resource: ${response.statusText}`);
+      }
+      
+      // Resource will be removed from the UI when the watch detects the DELETE event
+    } catch (error) {
+      console.error('Error deleting resource:', error);
     }
   };
 
-  const reconcileResource = async () => {
-    const index = selectedIndex();
+  // Generate a list of all commands including built-in ones
+  const getAllCommands = (): ResourceCommand[] => {
+    // Built-in commands that apply to all resources
+    const builtInCommands: ResourceCommand[] = [
+      {
+        shortcut: { key: "Ctrl+d", description: "Delete resource", isContextual: true },
+        handler: handleDeleteResource
+      },
+      {
+        shortcut: { key: "d", description: "Describe", isContextual: true },
+        handler: (resource) => openDrawer("describe", resource)
+      },
+      {
+        shortcut: { key: "y", description: "YAML", isContextual: true },
+        handler: (resource) => openDrawer("yaml", resource)
+      },
+      {
+        shortcut: { key: "e", description: "Events", isContextual: true },
+        handler: (resource) => openDrawer("events", resource)
+      },
+      {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: (resource) => openDrawer("logs", resource)
+      }
+    ];
     
-    if (index !== -1 && index < props.resources.length) {
-      const resource = props.resources[index] as any;
-      if (!resource || !resource.metadata) return;
-      
-      // If we have a custom reconcile handler, use it
-      if (props.onReconcile) {
-        props.onReconcile(props.resources[index]);
-        return;
-      }
-      
-      // Otherwise use the default implementation
-      // Check if resource is a Flux resource
-      const apiGroup = resource.apiVersion?.split('/')[0] || '';
-      if (!apiGroup.includes('fluxcd.io') && !apiGroup.includes('toolkit.fluxcd.io')) {
-        window.alert("This action only applies to Flux CD resources");
-        return;
-      }
-      
-      const resourceName = resource.metadata.name;
-      const resourceKind = resource.kind;
-      
-      try {
-        // Call the reconcile API
-        const response = await fetch('/api/flux/reconcile', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            kind: resourceKind,
-            name: resourceName,
-            namespace: resource.metadata.namespace
-          }),
-        });
-        
-        const result = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(result.error || `Failed to reconcile: ${response.statusText}`);
-        }
-        
-        // Show success message
-        window.alert(`Successfully reconciled ${resourceKind}/${resourceName}: ${result.message}`);
-      } catch (error) {
-        console.error('Error reconciling resource:', error);
-        window.alert(`Error reconciling resource: ${error}`);
-      }
-    }
+    // Combine with provided commands
+    return [...builtInCommands, ...(props.commands || [])];
   };
 
-  const scaleResource = async () => {
-    const index = selectedIndex();
+  // Find a command by its shortcut key
+  const findCommand = (key: string, ctrlKey: boolean): ResourceCommand | undefined => {
+    const allCommands = getAllCommands();
     
-    if (index !== -1 && index < props.resources.length) {
-      if (!props.onScale) {
-        return; // This resource doesn't support scaling
-      }
+    return allCommands.find(cmd => {
+      const shortcutKey = cmd.shortcut.key;
+      // Handle both formats: "Ctrl+X" and direct ctrl key checks
+      const hasCtrl = shortcutKey.toLowerCase().includes('ctrl+');
+      const actualKey = hasCtrl ? shortcutKey.split('+')[1].toLowerCase() : shortcutKey.toLowerCase();
       
-      // Ask for the desired number of replicas
-      const resource = props.resources[index] as any;
-      if (!resource || !resource.metadata) return;
-      
-      // Try to get current replicas to show in the prompt
-      const currentReplicas = resource.spec?.replicas || '0';
-      
-      const input = window.prompt(`Enter desired number of replicas for ${resource.kind || 'resource'} "${resource.metadata.name}":`, currentReplicas.toString());
-      
-      // Check if user canceled or entered an invalid number
-      if (input === null) return;
-      
-      const replicas = parseInt(input, 10);
-      if (isNaN(replicas) || replicas < 0) {
-        window.alert("Please enter a valid non-negative number");
-        return;
-      }
-      
-      try {
-        await props.onScale(props.resources[index], replicas);
-      } catch (error) {
-        console.error('Error scaling resource:', error);
-        window.alert(`Error scaling resource: ${error}`);
-      }
+      return actualKey === key.toLowerCase() && (ctrlKey === hasCtrl);
+    });
+  };
+
+  // Execute a command with the current selected resource
+  const executeCommand = async (command: ResourceCommand) => {
+    const index = selectedIndex();
+    if (index === -1 || index >= props.resources.length) return;
+    
+    try {
+      const resource = props.resources[index];
+      await command.handler(resource);
+    } catch (error) {
+      console.error(`Error executing command ${command.shortcut.description}:`, error);
     }
   };
 
@@ -201,6 +169,7 @@ export function ResourceList<T>(props: {
     return false;
   };
 
+  // Generic function to handle keyboard shortcuts by mapping keys to commands and built-in actions
   const handleKeyDown = (e: KeyboardEvent) => {
     if (props.resources.length === 0) return;
     
@@ -209,52 +178,37 @@ export function ResourceList<T>(props: {
       return;
     }
 
-    if (e.key === 'd' && e.ctrlKey) {
-        e.preventDefault();
-        deleteResource(); 
-    } else if (e.key === 'r' && e.ctrlKey) {
-        e.preventDefault();
-        reconcileResource();
-    } else if (e.key === 's' && e.ctrlKey) {
-        e.preventDefault();
-        scaleResource();
-    } else if (e.key === 'ArrowDown') {
+    // Handle navigation keys first (these don't need a selected resource)
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
         const newIndex = prev === -1 ? 0 : Math.min(prev + 1, props.resources.length - 1);
         return newIndex;
       });
+      return;
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(prev => {
         const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
         return newIndex;
       });
+      return;
     } else if (e.key === 'Enter') {
       const index = selectedIndex();
       if (index !== -1 && index < props.resources.length && props.onItemClick) {
-        props.onItemClick(props.resources[index]);
+        props.onItemClick(props.resources[index], navigate);
       }
-    } else if (e.key === 'd') {
-      const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length) {
-        openDrawer("describe", props.resources[index]);
-      }
-    } else if (e.key === 'y') {
-      const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length) {
-        openDrawer("yaml", props.resources[index]);
-      }
-    } else if (e.key === 'e') {
-      const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length) {
-        openDrawer("events", props.resources[index]);
-      }
-    } else if (e.key === 'l') {
-      const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length) {
-        openDrawer("logs", props.resources[index]);
-      }
+      return;
+    }
+
+    // For all other keys, check if there's a resource selected
+    if (selectedIndex() === -1) return;
+
+    // Find and execute the command
+    const command = findCommand(e.key, e.ctrlKey);
+    if (command) {
+      e.preventDefault();
+      executeCommand(command);
     }
   };
 
@@ -301,6 +255,11 @@ export function ResourceList<T>(props: {
     });
   });
 
+  // Get all available shortcuts including custom commands
+  const getAvailableShortcuts = () => {
+    return getAllCommands().map(cmd => cmd.shortcut);
+  };
+
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);
   });
@@ -313,7 +272,7 @@ export function ResourceList<T>(props: {
     <div class={`resource-list-container ${props.noSelectClass ? 'no-select' : ''}`}>      
       <div class="keyboard-shortcut-container">
         <KeyboardShortcuts
-          shortcuts={getResourceShortcuts()}
+          shortcuts={getAvailableShortcuts()}
           resourceSelected={selectedIndex() !== -1}
         />
       </div>
@@ -333,7 +292,7 @@ export function ResourceList<T>(props: {
                 const handleClick = () => {
                   setSelectedIndex(index());
                   if (props.onItemClick) {
-                    props.onItemClick(resource);
+                    props.onItemClick(resource, navigate);
                   }
                 };
                 
