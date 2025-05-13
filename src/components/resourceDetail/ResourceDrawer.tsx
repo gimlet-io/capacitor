@@ -2,6 +2,7 @@
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";
 import type { Event } from "../../types/k8s.ts";
+import { stringify } from "@std/yaml";
 
 type DrawerTab = "describe" | "yaml" | "events" | "logs";
 
@@ -93,7 +94,7 @@ export function ResourceDrawer(props: {
       }
       
       const data = await response.json();
-      setYamlData(JSON.stringify(data, null, 2));
+      setYamlData(stringify(data));
     } catch (error) {
       console.error("Error fetching YAML data:", error);
       setYamlData(`Error fetching YAML data: ${error instanceof Error ? error.message : String(error)}`);

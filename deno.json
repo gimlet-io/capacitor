@@ -6,6 +6,7 @@
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
+    "@std/yaml": "jsr:@std/yaml@^1.0.6",
     "solid-js": "npm:solid-js@1.9.5",
     "solid-js/web": "npm:solid-js@1.9.5/web",
     "@solidjs/router": "npm:@solidjs/router@0.10.0",
