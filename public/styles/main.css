@@ -1424,3 +1424,28 @@ td.message-cell {
   50% { opacity: 0.5; }
   100% { opacity: 1; }
 }
+
+.json-log {
+  font-family: monospace;
+  white-space: pre-wrap;
+}
+
+.json-filter-input {
+  max-width: 150px;
+  padding: 2px 4px;
+  border: 1px solid #666;
+  border-radius: 3px;
+  background: #333;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .logs-options-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .json-format-controls {
+    margin-top: 8px;
+  }
+}

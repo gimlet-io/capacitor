@@ -7,6 +7,7 @@ type LogEntry = {
   container: string; 
   line: string;
   rawTimestamp?: string; // Raw timestamp string from Kubernetes API
+  parsedJson?: any; // Parsed JSON content if the log is valid JSON
 };
 
 function formatLogEntries(entries: LogEntry[]): string {
@@ -44,6 +45,7 @@ export function LogsViewer(props: {
   const [loading, setLoading] = createSignal<boolean>(true);
   const [containerColors, setContainerColors] = createStore<Record<string, string>>({});
   const [formattedLogEntries, setFormattedLogEntries] = createSignal<LogEntry[]>([]);
+  const [processedEntries, setProcessedEntries] = createSignal<LogEntry[]>([]);
 
   const [availableContainers, setAvailableContainers] = createSignal<string[]>([]);
   const [selectedContainer, setSelectedContainer] = createSignal<string>("all");
@@ -51,6 +53,8 @@ export function LogsViewer(props: {
   const [followLogs, setFollowLogs] = createSignal<boolean>(false);
   const [logsAutoRefresh, setLogsAutoRefresh] = createSignal<boolean>(false);
   const [availableInitContainers, setAvailableInitContainers] = createSignal<string[]>([]);
+  const [formatJsonLogs, setFormatJsonLogs] = createSignal<boolean>(false);
+  const [jsonFilter, setJsonFilter] = createSignal<string>(".");
 
   let logsContentRef: HTMLPreElement | undefined;
   // Store a reference to control our polling mechanism
@@ -146,6 +150,28 @@ export function LogsViewer(props: {
     }
   };
 
+  // Detect if logs contain JSON and auto-enable JSON formatting
+  const detectJsonLogs = (entries: LogEntry[]) => {
+    if (entries.length === 0) return;
+    
+    // Check a sample of log entries (first 5) to see if they're JSON
+    const sampleSize = Math.min(5, entries.length);
+    let jsonCount = 0;
+    
+    for (let i = 0; i < sampleSize; i++) {
+      const entry = entries[i];
+      // If the entry already has parsed JSON, count it
+      if (entry.parsedJson) {
+        jsonCount++;
+      }
+    }
+    
+    // If most of the sample entries are JSON, auto-enable JSON formatting
+    if (jsonCount >= Math.ceil(sampleSize / 2)) {
+      setFormatJsonLogs(true);
+    }
+  };
+
   // Fetch logs for the selected resource
   const fetchResourceLogs = async () => {
     if (!props.resource) return;
@@ -210,6 +236,12 @@ export function LogsViewer(props: {
           
           // Store formatted log entries for HTML rendering
           setFormattedLogEntries(containerLogLines);
+          
+          // Process entries with current formatting settings
+          const processed = containerLogLines.map(entry => 
+            formatJsonLogs() ? processJsonLog(entry, formatJsonLogs(), jsonFilter()) : entry
+          );
+          setProcessedEntries(processed);
           
           // For plain text fallback
           logBuffer = formatLogEntries(containerLogLines);
@@ -386,8 +418,17 @@ export function LogsViewer(props: {
           // Sort by timestamp and format
           containerLogEntries = sortLogEntriesByTimestamp(containerLogEntries);
           
+          // Detect if logs contain JSON and auto-enable JSON formatting
+          detectJsonLogs(containerLogEntries);
+          
           // Store for HTML rendering
           setFormattedLogEntries(containerLogEntries);
+          
+          // Process entries with current formatting settings
+          const processed = containerLogEntries.map(entry => 
+            formatJsonLogs() ? processJsonLog(entry, formatJsonLogs(), jsonFilter()) : entry
+          );
+          setProcessedEntries(processed);
           
           // Plain text fallback
           const combinedLogs = formatLogEntries(containerLogEntries);
@@ -455,6 +496,16 @@ export function LogsViewer(props: {
     setLogsAutoRefresh(!logsAutoRefresh());
   };
 
+  // Handle JSON formatting toggle
+  const handleJsonFormattingToggle = () => {
+    setFormatJsonLogs(!formatJsonLogs());
+  };
+
+  // Handle JSON filter change
+  const handleJsonFilterChange = (filter: string) => {
+    setJsonFilter(filter);
+  };
+
   // Load data when viewer becomes visible
   createEffect(() => {
     if (props.isOpen) {
@@ -462,6 +513,28 @@ export function LogsViewer(props: {
       updateAvailableContainers().then(() => {
         fetchResourceLogs();
       });
+    }
+  });
+
+  // React to changes in JSON formatting settings
+  createEffect(() => {
+    // When formatting settings change, reprocess all entries
+    const jsonFormatting = formatJsonLogs();
+    const filter = jsonFilter();
+    
+    // Only reprocess if we have log entries
+    if (formattedLogEntries().length > 0) {
+      // Process all entries with current formatting settings
+      const processed = formattedLogEntries().map(entry => 
+        jsonFormatting ? processJsonLog(entry, jsonFormatting, filter) : entry
+      );
+      
+      // Update the processed entries to trigger re-render
+      setProcessedEntries(processed);
+      
+      // Update text logs as well
+      const combinedLogs = formatLogEntries(processed);
+      setLogs(combinedLogs || "No logs available for any container");
     }
   });
 
@@ -547,7 +620,6 @@ export function LogsViewer(props: {
                 />
                 Follow logs
               </label>
-              <Show when={followLogs()}>
                 <label>
                   <input
                     type="checkbox"
@@ -556,6 +628,25 @@ export function LogsViewer(props: {
                   />
                   Auto-scroll
                 </label>
+            
+              <label title="Format log messages as JSON when possible">
+                <input
+                  type="checkbox"
+                  checked={formatJsonLogs()}
+                  onChange={handleJsonFormattingToggle}
+                />
+                Format JSON
+              </label>
+              
+              <Show when={formatJsonLogs()}>
+                <input
+                  type="text"
+                  value={jsonFilter()}
+                  onInput={(e) => handleJsonFilterChange(e.target.value)}
+                  placeholder="jq filter (e.g. .)"
+                  title="Enter a jq-like filter (e.g. '.metadata.name')"
+                  class="json-filter-input"
+                />
               </Show>
             </div>
           </div>
@@ -575,7 +666,7 @@ export function LogsViewer(props: {
               when={formattedLogEntries().length > 0}
               fallback={logs()}
             >
-              <For each={formattedLogEntries()}>
+              <For each={processedEntries()}>
                 {(entry) => (
                   <div class="log-line">
                     <span class="log-timestamp">
@@ -583,11 +674,13 @@ export function LogsViewer(props: {
                     </span>
                     <span 
                       class="log-container"
-                      style={{ color: containerColors[entry.container] || "#fff" }}
+                      style={`color: ${containerColors[entry.container] || "#fff"}`}
                     >
                       [{entry.container}]
                     </span>
-                    <span class="log-message">{entry.line}</span>
+                    <span class={`log-message ${entry.parsedJson ? "json-log" : ""}`}>
+                      {entry.line}
+                    </span>
                   </div>
                 )}
               </For>
@@ -611,22 +704,51 @@ const processLogLine = (
   // Kubernetes adds timestamps at the beginning when timestamps=true
   const timestampMatch = line.match(/^(\S+)\s+(.*)$/);
   
+  let logEntry: LogEntry;
+  
   if (timestampMatch) {
     const [_, rawTimestamp, logContent] = timestampMatch;
 
-    containerLogLines.push({
+    logEntry = {
       timestamp: new Date(rawTimestamp),
       container,
       line: logContent,
       rawTimestamp
-    });
+    };
   } else {
-    containerLogLines.push({
+    logEntry = {
       timestamp: extractLogTimestamp(line),
       container,
       line
-    });
+    };
   }
+  
+  // Try to detect and parse JSON in the log line
+  try {
+    // First, try to find JSON object or array in the log line
+    const jsonMatch = logEntry.line.match(/(\{.*\}|\[.*\])/);
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[0];
+      try {
+        logEntry.parsedJson = JSON.parse(jsonStr);
+      } catch (e) {
+        // Not valid JSON in the matched pattern
+      }
+    }
+    
+    // If no JSON found in pattern match, try parsing the entire line
+    if (!logEntry.parsedJson) {
+      try {
+        logEntry.parsedJson = JSON.parse(logEntry.line);
+      } catch (e) {
+        // Not valid JSON, continue without parsed content
+      }
+    }
+  } catch (e) {
+    // Error in JSON detection/parsing, continue
+  }
+  
+  containerLogLines.push(logEntry);
 
   // Limit buffer size to prevent memory issues
   if (containerLogLines.length > 5000) {
@@ -702,4 +824,59 @@ function getContainerColor(container: string): string {
   // Ensure positive index
   const index = Math.abs(hash) % colors.length;
   return colors[index];
+}
+
+// Process a log entry for JSON formatting if needed
+const processJsonLog = (entry: LogEntry, formatJsonLogs: boolean, jsonFilter: string): LogEntry => {
+  // Create a new entry object to avoid mutating the original
+  const processedEntry = { ...entry };
+  
+  // Check if JSON formatting is enabled
+  if (!formatJsonLogs) return processedEntry;
+  
+  try {
+    // Try to parse the log entry as JSON
+    const jsonObject = processedEntry.parsedJson;
+    
+    // If not already parsed, try to parse it
+    if (!jsonObject) {
+      // Skip further processing if no JSON detected
+      return processedEntry;
+    }
+    
+    // Apply jq-like filter if we have a parsed JSON object
+    const filter = jsonFilter;
+    
+    // Simple jq-like filter implementation
+    // This is a basic implementation that only supports dot notation
+    if (filter && filter !== ".") {
+      const parts = filter.split('.').filter(p => p);
+      let result = jsonObject;
+      
+      // Navigate the object using the filter path
+      for (const part of parts) {
+        if (result && typeof result === 'object' && part in result) {
+          result = result[part];
+        } else {
+          // If path doesn't exist, return original entry
+          return processedEntry;
+        }
+      }
+      
+      // Format the filtered result
+      if (result !== null && result !== undefined) {
+        processedEntry.line = typeof result === 'object' 
+          ? JSON.stringify(result, null, 2) 
+          : String(result);
+      }
+    } else {
+      // Format the entire JSON object with indentation
+      processedEntry.line = JSON.stringify(jsonObject, null, 2);
+    }
+    
+    return processedEntry;
+  } catch (e) {
+    // Not valid JSON or filter error, return original entry
+    return processedEntry;
+  }
 }
