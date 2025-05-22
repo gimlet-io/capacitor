@@ -2,10 +2,7 @@ import { createContext, createSignal, useContext, JSX, createEffect, createMemo 
 import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
-import { podsStatusFilter } from "../components/resourceList/PodList.tsx";
-import { kustomizationReadyFilter } from "../components/resourceList/KustomizationList.tsx";
-import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "../components/resourceList/ApplicationList.tsx";
-
+import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 interface FilterState {
   filters: Filter[]; // all filters
   filterRegistry: Record<string, Filter>;
@@ -24,12 +21,6 @@ interface FilterState {
 }
 
 const FilterContext = createContext<FilterState>();
-
-const dynamicResourceFilters: Record<string, Filter[]> = {
-  'kustomize.toolkit.fluxcd.io/Kustomization': [kustomizationReadyFilter],
-  'argoproj.io/Application': [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
-  'core/Pod': [podsStatusFilter]
-};
 
 export function FilterProvider(props: { children: JSX.Element }) {
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
@@ -138,7 +129,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
         }
         resourceFilters.push(nameFilter);
         
-        resourceFilters.push(...(dynamicResourceFilters[resourceId] || []));
+        resourceFilters.push(...(resourceTypeConfigs[resourceId]?.filter || []));
 
         return {
           id: resourceId,

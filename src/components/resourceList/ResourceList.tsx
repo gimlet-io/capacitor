@@ -2,7 +2,7 @@ import { For, createSignal, onMount, onCleanup, createEffect } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig } from "../../config/resourceTypeConfigs.tsx";
+import { ResourceTypeConfig } from "../../resourceTypeConfigs.tsx";
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;

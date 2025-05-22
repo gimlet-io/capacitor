@@ -1,12 +1,16 @@
 import { JSX } from "solid-js";
-import { podColumns } from "../components/resourceList/PodList.tsx";
-import { deploymentColumns } from "../components/resourceList/DeploymentList.tsx";
-import { serviceColumns } from "../components/ServiceList.tsx";
-import { kustomizationColumns, renderKustomizationDetails } from "../components/resourceList/KustomizationList.tsx";
-import { applicationColumns, renderApplicationDetails } from "../components/resourceList/ApplicationList.tsx";
-import { KeyboardShortcut } from "../components/keyboardShortcuts/KeyboardShortcuts.tsx";
-import { handleScale } from "../components/resourceList/DeploymentList.tsx";
-import { handleReconcile } from "../components/resourceList/KustomizationList.tsx";
+import { podColumns } from "./components/resourceList/PodList.tsx";
+import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx";
+import { serviceColumns } from "./components/ServiceList.tsx";
+import { kustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
+import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
+import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
+import { handleScale } from "./components/resourceList/DeploymentList.tsx";
+import { handleReconcile } from "./components/resourceList/KustomizationList.tsx";
+import { Filter } from "./components/filterBar/FilterBar.tsx";
+import { podsStatusFilter } from "./components/resourceList/PodList.tsx";
+import { kustomizationReadyFilter } from "./components/resourceList/KustomizationList.tsx";
+import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 
 export interface Column<T> {
   header: string;
@@ -28,13 +32,15 @@ export interface ResourceTypeConfig {
   onItemClick?: (item: any, navigate: any) => void;
   commands?: ResourceCommand[];
   logsCapable?: boolean;
+  filter?: Filter[];
 }
 
 // Define the centralized resource configurations
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
     columns: podColumns,
-    logsCapable: true
+    logsCapable: true,
+    filter: [podsStatusFilter]
   },
   
   'apps/Deployment': {
@@ -76,7 +82,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "Ctrl+r", description: "Reconcile kustomization", isContextual: true },
         handler: handleReconcile
       }
-    ]
+    ],
+    filter: [kustomizationReadyFilter]
   },
   
   'argoproj.io/Application': {
@@ -86,6 +93,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     rowKeyField: "name",
     onItemClick: (application, navigate) => {
       navigate(`/application/${application.metadata.namespace}/${application.metadata.name}`);
-    }
+    },
+    filter: [argocdApplicationSyncFilter, argocdApplicationHealthFilter]
   }
 };

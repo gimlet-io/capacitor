@@ -8,7 +8,7 @@ import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { updateDeploymentMatchingResources, updateServiceMatchingResources } from "../utils/k8s.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
-import { resourceTypeConfigs } from "../config/resourceTypeConfigs.tsx";
+import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
