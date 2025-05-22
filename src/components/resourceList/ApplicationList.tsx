@@ -3,7 +3,8 @@ import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 export const argocdApplicationSyncFilter: Filter = {
-  name: "Sync Status",
+  name: "ApplicationSyncStatus",
+  label: "Sync Status",
   type: "select",
   options: [
     { label: "Synced", value: "Synced", color: "var(--linear-green)" },
@@ -21,7 +22,8 @@ export const argocdApplicationSyncFilter: Filter = {
 };
 
 export const argocdApplicationHealthFilter: Filter = {
-  name: "Health",
+  name: "ApplicationHealth",
+  label: "Health",
   type: "select",
   options: [
     { label: "Healthy", value: "Healthy", color: "var(--linear-green)" },

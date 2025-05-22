@@ -8,7 +8,8 @@ import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcu
 import { handleScale } from "./components/resourceList/DeploymentList.tsx";
 import { handleReconcile } from "./components/resourceList/KustomizationList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
-import { podsStatusFilter } from "./components/resourceList/PodList.tsx";
+import { podsStatusFilter, podsReadinessFilter } from "./components/resourceList/PodList.tsx";
+import { deploymentReadinessFilter } from "./components/resourceList/DeploymentList.tsx";
 import { kustomizationReadyFilter } from "./components/resourceList/KustomizationList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 
@@ -40,7 +41,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
     columns: podColumns,
     logsCapable: true,
-    filter: [podsStatusFilter]
+    filter: [podsReadinessFilter, podsStatusFilter]
   },
   
   'apps/Deployment': {
@@ -51,7 +52,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleScale
       }
     ],
-    logsCapable: true
+    logsCapable: true,
+    filter: [deploymentReadinessFilter]
   },
   
   'apps/StatefulSet': {
@@ -62,7 +64,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleScale
       }
     ],
-    logsCapable: true
+    logsCapable: true,
+    filter: [deploymentReadinessFilter]
   },
   
   'core/Service': {

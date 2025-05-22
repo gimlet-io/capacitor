@@ -32,6 +32,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
   const nameFilter: Filter = {
     name: "Name",
+    label: "Name",
     type: "text" as FilterType,
     placeholder: "Filter by name",
     filterFunction: (resource: any, value: string) => {
@@ -58,6 +59,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
   const namespaceFilter = createMemo<Filter>(() => ({
     name: "Namespace",
+    label: "Namespace",
     type: "select" as FilterType,
     get options() { return namespaceOptions(); },
     multiSelect: false,
@@ -66,6 +68,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
   const resourceTypeFilter = createMemo<Filter>(() => ({
     name: "ResourceType",
+    label: "Resource Type",
     type: "select" as FilterType,
     options: k8sResources().map(type => ({ value: type.id, label: type.kind })),
     multiSelect: false,

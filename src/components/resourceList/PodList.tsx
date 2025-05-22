@@ -4,6 +4,7 @@ import { useCalculateAge } from './timeUtils.ts';
 
 export const podsStatusFilter: Filter = {
   name: "PodStatus",
+  label: "Status",
   type: "select",
   options: [
     { label: "Running", value: "Running", color: "var(--linear-green)" },
@@ -30,6 +31,28 @@ export const podsStatusFilter: Filter = {
     }
     
     return false;
+  },
+};
+
+export const podsReadinessFilter: Filter = {
+  name: "PodReadiness",
+  label: "Readiness",
+  type: "select",
+  options: [
+    { label: "Ready", value: "Ready", color: "var(--linear-green)" },
+    { label: "Not Ready", value: "notReady", color: "var(--linear-red)" },
+  ],
+  multiSelect: true,
+  filterFunction: (pod: Pod, value: string): boolean => {
+    if (value === "notReady") {
+      // Check if any container is not ready
+      const containerStatuses = pod.status.containerStatuses || [];
+      const totalContainers = pod.spec.containers.length;
+      const readyContainers = containerStatuses.filter(cs => cs.ready).length;
+      
+      return readyContainers < totalContainers;
+    }
+    return true;
   },
 };
 

@@ -13,6 +13,7 @@ export type FilterType = "select" | "text";
 
 export type Filter = {
   name: string;
+  label: string;
   type?: FilterType;
   options?: FilterOption[];
   multiSelect?: boolean;
@@ -118,26 +119,26 @@ export function FilterBar(props: {
     props.onFilterChange(newFilters);
   };
 
-  const getFilterButtonText = (filterName: string): string => {
-    const filter = props.filters.find(f => f.name === filterName);
+  const getFilterButtonText = (filter: Filter): string => {
+    const filterName = filter.name;
     const activeInFilter = props.activeFilters.filter(f => f.name === filterName);
 
     if (activeInFilter.length === 0) {
-      return `${filterName}`;
+      return `${filter.label}`;
     } else if (filter?.type === "text") {
-      return `${filterName}: ${activeInFilter[0].value}`;
+      return `${filter.label}: ${activeInFilter[0].value}`;
     } else if (activeInFilter.length === 1) {
       const option = filter?.options?.find(o => o.value === activeInFilter[0].value);
-      return `${filterName} is ${option?.label || activeInFilter[0].value}`;
+      return `${filter.label} is ${option?.label || activeInFilter[0].value}`;
     } else {
       const totalOptions = filter?.options?.length || 0;
       if (activeInFilter.length === totalOptions - 1) {
         const remainingOption = filter?.options?.find(o =>
           !activeInFilter.some(active => active.value === o.value)
         );
-        return `${filterName} is not ${remainingOption?.label || 'selected option'}`;
+        return `${filter.label} is not ${remainingOption?.label || 'selected option'}`;
       }
-      return `${filterName} is any of ${activeInFilter.length} options`;
+      return `${filter.label} is any of ${activeInFilter.length} options`;
     }
   };
 
@@ -516,7 +517,7 @@ export function FilterBar(props: {
                     setActiveFilter(current => current === filter.name ? null : filter.name);
                   }}
                 >
-                  {getFilterButtonText(filter.name)}
+                  {getFilterButtonText(filter)}
                   {filter.name === "Namespace" && (
                     <span class="shortcut-key">n</span>
                   )}

@@ -5,7 +5,8 @@ import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 export const kustomizationReadyFilter: Filter = {
-  name: "Ready",
+  name: "KustomizationReady",
+  label: "Ready",
   type: "select",
   options: [
     {

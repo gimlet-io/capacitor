@@ -1,5 +1,24 @@
 import type { DeploymentWithResources, ObjectMeta } from "../../types/k8s.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { Filter } from "../filterBar/FilterBar.tsx";
+
+export const deploymentReadinessFilter: Filter = {
+  name: "DeploymentReadiness",
+  label: "Readiness",
+  type: "select",
+  options: [
+    { label: "Ready", value: "Ready", color: "var(--linear-green)" },
+    { label: "Not Ready", value: "notReady", color: "var(--linear-red)" },
+  ],
+  multiSelect: true,
+  filterFunction: (deployment: DeploymentWithResources, value: string): boolean => {
+    if (value === "notReady") {
+      // Check if desired replicas don't match ready replicas
+      return (deployment.spec.replicas !== (deployment.status.readyReplicas || 0));
+    }
+    return true;
+  },
+};
 
 const getPodColor = (status: string) => {
   switch (status) {
