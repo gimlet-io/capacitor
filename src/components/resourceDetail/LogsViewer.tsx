@@ -660,10 +660,9 @@ const processLogLine = (
             
   // Split timestamp and log content
   // Kubernetes adds timestamps at the beginning when timestamps=true
-  const timestampMatch = line.match(/^(\S+)\s+(.*)$/);
-  
+  const timestampMatch = line.match(/^(\S+)\s(.*)$/);
   let logEntry: LogEntry;
-  
+
   if (timestampMatch) {
     const [_, rawTimestamp, logContent] = timestampMatch;
 
