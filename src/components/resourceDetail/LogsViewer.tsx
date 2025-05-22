@@ -55,6 +55,7 @@ export function LogsViewer(props: {
   const [availableInitContainers, setAvailableInitContainers] = createSignal<string[]>([]);
   const [formatJsonLogs, setFormatJsonLogs] = createSignal<boolean>(false);
   const [jsonFilter, setJsonFilter] = createSignal<string>(".");
+  const [wrapText, setWrapText] = createSignal<boolean>(true);
 
   let logsContentRef: HTMLPreElement | undefined;
   // Store a reference to control our polling mechanism
@@ -443,6 +444,10 @@ export function LogsViewer(props: {
     setLogsAutoRefresh(!logsAutoRefresh());
   };
 
+  const toggleWrapText = () => {
+    setWrapText(!wrapText());
+  };
+
   // Handle JSON formatting toggle
   const handleJsonFormattingToggle = () => {
     setFormatJsonLogs(!formatJsonLogs());
@@ -567,15 +572,22 @@ export function LogsViewer(props: {
                 />
                 Follow logs
               </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={logsAutoRefresh()}
-                    onChange={toggleAutoRefresh}
-                  />
-                  Auto-scroll
-                </label>
-            
+              <label>
+                <input
+                  type="checkbox"
+                  checked={logsAutoRefresh()}
+                  onChange={toggleAutoRefresh}
+                />
+                Auto-scroll
+              </label>
+              <label title="Wrap log text to fit the container">
+                <input
+                  type="checkbox"
+                  checked={wrapText()}
+                  onChange={toggleWrapText}
+                />
+                Wrap text
+              </label>
               <label title="Format log messages as JSON when possible">
                 <input
                   type="checkbox"
@@ -584,7 +596,6 @@ export function LogsViewer(props: {
                 />
                 Format JSON
               </label>
-              
               <Show when={formatJsonLogs()}>
                 <input
                   type="text"
@@ -625,7 +636,7 @@ export function LogsViewer(props: {
                     >
                       [{entry.container}]
                     </span>
-                    <span class={`log-message ${entry.parsedJson ? "json-log" : ""}`}>
+                    <span class={`log-message ${entry.parsedJson ? "json-log" : ""} ${wrapText() ? "" : "nowrap"}`}>
                       {entry.line}
                     </span>
                   </div>

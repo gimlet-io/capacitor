@@ -1419,6 +1419,11 @@ td.message-cell {
   user-select: text;
 }
 
+.log-message.nowrap {
+  white-space: pre;
+  word-break: normal;
+}
+
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
