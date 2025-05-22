@@ -150,28 +150,6 @@ export function LogsViewer(props: {
     }
   };
 
-  // Detect if logs contain JSON and auto-enable JSON formatting
-  const detectJsonLogs = (entries: LogEntry[]) => {
-    if (entries.length === 0) return;
-    
-    // Check a sample of log entries (first 5) to see if they're JSON
-    const sampleSize = Math.min(5, entries.length);
-    let jsonCount = 0;
-    
-    for (let i = 0; i < sampleSize; i++) {
-      const entry = entries[i];
-      // If the entry already has parsed JSON, count it
-      if (entry.parsedJson) {
-        jsonCount++;
-      }
-    }
-    
-    // If most of the sample entries are JSON, auto-enable JSON formatting
-    if (jsonCount >= Math.ceil(sampleSize / 2)) {
-      setFormatJsonLogs(true);
-    }
-  };
-
   // Fetch logs for the selected resource
   const fetchResourceLogs = async () => {
     if (!props.resource) return;
@@ -217,6 +195,30 @@ export function LogsViewer(props: {
 
       const containers = containerName === "all" ? [...availableContainers(), ...availableInitContainers()] : [containerName];
         
+      // Update the logs display with sorted lines
+      const updateLogsDisplay = (containerLogEntries: LogEntry[]) => {
+        containerLogEntries = sortLogEntriesByTimestamp(containerLogEntries);
+        setFormatJsonLogs(detectJsonLogs(containerLogEntries));
+        
+        // Store for HTML rendering
+        setFormattedLogEntries(containerLogEntries);
+        
+        // Process entries with current formatting settings
+        const processed = containerLogEntries.map(entry => 
+          formatJsonLogs() ? processJsonLog(entry, formatJsonLogs(), jsonFilter()) : entry
+        );
+        setProcessedEntries(processed);
+        
+        // Plain text fallback
+        const combinedLogs = formatLogEntries(containerLogEntries);
+        setLogs(combinedLogs || "No logs available for any container");
+        
+        // Scroll to bottom if auto-refresh is enabled
+        if (logsAutoRefresh() && logsContentRef) {
+          logsContentRef.scrollTop = logsContentRef.scrollHeight;
+        }
+      };
+
       // For streaming multiple containers
       if (followLogs()) {
         // Set up streaming for multiple containers
@@ -225,34 +227,10 @@ export function LogsViewer(props: {
         setLogs(logBuffer);
         
         // Store container log lines with timestamps for sorting
-        let containerLogLines: LogEntry[] = [];
+        const containerLogEntries: LogEntry[] = [];
         // Keep track of active streams
         let activeStreams = containers.length;
-        
-        // Update the logs display with sorted lines
-        const updateLogsDisplay = () => {
-          // Sort and format log entries
-          containerLogLines = sortLogEntriesByTimestamp(containerLogLines);
-          
-          // Store formatted log entries for HTML rendering
-          setFormattedLogEntries(containerLogLines);
-          
-          // Process entries with current formatting settings
-          const processed = containerLogLines.map(entry => 
-            formatJsonLogs() ? processJsonLog(entry, formatJsonLogs(), jsonFilter()) : entry
-          );
-          setProcessedEntries(processed);
-          
-          // For plain text fallback
-          logBuffer = formatLogEntries(containerLogLines);
-          setLogs(logBuffer);
-          
-          // Scroll to bottom if auto-refresh is enabled
-          if (logsAutoRefresh() && logsContentRef) {
-            logsContentRef.scrollTop = logsContentRef.scrollHeight;
-          }
-        };
-        
+
         const streamContainerLogs = async (container: string) => {
           // Ensure container has an assigned color
           if (!containerColors[container]) {
@@ -299,7 +277,7 @@ export function LogsViewer(props: {
               if (done) {
                 // Process any remaining partial line
                 if (partialLine) {
-                  processLogLine(container, containerLogLines, partialLine);
+                  processLogLine(container, containerLogEntries, partialLine);
                   partialLine = "";
                 }
                 break;
@@ -313,11 +291,10 @@ export function LogsViewer(props: {
               
               // Process complete lines
               for (const line of lines) {
-                processLogLine(container, containerLogLines, line);
+                processLogLine(container, containerLogEntries, line);
               }
               
-              // Update the display and scroll if needed
-              updateLogsDisplay();
+              updateLogsDisplay(containerLogEntries);
             }
             
             logBuffer += `\n[Container ${container}: Stream ended]\n`;
@@ -347,32 +324,9 @@ export function LogsViewer(props: {
             abortController.abort();
           },
         };
-        
-        setLoading(false);
       } else { 
-        // For non-streaming multiple containers
-        let containerLogEntries: LogEntry[] = [];
-        
-        // Process individual log lines from a container
-        const processContainerLogs = (container: string, logText: string) => {
-          if (!logText.trim()) {
-            containerLogEntries.push({
-              timestamp: new Date(),
-              container,
-              line: "[No logs available]"
-            });
-            return;
-          }
-          
-          // Process each line of logs
-          const lines = logText.split("\n");
-          for (const line of lines) {
-            processLogLine(container, containerLogEntries, line);
-          }
-        };
-        
-        // Fetch logs for each container
         const fetchAllLogs = async () => {
+          const containerLogEntries: LogEntry[] = [];
           for (const container of containers) {
             try {
               const containerLogsUrl = createContainerLogUrl(
@@ -405,7 +359,18 @@ export function LogsViewer(props: {
                 setContainerColors(container, getContainerColor(container));
               }
               
-              processContainerLogs(container, containerLogs);
+              if (!containerLogs.trim()) {
+                containerLogEntries.push({
+                  timestamp: new Date(),
+                  container,
+                  line: "[No logs available]"
+                });
+              } else {
+                const lines = containerLogs.split("\n");
+                for (const line of lines) {
+                  processLogLine(container, containerLogEntries, line);
+                }
+              }
             } catch (error) {
               containerLogEntries.push({
                 timestamp: new Date(),
@@ -414,29 +379,9 @@ export function LogsViewer(props: {
               });
             }
           }
-          
-          // Sort by timestamp and format
-          containerLogEntries = sortLogEntriesByTimestamp(containerLogEntries);
-          
-          // Detect if logs contain JSON and auto-enable JSON formatting
-          detectJsonLogs(containerLogEntries);
-          
-          // Store for HTML rendering
-          setFormattedLogEntries(containerLogEntries);
-          
-          // Process entries with current formatting settings
-          const processed = containerLogEntries.map(entry => 
-            formatJsonLogs() ? processJsonLog(entry, formatJsonLogs(), jsonFilter()) : entry
-          );
-          setProcessedEntries(processed);
-          
-          // Plain text fallback
-          const combinedLogs = formatLogEntries(containerLogEntries);
-          
-          setLogs(combinedLogs || "No logs available for any container");
-          setLoading(false);
+
+          updateLogsDisplay(containerLogEntries);
         };
-        
         fetchAllLogs();
       }
     } catch (error) {
@@ -477,7 +422,9 @@ export function LogsViewer(props: {
   const toggleFollowLogs = () => {
     const newFollowState = !followLogs();
     setFollowLogs(newFollowState);
-    setLogsAutoRefresh(newFollowState);
+    if (newFollowState) {
+      setLogsAutoRefresh(true);
+    }
 
     // If turning off follow mode, close the EventSource
     if (!newFollowState && logsEventSource) {
@@ -880,3 +827,22 @@ const processJsonLog = (entry: LogEntry, formatJsonLogs: boolean, jsonFilter: st
     return processedEntry;
   }
 }
+
+const detectJsonLogs = (entries: LogEntry[]): boolean => {
+  if (entries.length === 0) return false;
+  
+  // Check a sample of log entries (first 5) to see if they're JSON
+  const sampleSize = Math.min(5, entries.length);
+  let jsonCount = 0;
+  
+  for (let i = 0; i < sampleSize; i++) {
+    const entry = entries[i];
+    // If the entry already has parsed JSON, count it
+    if (entry.parsedJson) {
+      jsonCount++;
+    }
+  }
+  
+  // If most of the sample entries are JSON, auto-enable JSON formatting
+  return jsonCount >= Math.ceil(sampleSize / 2);
+};
