@@ -9,6 +9,25 @@ export interface ResourceCommand {
   handler: (item: any) => void | Promise<void>;
 }
 
+export const builtInCommands = [
+  {
+    shortcut: { key: "d", description: "Describe", isContextual: true },
+    handler: null as any  // Will be implemented in ResourceList
+  },
+  {
+    shortcut: { key: "y", description: "YAML", isContextual: true },
+    handler: null as any  // Will be implemented in ResourceList
+  },
+  {
+    shortcut: { key: "e", description: "Events", isContextual: true },
+    handler: null as any  // Will be implemented in ResourceList
+  },
+  {
+    shortcut: { key: "Ctrl+d", description: "Delete resource", isContextual: true },
+    handler: null as any  // Will be implemented in ResourceList
+  },
+]
+
 export function ResourceList<T>(props: { 
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
@@ -83,36 +102,47 @@ export function ResourceList<T>(props: {
 
   // Generate a list of all commands including built-in ones
   const getAllCommands = (): ResourceCommand[] => {
-    // Built-in commands that apply to all resources
-    const builtInCommands: ResourceCommand[] = [
-      {
-        shortcut: { key: "d", description: "Describe", isContextual: true },
-        handler: (resource) => openDrawer("describe", resource)
-      },
-      {
-        shortcut: { key: "y", description: "YAML", isContextual: true },
-        handler: (resource) => openDrawer("yaml", resource)
-      },
-      {
-        shortcut: { key: "e", description: "Events", isContextual: true },
-        handler: (resource) => openDrawer("events", resource)
+    // Get the commands from the resource config
+    const commands = [...(props.resourceTypeConfig.commands || builtInCommands)];
+    replaceHandlers(commands);
+    return commands;
+  };
+
+  const replaceHandlers = (commands: ResourceCommand[]) => {
+    // Replace the null handlers with actual implementations for built-in commands
+    for (let i = 0; i < commands.length; i++) {
+      const cmd = commands[i];
+      
+      // Check for built-in command key combinations and replace null handlers
+      if (cmd.handler === null) {
+        if (cmd.shortcut.key === 'd' && cmd.shortcut.description === 'Describe') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openDrawer("describe", resource)
+          };
+        } else if (cmd.shortcut.key === 'y' && cmd.shortcut.description === 'YAML') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openDrawer("yaml", resource)
+          };
+        } else if (cmd.shortcut.key === 'e' && cmd.shortcut.description === 'Events') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openDrawer("events", resource)
+          };
+        } else if (cmd.shortcut.key === 'l' && cmd.shortcut.description === 'Logs') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openDrawer("logs", resource)
+          };
+        } else if (cmd.shortcut.key === 'Ctrl+d' && cmd.shortcut.description === 'Delete resource') {
+          commands[i] = {
+            ...cmd,
+            handler: handleDeleteResource
+          };
+        }
       }
-    ];
-
-    if (props.resourceTypeConfig.logsCapable) {
-      builtInCommands.push({
-        shortcut: { key: "l", description: "Logs", isContextual: true },
-        handler: (resource) => openDrawer("logs", resource)
-      });
     }
-
-    builtInCommands.push({
-      shortcut: { key: "Ctrl+d", description: "Delete resource", isContextual: true },
-      handler: handleDeleteResource
-    });
-    
-    // Combine with provided commands
-    return [...builtInCommands, ...(props.resourceTypeConfig.commands || [])];
   };
 
   // Find a command by its shortcut key
@@ -334,4 +364,4 @@ export function ResourceList<T>(props: {
       />
     </div>
   );
-} 
+}

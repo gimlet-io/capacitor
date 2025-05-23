@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/gimlet-io/capacitor/pkg/helm"
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -60,8 +62,9 @@ func (wsc *WebSocketConnection) Close() error {
 
 // WebSocketHandler handles WebSocket connections
 type WebSocketHandler struct {
-	upgrader  websocket.Upgrader
-	k8sClient *kubernetes.Client
+	upgrader   websocket.Upgrader
+	k8sClient  *kubernetes.Client
+	helmClient *helm.Client
 
 	// Maps connection to a map of resource paths to contexts
 	// This allows us to cancel watches when clients unsubscribe
@@ -69,14 +72,15 @@ type WebSocketHandler struct {
 }
 
 // NewWebSocketHandler creates a new WebSocketHandler
-func NewWebSocketHandler(k8sClient *kubernetes.Client) *WebSocketHandler {
+func NewWebSocketHandler(k8sClient *kubernetes.Client, helmClient *helm.Client) *WebSocketHandler {
 	return &WebSocketHandler{
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins
 			},
 		},
-		k8sClient: k8sClient,
+		k8sClient:  k8sClient,
+		helmClient: helmClient,
 	}
 }
 
@@ -158,6 +162,14 @@ func (h *WebSocketHandler) handleSubscribe(
 	// Create context for this watch that can be cancelled
 	watchCtx, watchCancel := context.WithCancel(connCtx)
 	watchContextsForConn[msg.Path] = watchCancel
+
+	// Check if this is a Helm release path
+	if strings.Contains(msg.Path, "/api/helm/releases") {
+		h.handleHelmReleaseWatch(watchCtx, ws, msg)
+		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
+		log.Printf("Successfully subscribed to Helm releases path: %s", msg.Path)
+		return
+	}
 
 	// Create channel for events
 	eventsChan := make(chan *kubernetes.WatchEvent, 100)
@@ -268,5 +280,189 @@ func (h *WebSocketHandler) sendMessage(ws *WebSocketConnection, msg *ServerMessa
 
 	if err := ws.WriteMessage(websocket.TextMessage, data); err != nil {
 		log.Printf("error writing message: %v", err)
+	}
+}
+
+// handleHelmReleaseWatch handles watching Helm releases with polling
+func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSocketConnection, msg *ClientMessage) {
+	// Extract namespace from the path if present
+	// Path format: "/api/helm/releases" (all namespaces) or "/api/helm/releases/namespaces/{namespace}"
+	namespace := ""
+	pathParts := strings.Split(msg.Path, "/")
+
+	// Look for standard K8s path pattern: /api/helm/releases/namespaces/{namespace}
+	if len(pathParts) >= 6 && pathParts[4] == "namespaces" {
+		namespace = pathParts[5]
+		log.Printf("Extracted namespace from path: %s", namespace)
+	}
+
+	// Store previous releases to detect changes
+	var previousReleases []*helm.Release
+
+	// Start polling in a goroutine
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		// Get initial state
+		releases, err := h.helmClient.ListReleases(ctx, namespace)
+		if err != nil {
+			log.Printf("Error listing Helm releases: %v", err)
+			h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Helm releases: %v", err))
+			return
+		}
+
+		// Send initial data
+		h.sendReleases(ws, msg.ID, msg.Path, releases)
+		previousReleases = releases
+
+		// Poll for changes
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("Context cancelled for Helm releases watch: %s", msg.Path)
+				return
+			case <-ticker.C:
+				currentReleases, err := h.helmClient.ListReleases(ctx, namespace)
+				if err != nil {
+					log.Printf("Error listing Helm releases: %v", err)
+					h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Helm releases: %v", err))
+					continue
+				}
+
+				// Check if anything has changed
+				if !h.releaseListsEqual(previousReleases, currentReleases) {
+					h.sendReleases(ws, msg.ID, msg.Path, currentReleases)
+					previousReleases = currentReleases
+				}
+			}
+		}
+	}()
+}
+
+// compareAndSendHelmChanges compares release lists and sends appropriate events
+func (h *WebSocketHandler) compareAndSendHelmChanges(ws *WebSocketConnection, msg *ClientMessage, previous, current []*helm.Release) {
+	// Create maps for easier comparison
+	prevMap := make(map[string]*helm.Release)
+	for _, rel := range previous {
+		key := fmt.Sprintf("%s/%s", rel.Namespace, rel.Name)
+		prevMap[key] = rel
+	}
+
+	currMap := make(map[string]*helm.Release)
+	for _, rel := range current {
+		key := fmt.Sprintf("%s/%s", rel.Namespace, rel.Name)
+		currMap[key] = rel
+	}
+
+	// Check for new or modified releases
+	for key, currRel := range currMap {
+		if prevRel, exists := prevMap[key]; exists {
+			// Check if modified (compare revision and status)
+			if prevRel.Revision != currRel.Revision || prevRel.Status != currRel.Status || !prevRel.Updated.Equal(currRel.Updated) {
+				event := &kubernetes.WatchEvent{
+					Type:   "MODIFIED",
+					Object: h.helmReleaseToRawMessage(currRel),
+				}
+				h.sendDataMessage(ws, msg.ID, msg.Path, event)
+			}
+		} else {
+			// New release
+			event := &kubernetes.WatchEvent{
+				Type:   "ADDED",
+				Object: h.helmReleaseToRawMessage(currRel),
+			}
+			h.sendDataMessage(ws, msg.ID, msg.Path, event)
+		}
+	}
+
+	// Check for deleted releases
+	for key, prevRel := range prevMap {
+		if _, exists := currMap[key]; !exists {
+			event := &kubernetes.WatchEvent{
+				Type:   "DELETED",
+				Object: h.helmReleaseToRawMessage(prevRel),
+			}
+			h.sendDataMessage(ws, msg.ID, msg.Path, event)
+		}
+	}
+}
+
+// helmReleaseToRawMessage converts a Helm release to json.RawMessage
+func (h *WebSocketHandler) helmReleaseToRawMessage(release *helm.Release) json.RawMessage {
+	// Convert Helm release to a Kubernetes-like object structure
+	obj := map[string]interface{}{
+		"apiVersion": "helm.sh/v3",
+		"kind":       "Release",
+		"metadata": map[string]interface{}{
+			"name":              release.Name,
+			"namespace":         release.Namespace,
+			"creationTimestamp": release.Updated.Format(time.RFC3339),
+		},
+		"spec": map[string]interface{}{
+			"chart":        release.Chart,
+			"chartVersion": release.ChartVersion,
+			"values":       release.Values,
+		},
+		"status": map[string]interface{}{
+			"status":     release.Status,
+			"revision":   release.Revision,
+			"appVersion": release.AppVersion,
+			"notes":      release.Notes,
+		},
+	}
+
+	data, err := json.Marshal(obj)
+	if err != nil {
+		log.Printf("Error marshaling Helm release: %v", err)
+		return json.RawMessage("{}")
+	}
+
+	return json.RawMessage(data)
+}
+
+// releaseListsEqual checks if two release lists are equal
+func (h *WebSocketHandler) releaseListsEqual(prev, curr []*helm.Release) bool {
+	if len(prev) != len(curr) {
+		return false
+	}
+
+	prevMap := make(map[string]*helm.Release)
+	for _, rel := range prev {
+		key := fmt.Sprintf("%s/%s", rel.Namespace, rel.Name)
+		prevMap[key] = rel
+	}
+
+	for _, rel := range curr {
+		key := fmt.Sprintf("%s/%s", rel.Namespace, rel.Name)
+		prevRel, exists := prevMap[key]
+		if !exists {
+			return false
+		}
+
+		// Compare relevant fields - revision and status are enough to detect changes
+		if prevRel.Revision != rel.Revision || prevRel.Status != rel.Status {
+			return false
+		}
+	}
+
+	return true
+}
+
+// sendReleases sends a list of releases to the client
+func (h *WebSocketHandler) sendReleases(ws *WebSocketConnection, id, path string, releases []*helm.Release) {
+	// First send a clear event to reset the view
+	clearEvent := &kubernetes.WatchEvent{
+		Type: "CLEAR_ALL",
+	}
+	h.sendDataMessage(ws, id, path, clearEvent)
+
+	// Then send all current releases
+	for _, release := range releases {
+		event := &kubernetes.WatchEvent{
+			Type:   "ADDED",
+			Object: h.helmReleaseToRawMessage(release),
+		}
+		h.sendDataMessage(ws, id, path, event)
 	}
 }

@@ -1,6 +1,5 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, For, createEffect, untrack, onMount, onCleanup } from "solid-js";
-import type { Filter } from "../filterBar/FilterBar.tsx";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
@@ -19,6 +18,14 @@ const SYSTEM_VIEWS: View[] = [
     isSystem: true,
     filters: [
       { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }]
+  },
+  { 
+    id: 'helm',
+    label: 'Helm',
+    isSystem: true,
+    filters: [
+      { name: 'ResourceType', value: 'helm.sh/Release' },
       { name: 'Namespace', value: 'all-namespaces' }]
   },
   { 

@@ -146,6 +146,20 @@ export function FilterProvider(props: { children: JSX.Element }) {
         };
       });
 
+    // Add Helm releases as a special resource type
+    const helmReleaseResource: K8sResource = {
+      id: 'helm.sh/Release',
+      filters: [namespaceFilter(), nameFilter, ...(resourceTypeConfigs['helm.sh/Release']?.filter || [])],
+      group: 'helm.sh',
+      version: 'v3',
+      kind: 'Release',
+      apiPath: '/api/helm/releases',
+      name: 'releases',
+      namespaced: true
+    };
+
+    resources.push(helmReleaseResource);
+
     setK8sResources(resources);
   });
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gimlet-io/capacitor/pkg/config"
+	"github.com/gimlet-io/capacitor/pkg/helm"
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -25,12 +26,13 @@ import (
 
 // Server represents the API server
 type Server struct {
-	echo      *echo.Echo
-	config    *config.Config
-	k8sClient *kubernetes.Client
-	wsHandler *WebSocketHandler
-	k8sProxy  *KubernetesProxy
-	embedFS   fs.FS // embedded file system for static files
+	echo       *echo.Echo
+	config     *config.Config
+	k8sClient  *kubernetes.Client
+	helmClient *helm.Client
+	wsHandler  *WebSocketHandler
+	k8sProxy   *KubernetesProxy
+	embedFS    fs.FS // embedded file system for static files
 }
 
 // New creates a new server instance
@@ -38,8 +40,14 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client) (*Server, error) {
 	// Create the echo instance
 	e := echo.New()
 
+	// Create Helm client
+	helmClient, err := helm.NewClient(k8sClient.Config, "")
+	if err != nil {
+		return nil, fmt.Errorf("error creating helm client: %w", err)
+	}
+
 	// Create WebSocket handler
-	wsHandler := NewWebSocketHandler(k8sClient)
+	wsHandler := NewWebSocketHandler(k8sClient, helmClient)
 
 	// Create Kubernetes proxy
 	k8sProxy, err := NewKubernetesProxy(k8sClient)
@@ -48,11 +56,12 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client) (*Server, error) {
 	}
 
 	return &Server{
-		echo:      e,
-		config:    cfg,
-		k8sClient: k8sClient,
-		wsHandler: wsHandler,
-		k8sProxy:  k8sProxy,
+		echo:       e,
+		config:     cfg,
+		k8sClient:  k8sClient,
+		helmClient: helmClient,
+		wsHandler:  wsHandler,
+		k8sProxy:   k8sProxy,
 	}, nil
 }
 

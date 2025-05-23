@@ -4,6 +4,7 @@ import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx"
 import { serviceColumns } from "./components/ServiceList.tsx";
 import { kustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
+import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale } from "./components/resourceList/DeploymentList.tsx";
 import { handleReconcile } from "./components/resourceList/KustomizationList.tsx";
@@ -12,7 +13,7 @@ import { podsStatusFilter, podsReadinessFilter } from "./components/resourceList
 import { deploymentReadinessFilter } from "./components/resourceList/DeploymentList.tsx";
 import { kustomizationReadyFilter } from "./components/resourceList/KustomizationList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
-
+import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
 export interface Column<T> {
   header: string;
   width: string;
@@ -32,7 +33,6 @@ export interface ResourceTypeConfig {
   rowKeyField?: string;
   onItemClick?: (item: any, navigate: any) => void;
   commands?: ResourceCommand[];
-  logsCapable?: boolean;
   filter?: Filter[];
 }
 
@@ -40,19 +40,29 @@ export interface ResourceTypeConfig {
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
     columns: podColumns,
-    logsCapable: true,
-    filter: [podsReadinessFilter, podsStatusFilter]
+    filter: [podsReadinessFilter, podsStatusFilter],
+    commands: [
+      {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      ...builtInCommands, 
+    ]
   },
   
   'apps/Deployment': {
     columns: deploymentColumns,
     commands: [
       {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      ...builtInCommands,
+      {
         shortcut: { key: "Ctrl+s", description: "Scale deployment", isContextual: true },
         handler: handleScale
       }
     ],
-    logsCapable: true,
     filter: [deploymentReadinessFilter]
   },
   
@@ -60,16 +70,26 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: deploymentColumns,
     commands: [
       {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      ...builtInCommands,
+      {
         shortcut: { key: "Ctrl+s", description: "Scale statefulset", isContextual: true },
         handler: handleScale
       }
     ],
-    logsCapable: true,
     filter: [deploymentReadinessFilter]
   },
   
   'core/Service': {
     columns: serviceColumns
+  },
+  
+  'helm.sh/Release': {
+    columns: helmReleaseColumns,
+    filter: [helmReleaseStatusFilter, helmReleaseChartFilter],
+    commands: [] // No commands are supported for Helm releases
   },
   
   'kustomize.toolkit.fluxcd.io/Kustomization': {
@@ -81,6 +101,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`);
     },
     commands: [
+      ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile kustomization", isContextual: true },
         handler: handleReconcile
