@@ -1402,14 +1402,16 @@ td.message-cell {
   color: #6a9955;
   margin-right: 8px;
   flex-shrink: 0;
-  user-select: text;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .log-container {
   margin-right: 8px;
   font-weight: bold;
   flex-shrink: 0;
-  user-select: text;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .log-message {

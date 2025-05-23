@@ -636,7 +636,10 @@ export function LogsViewer(props: {
                     >
                       [{entry.container}]
                     </span>
-                    <span class={`log-message ${entry.parsedJson ? "json-log" : ""} ${wrapText() ? "" : "nowrap"}`}>
+                    <span
+                      class={`log-message ${entry.parsedJson ? "json-log" : ""} ${wrapText() ? "" : "nowrap"}`}
+                      tabIndex={0}
+                    >
                       {entry.line}
                     </span>
                   </div>
