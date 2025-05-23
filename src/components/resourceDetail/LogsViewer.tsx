@@ -56,6 +56,7 @@ export function LogsViewer(props: {
   const [formatJsonLogs, setFormatJsonLogs] = createSignal<boolean>(false);
   const [jsonFilter, setJsonFilter] = createSignal<string>(".");
   const [wrapText, setWrapText] = createSignal<boolean>(true);
+  const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
 
   let logsContentRef: HTMLPreElement | undefined;
   // Store a reference to control our polling mechanism
@@ -458,6 +459,10 @@ export function LogsViewer(props: {
     setJsonFilter(filter);
   };
 
+  const toggleShowMetadata = () => {
+    setShowMetadata(!showMetadata());
+  };
+
   // Load data when viewer becomes visible
   createEffect(() => {
     if (props.isOpen) {
@@ -588,6 +593,14 @@ export function LogsViewer(props: {
                 />
                 Wrap text
               </label>
+              <label title="Show timestamp and container columns">
+                <input
+                  type="checkbox"
+                  checked={showMetadata()}
+                  onChange={toggleShowMetadata}
+                />
+                Show metadata
+              </label>
               <label title="Format log messages as JSON when possible">
                 <input
                   type="checkbox"
@@ -627,16 +640,18 @@ export function LogsViewer(props: {
               <For each={processedEntries()}>
                 {(entry) => (
                   <div class="log-line">
-                    <span class="log-timestamp">
-                      {formatTimestamp(entry.timestamp, entry.rawTimestamp)}
-                    </span>
+                    <Show when={showMetadata()}>
+                      <span class="log-timestamp">
+                        {formatTimestamp(entry.timestamp, entry.rawTimestamp)}
+                      </span>
+                      <span 
+                        class="log-container"
+                        style={`color: ${containerColors[entry.container] || "#fff"}`}
+                      >
+                        [{entry.container}]
+                      </span>
+                    </Show>
                     <span 
-                      class="log-container"
-                      style={`color: ${containerColors[entry.container] || "#fff"}`}
-                    >
-                      [{entry.container}]
-                    </span>
-                    <span
                       class={`log-message ${entry.parsedJson ? "json-log" : ""} ${wrapText() ? "" : "nowrap"}`}
                       tabIndex={0}
                     >

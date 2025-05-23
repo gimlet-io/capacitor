@@ -1398,6 +1398,12 @@ td.message-cell {
   padding: 1px 0;
 }
 
+/* Add left padding to log messages when metadata is hidden */
+.log-line .log-message:first-child {
+  padding-left: 4px;
+  border-left: 2px solid transparent;
+}
+
 .log-timestamp {
   color: #6a9955;
   margin-right: 8px;
