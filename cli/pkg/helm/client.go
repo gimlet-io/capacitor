@@ -215,14 +215,10 @@ func (c *Client) GetValues(ctx context.Context, name, namespace string, allValue
 
 	// Create a get values action
 	client := action.NewGetValues(actionConfig)
-	client.AllValues = allValues // Only get custom values if allValues is false
+	client.AllValues = allValues
+	client.Version = revision
 
-	// Set revision if specified
-	if revision > 0 {
-		client.Version = revision
-	}
-
-	// Get release values
+	// Get values
 	values, err := client.Run(name)
 	if err != nil {
 		log.Printf("Error getting Helm release values: %v", err)
@@ -230,6 +226,49 @@ func (c *Client) GetValues(ctx context.Context, name, namespace string, allValue
 	}
 
 	return values, nil
+}
+
+// GetManifest retrieves the manifest for a Helm release at a specific revision
+func (c *Client) GetManifest(ctx context.Context, name, namespace string, revision int) (string, error) {
+	log.Printf("GetManifest called for release %s in namespace %s, revision=%d", name, namespace, revision)
+
+	// Create a new action configuration for this specific request
+	actionConfig := new(action.Configuration)
+
+	// Create a client getter that uses the specified namespace
+	getter := &restClientGetter{
+		config:    c.actionConfig.RESTClientGetter.(*restClientGetter).config,
+		namespace: namespace,
+	}
+
+	// Initialize the action config with the namespace
+	err := actionConfig.Init(
+		getter,
+		namespace,
+		"secret",
+		log.Printf,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to initialize Helm action config with namespace %s: %w", namespace, err)
+	}
+
+	// Create a get manifest action
+	client := action.NewGet(actionConfig)
+
+	// Set revision if specified (if revision is 0, get the latest version)
+	if revision > 0 {
+		client.Version = revision
+	}
+
+	// Get the release
+	rel, err := client.Run(name)
+	if err != nil {
+		log.Printf("Error getting Helm release: %v", err)
+		return "", fmt.Errorf("failed to get release %s: %w", name, err)
+	}
+
+	// Return the manifest
+	return rel.Manifest, nil
 }
 
 // Rollback rolls back a Helm release to a specific revision

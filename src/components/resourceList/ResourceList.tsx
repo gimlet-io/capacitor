@@ -4,6 +4,7 @@ import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig } from "../../resourceTypeConfigs.tsx";
+import { helmReleaseColumns } from "./HelmReleaseList.tsx";
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
@@ -41,7 +42,7 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
-  const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values">("history");
+  const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
 
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
     setSelectedResource(() => resource);
@@ -53,7 +54,7 @@ export function ResourceList<T>(props: {
     setDrawerOpen(false);
   };
 
-  const openHelmDrawer = (resource: T, tab: "history" | "values" = "history") => {
+  const openHelmDrawer = (resource: T, tab: "history" | "values" | "manifest" = "history") => {
     setSelectedResource(() => resource);
     setHelmActiveTab(tab);
     setHelmDrawerOpen(true);
@@ -162,6 +163,11 @@ export function ResourceList<T>(props: {
           commands[i] = {
             ...cmd,
             handler: (resource) => openHelmDrawer(resource, "values")
+          };
+        } else if (cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openHelmDrawer(resource, "manifest")
           };
         }
       }
@@ -318,10 +324,11 @@ export function ResourceList<T>(props: {
     const allCommands = getAllCommands();
     
     // For Helm releases, add the specific shortcuts
-    if (props.resourceTypeConfig.apiGroup === 'helm.sh') {
+    if (props.resourceTypeConfig.columns === helmReleaseColumns) {
       // Check if commands already include 'h' and 'v' shortcuts
       const hasHistoryCommand = allCommands.some(cmd => cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History');
       const hasValuesCommand = allCommands.some(cmd => cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values');
+      const hasManifestCommand = allCommands.some(cmd => cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest');
       
       // If they don't already exist in the commands, add them
       const shortcuts = allCommands.map(cmd => cmd.shortcut);
@@ -332,6 +339,10 @@ export function ResourceList<T>(props: {
       
       if (!hasValuesCommand) {
         shortcuts.push({ key: "v", description: "Values", isContextual: true });
+      }
+      
+      if (!hasManifestCommand) {
+        shortcuts.push({ key: "m", description: "Manifest", isContextual: true });
       }
       
       return shortcuts;

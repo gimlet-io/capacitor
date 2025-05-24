@@ -432,6 +432,32 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for Helm release manifest
+	s.echo.GET("/api/helm/manifest/:namespace/:name", func(c echo.Context) error {
+		namespace := c.Param("namespace")
+		name := c.Param("name")
+
+		// Parse the revision query parameter if provided
+		revision := 0
+		if revStr := c.QueryParam("revision"); revStr != "" {
+			if rev, err := strconv.Atoi(revStr); err == nil && rev > 0 {
+				revision = rev
+			}
+		}
+
+		// Get the Helm release manifest
+		manifest, err := s.helmClient.GetManifest(c.Request().Context(), name, namespace, revision)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to get Helm release manifest: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"manifest": manifest,
+		})
+	})
+
 	// Add endpoint for Helm release rollback
 	s.echo.POST("/api/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
 		namespace := c.Param("namespace")

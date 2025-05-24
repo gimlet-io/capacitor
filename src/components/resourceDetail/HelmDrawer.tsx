@@ -11,11 +11,12 @@ export function HelmDrawer(props: {
   resource: HelmRelease;
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: "history" | "values";
+  initialTab?: "history" | "values" | "manifest";
 }) {
   const [historyData, setHistoryData] = createSignal<any[]>([]);
   const [valuesData, setValuesData] = createSignal<any>(null);
-  const [activeTab, setActiveTab] = createSignal<"history" | "values">(props.initialTab || "history");
+  const [manifestData, setManifestData] = createSignal<string>("");
+  const [activeTab, setActiveTab] = createSignal<"history" | "values" | "manifest">(props.initialTab || "history");
   const [loading, setLoading] = createSignal<boolean>(true);
   const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
   const [expandedDiffs, setExpandedDiffs] = createSignal<DiffState>({});
@@ -358,6 +359,8 @@ export function HelmDrawer(props: {
         setupHistoryWatcher();
       } else if (activeTab() === "values") {
         fetchReleaseValues();
+      } else if (activeTab() === "manifest") {
+        fetchReleaseManifest();
       }
     } else {
       // Clean up the subscription when drawer closes
@@ -374,6 +377,51 @@ export function HelmDrawer(props: {
       fetchReleaseValues();
     }
   });
+  
+  // Fetch manifest when selected revision changes
+  createEffect(() => {
+    if (props.isOpen && activeTab() === "manifest" && selectedRevisionIndex() !== -1) {
+      fetchReleaseManifest();
+    }
+  });
+
+  // Fetch the Helm release manifest for the selected revision
+  const fetchReleaseManifest = async () => {
+    if (!props.resource) return;
+    
+    setLoading(true);
+    try {
+      const name = props.resource.metadata.name;
+      const namespace = props.resource.metadata.namespace || "";
+      
+      // Get the revision number of the selected revision
+      const index = selectedRevisionIndex();
+      if (index === -1 || index >= historyData().length) {
+        setManifestData("");
+        return;
+      }
+      
+      const revision = historyData()[index].revision;
+      
+      // Call the backend API for Helm release manifest
+      const url = `/api/helm/manifest/${namespace}/${name}?revision=${revision}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Helm release manifest: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setManifestData(data.manifest || "");
+    } catch (error) {
+      console.error("Error fetching Helm release manifest:", error);
+      setManifestData("Error fetching manifest: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setLoading(false);
+      // Focus the content after loading
+      setTimeout(() => contentRef?.focus(), 50);
+    }
+  };
 
   // Handle keyboard navigation in the history table
   const handleTableKeyDown = (e: KeyboardEvent) => {
@@ -441,6 +489,9 @@ export function HelmDrawer(props: {
     } else if (e.key === "2" || e.key === "v") {
       e.preventDefault();
       setActiveTab("values");
+    } else if (e.key === "3" || e.key === "m") {
+      e.preventDefault();
+      setActiveTab("manifest");
     }
     
     // Handle table navigation
@@ -510,6 +561,12 @@ export function HelmDrawer(props: {
               onClick={() => setActiveTab("values")}
             >
               Values
+            </button>
+            <button 
+              class={`drawer-tab ${activeTab() === "manifest" ? "active" : ""}`}
+              onClick={() => setActiveTab("manifest")}
+            >
+              Manifest
             </button>
           </div>
           
@@ -629,6 +686,12 @@ export function HelmDrawer(props: {
               </div>
               <Show when={valuesData()} fallback={<div class="no-values">No values found</div>}>
                 <pre class="yaml-content">{valuesData() ? stringify(valuesData()) : ""}</pre>
+              </Show>
+            </Show>
+
+            <Show when={!loading() && activeTab() === "manifest"}>
+              <Show when={manifestData()} fallback={<div class="no-manifest">No manifest found</div>}>
+                <pre class="yaml-content">{manifestData()}</pre>
               </Show>
             </Show>
           </div>
