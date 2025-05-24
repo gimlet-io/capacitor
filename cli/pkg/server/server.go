@@ -381,6 +381,24 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for Helm release history
+	s.echo.GET("/api/helm/history/:namespace/:name", func(c echo.Context) error {
+		namespace := c.Param("namespace")
+		name := c.Param("name")
+
+		// Get the Helm release history
+		releases, err := s.helmClient.GetHistory(c.Request().Context(), name, namespace)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to get Helm release history: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"releases": releases,
+		})
+	})
+
 	// Kubernetes API proxy endpoints
 	// Match all routes starting with /k8s
 	s.echo.Any("/k8s*", func(c echo.Context) error {

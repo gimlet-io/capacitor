@@ -1239,17 +1239,52 @@ td.message-cell {
 .drawer-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  position: relative;
+  padding: 1rem;
 }
 
 .drawer-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  height: 100px;
+  font-style: italic;
   color: var(--linear-text-secondary);
-  font-size: 14px;
+}
+
+.helm-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.helm-history-table th {
+  background-color: var(--linear-bg-secondary);
+  text-align: left;
+  padding: 0.75rem;
+  font-weight: 600;
+  color: var(--linear-text-secondary);
+  border-bottom: 1px solid var(--linear-border);
+  position: sticky;
+  top: 0;
+}
+
+.helm-history-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--linear-border);
+  vertical-align: middle;
+  line-height: 1.4;
+  color: var(--linear-text-primary);
+}
+
+.helm-history-table tr:hover td {
+  background-color: var(--linear-bg-secondary);
+}
+
+.no-history {
+  padding: 2rem;
+  text-align: center;
+  color: var(--linear-text-secondary);
+  font-style: italic;
 }
 
 .describe-content,

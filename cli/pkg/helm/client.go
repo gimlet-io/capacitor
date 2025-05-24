@@ -38,6 +38,16 @@ type Release struct {
 	Values       map[string]interface{} `json:"values"`
 }
 
+// HistoryRelease represents a Helm release history entry
+type HistoryRelease struct {
+	Revision    int    `json:"revision"`
+	Updated     string `json:"updated"`
+	Status      string `json:"status"`
+	Chart       string `json:"chart"`
+	AppVersion  string `json:"app_version"`
+	Description string `json:"description"`
+}
+
 // NewClient creates a new Helm client
 func NewClient(kubeConfig *rest.Config, namespace string) (*Client, error) {
 	// Create Helm settings
@@ -136,6 +146,58 @@ func (c *Client) GetRelease(ctx context.Context, name string) (*Release, error) 
 	}
 
 	return convertRelease(rel), nil
+}
+
+// GetHistory retrieves the release history for a Helm release
+func (c *Client) GetHistory(ctx context.Context, name, namespace string) ([]HistoryRelease, error) {
+	log.Printf("GetHistory called for release %s in namespace %s", name, namespace)
+
+	// Create a new action configuration for this specific request
+	actionConfig := new(action.Configuration)
+
+	// Create a client getter that uses the specified namespace
+	getter := &restClientGetter{
+		config:    c.actionConfig.RESTClientGetter.(*restClientGetter).config,
+		namespace: namespace,
+	}
+
+	// Initialize the action config with the namespace
+	err := actionConfig.Init(
+		getter,
+		namespace,
+		"secret",
+		log.Printf,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Helm action config with namespace %s: %w", namespace, err)
+	}
+
+	// Create a history action
+	client := action.NewHistory(actionConfig)
+	client.Max = 20 // Limit to 20 history items
+
+	// Get release history
+	releaseHistory, err := client.Run(name)
+	if err != nil {
+		log.Printf("Error getting Helm release history: %v", err)
+		return nil, fmt.Errorf("failed to get history for release %s: %w", name, err)
+	}
+
+	// Convert to our HistoryRelease format
+	result := make([]HistoryRelease, 0, len(releaseHistory))
+	for _, rel := range releaseHistory {
+		history := HistoryRelease{
+			Revision:    rel.Version,
+			Updated:     rel.Info.LastDeployed.Format(time.RFC3339),
+			Status:      rel.Info.Status.String(),
+			Chart:       fmt.Sprintf("%s-%s", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version),
+			AppVersion:  rel.Chart.Metadata.AppVersion,
+			Description: rel.Info.Description,
+		}
+		result = append(result, history)
+	}
+
+	return result, nil
 }
 
 // convertRelease converts a Helm release to our Release format

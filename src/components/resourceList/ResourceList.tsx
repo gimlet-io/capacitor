@@ -1,5 +1,6 @@
 import { For, createSignal, onMount, onCleanup, createEffect } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
+import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig } from "../../resourceTypeConfigs.tsx";
@@ -39,6 +40,7 @@ export function ResourceList<T>(props: {
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
+  const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
 
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
     setSelectedResource(() => resource);
@@ -48,6 +50,15 @@ export function ResourceList<T>(props: {
 
   const closeDrawer = () => {
     setDrawerOpen(false);
+  };
+
+  const openHelmDrawer = (resource: T) => {
+    setSelectedResource(() => resource);
+    setHelmDrawerOpen(true);
+  };
+
+  const closeHelmDrawer = () => {
+    setHelmDrawerOpen(false);
   };
 
   const handleDeleteResource = async (resource: any) => {
@@ -139,6 +150,11 @@ export function ResourceList<T>(props: {
           commands[i] = {
             ...cmd,
             handler: handleDeleteResource
+          };
+        } else if (cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openHelmDrawer(resource)
           };
         }
       }
@@ -361,6 +377,12 @@ export function ResourceList<T>(props: {
         isOpen={drawerOpen()}
         onClose={closeDrawer}
         initialTab={activeTab()}
+      />
+
+      <HelmDrawer
+        resource={selectedResource() as any}
+        isOpen={helmDrawerOpen()}
+        onClose={closeHelmDrawer}
       />
     </div>
   );

@@ -89,7 +89,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'helm.sh/Release': {
     columns: helmReleaseColumns,
     filter: [helmReleaseStatusFilter, helmReleaseChartFilter],
-    commands: [] // No commands are supported for Helm releases
+    commands: [
+      {
+        shortcut: { key: "h", description: "Release History", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+    ]
   },
   
   'kustomize.toolkit.fluxcd.io/Kustomization': {
