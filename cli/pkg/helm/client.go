@@ -200,6 +200,44 @@ func (c *Client) GetHistory(ctx context.Context, name, namespace string) ([]Hist
 	return result, nil
 }
 
+// GetValues retrieves the values for a Helm release
+func (c *Client) GetValues(ctx context.Context, name, namespace string, allValues bool) (map[string]interface{}, error) {
+	log.Printf("GetValues called for release %s in namespace %s, allValues=%v", name, namespace, allValues)
+
+	// Create a new action configuration for this specific request
+	actionConfig := new(action.Configuration)
+
+	// Create a client getter that uses the specified namespace
+	getter := &restClientGetter{
+		config:    c.actionConfig.RESTClientGetter.(*restClientGetter).config,
+		namespace: namespace,
+	}
+
+	// Initialize the action config with the namespace
+	err := actionConfig.Init(
+		getter,
+		namespace,
+		"secret",
+		log.Printf,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Helm action config with namespace %s: %w", namespace, err)
+	}
+
+	// Create a get values action
+	client := action.NewGetValues(actionConfig)
+	client.AllValues = allValues // Only get custom values if allValues is false
+
+	// Get release values
+	values, err := client.Run(name)
+	if err != nil {
+		log.Printf("Error getting Helm release values: %v", err)
+		return nil, fmt.Errorf("failed to get values for release %s: %w", name, err)
+	}
+
+	return values, nil
+}
+
 // convertRelease converts a Helm release to our Release format
 func convertRelease(rel *release.Release) *Release {
 	var chartVersion, appVersion string

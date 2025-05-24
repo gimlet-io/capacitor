@@ -1,17 +1,29 @@
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import type { HelmRelease } from "../resourceList/HelmReleaseList.tsx";
+import { stringify } from "@std/yaml";
 
 export function HelmDrawer(props: {
   resource: HelmRelease;
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: "history" | "values";
 }) {
   const [historyData, setHistoryData] = createSignal<any[]>([]);
+  const [valuesData, setValuesData] = createSignal<any>(null);
+  const [activeTab, setActiveTab] = createSignal<"history" | "values">(props.initialTab || "history");
   const [loading, setLoading] = createSignal<boolean>(true);
+  const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
   
-  let historyContentRef: HTMLDivElement | undefined;
+  let contentRef: HTMLDivElement | undefined;
 
-  // Fetch the Helm release history when the drawer opens
+  // Watch for changes to initialTab prop
+  createEffect(() => {
+    if (props.initialTab) {
+      setActiveTab(props.initialTab);
+    }
+  });
+
+  // Fetch the Helm release history when the drawer opens and tab is history
   const fetchReleaseHistory = async () => {
     if (!props.resource) return;
     
@@ -35,15 +47,55 @@ export function HelmDrawer(props: {
       setHistoryData([]);
     } finally {
       setLoading(false);
-      // Focus the history content after loading
-      setTimeout(() => historyContentRef?.focus(), 50);
+      // Focus the content after loading
+      setTimeout(() => contentRef?.focus(), 50);
     }
   };
 
-  // Load data when the drawer opens
+  // Fetch the Helm release values when the drawer opens and tab is values
+  const fetchReleaseValues = async () => {
+    if (!props.resource) return;
+    
+    setLoading(true);
+    try {
+      const name = props.resource.metadata.name;
+      const namespace = props.resource.metadata.namespace || "";
+      
+      // Call the backend API for Helm release values data
+      const url = `/api/helm/values/${namespace}/${name}?allValues=${showAllValues()}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Helm release values: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setValuesData(data.values || {});
+    } catch (error) {
+      console.error("Error fetching Helm release values:", error);
+      setValuesData({});
+    } finally {
+      setLoading(false);
+      // Focus the content after loading
+      setTimeout(() => contentRef?.focus(), 50);
+    }
+  };
+
+  // Load data when the drawer opens or active tab changes
   createEffect(() => {
     if (props.isOpen) {
-      fetchReleaseHistory();
+      if (activeTab() === "history") {
+        fetchReleaseHistory();
+      } else if (activeTab() === "values") {
+        fetchReleaseValues();
+      }
+    }
+  });
+  
+  // Reload values when showAllValues changes
+  createEffect(() => {
+    if (props.isOpen && activeTab() === "values") {
+      fetchReleaseValues();
     }
   });
 
@@ -57,6 +109,15 @@ export function HelmDrawer(props: {
     if (e.key === "Escape") {
       e.preventDefault();
       props.onClose();
+    }
+
+    // Tab shortcuts
+    if (e.key === "1" || e.key === "h") {
+      e.preventDefault();
+      setActiveTab("history");
+    } else if (e.key === "2" || e.key === "v") {
+      e.preventDefault();
+      setActiveTab("values");
     }
   };
 
@@ -88,23 +149,43 @@ export function HelmDrawer(props: {
     }
   };
 
+  // Toggle function for showing all values
+  const toggleShowAllValues = () => {
+    setShowAllValues(prev => !prev);
+  };
+
   return (
     <Show when={props.isOpen}>
       <div class="resource-drawer-backdrop" onClick={props.onClose}>
         <div class="resource-drawer" onClick={(e) => e.stopPropagation()}>
           <div class="resource-drawer-header">
             <div class="drawer-title">
-              Helm Release History: {props.resource?.metadata.name}
+              Helm Release: {props.resource?.metadata.name}
             </div>
             <button class="drawer-close" onClick={props.onClose}>×</button>
           </div>
           
-          <div class="drawer-content" ref={historyContentRef} tabIndex={0} style="outline: none; padding: 16px;">
+          <div class="drawer-tabs">
+            <button 
+              class={`drawer-tab ${activeTab() === "history" ? "active" : ""}`}
+              onClick={() => setActiveTab("history")}
+            >
+              Release History
+            </button>
+            <button 
+              class={`drawer-tab ${activeTab() === "values" ? "active" : ""}`}
+              onClick={() => setActiveTab("values")}
+            >
+              Values
+            </button>
+          </div>
+          
+          <div class="drawer-content" ref={contentRef} tabIndex={0} style="outline: none;">
             <Show when={loading()}>
-              <div class="drawer-loading">Loading release history...</div>
+              <div class="drawer-loading">Loading...</div>
             </Show>
             
-            <Show when={!loading()}>
+            <Show when={!loading() && activeTab() === "history"}>
               <Show when={historyData().length > 0} fallback={<div class="no-history">No release history found</div>}>
                 <table class="helm-history-table">
                   <thead>
@@ -134,6 +215,26 @@ export function HelmDrawer(props: {
                     ))}
                   </tbody>
                 </table>
+              </Show>
+            </Show>
+
+            <Show when={!loading() && activeTab() === "values"}>
+              <div class="logs-controls">
+                <div class="logs-options-row">
+                  <div class="logs-follow-controls">
+                    <label title="Show all values including defaults">
+                      <input 
+                        type="checkbox" 
+                        checked={showAllValues()} 
+                        onChange={toggleShowAllValues}
+                      />
+                      Show all values (including defaults)
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <Show when={valuesData()} fallback={<div class="no-values">No values found</div>}>
+                <pre class="yaml-content">{valuesData() ? stringify(valuesData()) : ""}</pre>
               </Show>
             </Show>
           </div>

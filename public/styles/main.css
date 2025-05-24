@@ -1287,6 +1287,13 @@ td.message-cell {
   font-style: italic;
 }
 
+.no-values {
+  padding: 2rem;
+  text-align: center;
+  color: var(--linear-text-secondary);
+  font-style: italic;
+}
+
 .describe-content,
 .yaml-content,
 .logs-content {

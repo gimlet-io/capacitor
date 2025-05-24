@@ -399,6 +399,30 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for Helm release values
+	s.echo.GET("/api/helm/values/:namespace/:name", func(c echo.Context) error {
+		namespace := c.Param("namespace")
+		name := c.Param("name")
+
+		// Parse the allValues query parameter (default to false if not provided)
+		allValues := false
+		if c.QueryParam("allValues") == "true" {
+			allValues = true
+		}
+
+		// Get the Helm release values
+		values, err := s.helmClient.GetValues(c.Request().Context(), name, namespace, allValues)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to get Helm release values: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"values": values,
+		})
+	})
+
 	// Kubernetes API proxy endpoints
 	// Match all routes starting with /k8s
 	s.echo.Any("/k8s*", func(c echo.Context) error {

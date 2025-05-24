@@ -41,6 +41,7 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
+  const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values">("history");
 
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
     setSelectedResource(() => resource);
@@ -52,8 +53,9 @@ export function ResourceList<T>(props: {
     setDrawerOpen(false);
   };
 
-  const openHelmDrawer = (resource: T) => {
+  const openHelmDrawer = (resource: T, tab: "history" | "values" = "history") => {
     setSelectedResource(() => resource);
+    setHelmActiveTab(tab);
     setHelmDrawerOpen(true);
   };
 
@@ -154,7 +156,12 @@ export function ResourceList<T>(props: {
         } else if (cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History') {
           commands[i] = {
             ...cmd,
-            handler: (resource) => openHelmDrawer(resource)
+            handler: (resource) => openHelmDrawer(resource, "history")
+          };
+        } else if (cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values') {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => openHelmDrawer(resource, "values")
           };
         }
       }
@@ -308,7 +315,29 @@ export function ResourceList<T>(props: {
 
   // Get all available shortcuts including custom commands
   const getAvailableShortcuts = () => {
-    return getAllCommands().map(cmd => cmd.shortcut);
+    const allCommands = getAllCommands();
+    
+    // For Helm releases, add the specific shortcuts
+    if (props.resourceTypeConfig.apiGroup === 'helm.sh') {
+      // Check if commands already include 'h' and 'v' shortcuts
+      const hasHistoryCommand = allCommands.some(cmd => cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History');
+      const hasValuesCommand = allCommands.some(cmd => cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values');
+      
+      // If they don't already exist in the commands, add them
+      const shortcuts = allCommands.map(cmd => cmd.shortcut);
+      
+      if (!hasHistoryCommand) {
+        shortcuts.push({ key: "h", description: "Release History", isContextual: true });
+      }
+      
+      if (!hasValuesCommand) {
+        shortcuts.push({ key: "v", description: "Values", isContextual: true });
+      }
+      
+      return shortcuts;
+    }
+    
+    return allCommands.map(cmd => cmd.shortcut);
   };
 
   onMount(() => {
@@ -383,6 +412,7 @@ export function ResourceList<T>(props: {
         resource={selectedResource() as any}
         isOpen={helmDrawerOpen()}
         onClose={closeHelmDrawer}
+        initialTab={helmActiveTab()}
       />
     </div>
   );

@@ -94,6 +94,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "h", description: "Release History", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
+      {
+        shortcut: { key: "v", description: "Values", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
     ]
   },
   
