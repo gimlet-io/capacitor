@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -410,8 +411,16 @@ func (s *Server) Setup() {
 			allValues = true
 		}
 
+		// Parse the revision query parameter if provided
+		revision := 0
+		if revStr := c.QueryParam("revision"); revStr != "" {
+			if rev, err := strconv.Atoi(revStr); err == nil && rev > 0 {
+				revision = rev
+			}
+		}
+
 		// Get the Helm release values
-		values, err := s.helmClient.GetValues(c.Request().Context(), name, namespace, allValues)
+		values, err := s.helmClient.GetValues(c.Request().Context(), name, namespace, allValues, revision)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to get Helm release values: %v", err),

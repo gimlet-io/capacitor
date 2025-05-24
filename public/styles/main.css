@@ -1294,6 +1294,176 @@ td.message-cell {
   font-style: italic;
 }
 
+/* Helm History Diff Styles */
+.diff-divider-row {
+  height: 0; /* Minimal height */
+  border: none;
+}
+
+.diff-divider-cell {
+  padding: 0 !important;
+  height: 0;
+  position: relative;
+  border: none !important;
+}
+
+.diff-button-container {
+  position: absolute;
+  top: 0;
+  left: 50px; /* Position in the revision column */
+  transform: translate(0, -50%); /* Only adjust vertical position */
+  z-index: 1;
+  text-align: left;
+  width: auto;
+}
+
+.diff-button {
+  background-color: var(--linear-bg);
+  color: var(--linear-text-secondary);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.diff-button:hover {
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-primary);
+  border-color: var(--linear-text-tertiary);
+}
+
+.diff-content-row {
+  background-color: var(--linear-bg-secondary);
+}
+
+.diff-content-cell {
+  padding: 1rem !important;
+}
+
+.diff-content {
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.diff-section {
+  margin-bottom: 1.5rem;
+}
+
+.diff-section h4 {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.diff-added h4 {
+  color: var(--linear-green);
+}
+
+.diff-changed h4 {
+  color: var(--linear-blue);
+}
+
+.diff-removed h4 {
+  color: var(--linear-red);
+}
+
+.diff-item {
+  margin-bottom: 1rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--linear-border);
+}
+
+.diff-added .diff-item {
+  border-left-color: var(--linear-green);
+}
+
+.diff-changed .diff-item {
+  border-left-color: var(--linear-blue);
+}
+
+.diff-removed .diff-item {
+  border-left-color: var(--linear-red);
+}
+
+.diff-key {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.diff-value {
+  padding: 0.5rem;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+}
+
+.diff-value-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.5rem;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+}
+
+.diff-label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.diff-old .diff-label {
+  color: var(--linear-red);
+}
+
+.diff-new .diff-label {
+  color: var(--linear-green);
+}
+
+.diff-old pre, .diff-new pre {
+  margin: 0;
+  padding: 0.5rem;
+  background-color: var(--linear-bg);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.no-diff {
+  padding: 1rem;
+  text-align: center;
+  color: var(--linear-text-secondary);
+  font-style: italic;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--linear-blue);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .describe-content,
 .yaml-content,
 .logs-content {
@@ -1503,4 +1673,44 @@ td.message-cell {
   .json-format-controls {
     margin-top: 8px;
   }
+}
+
+/* Patch-style diff */
+.patch-diff {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  padding: 0;
+  border-radius: 4px;
+  overflow: auto;
+}
+
+.diff-patch {
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.diff-line-added {
+  background-color: rgba(0, 184, 0, 0.1);
+  color: var(--linear-green);
+  padding: 0 4px;
+}
+
+.diff-line-removed {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: var(--linear-red);
+  padding: 0 4px;
+}
+
+.diff-line-info {
+  background-color: rgba(0, 102, 255, 0.1);
+  color: var(--linear-blue);
+  padding: 0 4px;
+  font-weight: bold;
+}
+
+.diff-content.patch-diff pre.diff-patch div {
+  white-space: pre-wrap;
+  word-break: break-word;
 }

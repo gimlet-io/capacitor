@@ -201,8 +201,8 @@ func (c *Client) GetHistory(ctx context.Context, name, namespace string) ([]Hist
 }
 
 // GetValues retrieves the values for a Helm release
-func (c *Client) GetValues(ctx context.Context, name, namespace string, allValues bool) (map[string]interface{}, error) {
-	log.Printf("GetValues called for release %s in namespace %s, allValues=%v", name, namespace, allValues)
+func (c *Client) GetValues(ctx context.Context, name, namespace string, allValues bool, revision int) (map[string]interface{}, error) {
+	log.Printf("GetValues called for release %s in namespace %s, allValues=%v, revision=%d", name, namespace, allValues, revision)
 
 	// Create a new action configuration for this specific request
 	actionConfig := new(action.Configuration)
@@ -227,6 +227,11 @@ func (c *Client) GetValues(ctx context.Context, name, namespace string, allValue
 	// Create a get values action
 	client := action.NewGetValues(actionConfig)
 	client.AllValues = allValues // Only get custom values if allValues is false
+
+	// Set revision if specified
+	if revision > 0 {
+		client.Version = revision
+	}
 
 	// Get release values
 	values, err := client.Run(name)

@@ -1,6 +1,10 @@
-import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
+import { createSignal, createEffect, Show, onMount, onCleanup, For } from "solid-js";
 import type { HelmRelease } from "../resourceList/HelmReleaseList.tsx";
 import { stringify } from "@std/yaml";
+
+interface DiffState {
+  [key: string]: boolean; // Maps revision pairs (e.g., "2-1") to expanded state
+}
 
 export function HelmDrawer(props: {
   resource: HelmRelease;
@@ -13,6 +17,8 @@ export function HelmDrawer(props: {
   const [activeTab, setActiveTab] = createSignal<"history" | "values">(props.initialTab || "history");
   const [loading, setLoading] = createSignal<boolean>(true);
   const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
+  const [expandedDiffs, setExpandedDiffs] = createSignal<DiffState>({});
+  const [diffData, setDiffData] = createSignal<{[key: string]: any}>({});
   
   let contentRef: HTMLDivElement | undefined;
 
@@ -41,7 +47,9 @@ export function HelmDrawer(props: {
       }
       
       const data = await response.json();
-      setHistoryData(data.releases || []);
+      // Sort releases by revision number in descending order (newest first)
+      const sortedReleases = (data.releases || []).sort((a: any, b: any) => b.revision - a.revision);
+      setHistoryData(sortedReleases);
     } catch (error) {
       console.error("Error fetching Helm release history:", error);
       setHistoryData([]);
@@ -79,6 +87,211 @@ export function HelmDrawer(props: {
       // Focus the content after loading
       setTimeout(() => contentRef?.focus(), 50);
     }
+  };
+
+  // Fetch the diff between two releases
+  const fetchReleaseValuesDiff = async (fromRevision: number, toRevision: number) => {
+    if (!props.resource) return;
+    
+    const diffKey = `${toRevision}-${fromRevision}`;
+    
+    // Return cached diff data if available
+    if (diffData()[diffKey]) {
+      return diffData()[diffKey];
+    }
+    
+    try {
+      const name = props.resource.metadata.name;
+      const namespace = props.resource.metadata.namespace || "";
+      
+      // Get values for the first revision
+      const url1 = `/api/helm/values/${namespace}/${name}?revision=${fromRevision}`;
+      const response1 = await fetch(url1);
+      
+      if (!response1.ok) {
+        throw new Error(`Failed to fetch values for revision ${fromRevision}: ${response1.statusText}`);
+      }
+      
+      // Get values for the second revision
+      const url2 = `/api/helm/values/${namespace}/${name}?revision=${toRevision}`;
+      const response2 = await fetch(url2);
+      
+      if (!response2.ok) {
+        throw new Error(`Failed to fetch values for revision ${toRevision}: ${response2.statusText}`);
+      }
+      
+      const data1 = await response1.json();
+      const data2 = await response2.json();
+      
+      // Store the diff data
+      const newDiffData = { ...diffData() };
+      newDiffData[diffKey] = {
+        fromValues: data1.values || {},
+        toValues: data2.values || {},
+      };
+      setDiffData(newDiffData);
+      
+      return newDiffData[diffKey];
+    } catch (error) {
+      console.error(`Error fetching diff between revisions ${fromRevision} and ${toRevision}:`, error);
+      return null;
+    }
+  };
+
+  // Toggle the expanded state of a diff section
+  const toggleDiff = async (fromRevision: number, toRevision: number) => {
+    const diffKey = `${toRevision}-${fromRevision}`;
+    const isExpanded = !!expandedDiffs()[diffKey];
+    
+    // Toggle the expanded state
+    const newExpandedDiffs = { ...expandedDiffs() };
+    newExpandedDiffs[diffKey] = !isExpanded;
+    setExpandedDiffs(newExpandedDiffs);
+    
+    // Only fetch the diff data when expanding
+    if (!isExpanded && !diffData()[diffKey]) {
+      await fetchReleaseValuesDiff(fromRevision, toRevision);
+    }
+  };
+
+  // Generate a patch-style diff view between two objects
+  const generateDiffView = (fromValues: any, toValues: any) => {
+    // Convert objects to YAML for comparison
+    const fromYaml = stringify(fromValues);
+    const toYaml = stringify(toValues);
+    
+    if (fromYaml === toYaml) {
+      return <div class="no-diff">No differences found in values</div>;
+    }
+    
+    // Convert YAML to lines
+    const fromLines = fromYaml.split('\n');
+    const toLines = toYaml.split('\n');
+    
+    // Simple line-by-line diff algorithm
+    const diff = generatePatchDiff(fromLines, toLines);
+    
+    return (
+      <div class="diff-content patch-diff">
+        <pre class="diff-patch">
+          {diff.map(line => {
+            let className = '';
+            if (line.startsWith('+')) {
+              className = 'diff-line-added';
+            } else if (line.startsWith('-')) {
+              className = 'diff-line-removed';
+            } else if (line.startsWith('@')) {
+              className = 'diff-line-info';
+            }
+            return <div class={className}>{line}</div>;
+          })}
+        </pre>
+      </div>
+    );
+  };
+  
+  // Generate a patch-style diff between two arrays of lines
+  const generatePatchDiff = (oldLines: string[], newLines: string[]): string[] => {
+    const result: string[] = [];
+    
+    // Add a header
+    result.push('--- Previous Values');
+    result.push('+++ Current Values');
+    
+    let oldIndex = 0;
+    let newIndex = 0;
+    
+    while (oldIndex < oldLines.length || newIndex < newLines.length) {
+      // Find a sequence of matching lines
+      let matchStart = -1;
+      let matchLength = 0;
+      let bestMatchLength = 0;
+      let bestMatchOldIndex = -1;
+      let bestMatchNewIndex = -1;
+      
+      // Look for the longest matching sequence
+      for (let i = oldIndex; i < oldLines.length; i++) {
+        for (let j = newIndex; j < newLines.length; j++) {
+          // Count matching lines
+          matchLength = 0;
+          while (i + matchLength < oldLines.length && 
+                 j + matchLength < newLines.length && 
+                 oldLines[i + matchLength] === newLines[j + matchLength]) {
+            matchLength++;
+          }
+          
+          // If this is a better match than what we've found so far
+          if (matchLength > bestMatchLength) {
+            bestMatchLength = matchLength;
+            bestMatchOldIndex = i;
+            bestMatchNewIndex = j;
+          }
+        }
+      }
+      
+      // If we found a matching sequence
+      if (bestMatchLength > 0) {
+        // Output unmatched lines from both old and new
+        if (oldIndex < bestMatchOldIndex) {
+          // Add hunk header
+          result.push(`@@ -${oldIndex + 1},${bestMatchOldIndex - oldIndex} +${newIndex + 1},${bestMatchNewIndex - newIndex} @@`);
+          
+          // Output removed lines
+          for (let i = oldIndex; i < bestMatchOldIndex; i++) {
+            result.push(`-${oldLines[i]}`);
+          }
+          
+          // Output added lines
+          for (let j = newIndex; j < bestMatchNewIndex; j++) {
+            result.push(`+${newLines[j]}`);
+          }
+        }
+        
+        // Output the context (matching lines)
+        const contextStart = Math.max(0, bestMatchOldIndex);
+        const contextEnd = Math.min(oldLines.length, bestMatchOldIndex + bestMatchLength);
+        
+        // Only show context if there's actually a difference
+        if (oldIndex < bestMatchOldIndex || newIndex < bestMatchNewIndex) {
+          result.push(`@@ -${contextStart + 1},${contextEnd - contextStart} +${bestMatchNewIndex + 1},${bestMatchLength} @@`);
+          
+          // Add a few lines of context (up to 3)
+          const contextLinesToShow = Math.min(3, bestMatchLength);
+          for (let i = 0; i < contextLinesToShow; i++) {
+            result.push(` ${oldLines[bestMatchOldIndex + i]}`);
+          }
+          
+          // If there are more context lines, add an ellipsis
+          if (bestMatchLength > contextLinesToShow) {
+            result.push(' ...');
+          }
+        }
+        
+        // Move indices past this match
+        oldIndex = bestMatchOldIndex + bestMatchLength;
+        newIndex = bestMatchNewIndex + bestMatchLength;
+      } else {
+        // No more matches, output remaining lines
+        if (oldIndex < oldLines.length || newIndex < newLines.length) {
+          result.push(`@@ -${oldIndex + 1},${oldLines.length - oldIndex} +${newIndex + 1},${newLines.length - newIndex} @@`);
+          
+          // Output remaining removed lines
+          for (let i = oldIndex; i < oldLines.length; i++) {
+            result.push(`-${oldLines[i]}`);
+          }
+          
+          // Output remaining added lines
+          for (let j = newIndex; j < newLines.length; j++) {
+            result.push(`+${newLines[j]}`);
+          }
+        }
+        
+        // Break out of the loop
+        break;
+      }
+    }
+    
+    return result;
   };
 
   // Load data when the drawer opens or active tab changes
@@ -199,20 +412,72 @@ export function HelmDrawer(props: {
                     </tr>
                   </thead>
                   <tbody>
-                    {historyData().map((release) => (
-                      <tr>
-                        <td>{release.revision}</td>
-                        <td>{release.updated}</td>
-                        <td>
-                          <span style={{ color: getStatusColor(release.status) }}>
-                            {release.status}
-                          </span>
-                        </td>
-                        <td>{release.chart}</td>
-                        <td>{release.app_version}</td>
-                        <td>{release.description}</td>
-                      </tr>
-                    ))}
+                    <For each={historyData()}>
+                      {(release, index) => (
+                        <>
+                          <tr>
+                            <td>{release.revision}</td>
+                            <td>{release.updated}</td>
+                            <td>
+                              <span style={{ color: getStatusColor(release.status) }}>
+                                {release.status}
+                              </span>
+                            </td>
+                            <td>{release.chart}</td>
+                            <td>{release.app_version}</td>
+                            <td>{release.description}</td>
+                          </tr>
+                          
+                          {/* Add diff row between releases, except after the last one */}
+                          <Show when={index() < historyData().length - 1}>
+                            {(() => {
+                              const nextRelease = historyData()[index() + 1];
+                              const diffKey = `${release.revision}-${nextRelease.revision}`;
+                              const isExpanded = !!expandedDiffs()[diffKey];
+                              
+                              return (
+                                <>
+                                  <tr class="diff-divider-row">
+                                    <td colSpan={6} class="diff-divider-cell">
+                                      <div class="diff-button-container">
+                                        <button 
+                                          class="diff-button"
+                                          onClick={() => toggleDiff(nextRelease.revision, release.revision)}
+                                          title={`${isExpanded ? "Hide" : "Show"} diff between revision ${release.revision} and ${nextRelease.revision}`}
+                                        >
+                                          {isExpanded ? "Hide Diff" : "Diff"}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                  
+                                  <Show when={isExpanded}>
+                                    <tr class="diff-content-row">
+                                      <td colSpan={6} class="diff-content-cell">
+                                        <Show 
+                                          when={diffData()[diffKey]}
+                                          fallback={
+                                            <div class="drawer-loading">
+                                              <div class="loading-spinner"></div>
+                                              <div>Loading diff between revisions {nextRelease.revision} and {release.revision}...</div>
+                                            </div>
+                                          }
+                                        >
+                                          {(() => {
+                                            const diff = diffData()[diffKey];
+                                            return generateDiffView(diff.fromValues, diff.toValues);
+                                          })()}
+                                        </Show>
+                                      </td>
+                                    </tr>
+                                  </Show>
+                                </>
+                              );
+                            })()}
+                          </Show>
+                        </>
+                      )}
+                    </For>
                   </tbody>
                 </table>
               </Show>
