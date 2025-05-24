@@ -79,8 +79,6 @@ func NewClient(kubeConfig *rest.Config, namespace string) (*Client, error) {
 
 // ListReleases lists all Helm releases in the configured namespace
 func (c *Client) ListReleases(ctx context.Context, namespace string) ([]*Release, error) {
-	log.Printf("ListReleases called with namespace=%v", namespace)
-
 	// Create a new action configuration for this specific request
 	actionConfig := new(action.Configuration)
 
@@ -110,19 +108,11 @@ func (c *Client) ListReleases(ctx context.Context, namespace string) ([]*Release
 
 	client.SetStateMask()
 
-	log.Printf("Helm list client configured: All=%v, AllNamespaces=%v, Namespace=%s",
-		client.All, client.AllNamespaces, namespace)
-
 	// Execute the list action
 	releases, err := client.Run()
 	if err != nil {
 		log.Printf("Error listing Helm releases: %v", err)
 		return nil, fmt.Errorf("failed to list Helm releases: %w", err)
-	}
-
-	log.Printf("Found %d Helm releases", len(releases))
-	for i, rel := range releases {
-		log.Printf("Release %d: name=%s, namespace=%s, status=%s", i, rel.Name, rel.Namespace, rel.Info.Status.String())
 	}
 
 	// Convert to our Release format
@@ -132,7 +122,6 @@ func (c *Client) ListReleases(ctx context.Context, namespace string) ([]*Release
 		result = append(result, helmRelease)
 	}
 
-	log.Printf("Returning %d converted releases", len(result))
 	return result, nil
 }
 
@@ -241,6 +230,47 @@ func (c *Client) GetValues(ctx context.Context, name, namespace string, allValue
 	}
 
 	return values, nil
+}
+
+// Rollback rolls back a Helm release to a specific revision
+func (c *Client) Rollback(ctx context.Context, name, namespace string, revision int) error {
+	log.Printf("Rollback called for release %s in namespace %s to revision %d", name, namespace, revision)
+
+	// Create a new action configuration for this specific request
+	actionConfig := new(action.Configuration)
+
+	// Create a client getter that uses the specified namespace
+	getter := &restClientGetter{
+		config:    c.actionConfig.RESTClientGetter.(*restClientGetter).config,
+		namespace: namespace,
+	}
+
+	// Initialize the action config with the namespace
+	err := actionConfig.Init(
+		getter,
+		namespace,
+		"secret",
+		log.Printf,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Helm action config with namespace %s: %w", namespace, err)
+	}
+
+	// Create a rollback action
+	client := action.NewRollback(actionConfig)
+	client.Version = revision
+	client.Wait = true
+	client.Timeout = 300 * time.Second // 5 minute timeout for rollback
+
+	// Execute the rollback
+	err = client.Run(name)
+	if err != nil {
+		log.Printf("Error rolling back Helm release: %v", err)
+		return fmt.Errorf("failed to rollback release %s to revision %d: %w", name, revision, err)
+	}
+
+	log.Printf("Successfully rolled back release %s to revision %d", name, revision)
+	return nil
 }
 
 // convertRelease converts a Helm release to our Release format

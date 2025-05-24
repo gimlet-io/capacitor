@@ -171,6 +171,14 @@ func (h *WebSocketHandler) handleSubscribe(
 		return
 	}
 
+	// Check if this is a Helm history path
+	if strings.Contains(msg.Path, "/api/helm/history") {
+		h.handleHelmHistoryWatch(watchCtx, ws, msg)
+		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
+		log.Printf("Successfully subscribed to Helm history path: %s", msg.Path)
+		return
+	}
+
 	// Create channel for events
 	eventsChan := make(chan *kubernetes.WatchEvent, 100)
 
@@ -198,17 +206,17 @@ func (h *WebSocketHandler) handleSubscribe(
 			case event, ok := <-eventsChan:
 				if !ok {
 					log.Printf("Event channel closed for path: %s", msg.Path)
-					return // Channel closed
+					return
 				}
 				h.sendDataMessage(ws, msg.ID, msg.Path, event)
 			case <-watchCtx.Done():
 				log.Printf("Watch context done for path: %s", msg.Path)
-				return // Context cancelled
+				return
 			}
 		}
 	}()
 
-	// Send success message
+	// Send success message for standard K8s resources
 	h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
 	log.Printf("Successfully subscribed to path: %s", msg.Path)
 }
@@ -338,6 +346,126 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 			}
 		}
 	}()
+}
+
+// handleHelmHistoryWatch handles watching Helm release history with polling
+func (h *WebSocketHandler) handleHelmHistoryWatch(ctx context.Context, ws *WebSocketConnection, msg *ClientMessage) {
+	// Extract namespace and release name from the path
+	// Path format: "/api/helm/history/{namespace}/{name}"
+	pathParts := strings.Split(msg.Path, "/")
+
+	if len(pathParts) < 5 {
+		h.sendErrorMessage(ws, msg.ID, msg.Path, "Invalid path format for Helm history watch")
+		return
+	}
+
+	namespace := pathParts[4]
+	releaseName := pathParts[5]
+
+	log.Printf("Watching Helm history for release %s in namespace %s", releaseName, namespace)
+
+	// Store previous history to detect changes
+	var previousHistory []helm.HistoryRelease
+
+	// Start polling in a goroutine
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		// Get initial state
+		history, err := h.helmClient.GetHistory(ctx, releaseName, namespace)
+
+		if err != nil {
+			log.Printf("Error getting Helm release history: %v", err)
+			h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to get Helm release history: %v", err))
+			return
+		}
+
+		// Send initial data
+		h.sendHelmHistory(ws, msg.ID, msg.Path, history)
+		previousHistory = history
+
+		// Poll for changes
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("Context cancelled for Helm history watch: %s", msg.Path)
+				return
+			case <-ticker.C:
+				currentHistory, err := h.helmClient.GetHistory(ctx, releaseName, namespace)
+				if err != nil {
+					log.Printf("Error getting Helm release history: %v", err)
+					h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to get Helm release history: %v", err))
+					continue
+				}
+
+				// Check if anything has changed
+				if !h.helmHistoryEqual(previousHistory, currentHistory) {
+					h.sendHelmHistory(ws, msg.ID, msg.Path, currentHistory)
+					previousHistory = currentHistory
+				}
+			}
+		}
+	}()
+}
+
+// helmHistoryEqual checks if two history lists are equal
+func (h *WebSocketHandler) helmHistoryEqual(prev, curr []helm.HistoryRelease) bool {
+	if len(prev) != len(curr) {
+		return false
+	}
+
+	// Create maps for easier comparison
+	prevMap := make(map[int]helm.HistoryRelease)
+	for _, rev := range prev {
+		prevMap[rev.Revision] = rev
+	}
+
+	for _, rev := range curr {
+		prevRev, exists := prevMap[rev.Revision]
+		if !exists {
+			return false
+		}
+
+		// Compare relevant fields
+		if prevRev.Status != rev.Status ||
+			prevRev.Chart != rev.Chart ||
+			prevRev.AppVersion != rev.AppVersion ||
+			prevRev.Description != rev.Description {
+			return false
+		}
+	}
+
+	return true
+}
+
+// sendHelmHistory sends a list of release history items to the client
+func (h *WebSocketHandler) sendHelmHistory(ws *WebSocketConnection, id, path string, history []helm.HistoryRelease) {
+	// Create a response structure
+	response := map[string]interface{}{
+		"releases": history,
+	}
+
+	// Convert to JSON
+	data, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Error marshaling Helm history: %v", err)
+		h.sendErrorMessage(ws, id, path, fmt.Sprintf("Error marshaling Helm history: %v", err))
+		return
+	}
+
+	// Send as a data message
+	msg := &ServerMessage{
+		ID:   id,
+		Type: "data",
+		Path: path,
+		Data: &kubernetes.WatchEvent{
+			Type:   "HISTORY_DATA",
+			Object: json.RawMessage(data),
+		},
+	}
+
+	h.sendMessage(ws, msg)
 }
 
 // compareAndSendHelmChanges compares release lists and sends appropriate events

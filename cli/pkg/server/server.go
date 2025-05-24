@@ -432,6 +432,33 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for Helm release rollback
+	s.echo.POST("/api/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
+		namespace := c.Param("namespace")
+		name := c.Param("name")
+		revisionStr := c.Param("revision")
+
+		// Parse the revision parameter
+		revision, err := strconv.Atoi(revisionStr)
+		if err != nil || revision <= 0 {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Invalid revision number: %s", revisionStr),
+			})
+		}
+
+		// Perform the rollback
+		err = s.helmClient.Rollback(c.Request().Context(), name, namespace, revision)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to rollback Helm release: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Successfully rolled back %s to revision %d", name, revision),
+		})
+	})
+
 	// Kubernetes API proxy endpoints
 	// Match all routes starting with /k8s
 	s.echo.Any("/k8s*", func(c echo.Context) error {

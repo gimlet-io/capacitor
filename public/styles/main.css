@@ -1714,3 +1714,12 @@ td.message-cell {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Helm History Table */
+.helm-history-table tr.selected-revision td {
+  background-color: var(--linear-blue-light);
+}
+
+.helm-history-table tr:hover td {
+  background-color: var(--linear-bg-secondary);
+}

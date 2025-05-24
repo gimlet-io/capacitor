@@ -1,6 +1,7 @@
 import { createSignal, createEffect, Show, onMount, onCleanup, For } from "solid-js";
 import type { HelmRelease } from "../resourceList/HelmReleaseList.tsx";
 import { stringify } from "@std/yaml";
+import { getWebSocketClient } from "../../k8sWebSocketClient.ts";
 
 interface DiffState {
   [key: string]: boolean; // Maps revision pairs (e.g., "2-1") to expanded state
@@ -19,8 +20,11 @@ export function HelmDrawer(props: {
   const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
   const [expandedDiffs, setExpandedDiffs] = createSignal<DiffState>({});
   const [diffData, setDiffData] = createSignal<{[key: string]: any}>({});
+  const [selectedRevisionIndex, setSelectedRevisionIndex] = createSignal<number>(-1);
   
   let contentRef: HTMLDivElement | undefined;
+  let tableRef: HTMLTableElement | undefined;
+  let unsubscribeHistory: (() => void) | null = null;
 
   // Watch for changes to initialTab prop
   createEffect(() => {
@@ -29,35 +33,52 @@ export function HelmDrawer(props: {
     }
   });
 
-  // Fetch the Helm release history when the drawer opens and tab is history
-  const fetchReleaseHistory = async () => {
-    if (!props.resource) return;
+  // Setup WebSocket subscription for continuous updates
+  const setupHistoryWatcher = () => {
+    if (!props.resource || !props.isOpen || activeTab() !== "history") return;
     
+    // Show loading state until we get data
     setLoading(true);
-    try {
-      const name = props.resource.metadata.name;
-      const namespace = props.resource.metadata.namespace || "";
-      
-      // Call the backend API for Helm release history data
-      const url = `/api/helm/history/${namespace}/${name}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Helm release history: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      // Sort releases by revision number in descending order (newest first)
-      const sortedReleases = (data.releases || []).sort((a: any, b: any) => b.revision - a.revision);
-      setHistoryData(sortedReleases);
-    } catch (error) {
-      console.error("Error fetching Helm release history:", error);
-      setHistoryData([]);
-    } finally {
-      setLoading(false);
-      // Focus the content after loading
-      setTimeout(() => contentRef?.focus(), 50);
+    
+    // Clean up any existing subscription
+    if (unsubscribeHistory) {
+      unsubscribeHistory();
+      unsubscribeHistory = null;
     }
+    
+    const name = props.resource.metadata.name;
+    const namespace = props.resource.metadata.namespace || "";
+    
+    // Create a WebSocket path for this specific resource
+    const wsPath = `/api/helm/history/${namespace}/${name}`;
+    
+    // Subscribe to updates for this resource
+    const wsClient = getWebSocketClient();
+    wsClient.watchResource(wsPath, (data) => {
+      // When we receive updates, update the history data
+      if (data && data.object && data.object.releases) {
+        const sortedReleases = data.object.releases.sort((a: any, b: any) => b.revision - a.revision);
+        console.log("sortedReleases", sortedReleases);
+        setHistoryData(sortedReleases);
+        
+        // If there's no selected revision yet and we have data, select the first one
+        if (selectedRevisionIndex() === -1 && sortedReleases.length > 0) {
+          setSelectedRevisionIndex(0);
+        }
+        
+        // Data has loaded
+        setLoading(false);
+        
+        // Focus the content after loading
+        setTimeout(() => contentRef?.focus(), 50);
+      }
+    }).then(unsubscribe => {
+      unsubscribeHistory = unsubscribe;
+    }).catch(error => {
+      console.error("Error setting up WebSocket for Helm history:", error);
+      setLoading(false);
+      setHistoryData([]);
+    });
   };
 
   // Fetch the Helm release values when the drawer opens and tab is values
@@ -294,13 +315,55 @@ export function HelmDrawer(props: {
     return result;
   };
 
+  // Rollback to the selected revision
+  const rollbackToRevision = async () => {
+    const index = selectedRevisionIndex();
+    if (index === -1 || !props.resource) return;
+    
+    const selectedRevision = historyData()[index];
+    if (!selectedRevision) return;
+    
+    const revisionNumber = selectedRevision.revision;
+    const name = props.resource.metadata.name;
+    const namespace = props.resource.metadata.namespace || "";
+    
+    // Confirm rollback
+    if (!window.confirm(`Are you sure you want to rollback ${name} to revision ${revisionNumber}?`)) {
+      return;
+    }
+    
+    try {
+      // Call the backend API to rollback the release
+      const url = `/api/helm/rollback/${namespace}/${name}/${revisionNumber}`;
+      const response = await fetch(url, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to rollback release: ${response.statusText}`);
+      }
+      
+      // WebSocket will handle the updates automatically
+    } catch (error) {
+      console.error("Error rolling back release:", error);
+      // Only show error messages, not success messages
+      alert(`Failed to rollback: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   // Load data when the drawer opens or active tab changes
   createEffect(() => {
     if (props.isOpen) {
       if (activeTab() === "history") {
-        fetchReleaseHistory();
+        setupHistoryWatcher();
       } else if (activeTab() === "values") {
         fetchReleaseValues();
+      }
+    } else {
+      // Clean up the subscription when drawer closes
+      if (unsubscribeHistory) {
+        unsubscribeHistory();
+        unsubscribeHistory = null;
       }
     }
   });
@@ -311,6 +374,53 @@ export function HelmDrawer(props: {
       fetchReleaseValues();
     }
   });
+
+  // Handle keyboard navigation in the history table
+  const handleTableKeyDown = (e: KeyboardEvent) => {
+    if (activeTab() !== "history" || historyData().length === 0) return;
+    
+    const currentIndex = selectedRevisionIndex();
+    let newIndex = currentIndex;
+    
+    switch (e.key) {
+      case "ArrowUp":
+        e.preventDefault();
+        newIndex = Math.max(0, currentIndex - 1);
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        newIndex = Math.min(historyData().length - 1, currentIndex + 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        newIndex = 0;
+        break;
+      case "End":
+        e.preventDefault();
+        newIndex = historyData().length - 1;
+        break;
+      case "r":
+        // Only handle Ctrl+R for rollback
+        if (e.ctrlKey && currentIndex !== -1) {
+          e.preventDefault();
+          rollbackToRevision();
+        }
+        break;
+    }
+    
+    if (newIndex !== currentIndex) {
+      setSelectedRevisionIndex(newIndex);
+      
+      // Scroll the selected row into view
+      setTimeout(() => {
+        const rows = tableRef?.querySelectorAll('tbody tr');
+        const targetRow = rows?.[newIndex * 2]; // Each revision has a data row and a diff row
+        if (targetRow) {
+          targetRow.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        }
+      }, 0);
+    }
+  };
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -332,6 +442,11 @@ export function HelmDrawer(props: {
       e.preventDefault();
       setActiveTab("values");
     }
+    
+    // Handle table navigation
+    if (activeTab() === "history") {
+      handleTableKeyDown(e);
+    }
   };
 
   // Set up keyboard event listener
@@ -339,9 +454,14 @@ export function HelmDrawer(props: {
     window.addEventListener('keydown', handleKeyDown, true);
   });
 
-  // Clean up event listener
+  // Clean up event listener and subscriptions
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown, true);
+    
+    if (unsubscribeHistory) {
+      unsubscribeHistory();
+      unsubscribeHistory = null;
+    }
   });
 
   // Function to get status color based on release status
@@ -400,7 +520,13 @@ export function HelmDrawer(props: {
             
             <Show when={!loading() && activeTab() === "history"}>
               <Show when={historyData().length > 0} fallback={<div class="no-history">No release history found</div>}>
-                <table class="helm-history-table">
+                <div class="keyboard-shortcut-container" style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                  <div class="keyboard-shortcut">
+                    <span class="shortcut-key">Ctrl+r</span>
+                    <span class="shortcut-description">Rollback to selected revision</span>
+                  </div>
+                </div>
+                <table class="helm-history-table" ref={tableRef}>
                   <thead>
                     <tr>
                       <th>Revision</th>
@@ -415,7 +541,10 @@ export function HelmDrawer(props: {
                     <For each={historyData()}>
                       {(release, index) => (
                         <>
-                          <tr>
+                          <tr 
+                            class={selectedRevisionIndex() === index() ? 'selected-revision' : ''}
+                            onClick={() => setSelectedRevisionIndex(index())}
+                          >
                             <td>{release.revision}</td>
                             <td>{release.updated}</td>
                             <td>
