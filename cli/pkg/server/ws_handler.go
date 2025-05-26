@@ -321,7 +321,7 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 		}
 
 		// Send initial data
-		h.sendReleases(ws, msg.ID, msg.Path, releases)
+		h.compareAndSendHelmChanges(ws, msg, []*helm.Release{}, releases)
 		previousReleases = releases
 
 		// Poll for changes
@@ -338,11 +338,8 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 					continue
 				}
 
-				// Check if anything has changed
-				if !h.releaseListsEqual(previousReleases, currentReleases) {
-					h.sendReleases(ws, msg.ID, msg.Path, currentReleases)
-					previousReleases = currentReleases
-				}
+				h.compareAndSendHelmChanges(ws, msg, previousReleases, currentReleases)
+				previousReleases = currentReleases
 			}
 		}
 	}()
@@ -547,50 +544,4 @@ func (h *WebSocketHandler) helmReleaseToRawMessage(release *helm.Release) json.R
 	}
 
 	return json.RawMessage(data)
-}
-
-// releaseListsEqual checks if two release lists are equal
-func (h *WebSocketHandler) releaseListsEqual(prev, curr []*helm.Release) bool {
-	if len(prev) != len(curr) {
-		return false
-	}
-
-	prevMap := make(map[string]*helm.Release)
-	for _, rel := range prev {
-		key := fmt.Sprintf("%s/%s", rel.Namespace, rel.Name)
-		prevMap[key] = rel
-	}
-
-	for _, rel := range curr {
-		key := fmt.Sprintf("%s/%s", rel.Namespace, rel.Name)
-		prevRel, exists := prevMap[key]
-		if !exists {
-			return false
-		}
-
-		// Compare relevant fields - revision and status are enough to detect changes
-		if prevRel.Revision != rel.Revision || prevRel.Status != rel.Status {
-			return false
-		}
-	}
-
-	return true
-}
-
-// sendReleases sends a list of releases to the client
-func (h *WebSocketHandler) sendReleases(ws *WebSocketConnection, id, path string, releases []*helm.Release) {
-	// First send a clear event to reset the view
-	clearEvent := &kubernetes.WatchEvent{
-		Type: "CLEAR_ALL",
-	}
-	h.sendDataMessage(ws, id, path, clearEvent)
-
-	// Then send all current releases
-	for _, release := range releases {
-		event := &kubernetes.WatchEvent{
-			Type:   "ADDED",
-			Object: h.helmReleaseToRawMessage(release),
-		}
-		h.sendDataMessage(ws, id, path, event)
-	}
 }
