@@ -78,7 +78,6 @@ export function HelmDrawer(props: {
         const sortedReleases = data.object.releases.sort((a: any, b: any) =>
           b.revision - a.revision
         );
-        console.log("sortedReleases", sortedReleases);
         setHistoryData(sortedReleases);
 
         // If there's no selected revision yet and we have data, select the first one
@@ -375,116 +374,111 @@ export function HelmDrawer(props: {
     newLines: string[],
   ): string[] => {
     const result: string[] = [];
-
+    
     let oldIndex = 0;
     let newIndex = 0;
-
-    while (oldIndex < oldLines.length || newIndex < newLines.length) {
-      // Find a sequence of matching lines
-      let matchLength = 0;
-      let bestMatchLength = 0;
-      let bestMatchOldIndex = -1;
-      let bestMatchNewIndex = -1;
-
-      // Look for the longest matching sequence
-      for (let i = oldIndex; i < oldLines.length; i++) {
-        for (let j = newIndex; j < newLines.length; j++) {
-          // Count matching lines
-          matchLength = 0;
-          while (
-            i + matchLength < oldLines.length &&
-            j + matchLength < newLines.length &&
-            oldLines[i + matchLength] === newLines[j + matchLength]
-          ) {
-            matchLength++;
-          }
-
-          // If this is a better match than what we've found so far
-          if (matchLength > bestMatchLength) {
-            bestMatchLength = matchLength;
-            bestMatchOldIndex = i;
-            bestMatchNewIndex = j;
-          }
+    
+    // Helper function to add context lines
+    const addContextLines = (startOld: number, startNew: number, count: number) => {
+      const contextLines = Math.min(count, 3); // Max 3 lines of context
+      for (let i = 0; i < contextLines; i++) {
+        if (startOld + i < oldLines.length && startNew + i < newLines.length) {
+          result.push(` ${oldLines[startOld + i]}`);
         }
       }
-
-      // If we found a matching sequence
-      if (bestMatchLength > 0) {
-        // Output unmatched lines from both old and new
-        if (oldIndex < bestMatchOldIndex) {
-          // Add hunk header
-          result.push(
-            `@@ -${oldIndex + 1},${bestMatchOldIndex - oldIndex} +${
-              newIndex + 1
-            },${bestMatchNewIndex - newIndex} @@`,
-          );
-
-          // Output removed lines
-          for (let i = oldIndex; i < bestMatchOldIndex; i++) {
-            result.push(`-${oldLines[i]}`);
-          }
-
-          // Output added lines
-          for (let j = newIndex; j < bestMatchNewIndex; j++) {
-            result.push(`+${newLines[j]}`);
-          }
-        }
-
-        // Output the context (matching lines)
-        const contextStart = Math.max(0, bestMatchOldIndex);
-        const contextEnd = Math.min(
-          oldLines.length,
-          bestMatchOldIndex + bestMatchLength,
-        );
-
-        // Only show context if there's actually a difference
-        if (oldIndex < bestMatchOldIndex || newIndex < bestMatchNewIndex) {
-          result.push(
-            `@@ -${contextStart + 1},${contextEnd - contextStart} +${
-              bestMatchNewIndex + 1
-            },${bestMatchLength} @@`,
-          );
-
-          // Add a few lines of context (up to 3)
-          const contextLinesToShow = Math.min(3, bestMatchLength);
-          for (let i = 0; i < contextLinesToShow; i++) {
-            result.push(` ${oldLines[bestMatchOldIndex + i]}`);
-          }
-
-          // If there are more context lines, add an ellipsis
-          if (bestMatchLength > contextLinesToShow) {
-            result.push(" ...");
-          }
-        }
-
-        // Move indices past this match
-        oldIndex = bestMatchOldIndex + bestMatchLength;
-        newIndex = bestMatchNewIndex + bestMatchLength;
+    };
+    
+    while (oldIndex < oldLines.length || newIndex < newLines.length) {
+      // Find how many lines match from current positions
+      let matchLength = 0;
+      while (
+        oldIndex + matchLength < oldLines.length &&
+        newIndex + matchLength < newLines.length &&
+        oldLines[oldIndex + matchLength] === newLines[newIndex + matchLength]
+      ) {
+        matchLength++;
+      }
+      
+      if (matchLength > 0) {
+        // Skip common sections, but keep track of where we are
+        oldIndex += matchLength;
+        newIndex += matchLength;
       } else {
-        // No more matches, output remaining lines
-        if (oldIndex < oldLines.length || newIndex < newLines.length) {
-          result.push(
-            `@@ -${oldIndex + 1},${oldLines.length - oldIndex} +${
-              newIndex + 1
-            },${newLines.length - newIndex} @@`,
-          );
-
-          // Output remaining removed lines
-          for (let i = oldIndex; i < oldLines.length; i++) {
-            result.push(`-${oldLines[i]}`);
-          }
-
-          // Output remaining added lines
+        // No match at current position - find next match
+        let nextOldMatch = oldIndex;
+        let nextNewMatch = newIndex;
+        let found = false;
+        
+        // Look ahead for the next matching line
+        outer: for (let i = oldIndex; i < oldLines.length; i++) {
           for (let j = newIndex; j < newLines.length; j++) {
-            result.push(`+${newLines[j]}`);
+            if (oldLines[i] === newLines[j]) {
+              // Check if this is the start of a sequence of at least 3 matching lines
+              let seqLength = 1;
+              while (
+                i + seqLength < oldLines.length &&
+                j + seqLength < newLines.length &&
+                oldLines[i + seqLength] === newLines[j + seqLength] &&
+                seqLength < 3
+              ) {
+                seqLength++;
+              }
+              
+              // Only consider it a match if we have at least 3 consecutive matching lines
+              // or if we're at the end of one of the files
+              if (seqLength >= 3 || i + seqLength >= oldLines.length || j + seqLength >= newLines.length) {
+                nextOldMatch = i;
+                nextNewMatch = j;
+                found = true;
+                break outer;
+              }
+            }
           }
         }
-
-        // Break out of the loop
-        break;
+        
+        // If no next match found, include all remaining lines
+        if (!found) {
+          nextOldMatch = oldLines.length;
+          nextNewMatch = newLines.length;
+        }
+        
+        // Only output a diff hunk if there are changes
+        if (nextOldMatch > oldIndex || nextNewMatch > newIndex) {
+          // Get context before the change (up to 3 lines)
+          const contextBefore = Math.min(3, oldIndex);
+          const oldStart = Math.max(0, oldIndex - contextBefore);
+          const newStart = Math.max(0, newIndex - contextBefore);
+          
+          result.push(`@@ -${oldStart + 1},${nextOldMatch - oldStart + Math.min(3, oldLines.length - nextOldMatch)} +${newStart + 1},${nextNewMatch - newStart + Math.min(3, newLines.length - nextNewMatch)} @@`);
+          
+          // Add context before
+          for (let i = 0; i < contextBefore; i++) {
+            const idx = oldIndex - contextBefore + i;
+            if (idx >= 0) {
+              result.push(` ${oldLines[idx]}`);
+            }
+          }
+          
+          // Output removed lines
+          for (let i = oldIndex; i < nextOldMatch; i++) {
+            result.push(`-${oldLines[i]}`);
+          }
+          
+          // Output added lines
+          for (let j = newIndex; j < nextNewMatch; j++) {
+            result.push(`+${newLines[j]}`);
+          }
+          
+          // Add context after (up to 3 lines)
+          addContextLines(nextOldMatch, nextNewMatch, 3);
+          
+          // Move to the next match positions
+          oldIndex = nextOldMatch;
+          newIndex = nextNewMatch;
+        }
       }
     }
-
+    
     return result;
   };
 
