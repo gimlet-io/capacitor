@@ -139,8 +139,6 @@ func (c *Client) GetRelease(ctx context.Context, name string) (*Release, error) 
 
 // GetHistory retrieves the release history for a Helm release
 func (c *Client) GetHistory(ctx context.Context, name, namespace string) ([]HistoryRelease, error) {
-	log.Printf("GetHistory called for release %s in namespace %s", name, namespace)
-
 	// Create a new action configuration for this specific request
 	actionConfig := new(action.Configuration)
 

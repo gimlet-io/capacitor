@@ -1298,6 +1298,7 @@ td.message-cell {
 .diff-divider-row {
   height: 0; /* Minimal height */
   border: none;
+  position: relative; /* Add this to support absolute positioning */
 }
 
 .diff-divider-cell {
@@ -1307,33 +1308,60 @@ td.message-cell {
   border: none !important;
 }
 
+/* Update the diff button container position */
 .diff-button-container {
   position: absolute;
   top: 0;
-  left: 50px; /* Position in the revision column */
-  transform: translate(0, -50%); /* Only adjust vertical position */
-  z-index: 1;
-  text-align: left;
+  left: 30px; /* Adjust left position */
+  transform: translate(0, -50%); /* Center vertically */
+  z-index: 10; /* Higher z-index to ensure it's on top */
+  display: flex;
   width: auto;
+}
+
+.diff-button-group {
+  display: flex;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--linear-border);
+  background-color: var(--linear-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.diff-button-label {
+  display: flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--linear-text-tertiary);
+  font-weight: 500;
 }
 
 .diff-button {
   background-color: var(--linear-bg);
   color: var(--linear-text-secondary);
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  padding: 0.3rem 0.5rem;
+  border: none;
+  border-right: 1px solid var(--linear-border);
+  padding: 0.1rem 0.25rem 0.1rem 0.25rem;
   font-size: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.1s ease;
   white-space: nowrap;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.diff-button:last-child {
+  border-right: none;
 }
 
 .diff-button:hover {
   background-color: var(--linear-bg-secondary);
   color: var(--linear-text-primary);
-  border-color: var(--linear-text-tertiary);
+}
+
+.diff-button.active {
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-primary);
+  font-weight: 500;
 }
 
 .diff-content-row {
@@ -1722,4 +1750,11 @@ td.message-cell {
 
 .helm-history-table tr:hover td {
   background-color: var(--linear-bg-secondary);
+}
+
+/* Make the revision column wider to fit the buttons */
+.helm-history-table th:first-child,
+.helm-history-table td:first-child {
+  width: 130px; /* Increase width of revision column */
+  min-width: 130px;
 }
