@@ -311,13 +311,29 @@ export function HelmDrawer(props: {
     const fromLines = fromYaml.split("\n");
     const toLines = toYaml.split("\n");
 
-    // Simple line-by-line diff algorithm
-    const diff = generatePatchDiff(fromLines, toLines);
+    // Create a state variable to track which sections are expanded
+    const [expandedSections, setExpandedSections] = createSignal<Record<string, boolean>>({});
+    // Create a state for the diff content
+    const [diffContent, setDiffContent] = createSignal<string[]>([]);
+
+    // Generate initial diff
+    createEffect(() => {
+      // Regenerate diff whenever expandedSections changes
+      const expanded = expandedSections();
+      setDiffContent(generatePatchDiff(fromLines, toLines, expanded));
+    });
+
+    // Handler for expand button clicks
+    const handleExpandClick = (e: MouseEvent, sectionId: string) => {
+      e.preventDefault();
+      // Update expanded sections state, which will trigger diff regeneration
+      setExpandedSections(prev => ({...prev, [sectionId]: true}));
+    };
 
     return (
       <div class="diff-content patch-diff">
         <pre class="diff-patch">
-          {diff.map((line: string) => {
+          {diffContent().map((line: string) => {
             let className = '';
             if (line.startsWith('+')) {
               className = 'diff-line-added';
@@ -326,6 +342,27 @@ export function HelmDrawer(props: {
             } else if (line.startsWith('@')) {
               className = 'diff-line-info';
             }
+            
+            // Check if this line has an expand button
+            const expandButtonMatch = line.match(/ \.\.\. <button class="expand-context" data-id="([^"]+)" data-section="([^"]+)" data-direction="([^"]+)">([^<]+)<\/button>/);
+            
+            if (expandButtonMatch) {
+              const [_, buttonId, sectionId, direction, buttonText] = expandButtonMatch;
+              const expanded = expandedSections()[sectionId];
+              
+              return (
+                <div class={className}>
+                  <button
+                    class="expand-context" 
+                    disabled={expanded}
+                    onClick={(e) => handleExpandClick(e, sectionId)}
+                  >
+                    {expanded ? "Expanded" : "..."}
+                  </button>
+                </div>
+              );
+            }
+            
             return <div class={className}>{line}</div>;
           })}
         </pre>
@@ -346,13 +383,29 @@ export function HelmDrawer(props: {
     const fromLines = fromManifest.split("\n");
     const toLines = toManifest.split("\n");
 
-    // Simple line-by-line diff algorithm
-    const diff = generatePatchDiff(fromLines, toLines);
+    // Create a state variable to track which sections are expanded
+    const [expandedSections, setExpandedSections] = createSignal<Record<string, boolean>>({});
+    // Create a state for the diff content
+    const [diffContent, setDiffContent] = createSignal<string[]>([]);
+
+    // Generate initial diff
+    createEffect(() => {
+      // Regenerate diff whenever expandedSections changes
+      const expanded = expandedSections();
+      setDiffContent(generatePatchDiff(fromLines, toLines, expanded));
+    });
+
+    // Handler for expand button clicks
+    const handleExpandClick = (e: MouseEvent, sectionId: string) => {
+      e.preventDefault();
+      // Update expanded sections state, which will trigger diff regeneration
+      setExpandedSections(prev => ({...prev, [sectionId]: true}));
+    };
 
     return (
       <div class="diff-content patch-diff">
         <pre class="diff-patch">
-          {diff.map((line: string) => {
+          {diffContent().map((line: string) => {
             let className = '';
             if (line.startsWith('+')) {
               className = 'diff-line-added';
@@ -361,6 +414,27 @@ export function HelmDrawer(props: {
             } else if (line.startsWith('@')) {
               className = 'diff-line-info';
             }
+            
+            // Check if this line has an expand button
+            const expandButtonMatch = line.match(/ \.\.\. <button class="expand-context" data-id="([^"]+)" data-section="([^"]+)" data-direction="([^"]+)">([^<]+)<\/button>/);
+            
+            if (expandButtonMatch) {
+              const [_, buttonId, sectionId, direction, buttonText] = expandButtonMatch;
+              const expanded = expandedSections()[sectionId];
+              
+              return (
+                <div class={className}>
+                  ... <button 
+                    class="expand-context" 
+                    disabled={expanded}
+                    onClick={(e) => handleExpandClick(e, sectionId)}
+                  >
+                    {expanded ? "Expanded" : "Show 10 more lines"}
+                  </button>
+                </div>
+              );
+            }
+            
             return <div class={className}>{line}</div>;
           })}
         </pre>
@@ -368,10 +442,11 @@ export function HelmDrawer(props: {
     );
   };
 
-  // Generate a patch-style diff between two arrays of lines
+  // Modify the generatePatchDiff function to accept expanded sections
   const generatePatchDiff = (
     oldLines: string[],
     newLines: string[],
+    expandedSections: Record<string, boolean> = {},
   ): string[] => {
     const result: string[] = [];
     
@@ -379,12 +454,31 @@ export function HelmDrawer(props: {
     let newIndex = 0;
     
     // Helper function to add context lines
-    const addContextLines = (startOld: number, startNew: number, count: number) => {
-      const contextLines = Math.min(count, 3); // Max 3 lines of context
-      for (let i = 0; i < contextLines; i++) {
-        if (startOld + i < oldLines.length && startNew + i < newLines.length) {
+    const addContextLines = (startOld: number, startNew: number, count: number, showExpander: boolean, sectionId: string) => {
+      // Determine how many lines to show based on whether this section is expanded
+      const isExpanded = expandedSections[sectionId];
+      const baseContextLines = Math.min(count, 3); // Default is 3 lines
+      const contextLines = isExpanded ? Math.min(count, 13) : baseContextLines; // Show up to 13 if expanded
+      
+      const hasMoreContext = (startOld + contextLines < oldLines.length) && showExpander && !isExpanded;
+      
+      // For "before" context, add the expander button first
+      if (hasMoreContext && sectionId.startsWith('before')) {
+        const expanderId = `expand-${sectionId}`;
+        result.push(` ... <button class="expand-context" data-id="${expanderId}" data-section="${sectionId}" data-direction="before">Show 10 more lines</button>`);
+      }
+      
+      // Add the context lines
+      for (let i = 0; i < contextLines && (startOld + i < oldLines.length); i++) {
+        if (startNew + i < newLines.length) {
           result.push(` ${oldLines[startOld + i]}`);
         }
+      }
+      
+      // For "after" context, add the expander button after
+      if (hasMoreContext && !sectionId.startsWith('before')) {
+        const expanderId = `expand-${sectionId}`;
+        result.push(` ... <button class="expand-context" data-id="${expanderId}" data-section="${sectionId}" data-direction="after">Show 10 more lines</button>`);
       }
     };
     
@@ -444,19 +538,27 @@ export function HelmDrawer(props: {
         
         // Only output a diff hunk if there are changes
         if (nextOldMatch > oldIndex || nextNewMatch > newIndex) {
-          // Get context before the change (up to 3 lines)
-          const contextBefore = Math.min(3, oldIndex);
+          // Generate a unique ID for this diff section
+          const diffId = `diff-${oldIndex}-${newIndex}`;
+          
+          // Get context before the change (up to 3 lines by default, more if expanded)
+          const beforeId = `before-${diffId}`;
+          const isBeforeExpanded = expandedSections[beforeId];
+          const contextBefore = Math.min(isBeforeExpanded ? 13 : 3, oldIndex);
           const oldStart = Math.max(0, oldIndex - contextBefore);
           const newStart = Math.max(0, newIndex - contextBefore);
           
-          result.push(`@@ -${oldStart + 1},${nextOldMatch - oldStart + Math.min(3, oldLines.length - nextOldMatch)} +${newStart + 1},${nextNewMatch - newStart + Math.min(3, newLines.length - nextNewMatch)} @@`);
+          // Calculate context after (for header line)
+          const afterId = `after-${diffId}`;
+          const isAfterExpanded = expandedSections[afterId];
+          const contextAfter = Math.min(isAfterExpanded ? 13 : 3, oldLines.length - nextOldMatch);
           
-          // Add context before
-          for (let i = 0; i < contextBefore; i++) {
-            const idx = oldIndex - contextBefore + i;
-            if (idx >= 0) {
-              result.push(` ${oldLines[idx]}`);
-            }
+          // Output hunk header with proper line counts
+          result.push(`@@ -${oldStart + 1},${nextOldMatch - oldStart + contextAfter} +${newStart + 1},${nextNewMatch - newStart + contextAfter} @@`);
+          
+          // Add context before with expander
+          if (contextBefore > 0) {
+            addContextLines(oldIndex - contextBefore, newIndex - contextBefore, contextBefore, oldStart > 0, beforeId);
           }
           
           // Output removed lines
@@ -469,8 +571,8 @@ export function HelmDrawer(props: {
             result.push(`+${newLines[j]}`);
           }
           
-          // Add context after (up to 3 lines)
-          addContextLines(nextOldMatch, nextNewMatch, 3);
+          // Add context after with expander
+          addContextLines(nextOldMatch, nextNewMatch, contextAfter, nextOldMatch < oldLines.length, afterId);
           
           // Move to the next match positions
           oldIndex = nextOldMatch;

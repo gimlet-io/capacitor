@@ -51,6 +51,7 @@ table {
 :root {
   --linear-bg: #ffffff;
   --linear-bg-secondary: #f1f1f1;
+  --linear-bg-tertiary: #dedede;
   --linear-border: #e5e5e5;
   --linear-text-primary: #1a1a1a;
   --linear-text-secondary: #555555;
@@ -1757,4 +1758,19 @@ td.message-cell {
 .helm-history-table td:first-child {
   width: 130px; /* Increase width of revision column */
   min-width: 130px;
+}
+
+.expand-context {
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-primary);
+  border: none;
+  padding: 0.25rem 0.5rem;
+}
+
+.expand-context:hover {
+  background-color: var(--linear-bg-tertiary);
+}
+
+.expand-context:active {
+  background-color: var(--linear-bg-tertiary);
 }
