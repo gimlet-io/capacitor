@@ -156,7 +156,15 @@ export interface ServiceSpec {
     selector?: { [key: string]: string };
     clusterIP?: string;
     type?: string;
-    externalIPs?: string[];
+}
+
+export interface ServiceStatus {
+    loadBalancer?: {
+        ingress?: Array<{
+            ip?: string;
+            hostname?: string;
+        }>;
+    };
 }
 
 export interface Service {
@@ -164,6 +172,7 @@ export interface Service {
     kind: string;
     metadata: ObjectMeta;
     spec: ServiceSpec;
+    status?: ServiceStatus;
 }
 
 export interface ServiceList {

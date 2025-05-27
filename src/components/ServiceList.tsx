@@ -20,9 +20,13 @@ export const serviceColumns = [
   {
     header: "EXTERNAL-IP",
     width: "15%",
-    accessor: (service: Service) => (
-      <>{service.spec.externalIPs?.join(", ") || "None"}</>
-    ),
+    accessor: (service: Service) => {
+      const ingress = service.status?.loadBalancer?.ingress;
+      if (service.spec.type === "LoadBalancer" && ingress && ingress.length > 0) {
+        return <>{ingress.map(ingress => ingress.ip || ingress.hostname).filter(Boolean).join(", ") || "Pending"}</>;
+      }
+      return <>None</>;
+    },
   },
   {
     header: "PORT(S)",
