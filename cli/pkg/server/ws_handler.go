@@ -313,6 +313,7 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 		defer ticker.Stop()
 
 		// Get initial state
+		startTime := time.Now()
 		releases, err := h.helmClient.ListReleases(ctx, namespace)
 		if err != nil {
 			log.Printf("Error listing Helm releases: %v", err)
@@ -323,7 +324,8 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 		// Send initial data
 		h.compareAndSendHelmChanges(ws, msg, []*helm.Release{}, releases)
 		previousReleases = releases
-
+		elapsed := time.Since(startTime)
+		log.Printf("Helm releases loading time: %v for namespace: %s", elapsed, namespace)
 		// Poll for changes
 		for {
 			select {
@@ -331,6 +333,7 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 				log.Printf("Context cancelled for Helm releases watch: %s", msg.Path)
 				return
 			case <-ticker.C:
+				pollStartTime := time.Now()
 				currentReleases, err := h.helmClient.ListReleases(ctx, namespace)
 				if err != nil {
 					log.Printf("Error listing Helm releases: %v", err)
@@ -340,6 +343,8 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 
 				h.compareAndSendHelmChanges(ws, msg, previousReleases, currentReleases)
 				previousReleases = currentReleases
+				pollElapsed := time.Since(pollStartTime)
+				log.Printf("Helm releases poll time: %v for namespace: %s", pollElapsed, namespace)
 			}
 		}
 	}()

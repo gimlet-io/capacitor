@@ -233,6 +233,8 @@ export function HelmDrawer(props: {
       } else if (diffType === "manifest") {
         await fetchReleaseManifestDiff(fromRevision, toRevision);
       }
+    } else {
+      console.log("debug: skipping diff fetch");
     }
   };
 

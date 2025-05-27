@@ -2,9 +2,11 @@ import { JSX } from "solid-js";
 import { podColumns } from "./components/resourceList/PodList.tsx";
 import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx";
 import { serviceColumns } from "./components/ServiceList.tsx";
+import { ingressColumns } from "./components/resourceList/IngressList.tsx";
 import { kustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
+import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./components/resourceList/EventList.tsx";
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale } from "./components/resourceList/DeploymentList.tsx";
 import { handleReconcile } from "./components/resourceList/KustomizationList.tsx";
@@ -14,6 +16,7 @@ import { deploymentReadinessFilter } from "./components/resourceList/DeploymentL
 import { kustomizationReadyFilter } from "./components/resourceList/KustomizationList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
+
 export interface Column<T> {
   header: string;
   width: string;
@@ -34,6 +37,7 @@ export interface ResourceTypeConfig {
   onItemClick?: (item: any, navigate: any) => void;
   commands?: ResourceCommand[];
   filter?: Filter[];
+  sortFunction?: (items: any[]) => any[];
 }
 
 // Define the centralized resource configurations
@@ -86,6 +90,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: serviceColumns
   },
   
+  'networking.k8s.io/Ingress': {
+    columns: ingressColumns,
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
   'helm.sh/Release': {
     columns: helmReleaseColumns,
     filter: [helmReleaseStatusFilter, helmReleaseChartFilter],
@@ -121,6 +132,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [kustomizationReadyFilter]
+  },
+  
+  'core/Event': {
+    columns: eventColumns,
+    filter: [eventTypeFilter],
+    sortFunction: sortEventsByLastSeen
   },
   
   'argoproj.io/Application': {

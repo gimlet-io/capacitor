@@ -604,4 +604,81 @@ export interface StatefulSetList {
 
 export interface StatefulSetWithResources extends StatefulSet {
   pods: Pod[];
+}
+
+export interface IngressRule {
+  host?: string;
+  http?: {
+    paths: Array<{
+      path?: string;
+      pathType?: string;
+      backend: {
+        service?: {
+          name: string;
+          port: {
+            name?: string;
+            number?: number;
+          };
+        };
+        resource?: {
+          apiGroup: string;
+          kind: string;
+          name: string;
+        };
+      };
+    }>;
+  };
+}
+
+export interface IngressTLS {
+  hosts?: string[];
+  secretName?: string;
+}
+
+export interface IngressSpec {
+  rules?: IngressRule[];
+  tls?: IngressTLS[];
+  ingressClassName?: string;
+  defaultBackend?: {
+    service?: {
+      name: string;
+      port: {
+        name?: string;
+        number?: number;
+      };
+    };
+    resource?: {
+      apiGroup: string;
+      kind: string;
+      name: string;
+    };
+  };
+}
+
+export interface IngressStatus {
+  loadBalancer?: {
+    ingress?: Array<{
+      ip?: string;
+      hostname?: string;
+    }>;
+  };
+}
+
+export interface Ingress {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: IngressSpec;
+  status?: IngressStatus;
+}
+
+export interface IngressList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: Ingress[];
+}
+
+export interface IngressWithResources extends Ingress {
+  relatedServices: Service[];
 } 

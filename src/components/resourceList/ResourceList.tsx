@@ -1,4 +1,4 @@
-import { For, createSignal, onMount, onCleanup, createEffect } from "solid-js";
+import { For, createSignal, onMount, onCleanup, createEffect, createMemo } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
@@ -43,6 +43,14 @@ export function ResourceList<T>(props: {
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
   const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
+
+  // Apply the sort function if provided in the resourceTypeConfig
+  const sortedResources = createMemo(() => {
+    if (props.resourceTypeConfig.sortFunction) {
+      return props.resourceTypeConfig.sortFunction(props.resources);
+    }
+    return props.resources;
+  });
 
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
     setSelectedResource(() => resource);
@@ -191,10 +199,10 @@ export function ResourceList<T>(props: {
   // Execute a command with the current selected resource
   const executeCommand = async (command: ResourceCommand) => {
     const index = selectedIndex();
-    if (index === -1 || index >= props.resources.length) return;
+    if (index === -1 || index >= sortedResources().length) return;
     
     try {
-      const resource = props.resources[index];
+      const resource = sortedResources()[index];
       await command.handler(resource);
     } catch (error) {
       console.error(`Error executing command ${command.shortcut.description}:`, error);
@@ -221,7 +229,7 @@ export function ResourceList<T>(props: {
 
   // Generic function to handle keyboard shortcuts by mapping keys to commands and built-in actions
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (props.resources.length === 0) return;
+    if (sortedResources().length === 0) return;
     
     // Don't process keyboard shortcuts if we should ignore them
     if (shouldIgnoreKeyboardEvents()) {
@@ -232,7 +240,7 @@ export function ResourceList<T>(props: {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, props.resources.length - 1);
+        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, sortedResources().length - 1);
         return newIndex;
       });
       return;
@@ -246,7 +254,7 @@ export function ResourceList<T>(props: {
     } else if (e.key === 'PageDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 20, props.resources.length - 1);
+        const newIndex = prev === -1 ? 0 : Math.min(prev + 20, sortedResources().length - 1);
         return newIndex;
       });
       return;
@@ -259,8 +267,8 @@ export function ResourceList<T>(props: {
       return;
     } else if (e.key === 'Enter') {
       const index = selectedIndex();
-      if (index !== -1 && index < props.resources.length && props.resourceTypeConfig.onItemClick) {
-        props.resourceTypeConfig.onItemClick(props.resources[index], navigate);
+      if (index !== -1 && index < sortedResources().length && props.resourceTypeConfig.onItemClick) {
+        props.resourceTypeConfig.onItemClick(sortedResources()[index], navigate);
       }
       return;
     }
@@ -278,10 +286,10 @@ export function ResourceList<T>(props: {
 
   // Reset selectedIndex when filtered results change
   createEffect(() => {
-    if (props.resources.length === 0) {
+    if (sortedResources().length === 0) {
       setSelectedIndex(-1);
-    } else if (selectedIndex() >= props.resources.length) {
-      setSelectedIndex(props.resources.length - 1);
+    } else if (selectedIndex() >= sortedResources().length) {
+      setSelectedIndex(sortedResources().length - 1);
     }
   });
 
@@ -378,7 +386,7 @@ export function ResourceList<T>(props: {
             </tr>
           </thead>
           <tbody>
-            <For each={props.resources}>
+            <For each={sortedResources()}>
               {(resource, index) => {
                 const handleClick = () => {
                   setSelectedIndex(index());

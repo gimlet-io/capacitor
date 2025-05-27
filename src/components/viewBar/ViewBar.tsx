@@ -21,6 +21,14 @@ const SYSTEM_VIEWS: View[] = [
       { name: 'Namespace', value: 'all-namespaces' }]
   },
   { 
+    id: 'events',
+    label: 'Events',
+    isSystem: true,
+    filters: [
+      { name: 'ResourceType', value: 'core/Event' },
+      { name: 'Namespace', value: 'all-namespaces' }]
+  },
+  { 
     id: 'helm',
     label: 'Helm',
     isSystem: true,
