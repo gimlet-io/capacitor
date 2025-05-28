@@ -1,4 +1,3 @@
-import { JSX } from "solid-js";
 import type { ServiceAccount } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 
@@ -9,11 +8,6 @@ export const serviceAccountColumns = [
     width: "30%",
     accessor: (sa: ServiceAccount) => <>{sa.metadata.name}</>,
     title: (sa: ServiceAccount) => sa.metadata.name,
-  },
-  {
-    header: "NAMESPACE",
-    width: "20%",
-    accessor: (sa: ServiceAccount) => <>{sa.metadata.namespace}</>,
   },
   {
     header: "SECRETS",

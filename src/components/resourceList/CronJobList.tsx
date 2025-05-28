@@ -30,11 +30,6 @@ export const cronJobColumns = [
     title: (cronJob: CronJob) => cronJob.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "15%",
-    accessor: (cronJob: CronJob) => <>{cronJob.metadata.namespace}</>,
-  },
-  {
     header: "SCHEDULE",
     width: "20%",
     accessor: (cronJob: CronJob) => <>{cronJob.spec.schedule}</>,

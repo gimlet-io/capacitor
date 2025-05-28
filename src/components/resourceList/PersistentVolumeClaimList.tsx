@@ -36,11 +36,6 @@ export const pvcColumns = [
     title: (pvc: PersistentVolumeClaim) => pvc.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "15%",
-    accessor: (pvc: PersistentVolumeClaim) => <>{pvc.metadata.namespace}</>,
-  },
-  {
     header: "STATUS",
     width: "10%",
     accessor: (pvc: PersistentVolumeClaim) => getPVCStatusComponent(pvc).element,

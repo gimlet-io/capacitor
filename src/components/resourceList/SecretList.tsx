@@ -11,11 +11,6 @@ export const secretColumns = [
     title: (secret: Secret) => secret.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "20%",
-    accessor: (secret: Secret) => <>{secret.metadata.namespace}</>,
-  },
-  {
     header: "TYPE",
     width: "20%",
     accessor: (secret: Secret) => <>{secret.type || "Opaque"}</>,

@@ -42,11 +42,6 @@ export const jobColumns = [
     title: (job: Job) => job.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "20%",
-    accessor: (job: Job) => <>{job.metadata.namespace}</>,
-  },
-  {
     header: "COMPLETIONS",
     width: "15%",
     accessor: (job: Job) => {

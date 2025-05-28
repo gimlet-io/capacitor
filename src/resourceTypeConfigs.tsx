@@ -54,6 +54,13 @@ export interface ResourceTypeConfig {
   sortFunction?: (items: any[]) => any[];
 }
 
+// Define a reusable namespace column for all namespaced resources
+export const namespaceColumn: Column<any> = {
+  header: "NAMESPACE",
+  width: "15%",
+  accessor: (resource: any) => <>{resource.metadata.namespace}</>,
+};
+
 // Define the centralized resource configurations
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {

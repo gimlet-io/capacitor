@@ -5,6 +5,8 @@ import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/Keyboa
 import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns } from "./HelmReleaseList.tsx";
+import { useFilterStore } from "../../store/filterStore.tsx";
+import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
@@ -35,6 +37,7 @@ export function ResourceList<T>(props: {
   resourceTypeConfig: ResourceTypeConfig;
 }) {
   const navigate = useNavigate();
+  const filterStore = useFilterStore();
 
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
@@ -43,6 +46,39 @@ export function ResourceList<T>(props: {
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
   const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
+
+  // Get the selected namespace
+  const selectedNamespace = createMemo(() => {
+    return filterStore.getNamespace();
+  });
+
+  // Process columns with namespace column insertion
+  const visibleColumns = createMemo(() => {
+    const namespace = selectedNamespace();
+    const resourceColumns = props.resourceTypeConfig.columns;
+    
+    // If no specific namespace is selected or it's "all-namespaces", inject the namespace column
+    if (!namespace || namespace === 'all-namespaces') {
+      // Check if the resource has a namespace field (is namespaced)
+      const isNamespaced = props.resources.length > 0 && 
+                           props.resources[0] && 
+                           (props.resources[0] as any).metadata && 
+                           (props.resources[0] as any).metadata.namespace !== undefined;
+      
+      if (isNamespaced) {
+        // Create a new array with namespace column inserted as the second column
+        return [
+          resourceColumns[0],
+          namespaceColumn,
+          ...resourceColumns.slice(1)
+        ];
+      }
+      
+      return resourceColumns;
+    }
+    
+    return resourceColumns;
+  });
 
   // Apply the sort function if provided in the resourceTypeConfig
   const sortedResources = createMemo(() => {
@@ -380,7 +416,7 @@ export function ResourceList<T>(props: {
         <table class="resource-table">
           <thead>
             <tr>
-              {props.resourceTypeConfig.columns.map(column => (
+              {visibleColumns().map(column => (
                 <th style={`width: ${column.width}`}>{column.header}</th>
               ))}
             </tr>
@@ -402,7 +438,7 @@ export function ResourceList<T>(props: {
                       class={selectedIndex() === index() ? 'selected' : ''} 
                       onClick={handleClick}
                     >
-                      {props.resourceTypeConfig.columns.map(column => (
+                      {visibleColumns().map(column => (
                         <td title={column.title ? column.title(resource) : undefined}>
                           {column.accessor(resource)}
                         </td>

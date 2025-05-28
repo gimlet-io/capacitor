@@ -93,11 +93,6 @@ export const hpaColumns = [
     title: (hpa: HorizontalPodAutoscaler) => hpa.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "15%",
-    accessor: (hpa: HorizontalPodAutoscaler) => <>{hpa.metadata.namespace}</>,
-  },
-  {
     header: "REFERENCE",
     width: "20%",
     accessor: (hpa: HorizontalPodAutoscaler) => {

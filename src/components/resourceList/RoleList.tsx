@@ -53,11 +53,6 @@ export const roleColumns = [
     title: (role: Role) => role.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "20%",
-    accessor: (role: Role) => <>{role.metadata.namespace}</>,
-  },
-  {
     header: "RULES",
     width: "45%",
     accessor: (role: Role) => {

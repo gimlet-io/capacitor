@@ -60,8 +60,8 @@ export const podColumns = [
   {
     header: "NAME",
     width: "30%",
-    accessor: (pod: Pod) => <>{pod.metadata.namespace}/{pod.metadata.name}</>,
-    title: (pod: Pod) => `${pod.metadata.namespace}/${pod.metadata.name}`,
+    accessor: (pod: Pod) => <>{pod.metadata.name}</>,
+    title: (pod: Pod) => `${pod.metadata.name}`,
   },
   {
     header: "READY",

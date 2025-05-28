@@ -60,11 +60,6 @@ export const networkPolicyColumns = [
     title: (policy: NetworkPolicy) => policy.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "15%",
-    accessor: (policy: NetworkPolicy) => <>{policy.metadata.namespace}</>,
-  },
-  {
     header: "POD SELECTOR",
     width: "30%",
     accessor: (policy: NetworkPolicy) => {

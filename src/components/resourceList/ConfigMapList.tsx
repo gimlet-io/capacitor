@@ -10,11 +10,6 @@ export const configMapColumns = [
     title: (configMap: ConfigMap) => configMap.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "20%",
-    accessor: (configMap: ConfigMap) => <>{configMap.metadata.namespace}</>,
-  },
-  {
     header: "DATA",
     width: "15%",
     accessor: (configMap: ConfigMap) => {

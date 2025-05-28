@@ -32,11 +32,6 @@ export const daemonSetColumns = [
     title: (daemonSet: DaemonSet) => daemonSet.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "15%",
-    accessor: (daemonSet: DaemonSet) => <>{daemonSet.metadata.namespace}</>,
-  },
-  {
     header: "DESIRED",
     width: "10%",
     accessor: (daemonSet: DaemonSet) => <>{daemonSet.status.desiredNumberScheduled}</>,

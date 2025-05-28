@@ -26,11 +26,6 @@ export const roleBindingColumns = [
     title: (roleBinding: RoleBinding) => roleBinding.metadata.name,
   },
   {
-    header: "NAMESPACE",
-    width: "15%",
-    accessor: (roleBinding: RoleBinding) => <>{roleBinding.metadata.namespace}</>,
-  },
-  {
     header: "ROLE",
     width: "30%",
     accessor: (roleBinding: RoleBinding) => {
