@@ -1,0 +1,131 @@
+import { JSX } from "solid-js";
+import type { PersistentVolume } from "../../types/k8s.ts";
+import { Filter } from "../filterBar/FilterBar.tsx";
+
+// Helper function to determine PV status with appropriate styling
+function getPVStatusComponent(pv: PersistentVolume): { element: JSX.Element, title: string } {
+  const phase = pv.status?.phase || "Unknown";
+  
+  let statusClass = "";
+  switch (phase) {
+    case "Available":
+      statusClass = "text-success";
+      break;
+    case "Bound":
+      statusClass = "text-info";
+      break;
+    case "Released":
+      statusClass = "text-warning";
+      break;
+    case "Failed":
+      statusClass = "text-danger";
+      break;
+    default:
+      statusClass = "text-secondary";
+  }
+  
+  return {
+    element: <span class={statusClass}>{phase}</span>,
+    title: `Status: ${phase}${pv.status?.message ? ` - ${pv.status.message}` : ''}`
+  };
+}
+
+// Define the columns for the PersistentVolume resource list
+export const pvColumns = [
+  {
+    header: "NAME",
+    width: "20%",
+    accessor: (pv: PersistentVolume) => <>{pv.metadata.name}</>,
+    title: (pv: PersistentVolume) => pv.metadata.name,
+  },
+  {
+    header: "CAPACITY",
+    width: "10%",
+    accessor: (pv: PersistentVolume) => {
+      const capacity = pv.spec.capacity?.storage || "-";
+      return <>{capacity}</>;
+    },
+  },
+  {
+    header: "ACCESS MODES",
+    width: "15%",
+    accessor: (pv: PersistentVolume) => {
+      const accessModes = pv.spec.accessModes || [];
+      return <>{accessModes.join(", ") || "-"}</>;
+    },
+    title: (pv: PersistentVolume) => {
+      const accessModes = pv.spec.accessModes || [];
+      return accessModes.join(", ") || "No access modes specified";
+    },
+  },
+  {
+    header: "RECLAIM POLICY",
+    width: "15%",
+    accessor: (pv: PersistentVolume) => <>{pv.spec.persistentVolumeReclaimPolicy || "Delete"}</>,
+  },
+  {
+    header: "STATUS",
+    width: "10%",
+    accessor: (pv: PersistentVolume) => getPVStatusComponent(pv).element,
+    title: (pv: PersistentVolume) => getPVStatusComponent(pv).title,
+  },
+  {
+    header: "CLAIM",
+    width: "15%",
+    accessor: (pv: PersistentVolume) => {
+      // In a real implementation, we'd parse this from the claimRef
+      return <>-</>;
+    },
+  },
+  {
+    header: "STORAGE CLASS",
+    width: "15%",
+    accessor: (pv: PersistentVolume) => <>{pv.spec.storageClassName || "-"}</>,
+  },
+  {
+    header: "AGE",
+    width: "10%",
+    accessor: (pv: PersistentVolume) => {
+      if (!pv.metadata.creationTimestamp) return <>N/A</>;
+      const startTime = new Date(pv.metadata.creationTimestamp);
+      const now = new Date();
+      const diff = now.getTime() - startTime.getTime();
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+      );
+      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
+    },
+  },
+];
+
+// Filter for PV based on its status phase
+export const pvPhaseFilter: Filter = {
+  name: "pvPhase",
+  label: "Status",
+  options: [
+    { value: "Available", label: "Available" },
+    { value: "Bound", label: "Bound" },
+    { value: "Released", label: "Released" },
+    { value: "Failed", label: "Failed" },
+  ],
+  filterFunction: (pv: PersistentVolume, value: string) => {
+    const phase = pv.status?.phase || "Unknown";
+    return phase === value;
+  },
+};
+
+// Filter for PV based on reclaim policy
+export const pvReclaimPolicyFilter: Filter = {
+  name: "pvReclaimPolicy",
+  label: "Reclaim Policy",
+  options: [
+    { value: "Delete", label: "Delete" },
+    { value: "Retain", label: "Retain" },
+    { value: "Recycle", label: "Recycle" },
+  ],
+  filterFunction: (pv: PersistentVolume, value: string) => {
+    const policy = pv.spec.persistentVolumeReclaimPolicy || "Delete";
+    return policy === value;
+  },
+}; 

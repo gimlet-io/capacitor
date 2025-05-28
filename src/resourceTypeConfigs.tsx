@@ -17,6 +17,19 @@ import { kustomizationReadyFilter } from "./components/resourceList/Kustomizatio
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
 import { nodeColumns, nodeReadinessFilter, nodeRoleFilter } from "./components/resourceList/NodeList.tsx";
+import { configMapColumns, configMapDataFilter } from "./components/resourceList/ConfigMapList.tsx";
+import { secretColumns, secretTypeFilter } from "./components/resourceList/SecretList.tsx";
+import { pvcColumns, pvcStatusFilter, pvcStorageClassFilter } from "./components/resourceList/PersistentVolumeClaimList.tsx";
+import { daemonSetColumns, daemonSetReadinessFilter } from "./components/resourceList/DaemonSetList.tsx";
+import { namespaceColumns, namespaceStatusFilter } from "./components/resourceList/NamespaceList.tsx";
+import { jobColumns, jobStatusFilter } from "./components/resourceList/JobList.tsx";
+import { cronJobColumns, cronJobSuspendedFilter } from "./components/resourceList/CronJobList.tsx";
+import { hpaColumns, hpaStatusFilter } from "./components/resourceList/HorizontalPodAutoscalerList.tsx";
+import { pvColumns, pvPhaseFilter, pvReclaimPolicyFilter } from "./components/resourceList/PersistentVolumeList.tsx";
+import { roleColumns, roleVerbFilter } from "./components/resourceList/RoleList.tsx";
+import { roleBindingColumns, roleBindingSubjectKindFilter, roleBindingRoleKindFilter } from "./components/resourceList/RoleBindingList.tsx";
+import { serviceAccountColumns, serviceAccountAutomountFilter } from "./components/resourceList/ServiceAccountList.tsx";
+import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
 
 export interface Column<T> {
   header: string;
@@ -101,6 +114,118 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Node': {
     columns: nodeColumns,
     filter: [nodeReadinessFilter, nodeRoleFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'core/ConfigMap': {
+    columns: configMapColumns,
+    filter: [configMapDataFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'core/Secret': {
+    columns: secretColumns,
+    filter: [secretTypeFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'core/PersistentVolumeClaim': {
+    columns: pvcColumns,
+    filter: [pvcStatusFilter, pvcStorageClassFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'apps/DaemonSet': {
+    columns: daemonSetColumns,
+    filter: [daemonSetReadinessFilter],
+    commands: [
+      {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      ...builtInCommands
+    ]
+  },
+  
+  'core/Namespace': {
+    columns: namespaceColumns,
+    filter: [namespaceStatusFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'batch/Job': {
+    columns: jobColumns,
+    filter: [jobStatusFilter],
+    commands: [
+      {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      ...builtInCommands
+    ]
+  },
+  
+  'batch/CronJob': {
+    columns: cronJobColumns,
+    filter: [cronJobSuspendedFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'autoscaling/HorizontalPodAutoscaler': {
+    columns: hpaColumns,
+    filter: [hpaStatusFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'core/PersistentVolume': {
+    columns: pvColumns,
+    filter: [pvPhaseFilter, pvReclaimPolicyFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'rbac.authorization.k8s.io/Role': {
+    columns: roleColumns,
+    filter: [roleVerbFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'rbac.authorization.k8s.io/RoleBinding': {
+    columns: roleBindingColumns,
+    filter: [roleBindingSubjectKindFilter, roleBindingRoleKindFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'core/ServiceAccount': {
+    columns: serviceAccountColumns,
+    filter: [serviceAccountAutomountFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'networking.k8s.io/NetworkPolicy': {
+    columns: networkPolicyColumns,
+    filter: [networkPolicyTypeFilter],
     commands: [
       ...builtInCommands
     ]

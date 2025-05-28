@@ -681,4 +681,630 @@ export interface IngressList {
 
 export interface IngressWithResources extends Ingress {
   relatedServices: Service[];
+}
+
+export interface NodeCondition {
+  type: string;
+  status: string;
+  lastHeartbeatTime?: string;
+  lastTransitionTime?: string;
+  reason?: string;
+  message?: string;
+}
+
+export interface NodeAddress {
+  type: string;
+  address: string;
+}
+
+export interface NodeStatus {
+  conditions?: NodeCondition[];
+  addresses?: NodeAddress[];
+  phase?: string;
+  nodeInfo?: {
+    architecture: string;
+    bootID: string;
+    containerRuntimeVersion: string;
+    kernelVersion: string;
+    kubeProxyVersion: string;
+    kubeletVersion: string;
+    machineID: string;
+    operatingSystem: string;
+    osImage: string;
+    systemUUID: string;
+  };
+  capacity?: {
+    cpu?: string;
+    memory?: string;
+    pods?: string;
+    [key: string]: string | undefined;
+  };
+  allocatable?: {
+    cpu?: string;
+    memory?: string;
+    pods?: string;
+    [key: string]: string | undefined;
+  };
+}
+
+export interface NodeSpec {
+  podCIDR?: string;
+  podCIDRs?: string[];
+  providerID?: string;
+  unschedulable?: boolean;
+  taints?: {
+    key: string;
+    value: string;
+    effect: string;
+  }[];
+}
+
+export interface Node {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: NodeSpec;
+  status: NodeStatus;
+}
+
+export interface NodeList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: Node[];
+}
+
+export interface ConfigMap {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  data?: { [key: string]: string };
+  binaryData?: { [key: string]: string }; // base64 encoded
+}
+
+export interface ConfigMapList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: ConfigMap[];
+}
+
+export interface Secret {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  type?: string;
+  data?: { [key: string]: string }; // base64 encoded
+  stringData?: { [key: string]: string }; // not base64 encoded
+}
+
+export interface SecretList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: Secret[];
+}
+
+export interface PersistentVolumeClaimSpec {
+  accessModes?: string[];
+  resources?: {
+    requests?: {
+      storage?: string;
+    };
+    limits?: {
+      storage?: string;
+    };
+  };
+  storageClassName?: string;
+  volumeName?: string;
+  volumeMode?: string;
+  dataSource?: {
+    apiGroup?: string;
+    kind: string;
+    name: string;
+  };
+  selector?: {
+    matchLabels?: { [key: string]: string };
+    matchExpressions?: Array<{
+      key: string;
+      operator: string;
+      values?: string[];
+    }>;
+  };
+}
+
+export interface PersistentVolumeClaimStatus {
+  phase?: string;
+  accessModes?: string[];
+  capacity?: {
+    storage?: string;
+  };
+}
+
+export interface PersistentVolumeClaim {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: PersistentVolumeClaimSpec;
+  status?: PersistentVolumeClaimStatus;
+}
+
+export interface PersistentVolumeClaimList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: PersistentVolumeClaim[];
+}
+
+export interface DaemonSetSpec {
+  selector: {
+    matchLabels: { [key: string]: string };
+  };
+  template: {
+    metadata: ObjectMeta;
+    spec: PodSpec;
+  };
+  updateStrategy?: {
+    type?: string;
+    rollingUpdate?: {
+      maxUnavailable?: number | string;
+    };
+  };
+  minReadySeconds?: number;
+  revisionHistoryLimit?: number;
+}
+
+export interface DaemonSetStatus {
+  currentNumberScheduled: number;
+  desiredNumberScheduled: number;
+  numberMisscheduled: number;
+  numberReady: number;
+  updatedNumberScheduled?: number;
+  numberAvailable?: number;
+  numberUnavailable?: number;
+  observedGeneration?: number;
+}
+
+export interface DaemonSet {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: DaemonSetSpec;
+  status: DaemonSetStatus;
+}
+
+export interface DaemonSetList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: DaemonSet[];
+}
+
+// Namespace
+export interface NamespaceSpec {
+  finalizers?: string[];
+}
+
+export interface NamespaceStatus {
+  phase: string; // "Active", "Terminating"
+}
+
+export interface Namespace {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec?: NamespaceSpec;
+  status?: NamespaceStatus;
+}
+
+export interface NamespaceList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: Namespace[];
+}
+
+// Job
+export interface JobSpec {
+  parallelism?: number;
+  completions?: number;
+  activeDeadlineSeconds?: number;
+  backoffLimit?: number;
+  selector?: {
+    matchLabels?: { [key: string]: string };
+  };
+  template: {
+    metadata?: ObjectMeta;
+    spec: PodSpec;
+  };
+  ttlSecondsAfterFinished?: number;
+}
+
+export interface JobStatus {
+  active?: number;
+  succeeded?: number;
+  failed?: number;
+  completionTime?: string;
+  startTime?: string;
+  conditions?: Array<{
+    type: string;
+    status: string;
+    lastProbeTime?: string;
+    lastTransitionTime?: string;
+    reason?: string;
+    message?: string;
+  }>;
+}
+
+export interface Job {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: JobSpec;
+  status?: JobStatus;
+}
+
+export interface JobList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: Job[];
+}
+
+// CronJob
+export interface CronJobSpec {
+  schedule: string;
+  timeZone?: string;
+  startingDeadlineSeconds?: number;
+  concurrencyPolicy?: string; // "Allow", "Forbid", "Replace"
+  suspend?: boolean;
+  jobTemplate: {
+    metadata?: ObjectMeta;
+    spec: JobSpec;
+  };
+  successfulJobsHistoryLimit?: number;
+  failedJobsHistoryLimit?: number;
+}
+
+export interface CronJobStatus {
+  active?: Array<{
+    apiVersion?: string;
+    kind?: string;
+    name: string;
+    namespace: string;
+    uid?: string;
+  }>;
+  lastScheduleTime?: string;
+  lastSuccessfulTime?: string;
+}
+
+export interface CronJob {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: CronJobSpec;
+  status?: CronJobStatus;
+}
+
+export interface CronJobList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: CronJob[];
+}
+
+// HorizontalPodAutoscaler
+export interface HorizontalPodAutoscalerSpec {
+  scaleTargetRef: {
+    apiVersion: string;
+    kind: string;
+    name: string;
+  };
+  minReplicas?: number;
+  maxReplicas: number;
+  targetCPUUtilizationPercentage?: number;
+  metrics?: Array<{
+    type: string;
+    resource?: {
+      name: string;
+      target: {
+        type: string;
+        averageUtilization?: number;
+        averageValue?: string;
+        value?: string;
+      };
+    };
+    pods?: {
+      metric: {
+        name: string;
+      };
+      target: {
+        type: string;
+        averageValue: string;
+      };
+    };
+    object?: {
+      metric: {
+        name: string;
+      };
+      target: {
+        type: string;
+        value?: string;
+        averageValue?: string;
+      };
+      describedObject: {
+        kind: string;
+        name: string;
+        apiVersion?: string;
+      };
+    };
+    external?: {
+      metric: {
+        name: string;
+      };
+      target: {
+        type: string;
+        value?: string;
+        averageValue?: string;
+      };
+    };
+  }>;
+  behavior?: {
+    scaleUp?: {
+      stabilizationWindowSeconds?: number;
+      selectPolicy?: string;
+      policies?: Array<{
+        type: string;
+        value: number;
+        periodSeconds: number;
+      }>;
+    };
+    scaleDown?: {
+      stabilizationWindowSeconds?: number;
+      selectPolicy?: string;
+      policies?: Array<{
+        type: string;
+        value: number;
+        periodSeconds: number;
+      }>;
+    };
+  };
+}
+
+export interface HorizontalPodAutoscalerStatus {
+  observedGeneration?: number;
+  lastScaleTime?: string;
+  currentReplicas: number;
+  desiredReplicas: number;
+  currentCPUUtilizationPercentage?: number;
+  conditions?: Array<{
+    type: string;
+    status: string;
+    lastTransitionTime?: string;
+    reason?: string;
+    message?: string;
+  }>;
+}
+
+export interface HorizontalPodAutoscaler {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: HorizontalPodAutoscalerSpec;
+  status?: HorizontalPodAutoscalerStatus;
+}
+
+export interface HorizontalPodAutoscalerList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: HorizontalPodAutoscaler[];
+}
+
+// PersistentVolume
+export interface PersistentVolumeSpec {
+  capacity?: {
+    storage?: string;
+  };
+  accessModes?: string[];
+  persistentVolumeReclaimPolicy?: string; // "Retain", "Delete", "Recycle"
+  storageClassName?: string;
+  mountOptions?: string[];
+  volumeMode?: string; // "Filesystem", "Block"
+  nodeAffinity?: {
+    required?: {
+      nodeSelectorTerms: Array<{
+        matchExpressions?: Array<{
+          key: string;
+          operator: string;
+          values?: string[];
+        }>;
+        matchFields?: Array<{
+          key: string;
+          operator: string;
+          values?: string[];
+        }>;
+      }>;
+    };
+  };
+  // Various volume source types omitted for brevity
+}
+
+export interface PersistentVolumeStatus {
+  phase: string; // "Available", "Bound", "Released", "Failed"
+  message?: string;
+  reason?: string;
+}
+
+export interface PersistentVolume {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: PersistentVolumeSpec;
+  status?: PersistentVolumeStatus;
+}
+
+export interface PersistentVolumeList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: PersistentVolume[];
+}
+
+// Role
+export interface PolicyRule {
+  apiGroups?: string[];
+  resources?: string[];
+  resourceNames?: string[];
+  verbs: string[];
+  nonResourceURLs?: string[];
+}
+
+export interface Role {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  rules: PolicyRule[];
+}
+
+export interface RoleList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: Role[];
+}
+
+// RoleBinding
+export interface Subject {
+  kind: string;
+  name: string;
+  namespace?: string;
+  apiGroup?: string;
+}
+
+export interface RoleRef {
+  apiGroup: string;
+  kind: string;
+  name: string;
+}
+
+export interface RoleBinding {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  subjects: Subject[];
+  roleRef: RoleRef;
+}
+
+export interface RoleBindingList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: RoleBinding[];
+}
+
+// ServiceAccount
+export interface ServiceAccount {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  secrets?: Array<{
+    name?: string;
+  }>;
+  imagePullSecrets?: Array<{
+    name?: string;
+  }>;
+  automountServiceAccountToken?: boolean;
+}
+
+export interface ServiceAccountList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: ServiceAccount[];
+}
+
+// NetworkPolicy
+export interface NetworkPolicySpec {
+  podSelector: {
+    matchLabels?: { [key: string]: string };
+    matchExpressions?: Array<{
+      key: string;
+      operator: string;
+      values?: string[];
+    }>;
+  };
+  ingress?: Array<{
+    from?: Array<{
+      ipBlock?: {
+        cidr: string;
+        except?: string[];
+      };
+      namespaceSelector?: {
+        matchLabels?: { [key: string]: string };
+        matchExpressions?: Array<{
+          key: string;
+          operator: string;
+          values?: string[];
+        }>;
+      };
+      podSelector?: {
+        matchLabels?: { [key: string]: string };
+        matchExpressions?: Array<{
+          key: string;
+          operator: string;
+          values?: string[];
+        }>;
+      };
+    }>;
+    ports?: Array<{
+      protocol?: string;
+      port?: number | string;
+      endPort?: number;
+    }>;
+  }>;
+  egress?: Array<{
+    to?: Array<{
+      ipBlock?: {
+        cidr: string;
+        except?: string[];
+      };
+      namespaceSelector?: {
+        matchLabels?: { [key: string]: string };
+        matchExpressions?: Array<{
+          key: string;
+          operator: string;
+          values?: string[];
+        }>;
+      };
+      podSelector?: {
+        matchLabels?: { [key: string]: string };
+        matchExpressions?: Array<{
+          key: string;
+          operator: string;
+          values?: string[];
+        }>;
+      };
+    }>;
+    ports?: Array<{
+      protocol?: string;
+      port?: number | string;
+      endPort?: number;
+    }>;
+  }>;
+  policyTypes?: string[]; // "Ingress", "Egress"
+}
+
+export interface NetworkPolicy {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: NetworkPolicySpec;
+}
+
+export interface NetworkPolicyList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: NetworkPolicy[];
 } 
