@@ -1,7 +1,6 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount } from "solid-js";
 import { untrack } from "solid-js";
-import { KeyboardShortcuts, getFilterShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 
 export type FilterOption = {
   label: string;
@@ -634,13 +633,6 @@ export function FilterBar(props: {
             );
           }}
         </For>
-      </div>
-      
-      <div class="keyboard-shortcut-container">
-        <KeyboardShortcuts
-          shortcuts={getFilterShortcuts()}
-          resourceSelected={true}
-        />
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import { deploymentReadinessFilter } from "./components/resourceList/DeploymentL
 import { kustomizationReadyFilter } from "./components/resourceList/KustomizationList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
+import { nodeColumns, nodeReadinessFilter, nodeRoleFilter } from "./components/resourceList/NodeList.tsx";
 
 export interface Column<T> {
   header: string;
@@ -92,6 +93,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'networking.k8s.io/Ingress': {
     columns: ingressColumns,
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'core/Node': {
+    columns: nodeColumns,
+    filter: [nodeReadinessFilter, nodeRoleFilter],
     commands: [
       ...builtInCommands
     ]
