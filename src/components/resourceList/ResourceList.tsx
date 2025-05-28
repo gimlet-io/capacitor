@@ -390,6 +390,7 @@ export function ResourceList<T>(props: {
               {(resource, index) => {
                 const handleClick = () => {
                   setSelectedIndex(index());
+                  setSelectedResource(() => resource);
                   if (props.resourceTypeConfig.onItemClick) {
                     props.resourceTypeConfig.onItemClick(resource, navigate);
                   }

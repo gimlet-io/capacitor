@@ -208,6 +208,7 @@ func (h *WebSocketHandler) handleSubscribe(
 					log.Printf("Event channel closed for path: %s", msg.Path)
 					return
 				}
+				// log.Printf("Sending event %s: %s", time.Now().Format(time.StampMilli), event.Type)
 				h.sendDataMessage(ws, msg.ID, msg.Path, event)
 			case <-watchCtx.Done():
 				log.Printf("Watch context done for path: %s", msg.Path)
