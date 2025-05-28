@@ -71,6 +71,12 @@ export const navigateToApplication: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+// Define a command to switch to viewing pods in a namespace
+export const showPodsInNamespace: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View pods in this namespace", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
 // Define the centralized resource configurations
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
@@ -176,7 +182,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: namespaceColumns,
     filter: [namespaceStatusFilter],
     commands: [
-      ...builtInCommands
+      ...builtInCommands,
+      showPodsInNamespace
     ]
   },
   

@@ -3,7 +3,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, showPodsInNamespace } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -225,6 +225,19 @@ export function ResourceList<T>(props: {
             ...cmd,
             handler: (resource) => {
               navigate(`/application/${resource.metadata.namespace}/${resource.metadata.name}`);
+            }
+          };
+        } else if (cmd === showPodsInNamespace) {
+          commands[i] = {
+            ...cmd,
+            handler: (namespace) => {
+              // Update filters to show pods in the selected namespace
+              const newFilters = [
+                { name: 'ResourceType', value: 'core/Pod' },
+                { name: 'Namespace', value: namespace.metadata.name }
+              ];
+              
+              filterStore.setActiveFilters(newFilters);
             }
           };
         }
