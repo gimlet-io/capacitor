@@ -3,7 +3,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -213,6 +213,20 @@ export function ResourceList<T>(props: {
             ...cmd,
             handler: (resource) => openHelmDrawer(resource, "manifest")
           };
+        } else if (cmd === navigateToKustomization) {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => {
+              navigate(`/kustomization/${resource.metadata.namespace}/${resource.metadata.name}`);
+            }
+          };
+        } else if (cmd === navigateToApplication) {
+          commands[i] = {
+            ...cmd,
+            handler: (resource) => {
+              navigate(`/application/${resource.metadata.namespace}/${resource.metadata.name}`);
+            }
+          };
         }
       }
     }
@@ -302,9 +316,11 @@ export function ResourceList<T>(props: {
       });
       return;
     } else if (e.key === 'Enter') {
-      const index = selectedIndex();
-      if (index !== -1 && index < sortedResources().length && props.resourceTypeConfig.onItemClick) {
-        props.resourceTypeConfig.onItemClick(sortedResources()[index], navigate);
+      e.preventDefault();
+      // Find the Enter command
+      const enterCommand = findCommand('Enter', false);
+      if (enterCommand) {
+        executeCommand(enterCommand);
       }
       return;
     }
@@ -427,9 +443,6 @@ export function ResourceList<T>(props: {
                 const handleClick = () => {
                   setSelectedIndex(index());
                   setSelectedResource(() => resource);
-                  if (props.resourceTypeConfig.onItemClick) {
-                    props.resourceTypeConfig.onItemClick(resource, navigate);
-                  }
                 };
                 
                 return (
@@ -445,7 +458,9 @@ export function ResourceList<T>(props: {
                       ))}
                     </tr>
                     {props.resourceTypeConfig.detailRowRenderer && (
-                      <tr class={selectedIndex() === index() ? 'selected' : ''}>
+                      <tr class={selectedIndex() === index() ? 'selected' : ''}
+                        onClick={handleClick}
+                      >
                         {props.resourceTypeConfig.detailRowRenderer(resource)}
                       </tr>
                     )}

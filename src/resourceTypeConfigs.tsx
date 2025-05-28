@@ -48,7 +48,6 @@ export interface ResourceTypeConfig {
   detailRowRenderer?: (item: any) => JSX.Element;
   noSelectClass?: boolean;
   rowKeyField?: string;
-  onItemClick?: (item: any, navigate: any) => void;
   commands?: ResourceCommand[];
   filter?: Filter[];
   sortFunction?: (items: any[]) => any[];
@@ -59,6 +58,17 @@ export const namespaceColumn: Column<any> = {
   header: "NAMESPACE",
   width: "15%",
   accessor: (resource: any) => <>{resource.metadata.namespace}</>,
+};
+
+// Define navigation command placeholders that will be implemented in ResourceList
+export const navigateToKustomization: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View kustomization details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
+export const navigateToApplication: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View application details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
 };
 
 // Define the centralized resource configurations
@@ -262,15 +272,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     detailRowRenderer: renderKustomizationDetails,
     noSelectClass: true,
     rowKeyField: "name",
-    onItemClick: (kustomization, navigate) => {
-      navigate(`/kustomization/${kustomization.metadata.namespace}/${kustomization.metadata.name}`);
-    },
     commands: [
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile kustomization", isContextual: true },
         handler: handleReconcile
-      }
+      },
+      navigateToKustomization
     ],
     filter: [kustomizationReadyFilter]
   },
@@ -286,9 +294,9 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     detailRowRenderer: renderApplicationDetails,
     noSelectClass: true,
     rowKeyField: "name",
-    onItemClick: (application, navigate) => {
-      navigate(`/application/${application.metadata.namespace}/${application.metadata.name}`);
-    },
+    commands: [
+      navigateToApplication
+    ],
     filter: [argocdApplicationSyncFilter, argocdApplicationHealthFilter]
   }
 };
