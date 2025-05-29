@@ -198,6 +198,7 @@ export interface Kustomization {
     sourceRef: {
       kind: string;
       name: string;
+      namespace?: string;
     };
     interval: string;
     prune: boolean;

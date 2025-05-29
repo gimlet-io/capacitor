@@ -1,6 +1,5 @@
 import type { Kustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
-import { handleFluxReconcile } from "../../utils/fluxUtils.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 export const renderKustomizationDetails = (kustomization: Kustomization, columnCount = 4) => (
@@ -16,8 +15,6 @@ export const renderKustomizationDetails = (kustomization: Kustomization, columnC
     </div>
   </td>
 );
-
-export const handleKustomizationReconcile = handleFluxReconcile;
 
 export const kustomizationColumns = [
   {

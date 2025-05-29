@@ -1,6 +1,5 @@
 import type { Source } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
-import { fluxReadyFilter, handleFluxReconcile } from "../../utils/fluxUtils.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 // Type definition for Bucket since it's not in k8s.ts
@@ -45,9 +44,6 @@ export const renderBucketDetails = (bucket: Bucket, columnCount = 4) => (
     </div>
   </td>
 );
-
-// Reuse the generic reconcile function
-export const handleReconcile = handleFluxReconcile;
 
 export const bucketColumns = [
   {

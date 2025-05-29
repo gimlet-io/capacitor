@@ -344,19 +344,14 @@ export function KustomizationDetails() {
                   </div>
                   <div class="header-actions">
                     <button class="sync-button" onClick={() => {}}>Sync</button>
-                    <button class="refresh-button" onClick={() => {}}>Refresh</button>
                   </div>
                 </div>
 
                 <div class="header-info">
                   <div class="info-grid">
                     <div class="info-item">
-                      <span class="label">Namespace:</span>
-                      <span class="value">{metadata.namespace}</span>
-                    </div>
-                    <div class="info-item">
                       <span class="label">Source:</span>
-                      <span class="value">{spec.sourceRef.kind}/{spec.sourceRef.name}</span>
+                      <span class="value">{spec.sourceRef.kind}/{spec.sourceRef.namespace ? `${spec.sourceRef.namespace}/` : ''}{spec.sourceRef.name}</span>
                     </div>
                     <div class="info-item">
                       <span class="label">Path:</span>

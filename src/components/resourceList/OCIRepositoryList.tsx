@@ -1,6 +1,5 @@
 import type { OCIRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
-import { handleFluxReconcile } from "../../utils/fluxUtils.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 export const renderOCIRepositoryDetails = (ociRepository: OCIRepository, columnCount = 4) => (
@@ -33,8 +32,6 @@ export const renderOCIRepositoryDetails = (ociRepository: OCIRepository, columnC
     </div>
   </td>
 );
-
-export const handleReconcile = handleFluxReconcile;
 
 export const ociRepositoryColumns = [
   {

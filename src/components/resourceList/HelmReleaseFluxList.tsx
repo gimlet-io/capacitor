@@ -1,6 +1,5 @@
 import type { HelmRelease } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
-import { handleFluxReconcile } from "../../utils/fluxUtils.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
@@ -29,8 +28,6 @@ export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCou
     </div>
   </td>
 );
-
-export const handleReconcile = handleFluxReconcile;
 
 export const helmReleaseFluxColumns = [
   {

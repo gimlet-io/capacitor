@@ -1,6 +1,5 @@
 import type { GitRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
-import { handleFluxReconcile } from "../../utils/fluxUtils.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
 export const renderGitRepositoryDetails = (gitRepository: GitRepository, columnCount = 4) => (
@@ -27,8 +26,6 @@ export const renderGitRepositoryDetails = (gitRepository: GitRepository, columnC
     </div>
   </td>
 );
-
-export const handleReconcile = handleFluxReconcile;
 
 export const gitRepositoryColumns = [
   {

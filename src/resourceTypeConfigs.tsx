@@ -3,13 +3,13 @@ import { podColumns } from "./components/resourceList/PodList.tsx";
 import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx";
 import { serviceColumns } from "./components/ServiceList.tsx";
 import { ingressColumns } from "./components/resourceList/IngressList.tsx";
-import { kustomizationColumns, renderKustomizationDetails, handleKustomizationReconcile } from "./components/resourceList/KustomizationList.tsx";
-import { gitRepositoryColumns, renderGitRepositoryDetails, handleReconcile as handleGitRepositoryReconcile } from "./components/resourceList/GitRepositoryList.tsx";
-import { helmRepositoryColumns, renderHelmRepositoryDetails, handleReconcile as handleHelmRepositoryReconcile } from "./components/resourceList/HelmRepositoryList.tsx";
-import { ociRepositoryColumns, renderOCIRepositoryDetails, handleReconcile as handleOCIRepositoryReconcile } from "./components/resourceList/OCIRepositoryList.tsx";
-import { helmChartColumns, renderHelmChartDetails, handleReconcile as handleHelmChartReconcile } from "./components/resourceList/HelmChartList.tsx";
-import { helmReleaseFluxColumns, renderHelmReleaseFluxDetails, handleReconcile as handleHelmReleaseFluxReconcile } from "./components/resourceList/HelmReleaseFluxList.tsx";
-import { bucketColumns, renderBucketDetails, handleReconcile as handleBucketReconcile } from "./components/resourceList/BucketList.tsx";
+import { kustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
+import { gitRepositoryColumns, renderGitRepositoryDetails } from "./components/resourceList/GitRepositoryList.tsx";
+import { helmRepositoryColumns, renderHelmRepositoryDetails } from "./components/resourceList/HelmRepositoryList.tsx";
+import { ociRepositoryColumns, renderOCIRepositoryDetails } from "./components/resourceList/OCIRepositoryList.tsx";
+import { helmChartColumns, renderHelmChartDetails } from "./components/resourceList/HelmChartList.tsx";
+import { helmReleaseFluxColumns, renderHelmReleaseFluxDetails } from "./components/resourceList/HelmReleaseFluxList.tsx";
+import { bucketColumns, renderBucketDetails } from "./components/resourceList/BucketList.tsx";
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
 import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./components/resourceList/EventList.tsx";
@@ -35,7 +35,7 @@ import { roleBindingColumns, roleBindingSubjectKindFilter, roleBindingRoleKindFi
 import { serviceAccountColumns, serviceAccountAutomountFilter } from "./components/resourceList/ServiceAccountList.tsx";
 import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
 import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
-
+import { handleFluxReconcile } from "./utils/fluxUtils.tsx";
 export interface Column<T> {
   header: string;
   width: string;
@@ -288,7 +288,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile kustomization", isContextual: true },
-        handler: handleKustomizationReconcile
+        handler: handleFluxReconcile
       },
       navigateToKustomization
     ],
@@ -304,7 +304,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile GitRepository", isContextual: true },
-        handler: handleGitRepositoryReconcile
+        handler: handleFluxReconcile
       }
     ],
     filter: [fluxReadyFilter]
@@ -319,7 +319,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile HelmRepository", isContextual: true },
-        handler: handleHelmRepositoryReconcile
+        handler: handleFluxReconcile
       }
     ],
     filter: [fluxReadyFilter]
@@ -334,7 +334,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile HelmChart", isContextual: true },
-        handler: handleHelmChartReconcile
+        handler: handleFluxReconcile
       }
     ],
     filter: [fluxReadyFilter]
@@ -349,7 +349,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile OCIRepository", isContextual: true },
-        handler: handleOCIRepositoryReconcile
+        handler: handleFluxReconcile
       }
     ],
     filter: [fluxReadyFilter]
@@ -364,7 +364,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile Bucket", isContextual: true },
-        handler: handleBucketReconcile
+        handler: handleFluxReconcile
       }
     ],
     filter: [fluxReadyFilter]
@@ -379,7 +379,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile HelmRelease", isContextual: true },
-        handler: handleHelmReleaseFluxReconcile
+        handler: handleFluxReconcile
       }
     ],
     filter: [fluxReadyFilter]
