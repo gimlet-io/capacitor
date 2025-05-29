@@ -1,11 +1,20 @@
 package server
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,10 +28,17 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/portforward"
 	"k8s.io/kubectl/pkg/describe"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/transport/spdy"
+	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"sigs.k8s.io/yaml"
+
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 )
 
 // Server represents the API server
@@ -371,6 +387,65 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for diffing Flux Kustomization resources
+	s.echo.POST("/api/flux/diff", func(c echo.Context) error {
+		var req struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Verify required fields
+		if req.Name == "" || req.Namespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Name, and namespace are required fields",
+			})
+		}
+
+		clientset := s.k8sClient.Clientset
+		ctx := context.Background()
+
+		// Get the Kustomization resource
+		kustomizationPath := fmt.Sprintf("/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s", req.Namespace, req.Name)
+		kustomizationData, err := clientset.
+			RESTClient().
+			Get().
+			AbsPath(kustomizationPath).
+			DoRaw(ctx)
+		if err != nil {
+			log.Printf("Error getting Kustomization resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to get Kustomization resource: %v", err),
+			})
+		}
+
+		// Parse the Kustomization resource
+		var kustomization kustomizev1.Kustomization
+		if err := json.Unmarshal(kustomizationData, &kustomization); err != nil {
+			log.Printf("Error parsing Kustomization resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to parse Kustomization resource: %v", err),
+			})
+		}
+
+		// Generate the diff
+		diffResult, err := s.generateKustomizationDiff(ctx, &kustomization)
+		if err != nil {
+			log.Printf("Error generating diff: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to generate diff: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"result": diffResult,
+		})
+	})
+
 	// Add endpoint for scaling Kubernetes resources
 	s.echo.POST("/api/scale", func(c echo.Context) error {
 		var req struct {
@@ -608,6 +683,610 @@ func (s *Server) Setup() {
 	})
 }
 
+// generateKustomizationDiff generates a diff between the desired state (from source) and actual state (from cluster)
+func (s *Server) generateKustomizationDiff(ctx context.Context, kustomization *kustomizev1.Kustomization) (map[string]interface{}, error) {
+	sourceNamespace := kustomization.ObjectMeta.Namespace // Default to same namespace
+	if kustomization.Spec.SourceRef.Namespace != "" {
+		sourceNamespace = kustomization.Spec.SourceRef.Namespace
+	}
+
+	log.Printf("Generating diff for Kustomization %s/%s using source %s %s/%s at path %s",
+		kustomization.ObjectMeta.Namespace,
+		kustomization.ObjectMeta.Name,
+		kustomization.Spec.SourceRef.Kind,
+		sourceNamespace,
+		kustomization.Spec.SourceRef.Name,
+		kustomization.Spec.Path,
+	)
+
+	// Step 1: Get the source artifact and extract manifests
+	desiredResources, err := s.getDesiredResourcesFromSource(
+		ctx,
+		kustomization.Spec.SourceRef.Kind,
+		kustomization.Spec.SourceRef.Name,
+		sourceNamespace,
+		kustomization.Spec.Path,
+	)
+	if err != nil {
+		log.Printf("Error getting desired resources from source: %v", err)
+		return nil, fmt.Errorf("failed to get desired resources from source: %w", err)
+	}
+
+	// Step 2: Get actual resources from the cluster based on inventory
+	actualResources := make(map[string]map[string]interface{})
+	resourceErrors := []string{}
+
+	for _, entry := range kustomization.Status.Inventory.Entries {
+		id := entry.ID
+
+		// Parse the inventory ID format: namespace_name_group_kind
+		parts := strings.Split(id, "_")
+		if len(parts) < 4 {
+			log.Printf("Skipping inventory entry with invalid ID format: %s", id)
+			continue
+		}
+
+		resourceNamespace := parts[0]
+		resourceName := parts[1]
+		// parts[2] is the group (could be empty for core resources)
+		resourceKind := parts[len(parts)-1]
+
+		// Get the actual resource from the cluster
+		actualResource, err := s.getResourceFromCluster(ctx, resourceNamespace, resourceName, resourceKind)
+		if err != nil {
+			errorMsg := fmt.Sprintf("Error getting resource %s/%s of kind %s: %v", resourceNamespace, resourceName, resourceKind, err)
+			log.Printf(errorMsg)
+			resourceErrors = append(resourceErrors, errorMsg)
+			continue
+		}
+
+		// Create a unique key for the resource
+		resourceKey := fmt.Sprintf("%s/%s/%s", resourceNamespace, resourceKind, resourceName)
+		actualResources[resourceKey] = actualResource
+	}
+
+	if len(resourceErrors) > 0 {
+		log.Printf("Encountered %d errors while fetching cluster resources", len(resourceErrors))
+	}
+
+	// Step 3: Render resources as YAML
+	desiredYAML, actualYAML := s.renderResourcesAsYAML(desiredResources, actualResources)
+
+	result := map[string]interface{}{
+		"kustomization": kustomization.ObjectMeta.Name,
+		"namespace":     kustomization.ObjectMeta.Namespace,
+		"source":        fmt.Sprintf("%s/%s", kustomization.Spec.SourceRef.Kind, kustomization.Spec.SourceRef.Name),
+		"path":          kustomization.Spec.Path,
+		"desiredYAML":   desiredYAML,
+		"actualYAML":    actualYAML,
+	}
+
+	// Add resource errors if any occurred
+	if len(resourceErrors) > 0 {
+		result["resourceErrors"] = resourceErrors
+		result["resourceErrorCount"] = len(resourceErrors)
+	}
+
+	// Add inventory information for debugging
+	result["inventoryEntries"] = len(kustomization.Status.Inventory.Entries)
+
+	return result, nil
+}
+
+// getDesiredResourcesFromSource fetches the source artifact and applies kustomize transformations
+func (s *Server) getDesiredResourcesFromSource(ctx context.Context, sourceKind, sourceName, sourceNamespace, path string) (map[string]map[string]interface{}, error) {
+	// Step 1: Get the source resource to find the artifact
+	var sourceResource map[string]interface{}
+	var err error
+
+	switch strings.ToLower(sourceKind) {
+	case "gitrepository":
+		sourceResource, err = s.getGitRepository(ctx, sourceName, sourceNamespace)
+	case "ocirepository":
+		sourceResource, err = s.getOCIRepository(ctx, sourceName, sourceNamespace)
+	case "bucket":
+		sourceResource, err = s.getBucket(ctx, sourceName, sourceNamespace)
+	default:
+		return nil, fmt.Errorf("unsupported source kind: %s", sourceKind)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source resource: %w", err)
+	}
+
+	// Step 2: Extract artifact information
+	status, ok := sourceResource["status"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("source resource has no status")
+	}
+
+	artifact, ok := status["artifact"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("source resource has no artifact")
+	}
+
+	artifactURL, ok := artifact["url"].(string)
+	if !ok {
+		return nil, fmt.Errorf("artifact has no URL")
+	}
+
+	log.Printf("Fetching artifact from URL: %s", artifactURL)
+
+	// Step 3: Download and extract the artifact
+	tempDir, err := s.downloadAndExtractArtifact(ctx, artifactURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download and extract artifact: %w", err)
+	}
+	defer os.RemoveAll(tempDir) // Clean up
+
+	// Step 4: Apply kustomize transformations
+	kustomizePath := filepath.Join(tempDir, path)
+	if !filepath.IsAbs(path) {
+		kustomizePath = filepath.Join(tempDir, path)
+	}
+
+	log.Printf("Applying kustomize at path: %s", kustomizePath)
+
+	resources, err := s.applyKustomize(kustomizePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply kustomize: %w", err)
+	}
+
+	return resources, nil
+}
+
+// downloadAndExtractArtifact downloads and extracts a Flux source artifact
+func (s *Server) downloadAndExtractArtifact(ctx context.Context, artifactURL string) (string, error) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "flux-artifact-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	// Check if this is an internal cluster URL that needs port-forwarding
+	var actualURL string
+	var portForwardCleanup func()
+
+	// Look for typical source-controller internal URLs
+	isInternalSourceController := false
+
+	// Common source-controller URL patterns
+	patterns := []string{
+		"source-controller.flux-system.svc",
+		"source-controller.flux-system.svc.cluster.local",
+		"source-controller.flux-system",
+	}
+
+	for _, pattern := range patterns {
+		if strings.Contains(artifactURL, pattern) {
+			isInternalSourceController = true
+			break
+		}
+	}
+
+	if isInternalSourceController {
+		// This is an internal cluster URL, we need to set up port-forwarding
+		log.Printf("Detected internal cluster URL, setting up port-forwarding to source-controller")
+
+		localURL, cleanup, err := s.setupSourceControllerPortForward(ctx, artifactURL)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("failed to setup port-forwarding: %w", err)
+		}
+		actualURL = localURL
+		portForwardCleanup = cleanup
+		defer portForwardCleanup()
+	} else {
+		actualURL = artifactURL
+	}
+
+	log.Printf("Downloading artifact from URL: %s", actualURL)
+
+	// Download the artifact
+	req, err := http.NewRequestWithContext(ctx, "GET", actualURL, nil)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", fmt.Errorf("failed to download artifact: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		os.RemoveAll(tempDir)
+		return "", fmt.Errorf("failed to download artifact: HTTP %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", fmt.Errorf("failed to read artifact data: %w", err)
+	}
+
+	// Extract the tar.gz archive
+	err = s.extractTarGz(data, tempDir)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", fmt.Errorf("failed to extract artifact: %w", err)
+	}
+
+	return tempDir, nil
+}
+
+// extractTarGz extracts a tar.gz archive to the specified directory
+func (s *Server) extractTarGz(data []byte, destDir string) error {
+	// Create a gzip reader
+	gzReader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Create a tar reader
+	tarReader := tar.NewReader(gzReader)
+
+	// Extract files
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Construct the full path
+		path := filepath.Join(destDir, header.Name)
+
+		if header.Name != "." {
+			// Ensure the path is within the destination directory (security check)
+			if !strings.HasPrefix(path, filepath.Clean(destDir)+string(os.PathSeparator)) {
+				return fmt.Errorf("invalid file path: %s", header.Name)
+			}
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			// Create directory
+			err := os.MkdirAll(path, 0755)
+			if err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", path, err)
+			}
+		case tar.TypeReg:
+			// Create file
+			err := os.MkdirAll(filepath.Dir(path), 0755)
+			if err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %w", path, err)
+			}
+
+			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", path, err)
+			}
+
+			_, err = io.Copy(file, tarReader)
+			file.Close()
+			if err != nil {
+				return fmt.Errorf("failed to write file %s: %w", path, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// applyKustomize applies kustomize transformations to the manifests at the given path
+func (s *Server) applyKustomize(kustomizePath string) (map[string]map[string]interface{}, error) {
+	// Check if kustomization.yaml exists
+	kustomizationFile := filepath.Join(kustomizePath, "kustomization.yaml")
+	if _, err := os.Stat(kustomizationFile); os.IsNotExist(err) {
+		// Try kustomization.yml
+		kustomizationFile = filepath.Join(kustomizePath, "kustomization.yml")
+		if _, err := os.Stat(kustomizationFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("no kustomization.yaml or kustomization.yml found at %s", kustomizePath)
+		}
+	}
+
+	// Create a file system
+	fSys := filesys.MakeFsOnDisk()
+
+	// Create kustomize options
+	opts := krusty.MakeDefaultOptions()
+
+	// Create kustomizer
+	k := krusty.MakeKustomizer(opts)
+
+	// Run kustomize
+	resMap, err := k.Run(fSys, kustomizePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run kustomize: %w", err)
+	}
+
+	// Convert resources to map
+	resources := make(map[string]map[string]interface{})
+	for _, res := range resMap.Resources() {
+		// Get the resource as YAML
+		yamlData, err := res.AsYAML()
+		if err != nil {
+			log.Printf("Failed to convert resource to YAML: %v", err)
+			continue
+		}
+
+		// Parse YAML to map
+		var resourceMap map[string]interface{}
+		err = yaml.Unmarshal(yamlData, &resourceMap)
+		if err != nil {
+			log.Printf("Failed to parse resource YAML: %v", err)
+			continue
+		}
+
+		// Extract metadata
+		metadata, ok := resourceMap["metadata"].(map[string]interface{})
+		if !ok {
+			log.Printf("Resource has no metadata")
+			continue
+		}
+
+		name, ok := metadata["name"].(string)
+		if !ok {
+			log.Printf("Resource has no name")
+			continue
+		}
+
+		namespace, _ := metadata["namespace"].(string)
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		kind, ok := resourceMap["kind"].(string)
+		if !ok {
+			log.Printf("Resource has no kind")
+			continue
+		}
+
+		// Create a unique key for the resource
+		resourceKey := fmt.Sprintf("%s/%s/%s", namespace, kind, name)
+		resources[resourceKey] = resourceMap
+	}
+
+	return resources, nil
+}
+
+// renderResourcesAsYAML renders desired and actual resources as YAML strings
+// without normalization, keeping the original order and separating with YAML document separator
+func (s *Server) renderResourcesAsYAML(desired, actual map[string]map[string]interface{}) (string, string) {
+	var desiredYAML strings.Builder
+	var actualYAML strings.Builder
+
+	// Keep track of processed resources to maintain order
+	processed := make(map[string]bool)
+
+	// First render desired resources in their original order
+	for key, desiredResource := range desired {
+		if !processed[key] {
+			// Convert resource to YAML
+			resourceYAML, err := yaml.Marshal(desiredResource)
+			if err != nil {
+				log.Printf("Failed to marshal desired resource %s to YAML: %v", key, err)
+				continue
+			}
+
+			// Add document separator if not the first document
+			if desiredYAML.Len() > 0 {
+				desiredYAML.WriteString("\n---\n")
+			}
+
+			// Add the YAML content
+			desiredYAML.Write(resourceYAML)
+			processed[key] = true
+		}
+	}
+
+	// Reset processed map for actual resources
+	processed = make(map[string]bool)
+
+	// Render actual resources in same order as desired when possible
+	// First process resources that exist in both desired and actual
+	for key := range desired {
+		if actualResource, exists := actual[key]; exists && !processed[key] {
+			// Convert resource to YAML
+			resourceYAML, err := yaml.Marshal(actualResource)
+			if err != nil {
+				log.Printf("Failed to marshal actual resource %s to YAML: %v", key, err)
+				continue
+			}
+
+			// Add document separator if not the first document
+			if actualYAML.Len() > 0 {
+				actualYAML.WriteString("\n---\n")
+			}
+
+			// Add the YAML content
+			actualYAML.Write(resourceYAML)
+			processed[key] = true
+		}
+	}
+
+	// Then process resources that only exist in actual
+	for key, actualResource := range actual {
+		if _, exists := desired[key]; !exists && !processed[key] {
+			// Convert resource to YAML
+			resourceYAML, err := yaml.Marshal(actualResource)
+			if err != nil {
+				log.Printf("Failed to marshal actual resource %s to YAML: %v", key, err)
+				continue
+			}
+
+			// Add document separator if not the first document
+			if actualYAML.Len() > 0 {
+				actualYAML.WriteString("\n---\n")
+			}
+
+			// Add the YAML content
+			actualYAML.Write(resourceYAML)
+			processed[key] = true
+		}
+	}
+
+	return desiredYAML.String(), actualYAML.String()
+}
+
+// Helper functions to get source resources
+
+func (s *Server) getGitRepository(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s", namespace, name)
+	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+func (s *Server) getOCIRepository(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s", namespace, name)
+	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+func (s *Server) getBucket(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s", namespace, name)
+	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+// getResourceFromCluster retrieves a resource from the cluster
+func (s *Server) getResourceFromCluster(ctx context.Context, namespace, name, kind string) (map[string]interface{}, error) {
+	clientset := s.k8sClient.Clientset
+
+	// Try common resource types first with hardcoded paths for performance
+	var apiPath string
+	switch strings.ToLower(kind) {
+	case "deployment":
+		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/deployments/%s", namespace, name)
+	case "service":
+		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/services/%s", namespace, name)
+	case "configmap":
+		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/configmaps/%s", namespace, name)
+	case "secret":
+		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/secrets/%s", namespace, name)
+	case "ingress":
+		apiPath = fmt.Sprintf("/apis/networking.k8s.io/v1/namespaces/%s/ingresses/%s", namespace, name)
+	case "pod":
+		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s", namespace, name)
+	case "replicaset":
+		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/replicasets/%s", namespace, name)
+	case "daemonset":
+		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/daemonsets/%s", namespace, name)
+	case "statefulset":
+		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/statefulsets/%s", namespace, name)
+	case "job":
+		apiPath = fmt.Sprintf("/apis/batch/v1/namespaces/%s/jobs/%s", namespace, name)
+	case "cronjob":
+		apiPath = fmt.Sprintf("/apis/batch/v1/namespaces/%s/cronjobs/%s", namespace, name)
+	case "persistentvolumeclaim", "pvc":
+		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/persistentvolumeclaims/%s", namespace, name)
+	case "serviceaccount":
+		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/serviceaccounts/%s", namespace, name)
+	case "role":
+		apiPath = fmt.Sprintf("/apis/rbac.authorization.k8s.io/v1/namespaces/%s/roles/%s", namespace, name)
+	case "rolebinding":
+		apiPath = fmt.Sprintf("/apis/rbac.authorization.k8s.io/v1/namespaces/%s/rolebindings/%s", namespace, name)
+	case "networkpolicy":
+		apiPath = fmt.Sprintf("/apis/networking.k8s.io/v1/namespaces/%s/networkpolicies/%s", namespace, name)
+	default:
+		// For unknown resource types, try to discover the API path
+		discoveredPath, err := s.discoverResourceAPIPath(ctx, namespace, name, kind)
+		if err != nil {
+			return nil, fmt.Errorf("unsupported resource kind '%s' and failed to discover API path: %w", kind, err)
+		}
+		apiPath = discoveredPath
+	}
+
+	data, err := clientset.
+		RESTClient().
+		Get().
+		AbsPath(apiPath).
+		DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	if err := json.Unmarshal(data, &resource); err != nil {
+		return nil, err
+	}
+
+	return resource, nil
+}
+
+// discoverResourceAPIPath discovers the API path for a resource using the discovery client
+func (s *Server) discoverResourceAPIPath(ctx context.Context, namespace, name, kind string) (string, error) {
+	// Create a discovery client
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.k8sClient.Config)
+	if err != nil {
+		return "", fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	// Get all API resources
+	apiResourceLists, err := discoveryClient.ServerPreferredResources()
+	if err != nil {
+		return "", fmt.Errorf("failed to get API resources: %w", err)
+	}
+
+	// Search for the resource kind
+	for _, apiResourceList := range apiResourceLists {
+		for _, apiResource := range apiResourceList.APIResources {
+			if strings.EqualFold(apiResource.Kind, kind) {
+				// Found the resource, construct the API path
+				groupVersion := apiResourceList.GroupVersion
+
+				var apiPath string
+				if apiResource.Namespaced {
+					if groupVersion == "v1" {
+						// Core API group
+						apiPath = fmt.Sprintf("/api/v1/namespaces/%s/%s/%s", namespace, apiResource.Name, name)
+					} else {
+						// Named API group
+						apiPath = fmt.Sprintf("/apis/%s/namespaces/%s/%s/%s", groupVersion, namespace, apiResource.Name, name)
+					}
+				} else {
+					// Cluster-scoped resource
+					if groupVersion == "v1" {
+						apiPath = fmt.Sprintf("/api/v1/%s/%s", apiResource.Name, name)
+					} else {
+						apiPath = fmt.Sprintf("/apis/%s/%s/%s", groupVersion, apiResource.Name, name)
+					}
+				}
+
+				log.Printf("Discovered API path for %s: %s", kind, apiPath)
+				return apiPath, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("resource kind '%s' not found in cluster", kind)
+}
+
 // getResourceGVK gets the GroupVersionKind for a resource
 func (s *Server) getResourceGVK(kind, apiVersion string) (schema.GroupVersionKind, error) {
 	// Create a GVK with the provided apiVersion
@@ -707,4 +1386,101 @@ func (s *Server) Start() error {
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.echo.Shutdown(ctx)
+}
+
+// setupSourceControllerPortForward sets up port-forwarding to the source-controller
+func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactURL string) (string, func(), error) {
+	// Parse the original URL to extract the path
+	u, err := url.Parse(artifactURL)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	// Find an available local port
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find available port: %w", err)
+	}
+	localPort := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	// Get the source-controller pod
+	pods, err := s.k8sClient.Clientset.CoreV1().Pods("flux-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "app=source-controller",
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to list source-controller pods: %w", err)
+	}
+
+	if len(pods.Items) == 0 {
+		return "", nil, fmt.Errorf("no source-controller pods found")
+	}
+
+	podName := pods.Items[0].Name
+	log.Printf("Setting up port-forward to pod %s in namespace flux-system", podName)
+
+	// Create the port-forward request
+	req := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Namespace("flux-system").
+		Name(podName).
+		SubResource("portforward")
+
+	// Create SPDY transport
+	transport, upgrader, err := spdy.RoundTripperFor(s.k8sClient.Config)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create SPDY transport: %w", err)
+	}
+
+	// Create dialer
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, "POST", req.URL())
+
+	// Create channels for port-forwarding
+	stopChan := make(chan struct{}, 1)
+	readyChan := make(chan struct{}, 1)
+
+	// Create port-forwarder
+	ports := []string{fmt.Sprintf("%d:9090", localPort)} // Forward local port to source-controller port 9090
+	pf, err := portforward.New(dialer, ports, stopChan, readyChan, os.Stdout, os.Stderr)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create port-forwarder: %w", err)
+	}
+
+	// Start port-forwarding in a goroutine
+	go func() {
+		if err := pf.ForwardPorts(); err != nil {
+			log.Printf("Port-forwarding error: %v", err)
+		}
+	}()
+
+	// Wait for port-forwarding to be ready
+	select {
+	case <-readyChan:
+		log.Printf("Port-forwarding ready on localhost:%d", localPort)
+	case <-time.After(10 * time.Second):
+		close(stopChan)
+		return "", nil, fmt.Errorf("timeout waiting for port-forwarding to be ready")
+	}
+
+	// Extract the artifact path from the URL - this is everything after the hostname and port
+	// Example: "/gitrepository/flux-system/podinfo/b07046644566291cf282070670ba0f99e76e9a7e.tar.gz"
+	artifactPath := u.Path
+
+	// Ensure we have all query parameters
+	queryString := ""
+	if u.RawQuery != "" {
+		queryString = "?" + u.RawQuery
+	}
+
+	// Create the local URL
+	localURL := fmt.Sprintf("http://localhost:%d%s%s", localPort, artifactPath, queryString)
+	log.Printf("Transformed URL from %s to %s", artifactURL, localURL)
+
+	// Return cleanup function
+	cleanup := func() {
+		log.Printf("Stopping port-forward to source-controller")
+		close(stopChan)
+	}
+
+	return localURL, cleanup, nil
 }

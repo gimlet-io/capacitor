@@ -16,7 +16,8 @@ import { getHumanReadableStatus } from "../utils/conditions.ts";
 import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
-import { handleFluxReconcile, handleFluxSuspend } from "../utils/fluxUtils.tsx";
+import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
+import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -39,6 +40,11 @@ export function KustomizationDetails() {
   const [watchControllers, setWatchControllers] = createSignal<
     AbortController[]
   >([]);
+
+  // Diff drawer state
+  const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
+  const [diffData, setDiffData] = createSignal<any>(null);
+  const [diffLoading, setDiffLoading] = createSignal(false);
 
   // Set up watches when component mounts or params change
   createEffect(() => {
@@ -337,6 +343,22 @@ export function KustomizationDetails() {
                     </div>
                   </div>
                   <div class="header-actions">
+                    <button class="sync-button" onClick={async () => {
+                      if (!k()) return;
+                      
+                      setDiffLoading(true);
+                      setDiffDrawerOpen(true);
+                      
+                      try {
+                        const result = await handleFluxDiff(k());
+                        setDiffData(result);
+                      } catch (error) {
+                        console.error("Failed to generate diff:", error);
+                        setDiffData(null);
+                      } finally {
+                        setDiffLoading(false);
+                      }
+                    }}>Diff</button>
                     <button class="sync-button" onClick={() => handleFluxReconcile(k())}>Reconcile</button>
                     {k().spec.suspend ? (
                       <button 
@@ -403,6 +425,21 @@ export function KustomizationDetails() {
             </>
           );
         }}
+      </Show>
+      
+      {/* Diff Drawer */}
+      <Show when={diffDrawerOpen()}>
+        <DiffDrawer
+          resource={kustomization()!}
+          diffData={diffData()}
+          isOpen={diffDrawerOpen()}
+          onClose={() => {
+            setDiffDrawerOpen(false);
+            setDiffData(null);
+            setDiffLoading(false);
+          }}
+          loading={diffLoading()}
+        />
       </Show>
     </div>
   );

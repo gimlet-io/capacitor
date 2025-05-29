@@ -125,4 +125,30 @@ export async function handleFluxSuspend(resource: FluxResource, suspend: boolean
     console.error(`Error ${suspend ? 'suspending' : 'resuming'} resource:`, error);
     throw error;
   }
+}
+
+export async function handleFluxDiff(resource: any): Promise<any> {
+  try {
+    const response = await fetch("/api/flux/diff", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: resource.metadata.name,
+        namespace: resource.metadata.namespace,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.result;
+  } catch (error) {
+    console.error("Error generating diff:", error);
+    throw error;
+  }
 } 

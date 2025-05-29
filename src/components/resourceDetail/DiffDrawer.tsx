@@ -1,0 +1,400 @@
+// deno-lint-ignore-file jsx-button-has-type
+import {
+  createEffect,
+  createSignal,
+  onCleanup,
+  Show,
+  For,
+} from "solid-js";
+import type { Kustomization } from "../../types/k8s.ts";
+import { parse as parseYAML, stringify as stringifyYAML } from "@std/yaml";
+
+// Updated interface for the new YAML-based diff result
+interface DiffResult {
+  kustomization: string;
+  namespace: string;
+  source: string;
+  path: string;
+  desiredYAML: string;
+  actualYAML: string;
+  resourceErrors?: string[];
+  resourceErrorCount?: number;
+  inventoryEntries?: number;
+}
+
+export function DiffDrawer(props: {
+  resource: Kustomization;
+  diffData: DiffResult | null;
+  isOpen: boolean;
+  onClose: () => void;
+  loading: boolean;
+}) {
+  let contentRef: HTMLDivElement | undefined;
+
+  // Create a state variable for the diff content
+  const [diffContent, setDiffContent] = createSignal<string[]>([]);
+  // Create a state for normalization toggle
+  const [normalizeResources, setNormalizeResources] = createSignal<boolean>(true);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      props.onClose();
+    }
+  };
+
+  // Focus management
+  createEffect(() => {
+    if (props.isOpen) {
+      setTimeout(() => contentRef?.focus(), 50);
+      document.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.removeEventListener("keydown", handleKeyDown);
+    }
+  });
+
+  onCleanup(() => {
+    document.removeEventListener("keydown", handleKeyDown);
+  });
+  
+  // Generate diff when diffData or normalization settings change
+  createEffect(() => {
+    if (props.diffData) {
+      let fromYAML = props.diffData.actualYAML;
+      let toYAML = props.diffData.desiredYAML;
+      
+      if (normalizeResources()) {
+        // Normalize the resources before diffing
+        fromYAML = normalizeK8sResources(props.diffData.actualYAML);
+        toYAML = normalizeK8sResources(props.diffData.desiredYAML);
+      }
+      
+      console.log("fromYAML", fromYAML);
+      console.log("toYAML", toYAML);
+
+      const fromLines = fromYAML.split("\n");
+      const toLines = toYAML.split("\n");
+      
+      // Always use full view mode with context=-1
+      setDiffContent(generateFullDiff(fromLines, toLines));
+    }
+  });
+  
+  // Toggle normalization
+  const toggleNormalization = () => {
+    setNormalizeResources(!normalizeResources());
+  };
+  
+  // Function to normalize Kubernetes resources YAML
+  const normalizeK8sResources = (yamlString: string): string => {
+    if (!yamlString) return yamlString;
+    
+    try {
+      // Parse YAML string to document array
+      const documents = parseYAMLDocuments(yamlString);
+      if (!documents || documents.length === 0) return yamlString;
+      
+      // Normalize each document
+      const normalizedDocs = documents.map(doc => normalizeResource(doc));
+      
+      // Serialize back to YAML
+      return serializeYAMLDocuments(normalizedDocs);
+    } catch (error) {
+      console.error("Error normalizing resources:", error);
+      return yamlString;
+    }
+  };
+  
+  // Parse YAML string into array of documents
+  const parseYAMLDocuments = (yamlString: string): any[] => {
+    const documents: any[] = [];
+    const docStrings = yamlString.split(/^---$/m).filter(doc => doc.trim());
+    
+    for (const docString of docStrings) {
+      try {
+        // Use proper YAML parser
+        const doc = parseYAML(docString);
+        documents.push(doc);
+      } catch (e) {
+        // If parsing fails, try to keep the original string
+        documents.push(docString);
+      }
+    }
+    
+    return documents;
+  };
+  
+  // Serialize documents back to YAML
+  const serializeYAMLDocuments = (documents: any[]): string => {
+    return documents.map(doc => {
+      if (typeof doc === 'string') return doc;
+      try {
+        return stringifyYAML(doc);
+      } catch (e) {
+        // Fallback to JSON if YAML stringification fails
+        return JSON.stringify(doc, null, 2);
+      }
+    }).join("\n---\n");
+  };
+  
+  // Normalize resource to remove fields that are expected to differ
+  const normalizeResource = (resource: any): any => {
+    // Skip normalization if resource is not an object or is a string
+    if (typeof resource !== 'object' || resource === null || typeof resource === 'string') {
+      return resource;
+    }
+    
+    try {
+      // Create a deep copy
+      const normalized = JSON.parse(JSON.stringify(resource));
+      
+      // Remove metadata fields that are managed by Kubernetes
+      if (normalized.metadata) {
+        delete normalized.metadata.resourceVersion;
+        delete normalized.metadata.uid;
+        delete normalized.metadata.generation;
+        delete normalized.metadata.creationTimestamp;
+        delete normalized.metadata.managedFields;
+        delete normalized.metadata.selfLink;
+        delete normalized.metadata.finalizers; // Often managed by controllers
+        
+        // Remove annotations that are managed by Flux/Kubernetes
+        if (normalized.metadata.annotations) {
+          delete normalized.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"];
+          delete normalized.metadata.annotations["kustomize.toolkit.fluxcd.io/checksum"];
+          delete normalized.metadata.annotations["kustomize.toolkit.fluxcd.io/reconcile"];
+          delete normalized.metadata.annotations["deployment.kubernetes.io/revision"];
+          delete normalized.metadata.annotations["control-plane.alpha.kubernetes.io/leader"];
+          
+          // Remove empty annotations map
+          if (Object.keys(normalized.metadata.annotations).length === 0) {
+            delete normalized.metadata.annotations;
+          }
+        }
+        
+        // Remove labels that are often managed by controllers
+        if (normalized.metadata.labels) {
+          delete normalized.metadata.labels["pod-template-hash"];
+          delete normalized.metadata.labels["controller-revision-hash"];
+          delete normalized.metadata.labels["kustomize.toolkit.fluxcd.io/name"];
+          delete normalized.metadata.labels["kustomize.toolkit.fluxcd.io/namespace"];
+
+          // Remove empty labels map
+          if (Object.keys(normalized.metadata.labels).length === 0) {
+            delete normalized.metadata.labels;
+          }
+        }
+      }
+      
+      // Remove status field as it's managed by Kubernetes
+      delete normalized.status;
+      
+      // Remove spec fields that are often managed by controllers
+      if (normalized.spec) {
+        // For Services, remove clusterIP and other auto-assigned fields
+        if (normalized.kind === "Service") {
+          delete normalized.spec.clusterIP;
+          delete normalized.spec.clusterIPs;
+        }
+        
+        // For PersistentVolumeClaims, remove volumeName if auto-provisioned
+        if (normalized.kind === "PersistentVolumeClaim") {
+          delete normalized.spec.volumeName;
+        }
+      }
+      
+      return normalized;
+    } catch (error) {
+      console.error("Error normalizing resource:", error);
+      return resource; // Return original if normalization fails
+    }
+  };
+    // Generate a full diff showing the entire document with changes
+  const generateFullDiff = (oldLines: string[], newLines: string[]): string[] => {
+    // First find the differences using LCS
+    const diffs = findDifferences(oldLines, newLines);
+    const result: string[] = [];
+    
+    // Generate the diff output
+    diffs.forEach(diff => {
+      if (diff.type === 'match') {
+        result.push(` ${diff.value}`);
+      } else if (diff.type === 'add') {
+        result.push(`+${diff.value}`);
+      } else if (diff.type === 'remove') {
+        result.push(`-${diff.value}`);
+      }
+    });
+    
+    return result;
+  };
+  
+  // Find differences between two arrays of lines
+  interface DiffItem {
+    type: 'match' | 'add' | 'remove';
+    value: string;
+  }
+  
+  const findDifferences = (oldLines: string[], newLines: string[]): DiffItem[] => {
+    const result: DiffItem[] = [];
+    const lcs = computeLCS(oldLines, newLines);
+    
+    let oldIndex = 0;
+    let newIndex = 0;
+    let lcsIndex = 0;
+    
+    while (oldIndex < oldLines.length || newIndex < newLines.length) {
+      // Check if the current line from both arrays is in the LCS
+      if (lcsIndex < lcs.length && 
+          oldIndex < oldLines.length && 
+          newIndex < newLines.length && 
+          oldLines[oldIndex] === lcs[lcsIndex] && 
+          newLines[newIndex] === lcs[lcsIndex]) {
+        // Both lines match and are in the LCS
+        result.push({ type: 'match', value: oldLines[oldIndex] });
+        oldIndex++;
+        newIndex++;
+        lcsIndex++;
+      } else if (oldIndex < oldLines.length && 
+                (lcsIndex >= lcs.length || 
+                 oldLines[oldIndex] !== lcs[lcsIndex])) {
+        // Line from oldLines is not in LCS - it was removed
+        result.push({ type: 'remove', value: oldLines[oldIndex] });
+        oldIndex++;
+      } else if (newIndex < newLines.length && 
+                (lcsIndex >= lcs.length || 
+                 newLines[newIndex] !== lcs[lcsIndex])) {
+        // Line from newLines is not in LCS - it was added
+        result.push({ type: 'add', value: newLines[newIndex] });
+        newIndex++;
+      }
+    }
+    
+    return result;
+  };
+  
+  // Compute Longest Common Subsequence
+  const computeLCS = (a: string[], b: string[]): string[] => {
+    const m = a.length;
+    const n = b.length;
+    
+    // Create length table
+    const lengths: number[][] = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+    
+    // Fill the lengths table
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < n; j++) {
+        if (a[i] === b[j]) {
+          lengths[i + 1][j + 1] = lengths[i][j] + 1;
+        } else {
+          lengths[i + 1][j + 1] = Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+        }
+      }
+    }
+    
+    // Build the LCS
+    const result: string[] = [];
+    let i = m, j = n;
+    while (i > 0 && j > 0) {
+      if (a[i - 1] === b[j - 1]) {
+        result.unshift(a[i - 1]);
+        i--;
+        j--;
+      } else if (lengths[i][j - 1] > lengths[i - 1][j]) {
+        j--;
+      } else {
+        i--;
+      }
+    }
+    
+    return result;
+  };
+
+  return (
+    <Show when={props.isOpen}>
+      <div class="resource-drawer-backdrop" onClick={props.onClose}>
+        <div class="resource-drawer" onClick={(e) => e.stopPropagation()}>
+          <div class="resource-drawer-header">
+            <div class="drawer-title">
+              Diff: {props.resource?.metadata.name}
+              <Show when={props.diffData}>
+                <div class="diff-info">
+                  <span class="source-info">
+                    Source: {props.diffData?.source || ''} | Path: {props.diffData?.path || ''}
+                  </span>
+                </div>
+              </Show>
+            </div>
+            <button class="drawer-close" onClick={props.onClose}>×</button>
+          </div>
+          
+          <div class="drawer-content" ref={contentRef} tabIndex={0} style="outline: none;">
+            <Show 
+              when={!props.loading} 
+              fallback={
+                <div class="drawer-loading">
+                  <div class="loading-spinner"></div>
+                  <p>Generating diff...</p>
+                </div>
+              }
+            >
+              <Show 
+                when={props.diffData} 
+                fallback={
+                  <div class="no-data">
+                    <p>No diff data available</p>
+                  </div>
+                }
+              >
+                <div class="logs-controls">
+                  <div class="logs-options-row">
+                    <div class="logs-follow-controls">
+                      <label title="Normalize Kubernetes resources to hide fields that are expected to differ">
+                        <input
+                          type="checkbox"
+                          checked={normalizeResources()}
+                          onChange={toggleNormalization}
+                        />
+                        Normalize resources (hide auto-generated fields)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="diff-content patch-diff">
+                  <pre class="diff-patch" style="margin: 0; padding: 8px; width: 100%; overflow: auto;">
+                    {diffContent().map((line: string) => {
+                      let className = '';
+                      if (line.startsWith('+')) {
+                        className = 'diff-line-added';
+                      } else if (line.startsWith('-')) {
+                        className = 'diff-line-removed';
+                      } else if (line.startsWith(' ')) {
+                        className = 'diff-line-info';
+                      }
+                      
+                      return <div class={className}>{line}</div>;
+                    })}
+                  </pre>
+                </div>
+
+                <Show when={props.diffData?.resourceErrors && props.diffData.resourceErrors.length > 0}>
+                  <div class="resource-errors">
+                    <h4>Errors ({props.diffData?.resourceErrorCount || 0})</h4>
+                    <ul>
+                      <For each={props.diffData?.resourceErrors || []}>
+                        {(error) => (
+                          <li class="error-item">{error}</li>
+                        )}
+                      </For>
+                    </ul>
+                  </div>
+                </Show>
+              </Show>
+            </Show>
+          </div>
+        </div>
+      </div>
+    </Show>
+  );
+} 
