@@ -16,7 +16,8 @@ import { getHumanReadableStatus } from "../utils/conditions.ts";
 import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
-import { handleFluxReconcile } from "../utils/fluxUtils.tsx";
+import { handleFluxReconcile, handleFluxSuspend } from "../utils/fluxUtils.tsx";
+
 export function KustomizationDetails() {
   const params = useParams();
   const navigate = useNavigate();
@@ -337,6 +338,32 @@ export function KustomizationDetails() {
                   </div>
                   <div class="header-actions">
                     <button class="sync-button" onClick={() => handleFluxReconcile(k())}>Reconcile</button>
+                    {k().spec.suspend ? (
+                      <button 
+                        class="sync-button resume"
+                        style={{ "background-color": "#188038", "color": "white" }}
+                        onClick={() => {
+                          handleFluxSuspend(k(), false) // Resume
+                            .catch(error => {
+                              console.error("Failed to resume kustomization:", error);
+                            });
+                        }}
+                      >
+                        <span style={{ "margin-right": "5px", "font-weight": "bold" }}>▶</span> Resume
+                      </button>
+                    ) : (
+                      <button 
+                        class="sync-button suspend"
+                        onClick={() => {
+                          handleFluxSuspend(k(), true) // Suspend
+                            .catch(error => {
+                              console.error("Failed to suspend kustomization:", error);
+                            });
+                        }}
+                      >
+                        <span style={{ "margin-right": "5px", "font-weight": "bold" }}>⏸</span> Suspend
+                      </button>
+                    )}
                   </div>
                 </div>
 

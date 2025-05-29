@@ -70,28 +70,59 @@ export const fluxReadyFilter: Filter = {
  * The backend API expects lowercase resource kinds in its lookup table,
  * though it has logic to handle capitalized resource kinds as well.
  */
-export const handleFluxReconcile = async (resource: FluxResource) => {
+export async function handleFluxReconcile(resource: FluxResource) {
   try {
-    // Convert the kind to lowercase to match the server's lookup table
-    const kind = resource.kind.toLowerCase();
-    
-    const response = await fetch("/api/flux/reconcile", {
-      method: "POST",
+    const response = await fetch('/api/flux/reconcile', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        kind,
+        kind: resource.kind,
         name: resource.metadata.name,
         namespace: resource.metadata.namespace,
       }),
     });
-    
+
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || `Failed to reconcile: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to reconcile resource');
     }
+
+    const data = await response.json();
+    console.log(data.message);
+    return data;
   } catch (error) {
-    console.error("Error reconciling resource:", error);
+    console.error('Error reconciling resource:', error);
+    throw error;
   }
-}; 
+}
+
+export async function handleFluxSuspend(resource: FluxResource, suspend: boolean = true) {
+  try {
+    const response = await fetch('/api/flux/suspend', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: resource.kind,
+        name: resource.metadata.name,
+        namespace: resource.metadata.namespace,
+        suspend: suspend,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to suspend resource');
+    }
+
+    const data = await response.json();
+    console.log(data.message);
+    return data;
+  } catch (error) {
+    console.error(`Error ${suspend ? 'suspending' : 'resuming'} resource:`, error);
+    throw error;
+  }
+} 

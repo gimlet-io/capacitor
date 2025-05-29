@@ -260,6 +260,117 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for suspending Flux resources
+	s.echo.POST("/api/flux/suspend", func(c echo.Context) error {
+		var req struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+			Suspend   bool   `json:"suspend"` // true to suspend, false to resume
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Verify required fields
+		if req.Kind == "" || req.Name == "" || req.Namespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Kind, name, and namespace are required fields",
+			})
+		}
+
+		// Get the Kubernetes client
+		clientset := s.k8sClient.Clientset
+
+		// Create a context
+		ctx := context.Background()
+
+		// Set the suspend field via patch operation
+		suspendValue := "true"
+		if !req.Suspend {
+			suspendValue = "false"
+		}
+
+		patchData := fmt.Sprintf(`{"spec":{"suspend":%s}}`, suspendValue)
+
+		var err error
+		var output string
+
+		// Normalize kind to lowercase for case-insensitive comparison
+		kind := req.Kind
+
+		// Map of supported Flux resource kinds to their API path
+		resourceAPIs := map[string]string{
+			"kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
+			"helmrelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
+			"gitrepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
+			"helmrepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
+			"helmchart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
+			"ocirepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
+			"bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
+			"imagepolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
+			"imagerepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
+			"imageupdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+		}
+
+		// Convert to lowercase for case-insensitive lookup
+		apiPath, found := resourceAPIs[kind]
+		if !found {
+			// Try with first letter capitalized for variants like "Kustomization" vs "kustomization"
+			if len(kind) > 0 {
+				lowercaseKind := kind
+				if 'A' <= kind[0] && kind[0] <= 'Z' {
+					lowercaseKind = string(kind[0]+'a'-'A') + kind[1:]
+				}
+
+				apiPath, found = resourceAPIs[lowercaseKind]
+				if !found {
+					return c.JSON(http.StatusBadRequest, map[string]string{
+						"error":          fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
+						"supportedKinds": "Supported kinds: kustomization, helmrelease, gitrepository, helmrepository, etc.",
+					})
+				}
+				kind = lowercaseKind
+			}
+		}
+
+		// Patch the resource to suspend or resume it
+		_, err = clientset.
+			RESTClient().
+			Patch(types.MergePatchType).
+			AbsPath(fmt.Sprintf(apiPath, req.Namespace, req.Name)).
+			Body([]byte(patchData)).
+			DoRaw(ctx)
+
+		if req.Suspend {
+			output = fmt.Sprintf("%s %s/%s suspended", kind, req.Namespace, req.Name)
+		} else {
+			output = fmt.Sprintf("%s %s/%s resumed", kind, req.Namespace, req.Name)
+		}
+
+		if err != nil {
+			log.Printf("Error suspending/resuming Flux resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error":     fmt.Sprintf("Failed to suspend/resume resource: %v", err),
+				"kind":      kind,
+				"name":      req.Name,
+				"namespace": req.Namespace,
+			})
+		}
+
+		actionType := "suspended"
+		if !req.Suspend {
+			actionType = "resumed"
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Successfully %s %s/%s", actionType, kind, req.Name),
+			"output":  output,
+		})
+	})
+
 	// Add endpoint for scaling Kubernetes resources
 	s.echo.POST("/api/scale", func(c echo.Context) error {
 		var req struct {
