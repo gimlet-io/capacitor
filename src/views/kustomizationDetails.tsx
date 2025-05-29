@@ -1,5 +1,5 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
+import { createEffect, createSignal, onCleanup, untrack, createMemo } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import type {
@@ -16,11 +16,13 @@ import { getHumanReadableStatus } from "../utils/conditions.ts";
 import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
-
+import { handleFluxReconcile } from "../utils/fluxUtils.tsx";
 export function KustomizationDetails() {
   const params = useParams();
   const navigate = useNavigate();
-  const filterStore = useFilterStore();
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const filterStore = useFilterStore(); // some odd thing in solidjs, the filterStore is not used in this component, but it is required to be imported
 
   // Initialize state for the specific kustomization and its related resources
   const [kustomization, setKustomization] = createSignal<Kustomization | null>(null);
@@ -304,15 +306,6 @@ export function KustomizationDetails() {
     <div class="kustomization-details">
       <Show when={kustomization()} fallback={<div class="loading">Loading...</div>}>
         {(k) => {
-          const kustomization = k();
-          const metadata = kustomization.metadata;
-          const spec = kustomization.spec;
-          const status = kustomization.status;
-          const conditions = status?.conditions || [];
-          const healthCondition = conditions.find(c => c.type === 'Ready');
-          const syncCondition = conditions.find(c => c.type === 'Reconciling');
-          const humanstatus = getHumanReadableStatus(kustomization.status?.conditions || []);
-
           return (
             <>
               <header class="kustomization-header">
@@ -321,29 +314,29 @@ export function KustomizationDetails() {
                     <button class="back-button" onClick={handleBackClick}>
                       <span class="icon">←</span> Back
                     </button>
-                    <h1>{metadata.name}</h1>
-                    <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
+                    <h1>{k().metadata.namespace}/{k().metadata.name}</h1>
+                    {/* <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
                       {watchStatus()}
-                    </span>
-                    <div class="status-badges">
-                      <span class={`health-badge ${healthCondition?.status.toLowerCase()}`}>
-                        {healthCondition?.status || 'Unknown'}
+                    </span> */}
+                    {/* <div class="status-badges">
+                      <span class={`health-badge ${k().status?.conditions?.find(c => c.type === 'Ready')?.status?.toLowerCase() || 'unknown'}`}>
+                        {k().status?.conditions?.find(c => c.type === 'Ready')?.status || 'Unknown'}
                       </span>
-                      <span class={`sync-badge ${syncCondition ? 'syncing' : 'idle'}`}>
-                        {syncCondition ? 'Syncing' : 'Idle'}
+                      <span class={`sync-badge ${k().status?.conditions?.find(c => c.type === 'Reconciling') ? 'syncing' : 'idle'}`}>
+                        {k().status?.conditions?.find(c => c.type === 'Reconciling') ? 'Syncing' : 'Idle'}
                       </span>
-                    </div>
+                    </div> */}
                     <div class="kustomization-status">
-                      <span class={`status-badge ${humanstatus.toLowerCase().replace(/[^a-z]/g, '-')}`}>
-                        {humanstatus}
+                      <span class={`status-badge ${getHumanReadableStatus(k().status?.conditions || []).toLowerCase().replace(/[^a-z]/g, '-')}`}>
+                        {getHumanReadableStatus(k().status?.conditions || [])}
                       </span>
-                      {kustomization.spec.suspend && (
+                      {k().spec.suspend && (
                         <span class="status-badge suspended">Suspended</span>
                       )}
                     </div>
                   </div>
                   <div class="header-actions">
-                    <button class="sync-button" onClick={() => {}}>Sync</button>
+                    <button class="sync-button" onClick={() => handleFluxReconcile(k())}>Reconcile</button>
                   </div>
                 </div>
 
@@ -351,26 +344,26 @@ export function KustomizationDetails() {
                   <div class="info-grid">
                     <div class="info-item">
                       <span class="label">Source:</span>
-                      <span class="value">{spec.sourceRef.kind}/{spec.sourceRef.namespace ? `${spec.sourceRef.namespace}/` : ''}{spec.sourceRef.name}</span>
+                      <span class="value">{k().spec.sourceRef.kind}/{k().spec.sourceRef.namespace ? `${k().spec.sourceRef.namespace}/` : ''}{k().spec.sourceRef.name}</span>
                     </div>
                     <div class="info-item">
                       <span class="label">Path:</span>
-                      <span class="value">{spec.path}</span>
+                      <span class="value">{k().spec.path}</span>
                     </div>
                     <div class="info-item">
                       <span class="label">Interval:</span>
-                      <span class="value">{spec.interval}</span>
+                      <span class="value">{k().spec.interval}</span>
                     </div>
-                    {status?.lastAppliedRevision && (
+                    {k().status?.lastAppliedRevision && (
                       <div class="info-item">
                         <span class="label">Revision:</span>
-                        <span class="value">{status.lastAppliedRevision}</span>
+                        <span class="value">{k().status?.lastAppliedRevision}</span>
                       </div>
                     )}
-                    {healthCondition?.message && (
+                    {k().status?.conditions?.find(c => c.type === 'Ready')?.message && (
                       <div class="info-item full-width">
                         <span class="label">Message:</span>
-                        <span class="value">{healthCondition.message}</span>
+                        <span class="value">{k().status?.conditions?.find(c => c.type === 'Ready')?.message}</span>
                       </div>
                     )}
                   </div>
