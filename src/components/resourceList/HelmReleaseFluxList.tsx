@@ -1,0 +1,89 @@
+import type { HelmRelease } from "../../types/k8s.ts";
+import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import { handleFluxReconcile } from "../../utils/fluxUtils.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
+
+export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
+  <td colSpan={columnCount}>
+    <div class="second-row">
+      <strong>Chart:</strong> {helmRelease.spec.chart.spec.chart} <br />
+      <strong>Source Ref:</strong> {helmRelease.spec.chart.spec.sourceRef.kind}/{helmRelease.spec.chart.spec.sourceRef.name} <br />
+      {helmRelease.spec.chart.spec.version && (
+        <>
+          <strong>Version:</strong> {helmRelease.spec.chart.spec.version} <br />
+        </>
+      )}
+      {helmRelease.spec.releaseName && (
+        <>
+          <strong>Release Name:</strong> {helmRelease.spec.releaseName} <br />
+        </>
+      )}
+      {helmRelease.spec.targetNamespace && (
+        <>
+          <strong>Target Namespace:</strong> {helmRelease.spec.targetNamespace} <br />
+        </>
+      )}
+      <strong>Interval:</strong> {helmRelease.spec.interval} <br />
+      <strong>Suspended:</strong>{" "}
+      {helmRelease.spec.suspend ? "True" : "False"}
+    </div>
+  </td>
+);
+
+export const handleReconcile = handleFluxReconcile;
+
+export const helmReleaseFluxColumns = [
+  {
+    header: "NAME",
+    width: "30%",
+    accessor: (helmRelease: HelmRelease) => (
+      <>{helmRelease.metadata.name}</>
+    ),
+    title: (helmRelease: HelmRelease) => helmRelease.metadata.name,
+  },
+  {
+    header: "AGE",
+    width: "5%",
+    accessor: (helmRelease: HelmRelease) =>
+      useCalculateAge(helmRelease.metadata.creationTimestamp || "")(),
+  },
+  {
+    header: "READY",
+    width: "20%",
+    accessor: (helmRelease: HelmRelease) => {
+      const readyCondition = helmRelease.status?.conditions?.find((c) =>
+        c.type === ConditionType.Ready
+      );
+      const reconcilingCondition = helmRelease.status?.conditions?.find((c) =>
+        c.type === ConditionType.Reconciling
+      );
+
+      return (
+        <div class="status-badges">
+          {readyCondition?.status === ConditionStatus.True && (
+            <span class="status-badge ready">Ready</span>
+          )}
+          {readyCondition?.status === ConditionStatus.False && (
+            <span class="status-badge not-ready">NotReady</span>
+          )}
+          {reconcilingCondition?.status === ConditionStatus.True && (
+            <span class="status-badge reconciling">Reconciling</span>
+          )}
+          {helmRelease.spec.suspend && (
+            <span class="status-badge suspended">Suspended</span>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    header: "STATUS",
+    width: "55%",
+    accessor: (helmRelease: HelmRelease) => {
+      const readyCondition = helmRelease.status?.conditions?.find((c) =>
+        c.type === ConditionType.Ready
+      );
+      return <div class="message-cell">{readyCondition?.message}</div>;
+    },
+  },
+];

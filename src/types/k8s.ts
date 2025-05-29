@@ -300,6 +300,36 @@ export interface HelmChart extends Source {
   };
 }
 
+export interface HelmRelease {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: {
+    chart: {
+      spec: {
+        chart: string;
+        version?: string;
+        sourceRef: {
+          kind: string;
+          name: string;
+          namespace?: string;
+        };
+      };
+    };
+    interval: string;
+    suspend?: boolean;
+    releaseName?: string;
+    targetNamespace?: string;
+    values?: any;
+  };
+  status?: {
+    conditions?: Condition[];
+    lastAppliedRevision?: string;
+    lastAttemptedRevision?: string;
+    helmChart?: string;
+  };
+}
+
 export interface GitRepository extends Source {
   spec: Source['spec'] & {
     url: string;

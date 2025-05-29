@@ -1,47 +1,10 @@
-import { useNavigate } from "@solidjs/router";
 import type { Kustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
-import { Filter } from "../filterBar/FilterBar.tsx";
+import { handleFluxReconcile } from "../../utils/fluxUtils.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
-export const kustomizationReadyFilter: Filter = {
-  name: "KustomizationReady",
-  label: "Ready",
-  type: "select",
-  options: [
-    {
-      label: "Ready",
-      value: ConditionStatus.True,
-      color: "var(--linear-green)",
-    },
-    {
-      label: "Not Ready",
-      value: ConditionStatus.False,
-      color: "var(--linear-red)",
-    },
-    {
-      label: "Unknown",
-      value: ConditionStatus.Unknown,
-      color: "var(--linear-text-tertiary)",
-    },
-    { label: "Suspended", value: "Suspended", color: "var(--linear-blue)" },
-  ],
-  multiSelect: true,
-  filterFunction: (kustomization: Kustomization, value: string) => {
-    if (value === "Suspended") {
-      if (kustomization.spec.suspend) return true;
-      else return false;
-    } else {
-      const readyCondition = kustomization.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      return readyCondition?.status === value;
-    }
-  },
-};
-
-export const renderKustomizationDetails = (kustomization: Kustomization) => (
-  <td colSpan={4}>
+export const renderKustomizationDetails = (kustomization: Kustomization, columnCount = 4) => (
+  <td colSpan={columnCount}>
     <div class="second-row">
       <strong>Source:</strong> {kustomization.spec.sourceRef.name} <br />
       <strong>Path:</strong> {kustomization.spec.path} <br />
@@ -54,28 +17,7 @@ export const renderKustomizationDetails = (kustomization: Kustomization) => (
   </td>
 );
 
-export const handleReconcile = async (kustomization: Kustomization) => {
-  try {
-    const response = await fetch("/api/flux/reconcile", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        kind: "kustomization",
-        name: kustomization.metadata.name,
-        namespace: kustomization.metadata.namespace,
-      }),
-    });
-    
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || `Failed to reconcile: ${response.statusText}`);
-    }
-  } catch (error) {
-    console.error("Error reconciling resource:", error);
-  }
-};
+export const handleKustomizationReconcile = handleFluxReconcile;
 
 export const kustomizationColumns = [
   {

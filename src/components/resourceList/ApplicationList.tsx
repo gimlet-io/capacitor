@@ -47,8 +47,8 @@ export const argocdApplicationHealthFilter: Filter = {
   },
 };
 
-export const renderApplicationDetails = (application: ArgoCDApplication) => (
-  <td colSpan={4}>
+export const renderApplicationDetails = (application: ArgoCDApplication, columnCount = 4) => (
+  <td colSpan={columnCount}>
     <div class="second-row">
       <strong>Source:</strong> {application.spec.source.repoURL} <br />
       <strong>Path:</strong> {application.spec.source.path} <br />

@@ -666,6 +666,13 @@ h1 {
     text-overflow: ellipsis;
 }
 
+/* Specific styles for status column to ensure proper wrapping */
+.resource-table td:last-child {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-all;
+}
+
 .resource-table tr.selected td {
     background-color: #262626; /* Almost black background */
     color: #ffffff; /* White text for contrast */
@@ -674,6 +681,8 @@ h1 {
 .resource-table .second-row {
   font-size: 12px;
   margin-left: 1rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .resource-list-container {
@@ -693,6 +702,10 @@ td.message-cell {
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: normal;
+  word-break: break-all;
+  max-width: 0; /* Force the cell to respect the table layout */
+  line-height: 1.4;
+  padding: 0.5rem 0.25rem;
 }
 
 /* View components - used in ViewBar.tsx */

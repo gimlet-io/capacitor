@@ -474,7 +474,7 @@ export function ResourceList<T>(props: {
                       <tr class={selectedIndex() === index() ? 'selected' : ''}
                         onClick={handleClick}
                       >
-                        {props.resourceTypeConfig.detailRowRenderer(resource)}
+                        {props.resourceTypeConfig.detailRowRenderer(resource, visibleColumns().length)}
                       </tr>
                     )}
                   </>
