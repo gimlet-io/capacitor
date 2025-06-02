@@ -163,6 +163,18 @@ func (s *Server) Setup() {
 		}
 		s.k8sProxy = k8sProxy
 
+		// Recreate the Helm client with the new context
+		helmClient, err := helm.NewClient(s.k8sClient.Config, "")
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Error recreating Helm client: %v", err),
+			})
+		}
+		s.helmClient = helmClient
+
+		// Update the WebSocket handler with the new clients
+		s.wsHandler.UpdateClients(s.k8sClient, s.helmClient)
+
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Switched to context %s", req.Context),
 			"context": req.Context,

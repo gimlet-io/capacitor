@@ -84,6 +84,12 @@ func NewWebSocketHandler(k8sClient *kubernetes.Client, helmClient *helm.Client) 
 	}
 }
 
+// UpdateClients updates the Kubernetes and Helm clients when the context changes
+func (h *WebSocketHandler) UpdateClients(k8sClient *kubernetes.Client, helmClient *helm.Client) {
+	h.k8sClient = k8sClient
+	h.helmClient = helmClient
+}
+
 // HandleWebSocket handles a WebSocket connection
 func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	// Upgrade the HTTP connection to a WebSocket connection
