@@ -141,17 +141,19 @@ export function ViewBar(props: ViewBarProps) {
   createEffect(() => {
     let view: View | undefined;
     const selectedViewId = filterStore.selectedView;
-    if (selectedViewId === filterStore.previousSelectedView) {
-      return;
-    }
-
+    
     untrack(() => {
-      view = views().find(v => v.id === selectedViewId);
+      // Only look for a view if we have a non-empty selectedViewId
+      if (selectedViewId) {
+        view = views().find(v => v.id === selectedViewId);
+      }
     })
 
     if (view) {
+      // Apply the view's filters when a view is selected
       props.setActiveFilters(view.filters);
     }
+    // If no view is selected (empty string), don't change the active filters
   });
   
   const handleViewCreate = (viewName: string) => {
@@ -192,50 +194,39 @@ export function ViewBar(props: ViewBarProps) {
     window.removeEventListener('keydown', handleKeyDown);
   });
 
-  // Update the current custom view whenever active filters change
+  // Unselect view when filters are manually changed and don't match the selected view
   createEffect(() => {
-    // Explicitly track dependencies to ensure effect reruns when they change
     const currentFilters = props.activeFilters;
     
     let viewId: string | undefined;
     let view: View | undefined;
     untrack(() => {
       viewId = filterStore.selectedView;
+      // Only proceed if we have a non-empty viewId
       if (!viewId) {
         return;
       }
       view = views().find(v => v.id === viewId);
     });
 
-    if (!view || view.isSystem) {
+    if (!view) {
       return;
     }
     
-    // Check if any properties have actually changed before updating
-    const filtersChanged = JSON.stringify(view.filters) !== JSON.stringify(currentFilters);
-    if (!filtersChanged) {
-      return;
+    // Check if the current filters match the selected view's filters
+    const filtersMatch = JSON.stringify(view.filters) === JSON.stringify(currentFilters);
+    
+    // If filters don't match and we have a selected view, unselect it
+    if (!filtersMatch && viewId) {
+      filterStore.setSelectedView('');
     }
-
-    // Create a completely new view with updated properties
-    const updatedView: View = {
-      ...view,
-      filters: [...currentFilters]
-    };
-    
-    // Update the view in the views list
-    const updatedViews = views().map(v => 
-      v.id === updatedView.id ? updatedView : v
-    );
-    
-    setViews(updatedViews);
-    saveCustomViews(updatedViews);
   });
 
   // Update document title based on selected view
   createEffect(() => {
     const defaultTitle = "Capacitor";
-    const currentView = views().find(view => view.id === filterStore.selectedView);
+    const selectedViewId = filterStore.selectedView;
+    const currentView = selectedViewId ? views().find(view => view.id === selectedViewId) : undefined;
     document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
   });
 

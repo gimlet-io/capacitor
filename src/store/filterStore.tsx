@@ -188,9 +188,8 @@ export function FilterProvider(props: { children: JSX.Element }) {
   // Handle view changes - keep this simple for integration with ViewBar
   createEffect(() => {
     const currentViewId = selectedView();
-    if (currentViewId === previousSelectedView() || !currentViewId) {
-      return;
-    }
+    // Always update previousSelectedView when selectedView changes
+    // Removed the condition that was blocking tracking when reselecting a view
     setPreviousSelectedView(currentViewId);
   });
 
