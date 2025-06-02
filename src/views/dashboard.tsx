@@ -94,22 +94,9 @@ export function Dashboard() {
     
     try {
       await apiResourceStore.switchContext(contextName);
-      
-      // Cancel existing watches
-      untrack(() => {
-        watchControllers().forEach(controller => controller.abort());
-      });
-      
-      // Clear existing resources
-      setDynamicResources(() => ({}));
-      
-      // Set up new watches with the new context
-      setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
-      
       setContextMenuOpen(false);
     } catch (error) {
       console.error("Error switching context:", error);
-      // You could add an error notification here
     }
   };
   
