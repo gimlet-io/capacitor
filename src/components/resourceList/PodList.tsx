@@ -65,7 +65,7 @@ export const podColumns = [
   },
   {
     header: "READY",
-    width: "10%",
+    width: "8%",
     accessor: (pod: Pod) => (
       <>
         {pod.status.containerStatuses?.filter((cs) => cs.ready).length ||
@@ -193,7 +193,7 @@ export const podColumns = [
   },
   {
     header: "RESTARTS",
-    width: "10%",
+    width: "8%",
     accessor: (pod: Pod) => (
       <>
         {pod.status.containerStatuses?.reduce(
@@ -215,7 +215,14 @@ export const podColumns = [
   },
   {
     header: "NODE",
-    width: "15%",
-    accessor: (pod: Pod) => <>{pod.spec.nodeName}</>,
+    width: "19%",
+    accessor: (pod: Pod) => (
+      <span
+        style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" 
+        title={pod.spec.nodeName}
+      >
+        {pod.spec.nodeName}
+      </span>
+    ),
   },
 ];
