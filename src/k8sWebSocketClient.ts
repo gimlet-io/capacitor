@@ -9,6 +9,7 @@ export class K8sWebSocketClient {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
   private connected: boolean = false;
+  private serverReady: boolean = false;
   
   /**
    * Creates a new K8sWebSocketClient
@@ -34,21 +35,16 @@ export class K8sWebSocketClient {
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
-        console.log('WebSocket connection established');
+        console.log('WebSocket connection established, waiting for server ready signal');
         this.reconnectAttempts = 0;
         this.connected = true;
-        
-        // Resubscribe to all paths
-        for (const [path, callback] of this.subscribers.entries()) {
-          this.sendSubscribeMessage(path);
-        }
-        
-        resolve();
+        this.serverReady = false; // Reset server ready state
       };
       
       this.ws.onclose = (event) => {
         console.log(`WebSocket connection closed: ${event.code} ${event.reason}`);
         this.connected = false;
+        this.serverReady = false;
         this.connectionPromise = null;
         
         // Attempt to reconnect if not a normal closure
@@ -65,6 +61,23 @@ export class K8sWebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          
+          // Handle server ready message
+          if (message.type === 'ready') {
+            console.log('Server ready signal received');
+            this.serverReady = true;
+            
+            console.log(`[onready] Resubscribing to ${this.subscribers.size} paths`);
+            
+            // Resubscribe to all paths now that server is ready
+            for (const [path, callback] of this.subscribers.entries()) {
+              console.log(`[onready] Resubscribing to: ${path}`);
+              this.sendSubscribeMessage(path);
+            }
+            
+            resolve();
+            return;
+          }
           
           if (message.type === 'error') {
             console.error(`WebSocket error for path ${message.path}: ${message.error}`);
@@ -109,8 +122,8 @@ export class K8sWebSocketClient {
       throw err;
     }
     
-    // Send subscribe message if connected
-    if (this.connected) {
+    // Send subscribe message if connected and server is ready
+    if (this.connected && this.serverReady) {
       this.sendSubscribeMessage(path);
     }
     
@@ -128,16 +141,41 @@ export class K8sWebSocketClient {
    * @param path The path to subscribe to
    */
   private sendSubscribeMessage(path: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws) {
+      console.error("[sendSubscribeMessage] WebSocket is null, cannot send message for path:", path);
       return;
     }
     
-    const requestId = Math.random().toString(36).substring(2, 15);
-    this.ws.send(JSON.stringify({
-      id: requestId,
-      action: 'subscribe',
-      path
-    }));
+    const readyState = this.ws.readyState;
+    const stateNames: Record<number, string> = {
+      [WebSocket.CONNECTING]: "CONNECTING",
+      [WebSocket.OPEN]: "OPEN",
+      [WebSocket.CLOSING]: "CLOSING",
+      [WebSocket.CLOSED]: "CLOSED"
+    };
+    
+    if (readyState !== WebSocket.OPEN) {
+      console.error(`[sendSubscribeMessage] WebSocket not open (state: ${stateNames[readyState]}), skipping message for path:`, path);
+      return;
+    }
+
+    if (!this.serverReady) {
+      console.error(`[sendSubscribeMessage] Server not ready, skipping message for path:`, path);
+      return;
+    }
+
+    try {
+      const requestId = Math.random().toString(36).substring(2, 15);
+      const message = JSON.stringify({
+        id: requestId,
+        action: 'subscribe',
+        path
+      });
+      
+      this.ws.send(message);
+    } catch (error) {
+      console.error(`[sendSubscribeMessage] Error sending message for path ${path}:`, error);
+    }
   }
   
   /**

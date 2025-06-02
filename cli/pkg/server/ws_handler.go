@@ -116,6 +116,14 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 		return ws.WriteControl(websocket.PongMessage, []byte{}, time.Now().Add(10*time.Second))
 	})
 
+	// Send ready message to indicate the server is ready to receive messages
+	readyMsg := ServerMessage{
+		Type: "ready",
+	}
+	if data, err := json.Marshal(readyMsg); err == nil {
+		ws.WriteMessage(websocket.TextMessage, data)
+	}
+
 	// Handle incoming messages
 	for {
 		// Read message
