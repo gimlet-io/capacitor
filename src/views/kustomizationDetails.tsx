@@ -1,7 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createEffect, createSignal, onCleanup, untrack, createMemo } from "solid-js";
+import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import { Show } from "solid-js";
+import { Show, JSX } from "solid-js";
 import type {
   Deployment,
   Kustomization,
@@ -9,7 +9,7 @@ import type {
   Service,
   ReplicaSet,
   KustomizationWithInventory,
-  DeploymentWithResources
+  DeploymentWithResources,
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
@@ -19,6 +19,65 @@ import { useFilterStore } from "../store/filterStore.tsx";
 import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
+
+// Helper function to create commit URL for GitHub or GitLab repositories
+const createCommitLink = (repoUrl: string, revision: string): string | null => {
+  if (!repoUrl || !revision) return null;
+
+  try {
+    // Remove potential .git suffix and trailing slashes
+    const cleanUrl = repoUrl.replace(/\.git\/?$/, '').replace(/\/$/, '');
+    
+    if (cleanUrl.includes('github.com')) {
+      return `${cleanUrl}/commit/${revision}`;
+    } else if (cleanUrl.includes('gitlab.com')) {
+      return `${cleanUrl}/-/commit/${revision}`;
+    }
+    
+    // For other Git providers, return null (not clickable)
+    return null;
+  } catch (error) {
+    console.error('Failed to create commit link:', error);
+    return null;
+  }
+};
+
+// Helper function to render revision with shortened SHA
+const renderRevision = (revision: string | undefined, sourceKind: string, sourceUrl?: string): JSX.Element => {
+  if (!revision) return <span class="value">None</span>;
+  
+  // Extract the SHA from formats like "master@sha1:b07046644566291cf282070670ba0f99e76e9a7e"
+  if (revision.includes('@sha1:')) {
+    const parts = revision.split('@sha1:');
+    if (parts.length > 1) {
+      // Keep the reference (like "master") and the first 9 chars of the SHA
+      const reference = parts[0];
+      const fullSha = parts[1];
+      
+      // For git repositories, make it clickable and shortened
+      if (sourceKind === 'GitRepository' && sourceUrl) {
+        const shortSha = fullSha.substring(0, 9);
+        const commitUrl = createCommitLink(sourceUrl, fullSha);
+        
+        if (commitUrl) {
+          return (
+            <a 
+              href={commitUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="value"
+              style={{ "text-decoration": "underline", "color": "var(--linear-blue)" }}
+            >
+              {`${reference}@sha1:${shortSha}`}
+            </a>
+          );
+        }
+      }
+    }
+  }
+
+  return <span class="value">{`${revision}`}</span>;
+};
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -34,6 +93,7 @@ export function KustomizationDetails() {
   const [pods, setPods] = createSignal<Pod[]>([]);
   const [services, setServices] = createSignal<Service[]>([]);
   const [kustomizationWithInventory, setKustomizationWithInventory] = createSignal<KustomizationWithInventory | null>(null);
+  const [sourceRepository, setSourceRepository] = createSignal<any | null>(null);
 
   const [graph, setGraph] = createSignal<graphlib.Graph>();
 
@@ -75,6 +135,15 @@ export function KustomizationDetails() {
           if (event.type === "ADDED" || event.type === "MODIFIED") {
             if (event.object.metadata.name === name) {
               setKustomization(event.object);
+              
+              // When kustomization is updated, check if we need to fetch the source repository
+              if (event.object.spec.sourceRef.kind === "GitRepository") {
+                fetchSourceRepository(
+                  event.object.spec.sourceRef.kind,
+                  event.object.spec.sourceRef.name,
+                  event.object.spec.sourceRef.namespace || ns
+                );
+              }
             }
           }
         },
@@ -136,6 +205,24 @@ export function KustomizationDetails() {
     });
 
     setWatchControllers(controllers);
+  };
+
+  // Fetch source repository when needed
+  const fetchSourceRepository = async (kind: string, name: string, namespace: string) => {
+    if (kind === "GitRepository") {
+      try {
+        const controller = new AbortController();
+        const path = `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${namespace}/gitrepositories/${name}`;
+        
+        const response = await fetch(path, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Failed to fetch source repository: ${response.statusText}`);
+        
+        const data = await response.json();
+        setSourceRepository(data);
+      } catch (error) {
+        console.error("Error fetching source repository:", error);
+      }
+    }
   };
 
   // Update inventory when resources change
@@ -313,7 +400,7 @@ export function KustomizationDetails() {
   return (
     <div class="kustomization-details">
       <Show when={kustomization()} fallback={<div class="loading">Loading...</div>}>
-        {(k) => {
+        {(k) => {         
           return (
             <>
               <header class="kustomization-header">
@@ -412,7 +499,7 @@ export function KustomizationDetails() {
                         <div class="info-grid">
                           <div class="info-item" style={{ "grid-column": "1 / 3" }}>
                             <span class="label">Last Attempted Revision:</span>
-                            <span class="value">{k().status?.lastAttemptedRevision}</span>
+                            {renderRevision(k().status?.lastAttemptedRevision, k().spec.sourceRef.kind, sourceRepository()?.spec?.url )}
                           </div>
                           <div class="info-item">
                             <span class="label">Last Handled Reconcile:</span>
@@ -420,7 +507,7 @@ export function KustomizationDetails() {
                           </div>
                           <div class="info-item" style={{ "grid-column": "4 / 6" }}>
                             <span class="label">Last Applied Revision:</span>
-                            <span class="value">{k().status?.lastAppliedRevision}</span>
+                            {renderRevision(k().status?.lastAppliedRevision, k().spec.sourceRef.kind, sourceRepository()?.spec?.url )}
                           </div>
                       </div>
                     </div>
