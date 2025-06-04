@@ -328,7 +328,7 @@ export function DiffDrawer(props: {
             <button class="drawer-close" onClick={props.onClose}>×</button>
           </div>
           
-          <div class="drawer-content" ref={contentRef} tabIndex={0} style="outline: none;">
+          <div class="drawer-content" ref={contentRef} tabIndex={0} style={{ outline: "none" }}>
             <Show 
               when={!props.loading} 
               fallback={
@@ -362,7 +362,7 @@ export function DiffDrawer(props: {
                 </div>
                 
                 <div class="diff-content patch-diff">
-                  <pre class="diff-patch" style="margin: 0; padding: 8px; width: 100%; overflow: auto;">
+                  <pre class="diff-patch">
                     {diffContent().map((line: string) => {
                       let className = '';
                       if (line.startsWith('+')) {

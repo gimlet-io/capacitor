@@ -1254,11 +1254,24 @@ td.message-cell {
 
 .drawer-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto; /* Allow scrolling at this level */
   padding: 1rem;
   height: calc(100vh - 120px); /* Account for header and padding */
   display: flex;
   flex-direction: column;
+}
+
+/* Reduce padding in the drawer to maximize content space */
+.drawer-content .logs-controls {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  flex-shrink: 0; /* Prevent shrinking */
+}
+
+/* Make space for resource errors to show at the bottom of the diff */
+.drawer-content .resource-errors {
+  margin-top: 1rem;
+  flex-shrink: 0;
 }
 
 .drawer-loading {
@@ -1392,12 +1405,12 @@ td.message-cell {
 }
 
 .diff-content {
-  background-color: var(--linear-bg);
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  padding: 1rem;
-  max-height: 400px;
-  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.5rem; /* Add a small gap after the controls */
 }
 
 .diff-section {
@@ -1728,35 +1741,59 @@ td.message-cell {
   font-size: 0.875rem;
   padding: 0;
   border-radius: 4px;
-  overflow: auto;
-  max-height: calc(100vh - 250px); /* Adjust height to fit in the viewport */
+  overflow: visible; /* Let parent handle scrolling */
   border: 1px solid var(--linear-border);
+  box-sizing: border-box;
+  width: 100%;
+  flex: 1; /* Take remaining space */
 }
 
 .diff-patch {
   margin: 0;
-  padding: 0;
+  padding: 8px;
   white-space: pre-wrap;
   line-height: 1.5;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-wrap: break-word;
+}
+
+.diff-patch div {
+  width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .diff-line-added {
   background-color: rgba(0, 184, 0, 0.1);
   color: var(--linear-green);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .diff-line-removed {
   background-color: rgba(255, 0, 0, 0.1);
   color: var(--linear-red);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.diff-line-info {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .diff-content {
   flex: 1;
-  overflow: auto;
-  height: 100%;
-  max-height: calc(100vh - 250px);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.5rem; /* Add a small gap after the controls */
 }
 
 /* Helm History Table */
