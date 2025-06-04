@@ -146,7 +146,7 @@ export async function handleFluxDiff(resource: any): Promise<any> {
     }
 
     const data = await response.json();
-    return data.result;
+    return data.fluxResult;
   } catch (error) {
     console.error("Error generating diff:", error);
     throw error;

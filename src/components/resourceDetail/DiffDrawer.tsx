@@ -9,30 +9,37 @@ import {
 import type { Kustomization } from "../../types/k8s.ts";
 import { parse as parseYAML, stringify as stringifyYAML } from "@std/yaml";
 
-// Updated interface for the new YAML-based diff result
-interface DiffResult {
-  kustomization: string;
-  namespace: string;
-  source: string;
-  path: string;
-  desiredYAML: string;
-  actualYAML: string;
-  resourceErrors?: string[];
-  resourceErrorCount?: number;
-  inventoryEntries?: number;
+// Interface for the new API response structure
+interface FluxDiffResult {
+  fileName: string;
+  clusterYaml: string;
+  appliedYaml: string;
+  created: boolean;
+  hasChanges: boolean;
+  deleted: boolean;
+}
+
+// Interface for file diff sections
+interface FileDiffSection {
+  fileName: string;
+  status: 'created' | 'modified' | 'deleted';
+  diffLines: string[];
+  isExpanded: boolean;
+  addedLines: number;
+  removedLines: number;
 }
 
 export function DiffDrawer(props: {
   resource: Kustomization;
-  diffData: DiffResult | null;
+  diffData: FluxDiffResult[] | null;
   isOpen: boolean;
   onClose: () => void;
   loading: boolean;
 }) {
   let contentRef: HTMLDivElement | undefined;
 
-  // Create a state variable for the diff content
-  const [diffContent, setDiffContent] = createSignal<string[]>([]);
+  // Create a state variable for the diff sections
+  const [diffSections, setDiffSections] = createSignal<FileDiffSection[]>([]);
   // Create a state for normalization toggle
   const [normalizeResources, setNormalizeResources] = createSignal<boolean>(true);
 
@@ -60,25 +67,67 @@ export function DiffDrawer(props: {
   // Generate diff when diffData or normalization settings change
   createEffect(() => {
     if (props.diffData) {
-      let fromYAML = props.diffData.actualYAML;
-      let toYAML = props.diffData.desiredYAML;
+      const sections: FileDiffSection[] = [];
       
-      if (normalizeResources()) {
-        // Normalize the resources before diffing
-        fromYAML = normalizeK8sResources(props.diffData.actualYAML);
-        toYAML = normalizeK8sResources(props.diffData.desiredYAML);
-      }
+      // Process each file diff result
+      props.diffData.forEach((result) => {
+        let fromYAML = result.clusterYaml;
+        let toYAML = result.appliedYaml;
+        
+        if (normalizeResources()) {
+          // Normalize the resources before diffing
+          fromYAML = normalizeK8sResources(result.clusterYaml);
+          toYAML = normalizeK8sResources(result.appliedYaml);
+        }
+        
+        // Generate diff for this file
+        const fromLines = fromYAML.split("\n");
+        const toLines = toYAML.split("\n");
+        
+        // Generate full diff for this file
+        const diffLines = generateFullDiff(fromLines, toLines);
+        
+        // Calculate stats
+        const addedLines = diffLines.filter(line => line.startsWith('+')).length;
+        const removedLines = diffLines.filter(line => line.startsWith('-')).length;
+        
+        // Determine status
+        let status: 'created' | 'modified' | 'deleted';
+        if (result.created) {
+          status = 'created';
+        } else if (result.deleted) {
+          status = 'deleted';
+        } else {
+          status = 'modified';
+        }
+        
+        // Determine if section should be expanded by default
+        // Only modified files with changes should be expanded
+        const isExpanded = status === 'modified' && (addedLines > 0 || removedLines > 0);
+        
+        // Add section
+        sections.push({
+          fileName: result.fileName,
+          status,
+          diffLines,
+          isExpanded,
+          addedLines,
+          removedLines
+        });
+      });
       
-      console.log("fromYAML", fromYAML);
-      console.log("toYAML", toYAML);
-
-      const fromLines = fromYAML.split("\n");
-      const toLines = toYAML.split("\n");
-      
-      // Always use full view mode with context=-1
-      setDiffContent(generateFullDiff(fromLines, toLines));
+      setDiffSections(sections);
     }
   });
+  
+  // Toggle section expansion
+  const toggleSection = (index: number) => {
+    setDiffSections(prev => {
+      const updated = [...prev];
+      updated[index] = {...updated[index], isExpanded: !updated[index].isExpanded};
+      return updated;
+    });
+  };
   
   // Toggle normalization
   const toggleNormalization = () => {
@@ -317,13 +366,6 @@ export function DiffDrawer(props: {
           <div class="resource-drawer-header">
             <div class="drawer-title">
               Diff: {props.resource?.metadata.name}
-              <Show when={props.diffData}>
-                <div class="diff-info">
-                  <span class="source-info">
-                    Source: {props.diffData?.source || ''} | Path: {props.diffData?.path || ''}
-                  </span>
-                </div>
-              </Show>
             </div>
             <button class="drawer-close" onClick={props.onClose}>×</button>
           </div>
@@ -355,41 +397,64 @@ export function DiffDrawer(props: {
                           checked={normalizeResources()}
                           onChange={toggleNormalization}
                         />
-                        Normalize resources (hide auto-generated fields)
+                        Hide auto-generated fields
                       </label>
                     </div>
                   </div>
                 </div>
                 
-                <div class="diff-content patch-diff">
-                  <pre class="diff-patch">
-                    {diffContent().map((line: string) => {
-                      let className = '';
-                      if (line.startsWith('+')) {
-                        className = 'diff-line-added';
-                      } else if (line.startsWith('-')) {
-                        className = 'diff-line-removed';
-                      } else if (line.startsWith(' ')) {
-                        className = 'diff-line-info';
-                      }
-                      
-                      return <div class={className}>{line}</div>;
-                    })}
-                  </pre>
+                <div class="diff-content">
+                  <For each={diffSections()}>
+                    {(section, index) => (
+                      <div class="diff-file-section">
+                        <div 
+                          class="diff-file-header" 
+                          onClick={() => toggleSection(index())}
+                        >
+                          <div class="diff-file-info">
+                            <div class="diff-file-toggle">
+                              {section.isExpanded ? '▼' : '►'}
+                            </div>
+                            <span class="diff-file-name">{section.fileName}</span>
+                            {section.status === 'created' ? (
+                              <span class="diff-file-status status-created">Created</span>
+                            ) : section.status === 'deleted' ? (
+                              <span class="diff-file-status status-deleted">Deleted</span>
+                            ) : section.addedLines === 0 && section.removedLines === 0 ? (
+                              <span class="diff-file-status status-unchanged">Unchanged</span>
+                            ) : (
+                              <span class="diff-file-status status-modified">
+                                <span class="removed-count">-{section.removedLines}</span>
+                                <span class="added-count">+{section.addedLines}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <Show when={section.isExpanded}>
+                          <div class="diff-file-content">
+                            <pre class="diff-patch">
+                              <For each={section.diffLines}>
+                                {(line) => {
+                                  let className = '';
+                                  if (line.startsWith('+')) {
+                                    className = 'diff-line-added';
+                                  } else if (line.startsWith('-')) {
+                                    className = 'diff-line-removed';
+                                  } else if (line.startsWith(' ')) {
+                                    className = 'diff-line-info';
+                                  }
+                                  
+                                  return <div class={className}>{line}</div>;
+                                }}
+                              </For>
+                            </pre>
+                          </div>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
                 </div>
-
-                <Show when={props.diffData?.resourceErrors && props.diffData.resourceErrors.length > 0}>
-                  <div class="resource-errors">
-                    <h4>Errors ({props.diffData?.resourceErrorCount || 0})</h4>
-                    <ul>
-                      <For each={props.diffData?.resourceErrors || []}>
-                        {(error) => (
-                          <li class="error-item">{error}</li>
-                        )}
-                      </For>
-                    </ul>
-                  </div>
-                </Show>
               </Show>
             </Show>
           </div>

@@ -1405,395 +1405,117 @@ td.message-cell {
 }
 
 .diff-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
   width: 100%;
-  margin-top: 0.5rem; /* Add a small gap after the controls */
-}
-
-.diff-section {
-  margin-bottom: 1.5rem;
-}
-
-.diff-section h4 {
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.diff-added h4 {
-  color: var(--linear-green);
-}
-
-.diff-changed h4 {
-  color: var(--linear-blue);
-}
-
-.diff-removed h4 {
-  color: var(--linear-red);
-}
-
-.diff-item {
-  margin-bottom: 1rem;
-  padding-left: 0.5rem;
-  border-left: 3px solid var(--linear-border);
-}
-
-.diff-added .diff-item {
-  border-left-color: var(--linear-green);
-}
-
-.diff-changed .diff-item {
-  border-left-color: var(--linear-blue);
-}
-
-.diff-removed .diff-item {
-  border-left-color: var(--linear-red);
-}
-
-.diff-key {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.diff-value {
-  padding: 0.5rem;
-  background-color: var(--linear-bg-secondary);
-  border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.875rem;
-  white-space: pre-wrap;
-}
-
-.diff-value-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  padding: 0.5rem;
-  background-color: var(--linear-bg-secondary);
-  border-radius: 4px;
-}
-
-.diff-label {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-  font-size: 0.875rem;
-}
-
-.diff-old .diff-label {
-  color: var(--linear-red);
-}
-
-.diff-new .diff-label {
-  color: var(--linear-green);
-}
-
-.diff-old pre, .diff-new pre {
-  margin: 0;
-  padding: 0.5rem;
-  background-color: var(--linear-bg);
-  border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.875rem;
-  white-space: pre-wrap;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.no-diff {
-  padding: 1rem;
-  text-align: center;
-  color: var(--linear-text-secondary);
-  font-style: italic;
-}
-
-.loading-spinner {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top-color: var(--linear-blue);
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: 0.5rem;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.describe-content,
-.yaml-content,
-.logs-content {
-  margin: 0;
-  padding: 16px;
-  background-color: var(--linear-bg-secondary);
-  border-radius: 4px;
-  overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
-  color: var(--linear-text-primary);
-  white-space: pre-wrap;
-  line-height: 1.5;
-  max-height: calc(100vh - 200px);
-}
-
-.no-events,
-.no-logs {
-  padding: 32px;
-  text-align: center;
-  color: var(--linear-text-tertiary);
-  font-size: 14px;
-}
-
-/* Log Controls Styles */
-.logs-controls {
-  margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background-color: var(--linear-bg-secondary);
-  border-radius: 4px;
-  padding: 12px;
-}
-
-.logs-options-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 20px;
-}
-
-.logs-controls label {
-  font-size: 14px;
-  color: var(--linear-text-secondary);
-  font-weight: 500;
-  margin-right: 2px;
-}
-
-.logs-controls optgroup {
-  font-weight: 600;
-  color: var(--linear-text-secondary);
-  font-style: normal;
-  padding: 4px 0;
-}
-
-.logs-controls option {
-  padding: 4px 8px;
-  font-weight: normal;
-}
-
-.logs-controls select {
-  padding: 8px;
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  background-color: var(--linear-bg);
-  color: var(--linear-text-primary);
-  font-size: 13px;
-  min-width: 120px;
-}
-
-.logs-follow-controls {
-  display: flex;
-  gap: 8px;
-  padding-bottom: 8px;
-}
-
-.logs-follow-controls label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--linear-text-secondary);
-}
-
-.logs-content {
-  margin: 0;
-  padding: 16px;
-  background-color: var(--linear-bg-secondary);
-  border-radius: 4px;
-  overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
-  color: var(--linear-text-primary);
-  white-space: pre-wrap;
-  line-height: 1.5;
-  max-height: calc(100vh - 280px); /* Adjusted for log controls height */
-}
-
-/* Keyboard Shortcuts Container Styles */
-.keyboard-shortcut-container {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  gap: 14px;
-}
-
-.keyboard-shortcut {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--linear-text-secondary);
-  font-size: 13px;
-}
-
-.shortcut-description {
-  color: var(--linear-text-primary);
-}
-
-.view-right-section {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
-  flex-shrink: 0; /* Don't shrink */
-}
-
-.logs-content {
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-family: monospace;
-  font-size: 12px;
-  padding: 8px;
-  margin: 0;
-  background-color: #1e1e1e;
-  color: #d4d4d4;
   overflow: auto;
-  height: 100%;
-}
-
-.log-line {
-  display: flex;
-  padding: 1px 0;
-}
-
-/* Add left padding to log messages when metadata is hidden */
-.log-line .log-message:first-child {
-  padding-left: 4px;
-  border-left: 2px solid transparent;
-}
-
-.log-timestamp {
-  color: #6a9955;
-  margin-right: 8px;
-  flex-shrink: 0;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.log-container {
-  margin-right: 8px;
-  font-weight: bold;
-  flex-shrink: 0;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.log-message {
-  flex-grow: 1;
-  white-space: pre-wrap;
-  word-break: break-all;
-  user-select: text;
-}
-
-.log-message.nowrap {
-  white-space: pre;
-  word-break: normal;
-}
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
-}
-
-.json-log {
-  font-family: monospace;
-  white-space: pre-wrap;
-}
-
-.json-filter-input {
-  max-width: 150px;
-  padding: 2px 4px;
-  border: 1px solid #666;
-  border-radius: 3px;
-  background: #333;
-  color: #fff;
-}
-
-@media (max-width: 768px) {
-  .logs-options-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .json-format-controls {
-    margin-top: 8px;
-  }
-}
-
-/* Patch-style diff */
-.patch-diff {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.875rem;
-  padding: 0;
+  background-color: var(--linear-bg-secondary);
   border-radius: 4px;
-  overflow: visible; /* Let parent handle scrolling */
+  margin-top: 1rem;
+}
+
+/* New styles for foldable diff sections */
+.diff-file-section {
+  margin-bottom: 0.75rem;
   border: 1px solid var(--linear-border);
-  box-sizing: border-box;
-  width: 100%;
-  flex: 1; /* Take remaining space */
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+.diff-file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--linear-bg-secondary);
+  cursor: pointer;
+  border-bottom: 1px solid var(--linear-border);
+  font-weight: 500;
+}
+
+.diff-file-header:hover {
+  background-color: var(--linear-bg-tertiary);
+}
+
+.diff-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.diff-file-name {
+  font-weight: 600;
+  color: var(--linear-text-primary);
+  font-size: 0.875rem;
+}
+
+.diff-file-status {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.status-created {
+  color: var(--linear-green);
+}
+
+.status-deleted {
+  color: var(--linear-red);
+}
+
+.status-unchanged {
+  color: var(--linear-green);
+}
+
+.status-modified {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.added-count {
+  color: var(--linear-green);
+  font-weight: bold;
+}
+
+.removed-count {
+  color: var(--linear-red);
+  font-weight: bold;
+}
+
+.diff-file-toggle {
+  color: var(--linear-text-secondary);
+  font-size: 0.75rem;
+  width: 16px;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diff-file-content {
+  max-height: 500px;
+  overflow: auto;
+  border-top: 1px solid var(--linear-border);
+}
+
+.patch-diff {
+  padding: 1rem;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
+  background-color: var(--linear-bg-secondary);
 }
 
 .diff-patch {
-  margin: 0;
-  padding: 8px;
-  white-space: pre-wrap;
+  width: 100%;
+  overflow-x: auto;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
   line-height: 1.5;
-  box-sizing: border-box;
-  width: 100%;
-  overflow-wrap: break-word;
-}
-
-.diff-patch div {
-  width: 100%;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  word-break: break-word;
-}
-
-.diff-line-added {
-  background-color: rgba(0, 184, 0, 0.1);
-  color: var(--linear-green);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
-
-.diff-line-removed {
-  background-color: rgba(255, 0, 0, 0.1);
-  color: var(--linear-red);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
-
-.diff-line-info {
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
-
-.diff-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  width: 100%;
-  margin-top: 0.5rem; /* Add a small gap after the controls */
+  white-space: pre;
+  padding: 0.5rem;
 }
 
 /* Helm History Table */
@@ -2146,4 +1868,23 @@ td.message-cell {
 
 .info-item details summary:hover {
   color: var(--linear-text-primary);
+}
+
+.diff-line-added {
+  background-color: rgba(0, 184, 0, 0.1);
+  color: var(--linear-green);
+  white-space: pre;
+  padding: 2px 4px;
+}
+
+.diff-line-removed {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: var(--linear-red);
+  white-space: pre;
+  padding: 2px 4px;
+}
+
+.diff-line-info {
+  white-space: pre;
+  padding: 2px 4px;
 }

@@ -43,6 +43,7 @@ import (
 
 	// Import the FluxCD packages
 	"github.com/gimlet-io/capacitor/pkg/flux/build"
+	"github.com/gimlet-io/capacitor/pkg/flux/utils"
 )
 
 // Server represents the API server
@@ -1510,7 +1511,7 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 }
 
 // generateKustomizationDiffWithFluxStyle generates a diff using the actual FluxCD Builder and Diff functionality
-func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kustomization *kustomizev1.Kustomization) (map[string]interface{}, error) {
+func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kustomization *kustomizev1.Kustomization) ([]FluxDiffResult, error) {
 	log.Printf("Generating FluxCD diff for Kustomization %s/%s using actual FluxCD Builder",
 		kustomization.ObjectMeta.Namespace,
 		kustomization.ObjectMeta.Name,
@@ -1564,23 +1565,17 @@ func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kus
 	}
 
 	// Step 6: Use FluxCD's actual Diff method - this is the real FluxCD diff!
-	diffOutput, hasChanges, err := builder.Diff()
+	kubeClient, err := utils.KubeClient(configFlags, clientOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
+	}
+	fluxDiffResult, err := fluxDiff(kubeClient, builder, kustomization)
 	if err != nil {
 		return nil, fmt.Errorf("FluxCD diff failed: %w", err)
 	}
 
 	// Step 7: Return FluxCD-style result structure
-	result := map[string]interface{}{
-		"kustomization": kustomization.ObjectMeta.Name,
-		"namespace":     kustomization.ObjectMeta.Namespace,
-		"source":        fmt.Sprintf("%s/%s", kustomization.Spec.SourceRef.Kind, kustomization.Spec.SourceRef.Name),
-		"path":          kustomization.Spec.Path,
-		"hasChanges":    hasChanges,
-		"diffOutput":    diffOutput,
-		"method":        "fluxcd-actual",
-	}
-
-	return result, nil
+	return fluxDiffResult, nil
 }
 
 // getSourceArtifactDirectory downloads and extracts the source artifact, returning the temporary directory path
