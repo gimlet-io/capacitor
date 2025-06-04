@@ -18,6 +18,7 @@ import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
+import { stringify as stringifyYAML } from "@std/yaml";
 
 export function KustomizationDetails() {
   const params = useParams();
@@ -322,17 +323,6 @@ export function KustomizationDetails() {
                       <span class="icon">←</span> Back
                     </button>
                     <h1>{k().metadata.namespace}/{k().metadata.name}</h1>
-                    {/* <span class="watch-status" style={{ "color": watchStatus() === "●" ? "green" : "red" } as any}>
-                      {watchStatus()}
-                    </span> */}
-                    {/* <div class="status-badges">
-                      <span class={`health-badge ${k().status?.conditions?.find(c => c.type === 'Ready')?.status?.toLowerCase() || 'unknown'}`}>
-                        {k().status?.conditions?.find(c => c.type === 'Ready')?.status || 'Unknown'}
-                      </span>
-                      <span class={`sync-badge ${k().status?.conditions?.find(c => c.type === 'Reconciling') ? 'syncing' : 'idle'}`}>
-                        {k().status?.conditions?.find(c => c.type === 'Reconciling') ? 'Syncing' : 'Idle'}
-                      </span>
-                    </div> */}
                     <div class="kustomization-status">
                       <span class={`status-badge ${getHumanReadableStatus(k().status?.conditions || []).toLowerCase().replace(/[^a-z]/g, '-')}`}>
                         {getHumanReadableStatus(k().status?.conditions || [])}
@@ -403,18 +393,47 @@ export function KustomizationDetails() {
                       <span class="label">Interval:</span>
                       <span class="value">{k().spec.interval}</span>
                     </div>
-                    {k().status?.lastAppliedRevision && (
-                      <div class="info-item">
-                        <span class="label">Revision:</span>
-                        <span class="value">{k().status?.lastAppliedRevision}</span>
-                      </div>
-                    )}
-                    {k().status?.conditions?.find(c => c.type === 'Ready')?.message && (
+                    {k().status?.conditions?.find(c => c.type === 'Ready') && (
                       <div class="info-item full-width">
-                        <span class="label">Message:</span>
-                        <span class="value">{k().status?.conditions?.find(c => c.type === 'Ready')?.message}</span>
+                        <div class="info-grid">
+                        <div class="info-item" style={{ "grid-column": "1 / 3" }}>
+                          <span class="label">Message:</span>
+                          <span class="value">{k().status?.conditions?.find(c => c.type === 'Ready')?.message}</span>
+                        </div>
+                        <div class="info-item">
+                          <span class="label">Last Transition:</span>
+                          <span class="value">{new Date(k().status?.conditions?.find(c => c.type === 'Ready')?.lastTransitionTime || '').toLocaleString()}</span>
+                        </div>
+                        </div>
                       </div>
                     )}
+                    {k().status && (
+                      <div class="info-item full-width">
+                        <div class="info-grid">
+                          <div class="info-item" style={{ "grid-column": "1 / 3" }}>
+                            <span class="label">Last Attempted Revision:</span>
+                            <span class="value">{k().status?.lastAttemptedRevision}</span>
+                          </div>
+                          <div class="info-item">
+                            <span class="label">Last Handled Reconcile:</span>
+                            <span class="value">{new Date(k().status?.lastHandledReconcileAt || '').toLocaleString()}</span>
+                          </div>
+                          <div class="info-item" style={{ "grid-column": "4 / 6" }}>
+                            <span class="label">Last Applied Revision:</span>
+                            <span class="value">{k().status?.lastAppliedRevision}</span>
+                          </div>
+                      </div>
+                    </div>
+                    )}
+                    
+                    <div class="info-item full-width">
+                      <details>
+                        <summary>Conditions</summary>
+                        <pre class="conditions-yaml">
+                          {k().status?.conditions ? stringifyYAML(k().status?.conditions) : 'No conditions available'}
+                        </pre>
+                      </details>
+                    </div>
                   </div>
                 </div>
               </header>

@@ -400,8 +400,9 @@ h1 {
 .kustomization-details {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0;
   margin: 0;
 }
@@ -550,8 +551,7 @@ h1 {
 .resource-tree-container {
   background: var(--linear-bg);
   padding: 20px;
-  overflow: auto;
-  flex: 1; /* Take remaining space */
+  overflow: visible;
 }
 
 .graph-container {
@@ -562,6 +562,8 @@ h1 {
 .graph-svg {
   display: block; /* Remove default inline spacing */
   /* background-color: lightgray; */
+  width: auto;
+  min-width: 100%;
 }
 
 /* Loading State */
@@ -2081,4 +2083,30 @@ td.message-cell {
   border-bottom: 1px solid rgba(220, 38, 38, 0.2);
   padding-bottom: 8px;
   margin-bottom: 8px;
+}
+
+/* Conditions YAML section */
+.conditions-yaml {
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 12px;
+  margin: 8px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  border: 1px solid #dee2e6;
+  max-height: 300px;
+}
+
+.info-item details summary {
+  cursor: pointer;
+  color: var(--linear-text-secondary);
+  font-weight: 500;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.info-item details summary:hover {
+  color: var(--linear-text-primary);
 }

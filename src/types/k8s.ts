@@ -215,6 +215,7 @@ export interface Kustomization {
     conditions?: Condition[];
     lastAppliedRevision?: string;
     lastAttemptedRevision?: string;
+    lastHandledReconcileAt?: string;
     inventory?: {
       entries?: Array<{
         id: string;
