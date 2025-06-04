@@ -39,6 +39,10 @@ import (
 	"sigs.k8s.io/yaml"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
+	runclient "github.com/fluxcd/pkg/runtime/client"
+
+	// Import the FluxCD packages
+	"github.com/gimlet-io/capacitor/pkg/flux/build"
 )
 
 // Server represents the API server
@@ -444,7 +448,14 @@ func (s *Server) Setup() {
 			})
 		}
 
-		// Generate the diff
+		fluxDiffResult, err := s.generateKustomizationDiffWithFluxStyle(ctx, &kustomization)
+		if err != nil {
+			log.Printf("Error generating FluxCD-style diff: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to generate FluxCD-style diff: %v", err),
+			})
+		}
+
 		diffResult, err := s.generateKustomizationDiff(ctx, &kustomization)
 		if err != nil {
 			log.Printf("Error generating diff: %v", err)
@@ -454,8 +465,10 @@ func (s *Server) Setup() {
 		}
 
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"result": diffResult,
+			"result":     diffResult,
+			"fluxResult": fluxDiffResult,
 		})
+
 	})
 
 	// Add endpoint for scaling Kubernetes resources
@@ -1149,7 +1162,6 @@ func (s *Server) renderResourcesAsYAML(desired, actual map[string]map[string]int
 }
 
 // Helper functions to get source resources
-
 func (s *Server) getGitRepository(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
 	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s", namespace, name)
 	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
@@ -1495,4 +1507,124 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 	}
 
 	return localURL, cleanup, nil
+}
+
+// generateKustomizationDiffWithFluxStyle generates a diff using the actual FluxCD Builder and Diff functionality
+func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kustomization *kustomizev1.Kustomization) (map[string]interface{}, error) {
+	log.Printf("Generating FluxCD diff for Kustomization %s/%s using actual FluxCD Builder",
+		kustomization.ObjectMeta.Namespace,
+		kustomization.ObjectMeta.Name,
+	)
+
+	sourceNamespace := kustomization.ObjectMeta.Namespace
+	if kustomization.Spec.SourceRef.Namespace != "" {
+		sourceNamespace = kustomization.Spec.SourceRef.Namespace
+	}
+
+	// Step 1: Download and extract the source artifact to a temporary directory
+	tempDir, err := s.getSourceArtifactDirectory(ctx, kustomization, sourceNamespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source artifact: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Step 2: Create ConfigFlags from our Kubernetes client
+	configFlags := &genericclioptions.ConfigFlags{
+		APIServer:   &s.k8sClient.Config.Host,
+		BearerToken: &s.k8sClient.Config.BearerToken,
+		Context:     &s.k8sClient.CurrentContext,
+	}
+	if s.k8sClient.Config.CAFile != "" {
+		configFlags.CAFile = &s.k8sClient.Config.CAFile
+	}
+	configFlags.Insecure = &s.k8sClient.Config.Insecure
+
+	namespace := kustomization.ObjectMeta.Namespace
+	configFlags.Namespace = &namespace
+
+	// Step 3: Create FluxCD client options
+	clientOpts := &runclient.Options{
+		QPS:   100,
+		Burst: 300,
+	}
+
+	// Step 4: Build the resources path
+	resourcesPath := filepath.Join(tempDir, kustomization.Spec.Path)
+
+	// Step 5: Create the FluxCD Builder with the exact same options FluxCD uses
+	builder, err := build.NewBuilder(
+		kustomization.ObjectMeta.Name,
+		resourcesPath,
+		build.WithClientConfig(configFlags, clientOpts),
+		build.WithNamespace(kustomization.ObjectMeta.Namespace),
+		build.WithTimeout(80*time.Second),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create FluxCD builder: %w", err)
+	}
+
+	// Step 6: Use FluxCD's actual Diff method - this is the real FluxCD diff!
+	diffOutput, hasChanges, err := builder.Diff()
+	if err != nil {
+		return nil, fmt.Errorf("FluxCD diff failed: %w", err)
+	}
+
+	// Step 7: Return FluxCD-style result structure
+	result := map[string]interface{}{
+		"kustomization": kustomization.ObjectMeta.Name,
+		"namespace":     kustomization.ObjectMeta.Namespace,
+		"source":        fmt.Sprintf("%s/%s", kustomization.Spec.SourceRef.Kind, kustomization.Spec.SourceRef.Name),
+		"path":          kustomization.Spec.Path,
+		"hasChanges":    hasChanges,
+		"diffOutput":    diffOutput,
+		"method":        "fluxcd-actual",
+	}
+
+	return result, nil
+}
+
+// getSourceArtifactDirectory downloads and extracts the source artifact, returning the temporary directory path
+func (s *Server) getSourceArtifactDirectory(ctx context.Context, kustomization *kustomizev1.Kustomization, sourceNamespace string) (string, error) {
+	// Get the source resource to find the artifact
+	var sourceResource map[string]interface{}
+	var err error
+
+	switch strings.ToLower(kustomization.Spec.SourceRef.Kind) {
+	case "gitrepository":
+		sourceResource, err = s.getGitRepository(ctx, kustomization.Spec.SourceRef.Name, sourceNamespace)
+	case "ocirepository":
+		sourceResource, err = s.getOCIRepository(ctx, kustomization.Spec.SourceRef.Name, sourceNamespace)
+	case "bucket":
+		sourceResource, err = s.getBucket(ctx, kustomization.Spec.SourceRef.Name, sourceNamespace)
+	default:
+		return "", fmt.Errorf("unsupported source kind: %s", kustomization.Spec.SourceRef.Kind)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("failed to get source resource: %w", err)
+	}
+
+	// Extract artifact information
+	status, ok := sourceResource["status"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("source resource has no status")
+	}
+
+	artifact, ok := status["artifact"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("source resource has no artifact")
+	}
+
+	artifactURL, ok := artifact["url"].(string)
+	if !ok {
+		return "", fmt.Errorf("artifact has no URL")
+	}
+
+	// Download and extract the artifact
+	tempDir, err := s.downloadAndExtractArtifact(ctx, artifactURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to download and extract artifact: %w", err)
+	}
+
+	return tempDir, nil
 }
