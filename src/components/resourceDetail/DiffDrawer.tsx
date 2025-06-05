@@ -5,9 +5,16 @@ import {
   onCleanup,
   Show,
   For,
+  type JSX,
 } from "solid-js";
 import type { Kustomization } from "../../types/k8s.ts";
 import { parse as parseYAML, stringify as stringifyYAML } from "@std/yaml";
+import {
+  type DiffItem,
+  type DiffHunk,
+  type FileDiffSection,
+  generateDiffHunks,
+} from "../../utils/diffUtils.ts";
 
 // Interface for the new API response structure
 interface FluxDiffResult {
@@ -17,16 +24,6 @@ interface FluxDiffResult {
   created: boolean;
   hasChanges: boolean;
   deleted: boolean;
-}
-
-// Interface for file diff sections
-interface FileDiffSection {
-  fileName: string;
-  status: 'created' | 'modified' | 'deleted';
-  diffLines: string[];
-  isExpanded: boolean;
-  addedLines: number;
-  removedLines: number;
 }
 
 export function DiffDrawer(props: {
@@ -84,12 +81,13 @@ export function DiffDrawer(props: {
         const fromLines = fromYAML.split("\n");
         const toLines = toYAML.split("\n");
         
-        // Generate full diff for this file
-        const diffLines = generateFullDiff(fromLines, toLines);
+        const hunks = generateDiffHunks(fromLines, toLines);
         
         // Calculate stats
-        const addedLines = diffLines.filter(line => line.startsWith('+')).length;
-        const removedLines = diffLines.filter(line => line.startsWith('-')).length;
+        const addedLines = hunks.reduce((sum, hunk) => 
+          sum + hunk.changes.filter(change => change.type === 'add').length, 0);
+        const removedLines = hunks.reduce((sum, hunk) => 
+          sum + hunk.changes.filter(change => change.type === 'remove').length, 0);
         
         // Determine status
         let status: 'created' | 'modified' | 'deleted';
@@ -109,10 +107,12 @@ export function DiffDrawer(props: {
         sections.push({
           fileName: result.fileName,
           status,
-          diffLines,
+          hunks,
           isExpanded,
           addedLines,
-          removedLines
+          removedLines,
+          originalLines: fromLines,
+          newLines: toLines
         });
       });
       
@@ -128,12 +128,235 @@ export function DiffDrawer(props: {
       return updated;
     });
   };
+
+  // Expand context for a specific hunk with merge detection
+  const expandContext = (sectionIndex: number, hunkIndex: number, direction: 'before' | 'after') => {
+    setDiffSections(prev => {
+      const updated = [...prev];
+      const section = {...updated[sectionIndex]};
+      const hunks = [...section.hunks];
+      
+      if (direction === 'before' && hunks[hunkIndex].canExpandBefore) {
+        const hunk = {...hunks[hunkIndex]};
+        const newStart = Math.max(0, hunk.visibleStartOld - 10);
+        const newStartNew = Math.max(0, hunk.visibleStartNew - 10);
+        
+        // Check if expansion would overlap with previous hunk
+        if (hunkIndex > 0) {
+          const prevHunk = hunks[hunkIndex - 1];
+          if (newStart <= prevHunk.visibleEndOld) {
+            // Merge with previous hunk
+            const mergedHunk = {
+              startOldLine: prevHunk.startOldLine,
+              startNewLine: prevHunk.startNewLine,
+              changes: [...prevHunk.changes],
+              visibleStartOld: prevHunk.visibleStartOld,
+              visibleStartNew: prevHunk.visibleStartNew,
+              visibleEndOld: hunk.visibleEndOld,
+              visibleEndNew: hunk.visibleEndNew,
+              canExpandBefore: prevHunk.canExpandBefore,
+              canExpandAfter: hunk.canExpandAfter
+            };
+            
+            // Add gap lines between previous hunk and current hunk
+            for (let i = prevHunk.visibleEndOld; i < hunk.visibleStartOld; i++) {
+              if (i >= 0 && i < section.originalLines.length) {
+                const newLineNum = prevHunk.visibleEndNew + (i - prevHunk.visibleEndOld);
+                mergedHunk.changes.push({
+                  type: 'match',
+                  value: section.originalLines[i],
+                  oldLineNumber: i + 1,
+                  newLineNumber: newLineNum + 1
+                });
+              }
+            }
+            
+            // Add current hunk's changes
+            mergedHunk.changes.push(...hunk.changes);
+            
+            // Remove both hunks and add merged one
+            hunks.splice(hunkIndex - 1, 2, mergedHunk);
+          } else {
+            // Normal expansion
+            hunk.visibleStartOld = newStart;
+            hunk.visibleStartNew = newStartNew;
+            hunk.canExpandBefore = newStart > 0;
+            hunks[hunkIndex] = hunk;
+          }
+        } else {
+          // Normal expansion for first hunk
+          hunk.visibleStartOld = newStart;
+          hunk.visibleStartNew = newStartNew;
+          hunk.canExpandBefore = newStart > 0;
+          hunks[hunkIndex] = hunk;
+        }
+      } else if (direction === 'after' && hunks[hunkIndex].canExpandAfter) {
+        const hunk = {...hunks[hunkIndex]};
+        const newEnd = Math.min(section.originalLines.length, hunk.visibleEndOld + 10);
+        const newEndNew = Math.min(section.newLines.length, hunk.visibleEndNew + 10);
+        
+        // Check if expansion would overlap with next hunk
+        if (hunkIndex < hunks.length - 1) {
+          const nextHunk = hunks[hunkIndex + 1];
+          if (newEnd >= nextHunk.visibleStartOld) {
+            // Merge with next hunk
+            const mergedHunk = {
+              startOldLine: hunk.startOldLine,
+              startNewLine: hunk.startNewLine,
+              changes: [...hunk.changes],
+              visibleStartOld: hunk.visibleStartOld,
+              visibleStartNew: hunk.visibleStartNew,
+              visibleEndOld: nextHunk.visibleEndOld,
+              visibleEndNew: nextHunk.visibleEndNew,
+              canExpandBefore: hunk.canExpandBefore,
+              canExpandAfter: nextHunk.canExpandAfter
+            };
+            
+            // Add gap lines between current hunk and next hunk
+            for (let i = hunk.visibleEndOld; i < nextHunk.visibleStartOld; i++) {
+              if (i >= 0 && i < section.originalLines.length) {
+                const newLineNum = hunk.visibleEndNew + (i - hunk.visibleEndOld);
+                mergedHunk.changes.push({
+                  type: 'match',
+                  value: section.originalLines[i],
+                  oldLineNumber: i + 1,
+                  newLineNumber: newLineNum + 1
+                });
+              }
+            }
+            
+            // Add next hunk's changes
+            mergedHunk.changes.push(...nextHunk.changes);
+            
+            // Remove both hunks and add merged one
+            hunks.splice(hunkIndex, 2, mergedHunk);
+          } else {
+            // Normal expansion
+            hunk.visibleEndOld = newEnd;
+            hunk.visibleEndNew = newEndNew;
+            hunk.canExpandAfter = newEnd < section.originalLines.length;
+            hunks[hunkIndex] = hunk;
+          }
+        } else {
+          // Normal expansion for last hunk
+          hunk.visibleEndOld = newEnd;
+          hunk.visibleEndNew = newEndNew;
+          hunk.canExpandAfter = newEnd < section.originalLines.length;
+          hunks[hunkIndex] = hunk;
+        }
+      }
+      
+      section.hunks = hunks;
+      updated[sectionIndex] = section;
+      return updated;
+    });
+  };
   
   // Toggle normalization
   const toggleNormalization = () => {
     setNormalizeResources(!normalizeResources());
   };
-  
+
+  // Render a hunk with context
+  const renderHunk = (hunk: DiffHunk, sectionIndex: number, hunkIndex: number, section: FileDiffSection) => {
+    const lines: JSX.Element[] = [];
+    
+    // Add expand before button if we can expand more
+    if (hunk.canExpandBefore) {
+      lines.push(
+        <div class="diff-expand-line">
+          <button 
+            class="diff-expand-button"
+            onClick={() => expandContext(sectionIndex, hunkIndex, 'before')}
+          >
+            ⋯ 10 more lines
+          </button>
+        </div>
+      );
+    }
+    
+    // Add extra context lines before the hunk if expanded
+    for (let i = hunk.visibleStartOld; i < hunk.startOldLine; i++) {
+      if (i >= 0 && i < section.originalLines.length) {
+        const newLineNum = hunk.visibleStartNew + (i - hunk.visibleStartOld);
+        lines.push(
+          <div class="diff-line-context">
+            <span class="line-number old">{i + 1}</span>
+            <span class="line-number new">{newLineNum + 1}</span>
+            <span class="line-content"> {section.originalLines[i]}</span>
+          </div>
+        );
+      }
+    }
+    
+    // Add the original hunk changes
+    let oldLineNum = hunk.startOldLine + 1;
+    let newLineNum = hunk.startNewLine + 1;
+    
+    hunk.changes.forEach((change) => {
+      let className = '';
+      let lineContent = '';
+      let oldNum = '';
+      let newNum = '';
+      
+      if (change.type === 'add') {
+        className = 'diff-line-added';
+        lineContent = `+${change.value}`;
+        newNum = String(newLineNum++);
+      } else if (change.type === 'remove') {
+        className = 'diff-line-removed';
+        lineContent = `-${change.value}`;
+        oldNum = String(oldLineNum++);
+      } else {
+        className = 'diff-line-context';
+        lineContent = ` ${change.value}`;
+        oldNum = String(oldLineNum++);
+        newNum = String(newLineNum++);
+      }
+      
+      lines.push(
+        <div class={className}>
+          <span class="line-number old">{oldNum}</span>
+          <span class="line-number new">{newNum}</span>
+          <span class="line-content">{lineContent}</span>
+        </div>
+      );
+    });
+    
+    // Add extra context lines after the hunk if expanded
+    const originalHunkEnd = hunk.startOldLine + hunk.changes.filter(c => c.type !== 'add').length;
+    const originalHunkEndNew = hunk.startNewLine + hunk.changes.filter(c => c.type !== 'remove').length;
+    
+    for (let i = originalHunkEnd; i < hunk.visibleEndOld; i++) {
+      if (i >= 0 && i < section.originalLines.length) {
+        const newLineNum = originalHunkEndNew + (i - originalHunkEnd);
+        lines.push(
+          <div class="diff-line-context">
+            <span class="line-number old">{i + 1}</span>
+            <span class="line-number new">{newLineNum + 1}</span>
+            <span class="line-content"> {section.originalLines[i]}</span>
+          </div>
+        );
+      }
+    }
+    
+    // Add expand after button if we can expand more
+    if (hunk.canExpandAfter) {
+      lines.push(
+        <div class="diff-expand-line">
+          <button 
+            class="diff-expand-button"
+            onClick={() => expandContext(sectionIndex, hunkIndex, 'after')}
+          >
+            ⋯ 10 more lines
+          </button>
+        </div>
+      );
+    }
+    
+    return lines;
+  };
+
   // Function to normalize Kubernetes resources YAML
   const normalizeK8sResources = (yamlString: string): string => {
     if (!yamlString) return yamlString;
@@ -258,106 +481,6 @@ export function DiffDrawer(props: {
       return resource; // Return original if normalization fails
     }
   };
-    // Generate a full diff showing the entire document with changes
-  const generateFullDiff = (oldLines: string[], newLines: string[]): string[] => {
-    // First find the differences using LCS
-    const diffs = findDifferences(oldLines, newLines);
-    const result: string[] = [];
-    
-    // Generate the diff output
-    diffs.forEach(diff => {
-      if (diff.type === 'match') {
-        result.push(` ${diff.value}`);
-      } else if (diff.type === 'add') {
-        result.push(`+${diff.value}`);
-      } else if (diff.type === 'remove') {
-        result.push(`-${diff.value}`);
-      }
-    });
-    
-    return result;
-  };
-  
-  // Find differences between two arrays of lines
-  interface DiffItem {
-    type: 'match' | 'add' | 'remove';
-    value: string;
-  }
-  
-  const findDifferences = (oldLines: string[], newLines: string[]): DiffItem[] => {
-    const result: DiffItem[] = [];
-    const lcs = computeLCS(oldLines, newLines);
-    
-    let oldIndex = 0;
-    let newIndex = 0;
-    let lcsIndex = 0;
-    
-    while (oldIndex < oldLines.length || newIndex < newLines.length) {
-      // Check if the current line from both arrays is in the LCS
-      if (lcsIndex < lcs.length && 
-          oldIndex < oldLines.length && 
-          newIndex < newLines.length && 
-          oldLines[oldIndex] === lcs[lcsIndex] && 
-          newLines[newIndex] === lcs[lcsIndex]) {
-        // Both lines match and are in the LCS
-        result.push({ type: 'match', value: oldLines[oldIndex] });
-        oldIndex++;
-        newIndex++;
-        lcsIndex++;
-      } else if (oldIndex < oldLines.length && 
-                (lcsIndex >= lcs.length || 
-                 oldLines[oldIndex] !== lcs[lcsIndex])) {
-        // Line from oldLines is not in LCS - it was removed
-        result.push({ type: 'remove', value: oldLines[oldIndex] });
-        oldIndex++;
-      } else if (newIndex < newLines.length && 
-                (lcsIndex >= lcs.length || 
-                 newLines[newIndex] !== lcs[lcsIndex])) {
-        // Line from newLines is not in LCS - it was added
-        result.push({ type: 'add', value: newLines[newIndex] });
-        newIndex++;
-      }
-    }
-    
-    return result;
-  };
-  
-  // Compute Longest Common Subsequence
-  const computeLCS = (a: string[], b: string[]): string[] => {
-    const m = a.length;
-    const n = b.length;
-    
-    // Create length table
-    const lengths: number[][] = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
-    
-    // Fill the lengths table
-    for (let i = 0; i < m; i++) {
-      for (let j = 0; j < n; j++) {
-        if (a[i] === b[j]) {
-          lengths[i + 1][j + 1] = lengths[i][j] + 1;
-        } else {
-          lengths[i + 1][j + 1] = Math.max(lengths[i + 1][j], lengths[i][j + 1]);
-        }
-      }
-    }
-    
-    // Build the LCS
-    const result: string[] = [];
-    let i = m, j = n;
-    while (i > 0 && j > 0) {
-      if (a[i - 1] === b[j - 1]) {
-        result.unshift(a[i - 1]);
-        i--;
-        j--;
-      } else if (lengths[i][j - 1] > lengths[i - 1][j]) {
-        j--;
-      } else {
-        i--;
-      }
-    }
-    
-    return result;
-  };
 
   return (
     <Show when={props.isOpen}>
@@ -405,11 +528,11 @@ export function DiffDrawer(props: {
                 
                 <div class="diff-content">
                   <For each={diffSections()}>
-                    {(section, index) => (
+                    {(section, sectionIndex) => (
                       <div class="diff-file-section">
                         <div 
                           class="diff-file-header" 
-                          onClick={() => toggleSection(index())}
+                          onClick={() => toggleSection(sectionIndex())}
                         >
                           <div class="diff-file-info">
                             <div class="diff-file-toggle">
@@ -433,22 +556,15 @@ export function DiffDrawer(props: {
                         
                         <Show when={section.isExpanded}>
                           <div class="diff-file-content">
-                            <pre class="diff-patch">
-                              <For each={section.diffLines}>
-                                {(line) => {
-                                  let className = '';
-                                  if (line.startsWith('+')) {
-                                    className = 'diff-line-added';
-                                  } else if (line.startsWith('-')) {
-                                    className = 'diff-line-removed';
-                                  } else if (line.startsWith(' ')) {
-                                    className = 'diff-line-info';
-                                  }
-                                  
-                                  return <div class={className}>{line}</div>;
-                                }}
+                            <div class="diff-hunks">
+                              <For each={section.hunks}>
+                                {(hunk, hunkIndex) => (
+                                  <div class="diff-hunk">
+                                    {renderHunk(hunk, sectionIndex(), hunkIndex(), section)}
+                                  </div>
+                                )}
                               </For>
-                            </pre>
+                            </div>
                           </div>
                         </Show>
                       </div>

@@ -6,18 +6,21 @@ import {
   onCleanup,
   onMount,
   Show,
+  type JSX,
 } from "solid-js";
 import type { HelmRelease } from "../resourceList/HelmReleaseList.tsx";
-import { stringify } from "@std/yaml";
+import { stringify, parse as parseYAML } from "@std/yaml";
 import { getWebSocketClient } from "../../k8sWebSocketClient.ts";
+import {
+  type DiffItem,
+  type DiffHunk,
+  type FileDiffSection,
+  generateDiffHunks,
+} from "../../utils/diffUtils.ts";
 
-interface RevisionPair {
-  expanded: boolean;
-  diffType: "values" | "manifest";
-}
-
-interface DiffState {
-  [key: string]: RevisionPair; // Maps revision pairs (e.g., "2-1") to their expansion state and diff type
+// Interface for diff sections
+interface DiffSection {
+  fileSections: FileDiffSection[];
 }
 
 export function HelmDrawer(props: {
@@ -34,11 +37,13 @@ export function HelmDrawer(props: {
   >(props.initialTab || "history");
   const [loading, setLoading] = createSignal<boolean>(true);
   const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
-  const [expandedDiffs, setExpandedDiffs] = createSignal<DiffState>({});
+  const [expandedDiffs, setExpandedDiffs] = createSignal<{ [key: string]: { expanded: boolean; diffType: "values" | "manifest" } }>({});
   const [diffData, setDiffData] = createSignal<{ [key: string]: any }>({});
   const [selectedRevisionIndex, setSelectedRevisionIndex] = createSignal<
     number
   >(-1);
+  // State for file-based diff sections
+  const [diffSections, setDiffSections] = createSignal<{ [key: string]: DiffSection }>({});
 
   let contentRef: HTMLDivElement | undefined;
   let tableRef: HTMLTableElement | undefined;
@@ -299,8 +304,291 @@ export function HelmDrawer(props: {
     }
   };
 
-  // Generate a patch-style diff view between two objects
-  const generateDiffView = (fromValues: any, toValues: any) => {
+  // Parse YAML content into separate Kubernetes resources
+  const parseKubernetesResources = (yamlContent: string): { name: string; content: string }[] => {
+    if (!yamlContent || yamlContent.trim() === '') return [];
+    
+    // Split on document separators
+    const documents = yamlContent.split(/^---$/m)
+      .map(doc => doc.trim())
+      .filter(doc => doc.length > 0);
+    
+    const resources: { name: string; content: string }[] = [];
+    
+    documents.forEach((doc, index) => {
+      try {
+        // Try to parse as YAML to extract metadata
+        const parsed = parseYAML(doc) as any;
+        let resourceName = `Document ${index + 1}`;
+        
+        if (parsed && typeof parsed === 'object' && parsed.kind && parsed.metadata) {
+          const kind = parsed.kind;
+          const name = parsed.metadata.name || 'unnamed';
+          const namespace = parsed.metadata.namespace;
+          resourceName = namespace ? `${kind}/${namespace}/${name}` : `${kind}/${name}`;
+        }
+        
+        resources.push({
+          name: resourceName,
+          content: doc
+        });
+      } catch (error) {
+        // If parsing fails, still include the document
+        resources.push({
+          name: `Document ${index + 1}`,
+          content: doc
+        });
+      }
+    });
+    
+    return resources;
+  };
+
+  // Toggle file section expansion
+  const toggleFileSection = (diffKey: string, fileIndex: number) => {
+    setDiffSections(prev => {
+      const updated = {...prev};
+      const section = {...updated[diffKey]};
+      const fileSections = [...section.fileSections];
+      const fileSection = {...fileSections[fileIndex]};
+      
+      fileSection.isExpanded = !fileSection.isExpanded;
+      fileSections[fileIndex] = fileSection;
+      section.fileSections = fileSections;
+      updated[diffKey] = section;
+      return updated;
+    });
+  };
+
+  // Expand context for a specific hunk (updated for file sections with merge detection)
+  const expandContext = (diffKey: string, fileIndex: number, hunkIndex: number, direction: 'before' | 'after') => {
+    setDiffSections(prev => {
+      const updated = {...prev};
+      const section = {...updated[diffKey]};
+      const fileSections = [...section.fileSections];
+      const fileSection = {...fileSections[fileIndex]};
+      const hunks = [...fileSection.hunks];
+      
+      if (direction === 'before' && hunks[hunkIndex].canExpandBefore) {
+        const hunk = {...hunks[hunkIndex]};
+        const newStart = Math.max(0, hunk.visibleStartOld - 10);
+        const newStartNew = Math.max(0, hunk.visibleStartNew - 10);
+        
+        // Check if expansion would overlap with previous hunk
+        if (hunkIndex > 0) {
+          const prevHunk = hunks[hunkIndex - 1];
+          if (newStart <= prevHunk.visibleEndOld) {
+            // Merge with previous hunk
+            const mergedHunk = {
+              startOldLine: prevHunk.startOldLine,
+              startNewLine: prevHunk.startNewLine,
+              changes: [...prevHunk.changes],
+              visibleStartOld: prevHunk.visibleStartOld,
+              visibleStartNew: prevHunk.visibleStartNew,
+              visibleEndOld: hunk.visibleEndOld,
+              visibleEndNew: hunk.visibleEndNew,
+              canExpandBefore: prevHunk.canExpandBefore,
+              canExpandAfter: hunk.canExpandAfter
+            };
+            
+            // Add gap lines between previous hunk and current hunk
+            for (let i = prevHunk.visibleEndOld; i < hunk.visibleStartOld; i++) {
+              if (i >= 0 && i < fileSection.originalLines.length) {
+                const newLineNum = prevHunk.visibleEndNew + (i - prevHunk.visibleEndOld);
+                mergedHunk.changes.push({
+                  type: 'match',
+                  value: fileSection.originalLines[i],
+                  oldLineNumber: i + 1,
+                  newLineNumber: newLineNum + 1
+                });
+              }
+            }
+            
+            // Add current hunk's changes
+            mergedHunk.changes.push(...hunk.changes);
+            
+            // Remove both hunks and add merged one
+            hunks.splice(hunkIndex - 1, 2, mergedHunk);
+          } else {
+            // Normal expansion
+            hunk.visibleStartOld = newStart;
+            hunk.visibleStartNew = newStartNew;
+            hunk.canExpandBefore = newStart > 0;
+            hunks[hunkIndex] = hunk;
+          }
+        } else {
+          // Normal expansion for first hunk
+          hunk.visibleStartOld = newStart;
+          hunk.visibleStartNew = newStartNew;
+          hunk.canExpandBefore = newStart > 0;
+          hunks[hunkIndex] = hunk;
+        }
+      } else if (direction === 'after' && hunks[hunkIndex].canExpandAfter) {
+        const hunk = {...hunks[hunkIndex]};
+        const newEnd = Math.min(fileSection.originalLines.length, hunk.visibleEndOld + 10);
+        const newEndNew = Math.min(fileSection.newLines.length, hunk.visibleEndNew + 10);
+        
+        // Check if expansion would overlap with next hunk
+        if (hunkIndex < hunks.length - 1) {
+          const nextHunk = hunks[hunkIndex + 1];
+          if (newEnd >= nextHunk.visibleStartOld) {
+            // Merge with next hunk
+            const mergedHunk = {
+              startOldLine: hunk.startOldLine,
+              startNewLine: hunk.startNewLine,
+              changes: [...hunk.changes],
+              visibleStartOld: hunk.visibleStartOld,
+              visibleStartNew: hunk.visibleStartNew,
+              visibleEndOld: nextHunk.visibleEndOld,
+              visibleEndNew: nextHunk.visibleEndNew,
+              canExpandBefore: hunk.canExpandBefore,
+              canExpandAfter: nextHunk.canExpandAfter
+            };
+            
+            // Add gap lines between current hunk and next hunk
+            for (let i = hunk.visibleEndOld; i < nextHunk.visibleStartOld; i++) {
+              if (i >= 0 && i < fileSection.originalLines.length) {
+                const newLineNum = hunk.visibleEndNew + (i - hunk.visibleEndOld);
+                mergedHunk.changes.push({
+                  type: 'match',
+                  value: fileSection.originalLines[i],
+                  oldLineNumber: i + 1,
+                  newLineNumber: newLineNum + 1
+                });
+              }
+            }
+            
+            // Add next hunk's changes
+            mergedHunk.changes.push(...nextHunk.changes);
+            
+            // Remove both hunks and add merged one
+            hunks.splice(hunkIndex, 2, mergedHunk);
+          } else {
+            // Normal expansion
+            hunk.visibleEndOld = newEnd;
+            hunk.visibleEndNew = newEndNew;
+            hunk.canExpandAfter = newEnd < fileSection.originalLines.length;
+            hunks[hunkIndex] = hunk;
+          }
+        } else {
+          // Normal expansion for last hunk
+          hunk.visibleEndOld = newEnd;
+          hunk.visibleEndNew = newEndNew;
+          hunk.canExpandAfter = newEnd < fileSection.originalLines.length;
+          hunks[hunkIndex] = hunk;
+        }
+      }
+      
+      fileSection.hunks = hunks;
+      fileSections[fileIndex] = fileSection;
+      section.fileSections = fileSections;
+      updated[diffKey] = section;
+      return updated;
+    });
+  };
+
+  // Render a hunk with context (updated for file sections)
+  const renderHunk = (hunk: DiffHunk, diffKey: string, fileIndex: number, hunkIndex: number, fileSection: FileDiffSection) => {
+    const lines: JSX.Element[] = [];
+    
+    // Add expand before button if we can expand more
+    if (hunk.canExpandBefore) {
+      lines.push(
+        <div class="diff-expand-line">
+          <button 
+            class="diff-expand-button"
+            onClick={() => expandContext(diffKey, fileIndex, hunkIndex, 'before')}
+          >
+            ⋯ 10 more lines
+          </button>
+        </div>
+      );
+    }
+    
+    // Add extra context lines before the hunk if expanded
+    for (let i = hunk.visibleStartOld; i < hunk.startOldLine; i++) {
+      if (i >= 0 && i < fileSection.originalLines.length) {
+        const newLineNum = hunk.visibleStartNew + (i - hunk.visibleStartOld);
+        lines.push(
+          <div class="diff-line-context">
+            <span class="line-number old">{i + 1}</span>
+            <span class="line-number new">{newLineNum + 1}</span>
+            <span class="line-content"> {fileSection.originalLines[i]}</span>
+          </div>
+        );
+      }
+    }
+    
+    // Add the original hunk changes
+    let oldLineNum = hunk.startOldLine + 1;
+    let newLineNum = hunk.startNewLine + 1;
+    
+    hunk.changes.forEach((change) => {
+      let className = '';
+      let lineContent = '';
+      let oldNum = '';
+      let newNum = '';
+      
+      if (change.type === 'add') {
+        className = 'diff-line-added';
+        lineContent = `+${change.value}`;
+        newNum = String(newLineNum++);
+      } else if (change.type === 'remove') {
+        className = 'diff-line-removed';
+        lineContent = `-${change.value}`;
+        oldNum = String(oldLineNum++);
+      } else {
+        className = 'diff-line-context';
+        lineContent = ` ${change.value}`;
+        oldNum = String(oldLineNum++);
+        newNum = String(newLineNum++);
+      }
+      
+      lines.push(
+        <div class={className}>
+          <span class="line-number old">{oldNum}</span>
+          <span class="line-number new">{newNum}</span>
+          <span class="line-content">{lineContent}</span>
+        </div>
+      );
+    });
+    
+    // Add extra context lines after the hunk if expanded
+    const originalHunkEnd = hunk.startOldLine + hunk.changes.filter(c => c.type !== 'add').length;
+    const originalHunkEndNew = hunk.startNewLine + hunk.changes.filter(c => c.type !== 'remove').length;
+    
+    for (let i = originalHunkEnd; i < hunk.visibleEndOld; i++) {
+      if (i >= 0 && i < fileSection.originalLines.length) {
+        const newLineNum = originalHunkEndNew + (i - originalHunkEnd);
+        lines.push(
+          <div class="diff-line-context">
+            <span class="line-number old">{i + 1}</span>
+            <span class="line-number new">{newLineNum + 1}</span>
+            <span class="line-content"> {fileSection.originalLines[i]}</span>
+          </div>
+        );
+      }
+    }
+    
+    // Add expand after button if we can expand more
+    if (hunk.canExpandAfter) {
+      lines.push(
+        <div class="diff-expand-line">
+          <button 
+            class="diff-expand-button"
+            onClick={() => expandContext(diffKey, fileIndex, hunkIndex, 'after')}
+          >
+            ⋯ 10 more lines
+          </button>
+        </div>
+      );
+    }
+    
+    return lines;
+  };
+
+  // Generate file-based diff view using the same approach as DiffDrawer
+  const generateDiffView = (fromValues: any, toValues: any, diffKey: string) => {
     // Convert objects to YAML for comparison
     const fromYaml = stringify(fromValues);
     const toYaml = stringify(toValues);
@@ -309,281 +597,209 @@ export function HelmDrawer(props: {
       return <div class="no-diff">No differences found in values</div>;
     }
 
-    // Convert YAML to lines
-    const fromLines = fromYaml.split("\n");
-    const toLines = toYaml.split("\n");
+    // Generate file sections if not already cached
+    if (!diffSections()[diffKey]) {
+      // For values, we treat it as a single "values.yaml" file
+      const fromLines = fromYaml.split("\n");
+      const toLines = toYaml.split("\n");
+      
+      const hunks = generateDiffHunks(fromLines, toLines);
+      const addedLines = hunks.reduce((sum, hunk) => 
+        sum + hunk.changes.filter(change => change.type === 'add').length, 0);
+      const removedLines = hunks.reduce((sum, hunk) => 
+        sum + hunk.changes.filter(change => change.type === 'remove').length, 0);
+      
+      const fileSections: FileDiffSection[] = [{
+        fileName: 'values.yaml',
+        status: 'modified',
+        hunks,
+        isExpanded: addedLines > 0 || removedLines > 0, // Expand if there are changes
+        addedLines,
+        removedLines,
+        originalLines: fromLines,
+        newLines: toLines
+      }];
 
-    // Create a state variable to track which sections are expanded
-    const [expandedSections, setExpandedSections] = createSignal<Record<string, boolean>>({});
-    // Create a state for the diff content
-    const [diffContent, setDiffContent] = createSignal<string[]>([]);
+      setDiffSections(prev => ({
+        ...prev,
+        [diffKey]: { fileSections }
+      }));
+    }
 
-    // Generate initial diff
-    createEffect(() => {
-      // Regenerate diff whenever expandedSections changes
-      const expanded = expandedSections();
-      setDiffContent(generatePatchDiff(fromLines, toLines, expanded));
-    });
-
-    // Handler for expand button clicks
-    const handleExpandClick = (e: MouseEvent, sectionId: string) => {
-      e.preventDefault();
-      // Update expanded sections state, which will trigger diff regeneration
-      setExpandedSections(prev => ({...prev, [sectionId]: true}));
-    };
+    const section = diffSections()[diffKey];
+    if (!section) return <div class="no-diff">Loading diff...</div>;
 
     return (
-      <div class="diff-content patch-diff">
-        <pre class="diff-patch">
-          {diffContent().map((line: string) => {
-            let className = '';
-            if (line.startsWith('+')) {
-              className = 'diff-line-added';
-            } else if (line.startsWith('-')) {
-              className = 'diff-line-removed';
-            } else if (line.startsWith('@')) {
-              className = 'diff-line-info';
-            }
-            
-            // Check if this line has an expand button
-            const expandButtonMatch = line.match(/ \.\.\. <button class="expand-context" data-id="([^"]+)" data-section="([^"]+)" data-direction="([^"]+)">([^<]+)<\/button>/);
-            
-            if (expandButtonMatch) {
-              const [_, buttonId, sectionId, direction, buttonText] = expandButtonMatch;
-              const expanded = expandedSections()[sectionId];
-              
-              return (
-                <div class={className}>
-                  <button
-                    class="expand-context" 
-                    disabled={expanded}
-                    onClick={(e) => handleExpandClick(e, sectionId)}
-                  >
-                    {expanded ? "Expanded" : "..."}
-                  </button>
+      <div class="diff-content">
+        <For each={section.fileSections}>
+          {(fileSection, fileIndex) => (
+            <div class="diff-file-section">
+              <div 
+                class="diff-file-header" 
+                onClick={() => toggleFileSection(diffKey, fileIndex())}
+              >
+                <div class="diff-file-info">
+                  <div class="diff-file-toggle">
+                    {fileSection.isExpanded ? '▼' : '►'}
+                  </div>
+                  <span class="diff-file-name">{fileSection.fileName}</span>
+                  {fileSection.status === 'created' ? (
+                    <span class="diff-file-status status-created">Created</span>
+                  ) : fileSection.status === 'deleted' ? (
+                    <span class="diff-file-status status-deleted">Deleted</span>
+                  ) : fileSection.addedLines === 0 && fileSection.removedLines === 0 ? (
+                    <span class="diff-file-status status-unchanged">Unchanged</span>
+                  ) : (
+                    <span class="diff-file-status status-modified">
+                      <span class="removed-count">-{fileSection.removedLines}</span>
+                      <span class="added-count">+{fileSection.addedLines}</span>
+                    </span>
+                  )}
                 </div>
-              );
-            }
-            
-            return <div class={className}>{line}</div>;
-          })}
-        </pre>
+              </div>
+              
+              <Show when={fileSection.isExpanded}>
+                <div class="diff-file-content">
+                  <div class="diff-hunks">
+                    <For each={fileSection.hunks}>
+                      {(hunk, hunkIndex) => (
+                        <div class="diff-hunk">
+                          {renderHunk(hunk, diffKey, fileIndex(), hunkIndex(), fileSection)}
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </div>
+              </Show>
+            </div>
+          )}
+        </For>
       </div>
     );
   };
 
-  // Generate a patch-style diff between two strings (for manifests)
+  // Generate file-based manifest diff view
   const generateManifestDiffView = (
     fromManifest: string,
     toManifest: string,
+    diffKey: string
   ) => {
     if (fromManifest === toManifest) {
       return <div class="no-diff">No differences found in manifests</div>;
     }
 
-    // Convert manifests to lines
-    const fromLines = fromManifest.split("\n");
-    const toLines = toManifest.split("\n");
+    // Generate file sections if not already cached
+    if (!diffSections()[diffKey]) {
+      // Parse both manifests into separate Kubernetes resources
+      const fromResources = parseKubernetesResources(fromManifest);
+      const toResources = parseKubernetesResources(toManifest);
+      
+      // Create a map for easier lookup
+      const fromResourceMap = new Map(fromResources.map(r => [r.name, r.content]));
+      const toResourceMap = new Map(toResources.map(r => [r.name, r.content]));
+      
+      // Get all unique resource names
+      const allResourceNames = new Set([
+        ...fromResources.map(r => r.name),
+        ...toResources.map(r => r.name)
+      ]);
+      
+      const fileSections: FileDiffSection[] = [];
+      
+      allResourceNames.forEach(resourceName => {
+        const fromContent = fromResourceMap.get(resourceName) || '';
+        const toContent = toResourceMap.get(resourceName) || '';
+        
+        const fromLines = fromContent.split("\n");
+        const toLines = toContent.split("\n");
+        
+        // Determine status
+        let status: 'created' | 'modified' | 'deleted';
+        if (!fromContent && toContent) {
+          status = 'created';
+        } else if (fromContent && !toContent) {
+          status = 'deleted';
+        } else {
+          status = 'modified';
+        }
+        
+        const hunks = generateDiffHunks(fromLines, toLines);
+        const addedLines = hunks.reduce((sum, hunk) => 
+          sum + hunk.changes.filter(change => change.type === 'add').length, 0);
+        const removedLines = hunks.reduce((sum, hunk) => 
+          sum + hunk.changes.filter(change => change.type === 'remove').length, 0);
+        
+        // Only expand if there are actual changes
+        const isExpanded = status === 'modified' && (addedLines > 0 || removedLines > 0);
+        
+        fileSections.push({
+          fileName: resourceName,
+          status,
+          hunks,
+          isExpanded,
+          addedLines,
+          removedLines,
+          originalLines: fromLines,
+          newLines: toLines
+        });
+      });
 
-    // Create a state variable to track which sections are expanded
-    const [expandedSections, setExpandedSections] = createSignal<Record<string, boolean>>({});
-    // Create a state for the diff content
-    const [diffContent, setDiffContent] = createSignal<string[]>([]);
+      setDiffSections(prev => ({
+        ...prev,
+        [diffKey]: { fileSections }
+      }));
+    }
 
-    // Generate initial diff
-    createEffect(() => {
-      // Regenerate diff whenever expandedSections changes
-      const expanded = expandedSections();
-      setDiffContent(generatePatchDiff(fromLines, toLines, expanded));
-    });
-
-    // Handler for expand button clicks
-    const handleExpandClick = (e: MouseEvent, sectionId: string) => {
-      e.preventDefault();
-      // Update expanded sections state, which will trigger diff regeneration
-      setExpandedSections(prev => ({...prev, [sectionId]: true}));
-    };
+    const section = diffSections()[diffKey];
+    if (!section) return <div class="no-diff">Loading diff...</div>;
 
     return (
-      <div class="diff-content patch-diff">
-        <pre class="diff-patch">
-          {diffContent().map((line: string) => {
-            let className = '';
-            if (line.startsWith('+')) {
-              className = 'diff-line-added';
-            } else if (line.startsWith('-')) {
-              className = 'diff-line-removed';
-            } else if (line.startsWith('@')) {
-              className = 'diff-line-info';
-            }
-            
-            // Check if this line has an expand button
-            const expandButtonMatch = line.match(/ \.\.\. <button class="expand-context" data-id="([^"]+)" data-section="([^"]+)" data-direction="([^"]+)">([^<]+)<\/button>/);
-            
-            if (expandButtonMatch) {
-              const [_, buttonId, sectionId, direction, buttonText] = expandButtonMatch;
-              const expanded = expandedSections()[sectionId];
-              
-              return (
-                <div class={className}>
-                  ... <button 
-                    class="expand-context" 
-                    disabled={expanded}
-                    onClick={(e) => handleExpandClick(e, sectionId)}
-                  >
-                    {expanded ? "Expanded" : "Show 10 more lines"}
-                  </button>
+      <div class="diff-content">
+        <For each={section.fileSections}>
+          {(fileSection, fileIndex) => (
+            <div class="diff-file-section">
+              <div 
+                class="diff-file-header" 
+                onClick={() => toggleFileSection(diffKey, fileIndex())}
+              >
+                <div class="diff-file-info">
+                  <div class="diff-file-toggle">
+                    {fileSection.isExpanded ? '▼' : '►'}
+                  </div>
+                  <span class="diff-file-name">{fileSection.fileName}</span>
+                  {fileSection.status === 'created' ? (
+                    <span class="diff-file-status status-created">Created</span>
+                  ) : fileSection.status === 'deleted' ? (
+                    <span class="diff-file-status status-deleted">Deleted</span>
+                  ) : fileSection.addedLines === 0 && fileSection.removedLines === 0 ? (
+                    <span class="diff-file-status status-unchanged">Unchanged</span>
+                  ) : (
+                    <span class="diff-file-status status-modified">
+                      <span class="removed-count">-{fileSection.removedLines}</span>
+                      <span class="added-count">+{fileSection.addedLines}</span>
+                    </span>
+                  )}
                 </div>
-              );
-            }
-            
-            return <div class={className}>{line}</div>;
-          })}
-        </pre>
+              </div>
+              
+              <Show when={fileSection.isExpanded}>
+                <div class="diff-file-content">
+                  <div class="diff-hunks">
+                    <For each={fileSection.hunks}>
+                      {(hunk, hunkIndex) => (
+                        <div class="diff-hunk">
+                          {renderHunk(hunk, diffKey, fileIndex(), hunkIndex(), fileSection)}
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </div>
+              </Show>
+            </div>
+          )}
+        </For>
       </div>
     );
-  };
-
-  // Modify the generatePatchDiff function to accept expanded sections
-  const generatePatchDiff = (
-    oldLines: string[],
-    newLines: string[],
-    expandedSections: Record<string, boolean> = {},
-  ): string[] => {
-    const result: string[] = [];
-    
-    let oldIndex = 0;
-    let newIndex = 0;
-    
-    // Helper function to add context lines
-    const addContextLines = (startOld: number, startNew: number, count: number, showExpander: boolean, sectionId: string) => {
-      // Determine how many lines to show based on whether this section is expanded
-      const isExpanded = expandedSections[sectionId];
-      const baseContextLines = Math.min(count, 3); // Default is 3 lines
-      const contextLines = isExpanded ? Math.min(count, 13) : baseContextLines; // Show up to 13 if expanded
-      
-      const hasMoreContext = (startOld + contextLines < oldLines.length) && showExpander && !isExpanded;
-      
-      // For "before" context, add the expander button first
-      if (hasMoreContext && sectionId.startsWith('before')) {
-        const expanderId = `expand-${sectionId}`;
-        result.push(` ... <button class="expand-context" data-id="${expanderId}" data-section="${sectionId}" data-direction="before">Show 10 more lines</button>`);
-      }
-      
-      // Add the context lines
-      for (let i = 0; i < contextLines && (startOld + i < oldLines.length); i++) {
-        if (startNew + i < newLines.length) {
-          result.push(` ${oldLines[startOld + i]}`);
-        }
-      }
-      
-      // For "after" context, add the expander button after
-      if (hasMoreContext && !sectionId.startsWith('before')) {
-        const expanderId = `expand-${sectionId}`;
-        result.push(` ... <button class="expand-context" data-id="${expanderId}" data-section="${sectionId}" data-direction="after">Show 10 more lines</button>`);
-      }
-    };
-    
-    while (oldIndex < oldLines.length || newIndex < newLines.length) {
-      // Find how many lines match from current positions
-      let matchLength = 0;
-      while (
-        oldIndex + matchLength < oldLines.length &&
-        newIndex + matchLength < newLines.length &&
-        oldLines[oldIndex + matchLength] === newLines[newIndex + matchLength]
-      ) {
-        matchLength++;
-      }
-      
-      if (matchLength > 0) {
-        // Skip common sections, but keep track of where we are
-        oldIndex += matchLength;
-        newIndex += matchLength;
-      } else {
-        // No match at current position - find next match
-        let nextOldMatch = oldIndex;
-        let nextNewMatch = newIndex;
-        let found = false;
-        
-        // Look ahead for the next matching line
-        outer: for (let i = oldIndex; i < oldLines.length; i++) {
-          for (let j = newIndex; j < newLines.length; j++) {
-            if (oldLines[i] === newLines[j]) {
-              // Check if this is the start of a sequence of at least 3 matching lines
-              let seqLength = 1;
-              while (
-                i + seqLength < oldLines.length &&
-                j + seqLength < newLines.length &&
-                oldLines[i + seqLength] === newLines[j + seqLength] &&
-                seqLength < 3
-              ) {
-                seqLength++;
-              }
-              
-              // Only consider it a match if we have at least 3 consecutive matching lines
-              // or if we're at the end of one of the files
-              if (seqLength >= 3 || i + seqLength >= oldLines.length || j + seqLength >= newLines.length) {
-                nextOldMatch = i;
-                nextNewMatch = j;
-                found = true;
-                break outer;
-              }
-            }
-          }
-        }
-        
-        // If no next match found, include all remaining lines
-        if (!found) {
-          nextOldMatch = oldLines.length;
-          nextNewMatch = newLines.length;
-        }
-        
-        // Only output a diff hunk if there are changes
-        if (nextOldMatch > oldIndex || nextNewMatch > newIndex) {
-          // Generate a unique ID for this diff section
-          const diffId = `diff-${oldIndex}-${newIndex}`;
-          
-          // Get context before the change (up to 3 lines by default, more if expanded)
-          const beforeId = `before-${diffId}`;
-          const isBeforeExpanded = expandedSections[beforeId];
-          const contextBefore = Math.min(isBeforeExpanded ? 13 : 3, oldIndex);
-          const oldStart = Math.max(0, oldIndex - contextBefore);
-          const newStart = Math.max(0, newIndex - contextBefore);
-          
-          // Calculate context after (for header line)
-          const afterId = `after-${diffId}`;
-          const isAfterExpanded = expandedSections[afterId];
-          const contextAfter = Math.min(isAfterExpanded ? 13 : 3, oldLines.length - nextOldMatch);
-          
-          // Output hunk header with proper line counts
-          result.push(`@@ -${oldStart + 1},${nextOldMatch - oldStart + contextAfter} +${newStart + 1},${nextNewMatch - newStart + contextAfter} @@`);
-          
-          // Add context before with expander
-          if (contextBefore > 0) {
-            addContextLines(oldIndex - contextBefore, newIndex - contextBefore, contextBefore, oldStart > 0, beforeId);
-          }
-          
-          // Output removed lines
-          for (let i = oldIndex; i < nextOldMatch; i++) {
-            result.push(`-${oldLines[i]}`);
-          }
-          
-          // Output added lines
-          for (let j = newIndex; j < nextNewMatch; j++) {
-            result.push(`+${newLines[j]}`);
-          }
-          
-          // Add context after with expander
-          addContextLines(nextOldMatch, nextNewMatch, contextAfter, nextOldMatch < oldLines.length, afterId);
-          
-          // Move to the next match positions
-          oldIndex = nextOldMatch;
-          newIndex = nextNewMatch;
-        }
-      }
-    }
-    
-    return result;
   };
 
   // Rollback to the selected revision
@@ -1014,6 +1230,7 @@ export function HelmDrawer(props: {
                                               return generateDiffView(
                                                 diff.fromValues,
                                                 diff.toValues,
+                                                diffKey
                                               );
                                             } else {
                                               const diff =
@@ -1023,6 +1240,7 @@ export function HelmDrawer(props: {
                                               return generateManifestDiffView(
                                                 diff.fromManifest,
                                                 diff.toManifest,
+                                                `${diffKey}-manifest`
                                               );
                                             }
                                           })()}

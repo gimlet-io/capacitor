@@ -1888,3 +1888,100 @@ td.message-cell {
   white-space: pre;
   padding: 2px 4px;
 }
+
+/* New diff hunk styles */
+.diff-hunks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.diff-hunk {
+  border: 1px solid var(--linear-border);
+  border-radius: 6px;
+  background: var(--linear-bg);
+  overflow: hidden;
+}
+
+.diff-line-context {
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--linear-bg);
+}
+
+.diff-line-added {
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 184, 0, 0.1);
+  color: var(--linear-text-primary);
+}
+
+.diff-line-removed {
+  display: flex;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background-color: rgba(255, 0, 0, 0.1);
+  color: var(--linear-text-primary);
+}
+
+.line-number {
+  display: inline-block;
+  width: 50px;
+  text-align: right;
+  padding: 4px 8px;
+  color: var(--linear-text-tertiary);
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  user-select: none;
+  background: var(--linear-bg-secondary);
+}
+
+.line-number.old {
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.line-number.new {
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.line-content {
+  flex: 1;
+  padding: 4px 8px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.diff-expand-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: var(--linear-bg-secondary);
+  border-top: 1px solid var(--linear-border);
+  border-bottom: 1px solid var(--linear-border);
+}
+
+.diff-expand-button {
+  background: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--linear-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.diff-expand-button:hover {
+  background: var(--linear-blue-light);
+  border-color: var(--linear-blue);
+  color: var(--linear-blue);
+}
