@@ -140,8 +140,6 @@ export function createNodeWithCardRenderer(
     cardRenderer = defaultCardRenderer
   }
 
-  console.log(cardRenderer);
-
   return createNode(g, id, resource.metadata.name, {
     fill,
     stroke,
