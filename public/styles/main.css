@@ -1787,12 +1787,14 @@ td.message-cell {
 }
 
 .loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--linear-border);
-  border-top: 3px solid var(--linear-blue);
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  border-top-color: var(--linear-blue);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 0.5rem;
 }
 
 @keyframes spin {
@@ -1984,4 +1986,367 @@ td.message-cell {
   background: var(--linear-blue-light);
   border-color: var(--linear-blue);
   color: var(--linear-blue);
+}
+
+.view-right-section {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  flex-shrink: 0; /* Don't shrink */
+}
+
+/* Keyboard Shortcuts Container Styles */
+.keyboard-shortcut-container {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.keyboard-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--linear-text-secondary);
+  font-size: 13px;
+}
+
+.shortcut-description {
+  color: var(--linear-text-primary);
+}
+
+.describe-content,
+.yaml-content,
+.logs-content {
+  margin: 0;
+  padding: 16px;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  color: var(--linear-text-primary);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  max-height: calc(100vh - 200px);
+}
+
+.no-events,
+.no-logs {
+  padding: 32px;
+  text-align: center;
+  color: var(--linear-text-tertiary);
+  font-size: 14px;
+}
+
+/* Log Controls Styles */
+.logs-controls {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.logs-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.logs-controls label {
+  font-size: 14px;
+  color: var(--linear-text-secondary);
+  font-weight: 500;
+  margin-right: 2px;
+}
+
+.logs-controls optgroup {
+  font-weight: 600;
+  color: var(--linear-text-secondary);
+  font-style: normal;
+  padding: 4px 0;
+}
+
+.logs-controls option {
+  padding: 4px 8px;
+  font-weight: normal;
+}
+
+.logs-controls select {
+  padding: 8px;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  background-color: var(--linear-bg);
+  color: var(--linear-text-primary);
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.logs-follow-controls {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.logs-follow-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--linear-text-secondary);
+}
+
+.logs-content {
+  margin: 0;
+  padding: 16px;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  color: var(--linear-text-primary);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  max-height: calc(100vh - 280px); /* Adjusted for log controls height */
+}
+
+.log-line {
+  display: flex;
+  padding: 1px 0;
+}
+
+/* Add left padding to log messages when metadata is hidden */
+.log-line .log-message:first-child {
+  padding-left: 4px;
+  border-left: 2px solid transparent;
+}
+
+.log-timestamp {
+  color: #6a9955;
+  margin-right: 8px;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.log-container {
+  margin-right: 8px;
+  font-weight: bold;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.log-message {
+  flex-grow: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+
+.log-message.nowrap {
+  white-space: pre;
+  word-break: normal;
+}
+
+.json-log {
+  font-family: monospace;
+  white-space: pre-wrap;
+}
+
+.json-filter-input {
+  max-width: 150px;
+  padding: 2px 4px;
+  border: 1px solid #666;
+  border-radius: 3px;
+  background: #333;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .logs-options-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .json-format-controls {
+    margin-top: 8px;
+  }
+}
+
+/* Diff Styles */
+.diff-section {
+  margin-bottom: 1.5rem;
+}
+
+.diff-section h4 {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.diff-added h4 {
+  color: var(--linear-green);
+}
+
+.diff-changed h4 {
+  color: var(--linear-blue);
+}
+
+.diff-removed h4 {
+  color: var(--linear-red);
+}
+
+.diff-item {
+  margin-bottom: 1rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--linear-border);
+}
+
+.diff-added .diff-item {
+  border-left-color: var(--linear-green);
+}
+
+.diff-changed .diff-item {
+  border-left-color: var(--linear-blue);
+}
+
+.diff-removed .diff-item {
+  border-left-color: var(--linear-red);
+}
+
+.diff-key {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.diff-value {
+  padding: 0.5rem;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+}
+
+.diff-value-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.5rem;
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+}
+
+.diff-label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.diff-old .diff-label {
+  color: var(--linear-red);
+}
+
+.diff-new .diff-label {
+  color: var(--linear-green);
+}
+
+.diff-old pre, .diff-new pre {
+  margin: 0;
+  padding: 0.5rem;
+  background-color: var(--linear-bg);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.no-diff {
+  padding: 1rem;
+  text-align: center;
+  color: var(--linear-text-secondary);
+  font-style: italic;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--linear-blue);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 0.5rem;
+}
+
+/* Original diff-content styles */
+.diff-content-original {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.5rem; /* Add a small gap after the controls */
+}
+
+/* Original patch-diff styles */
+.patch-diff-original {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  padding: 0;
+  border-radius: 4px;
+  overflow: visible; /* Let parent handle scrolling */
+  border: 1px solid var(--linear-border);
+  box-sizing: border-box;
+  width: 100%;
+  flex: 1; /* Take remaining space */
+}
+
+.diff-patch-original {
+  margin: 0;
+  padding: 8px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-wrap: break-word;
+}
+
+.diff-patch-original div {
+  width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.diff-line-added-original {
+  background-color: rgba(0, 184, 0, 0.1);
+  color: var(--linear-green);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.diff-line-removed-original {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: var(--linear-red);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.diff-line-info-original {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }

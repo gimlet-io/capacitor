@@ -34,9 +34,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/transport/spdy"
-	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
-	"sigs.k8s.io/yaml"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	runclient "github.com/fluxcd/pkg/runtime/client"
@@ -457,16 +454,7 @@ func (s *Server) Setup() {
 			})
 		}
 
-		diffResult, err := s.generateKustomizationDiff(ctx, &kustomization)
-		if err != nil {
-			log.Printf("Error generating diff: %v", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("Failed to generate diff: %v", err),
-			})
-		}
-
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"result":     diffResult,
 			"fluxResult": fluxDiffResult,
 		})
 
@@ -709,158 +697,6 @@ func (s *Server) Setup() {
 	})
 }
 
-// generateKustomizationDiff generates a diff between the desired state (from source) and actual state (from cluster)
-func (s *Server) generateKustomizationDiff(ctx context.Context, kustomization *kustomizev1.Kustomization) (map[string]interface{}, error) {
-	sourceNamespace := kustomization.ObjectMeta.Namespace // Default to same namespace
-	if kustomization.Spec.SourceRef.Namespace != "" {
-		sourceNamespace = kustomization.Spec.SourceRef.Namespace
-	}
-
-	log.Printf("Generating diff for Kustomization %s/%s using source %s %s/%s at path %s",
-		kustomization.ObjectMeta.Namespace,
-		kustomization.ObjectMeta.Name,
-		kustomization.Spec.SourceRef.Kind,
-		sourceNamespace,
-		kustomization.Spec.SourceRef.Name,
-		kustomization.Spec.Path,
-	)
-
-	// Step 1: Get the source artifact and extract manifests
-	desiredResources, err := s.getDesiredResourcesFromSource(
-		ctx,
-		kustomization.Spec.SourceRef.Kind,
-		kustomization.Spec.SourceRef.Name,
-		sourceNamespace,
-		kustomization.Spec.Path,
-	)
-	if err != nil {
-		log.Printf("Error getting desired resources from source: %v", err)
-		return nil, fmt.Errorf("failed to get desired resources from source: %w", err)
-	}
-
-	// Step 2: Get actual resources from the cluster based on inventory
-	actualResources := make(map[string]map[string]interface{})
-	resourceErrors := []string{}
-
-	for _, entry := range kustomization.Status.Inventory.Entries {
-		id := entry.ID
-
-		// Parse the inventory ID format: namespace_name_group_kind
-		parts := strings.Split(id, "_")
-		if len(parts) < 4 {
-			log.Printf("Skipping inventory entry with invalid ID format: %s", id)
-			continue
-		}
-
-		resourceNamespace := parts[0]
-		resourceName := parts[1]
-		// parts[2] is the group (could be empty for core resources)
-		resourceKind := parts[len(parts)-1]
-
-		// Get the actual resource from the cluster
-		actualResource, err := s.getResourceFromCluster(ctx, resourceNamespace, resourceName, resourceKind)
-		if err != nil {
-			errorMsg := fmt.Sprintf("Error getting resource %s/%s of kind %s: %v", resourceNamespace, resourceName, resourceKind, err)
-			log.Printf(errorMsg)
-			resourceErrors = append(resourceErrors, errorMsg)
-			continue
-		}
-
-		// Create a unique key for the resource
-		resourceKey := fmt.Sprintf("%s/%s/%s", resourceNamespace, resourceKind, resourceName)
-		actualResources[resourceKey] = actualResource
-	}
-
-	if len(resourceErrors) > 0 {
-		log.Printf("Encountered %d errors while fetching cluster resources", len(resourceErrors))
-	}
-
-	// Step 3: Render resources as YAML
-	desiredYAML, actualYAML := s.renderResourcesAsYAML(desiredResources, actualResources)
-
-	result := map[string]interface{}{
-		"kustomization": kustomization.ObjectMeta.Name,
-		"namespace":     kustomization.ObjectMeta.Namespace,
-		"source":        fmt.Sprintf("%s/%s", kustomization.Spec.SourceRef.Kind, kustomization.Spec.SourceRef.Name),
-		"path":          kustomization.Spec.Path,
-		"desiredYAML":   desiredYAML,
-		"actualYAML":    actualYAML,
-	}
-
-	// Add resource errors if any occurred
-	if len(resourceErrors) > 0 {
-		result["resourceErrors"] = resourceErrors
-		result["resourceErrorCount"] = len(resourceErrors)
-	}
-
-	// Add inventory information for debugging
-	result["inventoryEntries"] = len(kustomization.Status.Inventory.Entries)
-
-	return result, nil
-}
-
-// getDesiredResourcesFromSource fetches the source artifact and applies kustomize transformations
-func (s *Server) getDesiredResourcesFromSource(ctx context.Context, sourceKind, sourceName, sourceNamespace, path string) (map[string]map[string]interface{}, error) {
-	// Step 1: Get the source resource to find the artifact
-	var sourceResource map[string]interface{}
-	var err error
-
-	switch strings.ToLower(sourceKind) {
-	case "gitrepository":
-		sourceResource, err = s.getGitRepository(ctx, sourceName, sourceNamespace)
-	case "ocirepository":
-		sourceResource, err = s.getOCIRepository(ctx, sourceName, sourceNamespace)
-	case "bucket":
-		sourceResource, err = s.getBucket(ctx, sourceName, sourceNamespace)
-	default:
-		return nil, fmt.Errorf("unsupported source kind: %s", sourceKind)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get source resource: %w", err)
-	}
-
-	// Step 2: Extract artifact information
-	status, ok := sourceResource["status"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("source resource has no status")
-	}
-
-	artifact, ok := status["artifact"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("source resource has no artifact")
-	}
-
-	artifactURL, ok := artifact["url"].(string)
-	if !ok {
-		return nil, fmt.Errorf("artifact has no URL")
-	}
-
-	log.Printf("Fetching artifact from URL: %s", artifactURL)
-
-	// Step 3: Download and extract the artifact
-	tempDir, err := s.downloadAndExtractArtifact(ctx, artifactURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download and extract artifact: %w", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up
-
-	// Step 4: Apply kustomize transformations
-	kustomizePath := filepath.Join(tempDir, path)
-	if !filepath.IsAbs(path) {
-		kustomizePath = filepath.Join(tempDir, path)
-	}
-
-	log.Printf("Applying kustomize at path: %s", kustomizePath)
-
-	resources, err := s.applyKustomize(kustomizePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply kustomize: %w", err)
-	}
-
-	return resources, nil
-}
-
 // downloadAndExtractArtifact downloads and extracts a Flux source artifact
 func (s *Server) downloadAndExtractArtifact(ctx context.Context, artifactURL string) (string, error) {
 	// Create a temporary directory
@@ -1006,162 +842,6 @@ func (s *Server) extractTarGz(data []byte, destDir string) error {
 	return nil
 }
 
-// applyKustomize applies kustomize transformations to the manifests at the given path
-func (s *Server) applyKustomize(kustomizePath string) (map[string]map[string]interface{}, error) {
-	// Check if kustomization.yaml exists
-	kustomizationFile := filepath.Join(kustomizePath, "kustomization.yaml")
-	if _, err := os.Stat(kustomizationFile); os.IsNotExist(err) {
-		// Try kustomization.yml
-		kustomizationFile = filepath.Join(kustomizePath, "kustomization.yml")
-		if _, err := os.Stat(kustomizationFile); os.IsNotExist(err) {
-			return nil, fmt.Errorf("no kustomization.yaml or kustomization.yml found at %s", kustomizePath)
-		}
-	}
-
-	// Create a file system
-	fSys := filesys.MakeFsOnDisk()
-
-	// Create kustomize options
-	opts := krusty.MakeDefaultOptions()
-
-	// Create kustomizer
-	k := krusty.MakeKustomizer(opts)
-
-	// Run kustomize
-	resMap, err := k.Run(fSys, kustomizePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run kustomize: %w", err)
-	}
-
-	// Convert resources to map
-	resources := make(map[string]map[string]interface{})
-	for _, res := range resMap.Resources() {
-		// Get the resource as YAML
-		yamlData, err := res.AsYAML()
-		if err != nil {
-			log.Printf("Failed to convert resource to YAML: %v", err)
-			continue
-		}
-
-		// Parse YAML to map
-		var resourceMap map[string]interface{}
-		err = yaml.Unmarshal(yamlData, &resourceMap)
-		if err != nil {
-			log.Printf("Failed to parse resource YAML: %v", err)
-			continue
-		}
-
-		// Extract metadata
-		metadata, ok := resourceMap["metadata"].(map[string]interface{})
-		if !ok {
-			log.Printf("Resource has no metadata")
-			continue
-		}
-
-		name, ok := metadata["name"].(string)
-		if !ok {
-			log.Printf("Resource has no name")
-			continue
-		}
-
-		namespace, _ := metadata["namespace"].(string)
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		kind, ok := resourceMap["kind"].(string)
-		if !ok {
-			log.Printf("Resource has no kind")
-			continue
-		}
-
-		// Create a unique key for the resource
-		resourceKey := fmt.Sprintf("%s/%s/%s", namespace, kind, name)
-		resources[resourceKey] = resourceMap
-	}
-
-	return resources, nil
-}
-
-// renderResourcesAsYAML renders desired and actual resources as YAML strings
-// without normalization, keeping the original order and separating with YAML document separator
-func (s *Server) renderResourcesAsYAML(desired, actual map[string]map[string]interface{}) (string, string) {
-	var desiredYAML strings.Builder
-	var actualYAML strings.Builder
-
-	// Keep track of processed resources to maintain order
-	processed := make(map[string]bool)
-
-	// First render desired resources in their original order
-	for key, desiredResource := range desired {
-		if !processed[key] {
-			// Convert resource to YAML
-			resourceYAML, err := yaml.Marshal(desiredResource)
-			if err != nil {
-				log.Printf("Failed to marshal desired resource %s to YAML: %v", key, err)
-				continue
-			}
-
-			// Add document separator if not the first document
-			if desiredYAML.Len() > 0 {
-				desiredYAML.WriteString("\n---\n")
-			}
-
-			// Add the YAML content
-			desiredYAML.Write(resourceYAML)
-			processed[key] = true
-		}
-	}
-
-	// Reset processed map for actual resources
-	processed = make(map[string]bool)
-
-	// Render actual resources in same order as desired when possible
-	// First process resources that exist in both desired and actual
-	for key := range desired {
-		if actualResource, exists := actual[key]; exists && !processed[key] {
-			// Convert resource to YAML
-			resourceYAML, err := yaml.Marshal(actualResource)
-			if err != nil {
-				log.Printf("Failed to marshal actual resource %s to YAML: %v", key, err)
-				continue
-			}
-
-			// Add document separator if not the first document
-			if actualYAML.Len() > 0 {
-				actualYAML.WriteString("\n---\n")
-			}
-
-			// Add the YAML content
-			actualYAML.Write(resourceYAML)
-			processed[key] = true
-		}
-	}
-
-	// Then process resources that only exist in actual
-	for key, actualResource := range actual {
-		if _, exists := desired[key]; !exists && !processed[key] {
-			// Convert resource to YAML
-			resourceYAML, err := yaml.Marshal(actualResource)
-			if err != nil {
-				log.Printf("Failed to marshal actual resource %s to YAML: %v", key, err)
-				continue
-			}
-
-			// Add document separator if not the first document
-			if actualYAML.Len() > 0 {
-				actualYAML.WriteString("\n---\n")
-			}
-
-			// Add the YAML content
-			actualYAML.Write(resourceYAML)
-			processed[key] = true
-		}
-	}
-
-	return desiredYAML.String(), actualYAML.String()
-}
-
 // Helper functions to get source resources
 func (s *Server) getGitRepository(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
 	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s", namespace, name)
@@ -1240,7 +920,7 @@ func (s *Server) getResourceFromCluster(ctx context.Context, namespace, name, ki
 		apiPath = fmt.Sprintf("/apis/networking.k8s.io/v1/namespaces/%s/networkpolicies/%s", namespace, name)
 	default:
 		// For unknown resource types, try to discover the API path
-		discoveredPath, err := s.discoverResourceAPIPath(ctx, namespace, name, kind)
+		discoveredPath, err := s.discoverResourceAPIPath(namespace, name, kind)
 		if err != nil {
 			return nil, fmt.Errorf("unsupported resource kind '%s' and failed to discover API path: %w", kind, err)
 		}
@@ -1265,7 +945,7 @@ func (s *Server) getResourceFromCluster(ctx context.Context, namespace, name, ki
 }
 
 // discoverResourceAPIPath discovers the API path for a resource using the discovery client
-func (s *Server) discoverResourceAPIPath(ctx context.Context, namespace, name, kind string) (string, error) {
+func (s *Server) discoverResourceAPIPath(namespace, name, kind string) (string, error) {
 	// Create a discovery client
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.k8sClient.Config)
 	if err != nil {

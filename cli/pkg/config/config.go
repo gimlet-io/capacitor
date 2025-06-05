@@ -37,7 +37,7 @@ func (c *Config) Parse() {
 	flag.StringVar(&c.Address, "address", c.Address, "Address to listen on")
 	flag.IntVar(&c.Port, "port", c.Port, "Port to listen on")
 	flag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve")
-	flag.StringVar(&c.KubeConfigPath, "k8s-config", c.KubeConfigPath, "Path to kubeconfig file")
+	flag.StringVar(&c.KubeConfigPath, "kube-config", c.KubeConfigPath, "Path to kubeconfig file")
 	flag.BoolVar(&c.InCluster, "in-cluster", c.InCluster, "Use in-cluster configuration")
 	flag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development)")
 
