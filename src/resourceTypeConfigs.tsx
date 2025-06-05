@@ -16,7 +16,7 @@ import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./component
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
-import { podsStatusFilter, podsReadinessFilter } from "./components/resourceList/PodList.tsx";
+import { podsStatusFilter, podsReadinessFilter, podCardRenderer } from "./components/resourceList/PodList.tsx";
 import { deploymentReadinessFilter } from "./components/resourceList/DeploymentList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
@@ -36,6 +36,7 @@ import { serviceAccountColumns, serviceAccountAutomountFilter } from "./componen
 import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
 import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
 import { handleFluxReconcile } from "./utils/fluxUtils.tsx";
+
 export interface Column<T> {
   header: string;
   width: string;
@@ -48,6 +49,12 @@ export interface ResourceCommand {
   handler: (item: any) => void | Promise<void>;
 }
 
+export interface ResourceCardRenderer {
+  render: (resource: any) => JSX.Element;
+  width?: number;
+  height?: number;
+}
+
 export interface ResourceTypeConfig {
   columns: Column<any>[];
   detailRowRenderer?: (item: any, columnCount?: number) => JSX.Element;
@@ -56,6 +63,7 @@ export interface ResourceTypeConfig {
   commands?: ResourceCommand[];
   filter?: Filter[];
   sortFunction?: (items: any[]) => any[];
+  treeCardRenderer?: ResourceCardRenderer;
 }
 
 // Define a reusable namespace column for all namespaced resources
@@ -93,7 +101,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: null as any  // Will be implemented in ResourceList
       },
       ...builtInCommands, 
-    ]
+    ],
+    treeCardRenderer: podCardRenderer
   },
   
   'apps/Deployment': {

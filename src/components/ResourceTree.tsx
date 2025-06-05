@@ -1,11 +1,12 @@
-import { Accessor, createEffect, onMount, onCleanup, createSignal, createMemo, Show } from "solid-js";
+import { Accessor, createEffect, onMount, onCleanup, createSignal, createMemo, Show, JSX } from "solid-js";
+import { render } from "solid-js/web";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
 import { ResourceDrawer } from "./resourceDetail/ResourceDrawer.tsx";
 import { HelmDrawer } from "./resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "./keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-import { resourceTypeConfigs, ResourceCommand, ResourceTypeConfig } from "../resourceTypeConfigs.tsx";
+import { resourceTypeConfigs, ResourceCommand, ResourceTypeConfig, ResourceCardRenderer } from "../resourceTypeConfigs.tsx";
 import { builtInCommands, replaceHandlers } from "./resourceList/ResourceList.tsx";
 
 // Helper function to determine resource type from resource object
@@ -39,6 +40,7 @@ interface NodeData {
   // New fields for resource metadata
   resource?: any;
   resourceType?: string;
+  jsxContent?: JSX.Element;
 }
 
 interface EdgeData {
@@ -78,6 +80,9 @@ export function createNode(
     strokeWidth: string;
     resource?: any;
     resourceType?: string;
+    jsxContent?: JSX.Element;
+    width?: number;
+    height?: number;
   },
 ) {
   const {
@@ -88,11 +93,15 @@ export function createNode(
     strokeWidth,
     resource,
     resourceType,
+    jsxContent,
+    width: customWidth,
+    height: customHeight,
   } = options;
 
   const textWidth = getTextWidth(label, fontSize, fontWeight);
-  const width = Math.max(140, textWidth + 40); // Fixed minWidth of 140
-  const height = 40; // Fixed height of 40
+  // If custom dimensions are provided, use them, otherwise calculate based on text
+  const width = customWidth || Math.max(140, textWidth + 40); // Min width of 140
+  const height = customHeight || (jsxContent ? 80 : 40); // Custom height for JSX content or default
 
   g.setNode(id, {
     label,
@@ -105,9 +114,67 @@ export function createNode(
     strokeWidth,
     resource,
     resourceType,
+    jsxContent,
   });
 
   return id;
+}
+
+// Helper function to create a node with card renderer
+export function createNodeWithCardRenderer(
+  g: graphlib.Graph,
+  id: string,
+  resource: any,
+  resourceType: string,
+  options: {
+    fill: string;
+    stroke: string;
+    strokeWidth: string;
+    rendererName?: string;
+  }
+) {
+  const { fill, stroke, strokeWidth } = options;
+  
+  let cardRenderer = resourceTypeConfigs[resourceType]?.treeCardRenderer;
+  if (!cardRenderer) {
+    cardRenderer = defaultCardRenderer
+  }
+
+  console.log(cardRenderer);
+
+  return createNode(g, id, resource.metadata.name, {
+    fill,
+    stroke,
+    strokeWidth,
+    resource,
+    resourceType,
+    jsxContent: cardRenderer.render(resource),
+    width: cardRenderer.width,
+    height: cardRenderer.height
+  });
+}
+
+const defaultCardRenderer: ResourceCardRenderer = {
+  render: (resource) => {
+    // Extract resource type and namespace
+    const kind = resource.kind || "";
+    const namespace = resource.metadata?.namespace || "";
+    
+    return (
+      <div class="resource-card">
+        <div class="resource-card-header">
+          <div class="resource-type">{kind}</div>
+          <div class="resource-namespace">{namespace}</div>
+        </div>
+        
+        <div class="resource-name">
+          {resource.metadata.name}
+        </div>
+      </div>
+    );
+  },
+  width: 180,
+  height: 70
 }
 
 interface ResourceTreeProps {
@@ -368,21 +435,55 @@ export function ResourceTree(props: ResourceTreeProps) {
         rect.setAttribute("stroke-width", node.strokeWidth);
       }
 
-      // Create text
-      const text = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "text",
-      );
-      text.setAttribute("x", (node.width / 2).toString());
-      text.setAttribute("y", (node.height / 2).toString());
-      text.setAttribute("text-anchor", "middle");
-      text.setAttribute("dominant-baseline", "middle");
-      text.setAttribute("font-size", node.fontSize?.toString() || "12");
-      text.setAttribute("font-weight", node.fontWeight || "normal");
-      text.textContent = node.label;
-
       group.appendChild(rect);
-      group.appendChild(text);
+
+      // Check if we have JSX content to render
+      if (node.jsxContent) {
+        // Create foreignObject for JSX content
+        const foreignObject = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+        foreignObject.setAttribute("width", node.width.toString());
+        foreignObject.setAttribute("height", node.height.toString());
+        foreignObject.setAttribute("x", "0");
+        foreignObject.setAttribute("y", "0");
+        
+        // Create a div container for the JSX content
+        const div = document.createElement("div");
+        div.style.width = "100%";
+        div.style.height = "100%";
+        div.style.display = "flex";
+        div.style.alignItems = "center";
+        div.style.justifyContent = "center";
+        div.style.overflow = "hidden";
+        div.style.padding = "8px";
+        div.style.boxSizing = "border-box";
+        
+        // Render the JSX content
+        const solidRoot = document.createElement("div");
+        foreignObject.appendChild(div);
+        div.appendChild(solidRoot);
+        
+        // Use solid-js's render to insert the JSX content
+        const dispose = render(() => node.jsxContent!, solidRoot);
+        onCleanup(() => dispose());
+        
+        group.appendChild(foreignObject);
+      } else {
+        // Create text if no JSX content
+        const text = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text",
+        );
+        text.setAttribute("x", (node.width / 2).toString());
+        text.setAttribute("y", (node.height / 2).toString());
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "middle");
+        text.setAttribute("font-size", node.fontSize?.toString() || "12");
+        text.setAttribute("font-weight", node.fontWeight || "normal");
+        text.textContent = node.label;
+        
+        group.appendChild(text);
+      }
+      
       gRef?.appendChild(group);
     });
 

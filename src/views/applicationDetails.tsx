@@ -12,7 +12,7 @@ import type {
   DeploymentWithResources
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
-import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
+import { createNode, createNodeWithCardRenderer, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 
 export function ApplicationDetails() {
@@ -264,17 +264,21 @@ export function ApplicationDetails() {
         g.setEdge(deploymentId, rsId);
 
         // Add pods
-        replicaSet.pods.forEach((pod) => {
-          const podId = createNode(
+        replicaSet.pods.forEach((pod, index) => {
+          // Alternate between card styles based on index
+          const rendererName = index % 3 === 0 ? "compact" : 
+                              index % 3 === 1 ? "detailed" : "horizontal";
+                              
+          const podId = createNodeWithCardRenderer(
             g,
             `pod-${pod.metadata.name}`,
-            `Pod: ${pod.metadata.name}`,
+            pod,
+            "core/Pod",
             {
               fill: "#fff",
               stroke: "#666",
               strokeWidth: "1",
-              resource: pod,
-              resourceType: "core/Pod"
+              rendererName
             },
           );
           g.setEdge(rsId, podId);

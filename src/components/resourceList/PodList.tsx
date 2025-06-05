@@ -1,6 +1,7 @@
 import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
+import { ResourceCardRenderer } from "../../resourceTypeConfigs.tsx";
 
 export const podsStatusFilter: Filter = {
   name: "PodStatus",
@@ -226,3 +227,50 @@ export const podColumns = [
     ),
   },
 ];
+
+export const podCardRenderer: ResourceCardRenderer = {
+  render: (pod) => {
+    // Extract status information
+    const ready = pod.status?.containerStatuses?.filter((s: any) => s.ready).length || 0;
+    const total = pod.status?.containerStatuses?.length || 0;
+    const phase = pod.status?.phase || "Unknown";
+    const isReady = phase === "Running" && ready === total;
+    
+    return (
+      <div class="pod-card pod-card-compact" style={{
+        "font-size": "11px",
+        "line-height": "1.2",
+        "text-align": "center",
+        "width": "100%"
+      }}>
+        <div style={{ 
+          "font-weight": "bold", 
+          "margin-bottom": "4px",
+          "white-space": "nowrap",
+          "overflow": "hidden",
+          "text-overflow": "ellipsis",
+          "max-width": "100%"
+        }}>
+          {pod.metadata.name}
+        </div>
+        <div style={{ 
+          "display": "flex", 
+          "justify-content": "center", 
+          "align-items": "center",
+          "gap": "4px" 
+        }}>
+          <span style={{
+            "display": "inline-block",
+            "width": "8px",
+            "height": "8px",
+            "border-radius": "50%",
+            "background-color": isReady ? "#4caf50" : "#f44336"
+          }}></span>
+          <span>{ready}/{total} ready</span>
+        </div>
+      </div>
+    );
+  },
+  width: 150,
+  height: 50
+}

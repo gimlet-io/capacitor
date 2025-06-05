@@ -13,7 +13,7 @@ import type {
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
-import { createNode, ResourceTree } from "../components/ResourceTree.tsx";
+import { createNodeWithCardRenderer, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
@@ -304,77 +304,74 @@ export function KustomizationDetails() {
     g.setDefaultEdgeLabel(() => ({}));
 
     // Add Kustomization as root node
-    const kustomizationId = createNode(
+    const kustomizationId = createNodeWithCardRenderer(
       g,
       `kustomization-${kustomization.metadata.name}`,
-      `Kustomization: ${kustomization.metadata.name}`,
+      kustomization,
+      "kustomize.toolkit.fluxcd.io/Kustomization",
       {
-        fontSize: 14,
-        fontWeight: "bold",
-        fill:
-          kustomization.status?.conditions?.some((c) =>
-              c.type === "Ready" && c.status === "True"
-            )
-            ? "#e6f4ea"
-            : "#fce8e6",
-        stroke:
-          kustomization.status?.conditions?.some((c) =>
+        fill: kustomization.status?.conditions?.some((c) =>
             c.type === "Ready" && c.status === "True"
-            )
-            ? "#137333"
-            : "#c5221f",
-        strokeWidth: "2",
-        resource: kustomization,
-        resourceType: "kustomize.toolkit.fluxcd.io/Kustomization"
-      },
+          )
+          ? "#e6f4ea"
+          : "#fce8e6",
+        stroke: kustomization.status?.conditions?.some((c) =>
+          c.type === "Ready" && c.status === "True"
+          )
+          ? "#137333"
+          : "#c5221f",
+        strokeWidth: "2"
+      }
     );
 
     // Add nodes and edges for deployments
     kustomization.inventoryItems.deployments.forEach((deployment) => {
       const isReady =
         deployment.status.availableReplicas === deployment.status.replicas;
-      const deploymentId = createNode(
+      const deploymentId = createNodeWithCardRenderer(
         g,
         `deployment-${deployment.metadata.name}`,
-        `Deployment: ${deployment.metadata.name}`,
+        deployment,
+        "apps/Deployment",
         {
           fill: isReady ? "#e6f4ea" : "#fce8e6",
           stroke: isReady ? "#137333" : "#c5221f",
-          strokeWidth: "1",
-          resource: deployment,
-          resourceType: "apps/Deployment"
-        },
+          strokeWidth: "1"
+        }
       );
       g.setEdge(kustomizationId, deploymentId);
 
       // Add replica sets
       deployment.replicaSets.forEach((replicaSet) => {
-        const rsId = createNode(
+        const rsId = createNodeWithCardRenderer(
           g,
           `replicaset-${replicaSet.metadata.name}`,
-          `ReplicaSet: ${replicaSet.metadata.name}`,
+          replicaSet,
+          "apps/ReplicaSet",
           {
             fill: "#e8f0fe",
             stroke: "#1a73e8",
-            strokeWidth: "1",
-            resource: replicaSet,
-            resourceType: "apps/ReplicaSet"
-          },
+            strokeWidth: "1"
+          }
         );
         g.setEdge(deploymentId, rsId);
 
         // Add pods
-        replicaSet.pods.forEach((pod) => {
-          const podId = createNode(
+        replicaSet.pods.forEach((pod, index) => {
+          // Alternate between card styles based on index
+          const rendererName = index % 3 === 0 ? "compact" : 
+                              index % 3 === 1 ? "detailed" : "horizontal";
+                              
+          const podId = createNodeWithCardRenderer(
             g,
             `pod-${pod.metadata.name}`,
-            `Pod: ${pod.metadata.name}`,
+            pod,
+            "core/Pod",
             {
               fill: "#fff",
               stroke: "#666",
               strokeWidth: "1",
-              resource: pod,
-              resourceType: "core/Pod"
+              rendererName
             },
           );
           g.setEdge(rsId, podId);
@@ -384,17 +381,16 @@ export function KustomizationDetails() {
 
     // Add nodes for services
     kustomization.inventoryItems.services.forEach((service) => {
-      const serviceId = createNode(
+      const serviceId = createNodeWithCardRenderer(
         g,
         `service-${service.metadata.name}`,
-        `Service: ${service.metadata.name}`,
+        service,
+        "core/Service",
         {
           fill: "#e6f4ea",
           stroke: "#137333",
-          strokeWidth: "1",
-          resource: service,
-          resourceType: "core/Service"
-        },
+          strokeWidth: "1"
+        }
       );
       g.setEdge(kustomizationId, serviceId);
     });
