@@ -135,61 +135,8 @@ h1 {
   box-sizing: border-box;
 }
 
-.combobox-input:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
-.combobox-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
-    max-height: 250px;
-    overflow-y: auto;
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    box-sizing: border-box;
-}
-
-.combobox-option {
-    padding: 0.5rem;
-    cursor: pointer;
-    position: relative;
-}
-
-.combobox-option-hotkey{
-  position: absolute;
-  right: 0.5rem;
-  background-color: #e9ecef;
-  color: #495057;
-  font-size: 12px;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  pointer-events: none;
-}
-
-.combobox-option:hover {
-    background-color: #f8f9fa;
-}
-
-.combobox-option.selected {
-    background-color: #e9ecef;
-}
-
-.combobox-option.highlighted {
-    background-color: #e9ecef;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
 
 .resource-section.full-width {
     grid-column: 1 / -1;
@@ -1565,12 +1512,6 @@ td.message-cell {
   font-size: 14px;
   color: var(--linear-text-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-.diff-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--linear-border);
-  margin-bottom: 16px;
 }
 
 .tab-button {
