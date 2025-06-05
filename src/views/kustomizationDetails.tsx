@@ -324,6 +324,8 @@ export function KustomizationDetails() {
             ? "#137333"
             : "#c5221f",
         strokeWidth: "2",
+        resource: kustomization,
+        resourceType: "kustomize.toolkit.fluxcd.io/Kustomization"
       },
     );
 
@@ -339,6 +341,8 @@ export function KustomizationDetails() {
           fill: isReady ? "#e6f4ea" : "#fce8e6",
           stroke: isReady ? "#137333" : "#c5221f",
           strokeWidth: "1",
+          resource: deployment,
+          resourceType: "apps/Deployment"
         },
       );
       g.setEdge(kustomizationId, deploymentId);
@@ -353,6 +357,8 @@ export function KustomizationDetails() {
             fill: "#e8f0fe",
             stroke: "#1a73e8",
             strokeWidth: "1",
+            resource: replicaSet,
+            resourceType: "apps/ReplicaSet"
           },
         );
         g.setEdge(deploymentId, rsId);
@@ -367,6 +373,8 @@ export function KustomizationDetails() {
               fill: "#fff",
               stroke: "#666",
               strokeWidth: "1",
+              resource: pod,
+              resourceType: "core/Pod"
             },
           );
           g.setEdge(rsId, podId);
@@ -384,6 +392,8 @@ export function KustomizationDetails() {
           fill: "#e6f4ea",
           stroke: "#137333",
           strokeWidth: "1",
+          resource: service,
+          resourceType: "core/Service"
         },
       );
       g.setEdge(kustomizationId, serviceId);

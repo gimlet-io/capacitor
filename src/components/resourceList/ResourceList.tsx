@@ -32,6 +32,145 @@ export const builtInCommands = [
   },
 ]
 
+// Shared function to handle resource deletion
+export const handleDeleteResource = async (resource: any) => {
+  if (!resource || !resource.metadata) return;
+  
+  const resourceName = resource.metadata.name;
+  const resourceKind = resource.kind;
+  
+  // Show browser's native confirmation dialog
+  const confirmed = window.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
+  
+  if (!confirmed) return;
+  
+  try {
+    // Determine API path based on resource kind and group
+    const group = resource.apiVersion?.includes('/') 
+      ? resource.apiVersion.split('/')[0] 
+      : '';
+    const version = resource.apiVersion?.includes('/') 
+      ? resource.apiVersion.split('/')[1] 
+      : resource.apiVersion || 'v1';
+    
+    let apiPath = '';
+    if (!group || group === 'core') {
+      apiPath = `/k8s/api/${version}`;
+    } else {
+      apiPath = `/k8s/apis/${group}/${version}`;
+    }
+    
+    // Build the full delete URL
+    let deleteUrl = '';
+    if (resource.metadata.namespace) {
+      deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+    } else {
+      deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+    }
+    
+    // Send delete request
+    const response = await fetch(deleteUrl, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete resource: ${response.statusText}`);
+    }
+    
+    // Resource will be removed from the UI when the watch detects the DELETE event
+  } catch (error) {
+    console.error('Error deleting resource:', error);
+  }
+};
+
+// Shared function to replace command handlers with actual implementations
+export const replaceHandlers = (
+  commands: ResourceCommand[],
+  handlers: {
+    openDrawer: (tab: "describe" | "yaml" | "events" | "logs", resource: any) => void;
+    openHelmDrawer: (resource: any, tab: "history" | "values" | "manifest") => void;
+    navigate?: (path: string) => void;
+    updateFilters?: (filters: any[]) => void;
+  }
+) => {
+  // Replace the null handlers with actual implementations for built-in commands
+  for (let i = 0; i < commands.length; i++) {
+    const cmd = commands[i];
+    
+    // Check for built-in command key combinations and replace null handlers
+    if (cmd.handler === null) {
+      if (cmd.shortcut.key === 'd' && cmd.shortcut.description === 'Describe') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("describe", resource)
+        };
+      } else if (cmd.shortcut.key === 'y' && cmd.shortcut.description === 'YAML') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("yaml", resource)
+        };
+      } else if (cmd.shortcut.key === 'e' && cmd.shortcut.description === 'Events') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("events", resource)
+        };
+      } else if (cmd.shortcut.key === 'l' && cmd.shortcut.description === 'Logs') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("logs", resource)
+        };
+      } else if (cmd.shortcut.key === 'Ctrl+d' && cmd.shortcut.description === 'Delete resource') {
+        commands[i] = {
+          ...cmd,
+          handler: handleDeleteResource
+        };
+      } else if (cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openHelmDrawer(resource, "history")
+        };
+      } else if (cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openHelmDrawer(resource, "values")
+        };
+      } else if (cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openHelmDrawer(resource, "manifest")
+        };
+      } else if (cmd === navigateToKustomization && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/kustomization/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === navigateToApplication && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/application/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === showPodsInNamespace && handlers.updateFilters) {
+        commands[i] = {
+          ...cmd,
+          handler: (namespace) => {
+            // Update filters to show pods in the selected namespace
+            const newFilters = [
+              { name: 'ResourceType', value: 'core/Pod' },
+              { name: 'Namespace', value: namespace.metadata.name }
+            ];
+            
+            handlers.updateFilters!(newFilters);
+          }
+        };
+      }
+    }
+  }
+};
+
 export function ResourceList<T>(props: { 
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
@@ -108,141 +247,17 @@ export function ResourceList<T>(props: {
     setHelmDrawerOpen(false);
   };
 
-  const handleDeleteResource = async (resource: any) => {
-    if (!resource || !resource.metadata) return;
-    
-    const resourceName = resource.metadata.name;
-    const resourceKind = resource.kind;
-    
-    // Show browser's native confirmation dialog
-    const confirmed = window.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
-    
-    if (!confirmed) return;
-    
-    try {
-      // Determine API path based on resource kind and group
-      const group = resource.apiVersion?.includes('/') 
-        ? resource.apiVersion.split('/')[0] 
-        : '';
-      const version = resource.apiVersion?.includes('/') 
-        ? resource.apiVersion.split('/')[1] 
-        : resource.apiVersion || 'v1';
-      
-      let apiPath = '';
-      if (!group || group === 'core') {
-        apiPath = `/k8s/api/${version}`;
-      } else {
-        apiPath = `/k8s/apis/${group}/${version}`;
-      }
-      
-      // Build the full delete URL
-      let deleteUrl = '';
-      if (resource.metadata.namespace) {
-        deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
-      } else {
-        deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
-      }
-      
-      // Send delete request
-      const response = await fetch(deleteUrl, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to delete resource: ${response.statusText}`);
-      }
-      
-      // Resource will be removed from the UI when the watch detects the DELETE event
-    } catch (error) {
-      console.error('Error deleting resource:', error);
-    }
-  };
-
   // Generate a list of all commands including built-in ones
   const getAllCommands = (): ResourceCommand[] => {
     // Get the commands from the resource config
     const commands = [...(props.resourceTypeConfig.commands || builtInCommands)];
-    replaceHandlers(commands);
+    replaceHandlers(commands, {
+      openDrawer,
+      openHelmDrawer,
+      navigate: navigate,
+      updateFilters: (filters) => filterStore.setActiveFilters(filters)
+    });
     return commands;
-  };
-
-  const replaceHandlers = (commands: ResourceCommand[]) => {
-    // Replace the null handlers with actual implementations for built-in commands
-    for (let i = 0; i < commands.length; i++) {
-      const cmd = commands[i];
-      
-      // Check for built-in command key combinations and replace null handlers
-      if (cmd.handler === null) {
-        if (cmd.shortcut.key === 'd' && cmd.shortcut.description === 'Describe') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openDrawer("describe", resource)
-          };
-        } else if (cmd.shortcut.key === 'y' && cmd.shortcut.description === 'YAML') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openDrawer("yaml", resource)
-          };
-        } else if (cmd.shortcut.key === 'e' && cmd.shortcut.description === 'Events') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openDrawer("events", resource)
-          };
-        } else if (cmd.shortcut.key === 'l' && cmd.shortcut.description === 'Logs') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openDrawer("logs", resource)
-          };
-        } else if (cmd.shortcut.key === 'Ctrl+d' && cmd.shortcut.description === 'Delete resource') {
-          commands[i] = {
-            ...cmd,
-            handler: handleDeleteResource
-          };
-        } else if (cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openHelmDrawer(resource, "history")
-          };
-        } else if (cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openHelmDrawer(resource, "values")
-          };
-        } else if (cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest') {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => openHelmDrawer(resource, "manifest")
-          };
-        } else if (cmd === navigateToKustomization) {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => {
-              navigate(`/kustomization/${resource.metadata.namespace}/${resource.metadata.name}`);
-            }
-          };
-        } else if (cmd === navigateToApplication) {
-          commands[i] = {
-            ...cmd,
-            handler: (resource) => {
-              navigate(`/application/${resource.metadata.namespace}/${resource.metadata.name}`);
-            }
-          };
-        } else if (cmd === showPodsInNamespace) {
-          commands[i] = {
-            ...cmd,
-            handler: (namespace) => {
-              // Update filters to show pods in the selected namespace
-              const newFilters = [
-                { name: 'ResourceType', value: 'core/Pod' },
-                { name: 'Namespace', value: namespace.metadata.name }
-              ];
-              
-              filterStore.setActiveFilters(newFilters);
-            }
-          };
-        }
-      }
-    }
   };
 
   // Find a command by its shortcut key

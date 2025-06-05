@@ -846,6 +846,18 @@ export function HelmDrawer(props: {
     }
   };
 
+  // Helper function to refresh data based on the current tab
+  const refreshTabData = () => {
+    const currentTab = activeTab();
+    if (currentTab === "history") {
+      setupHistoryWatcher();
+    } else if (currentTab === "values") {
+      fetchReleaseValues();
+    } else if (currentTab === "manifest") {
+      fetchReleaseManifest();
+    }
+  };
+
   // Load data when the drawer opens or active tab changes
   createEffect(() => {
     if (props.isOpen) {
@@ -1005,16 +1017,37 @@ export function HelmDrawer(props: {
 
   // Set up keyboard event listener
   onMount(() => {
-    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    // Fetch data for the initial tab
+    refreshTabData();
+    
+    // Prevent body scrolling when drawer is open
+    if (props.isOpen) {
+      document.body.style.overflow = 'hidden';
+    }
   });
 
-  // Clean up event listener and subscriptions
   onCleanup(() => {
-    window.removeEventListener("keydown", handleKeyDown, true);
-
+    window.removeEventListener('keydown', handleKeyDown, true);
+    
+    // Clean up history subscription if it exists
     if (unsubscribeHistory) {
       unsubscribeHistory();
       unsubscribeHistory = null;
+    }
+    
+    // Restore body scrolling when drawer is closed or unmounted
+    document.body.style.overflow = '';
+  });
+
+  // Watch for changes to the isOpen prop
+  createEffect(() => {
+    if (props.isOpen) {
+      document.body.style.overflow = 'hidden';
+      // Fetch data when the drawer opens
+      refreshTabData();
+    } else {
+      document.body.style.overflow = '';
     }
   });
 

@@ -1,6 +1,29 @@
-import { Accessor, createEffect, onMount, onCleanup } from "solid-js";
+import { Accessor, createEffect, onMount, onCleanup, createSignal, createMemo, Show } from "solid-js";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
+import { ResourceDrawer } from "./resourceDetail/ResourceDrawer.tsx";
+import { HelmDrawer } from "./resourceDetail/HelmDrawer.tsx";
+import { KeyboardShortcuts, KeyboardShortcut } from "./keyboardShortcuts/KeyboardShortcuts.tsx";
+import { useNavigate } from "@solidjs/router";
+import { resourceTypeConfigs, ResourceCommand, ResourceTypeConfig } from "../resourceTypeConfigs.tsx";
+import { builtInCommands, replaceHandlers } from "./resourceList/ResourceList.tsx";
+
+// Helper function to determine resource type from resource object
+const getResourceType = (resource: any): string => {
+  if (!resource || !resource.kind) return '';
+  
+  const apiVersion = resource.apiVersion || 'v1';
+  const kind = resource.kind;
+  
+  if (apiVersion === 'v1') {
+    return `core/${kind}`;
+  } else if (apiVersion.includes('/')) {
+    const [group, version] = apiVersion.split('/');
+    return `${group}/${kind}`;
+  } else {
+    return `${apiVersion}/${kind}`;
+  }
+};
 
 interface NodeData {
   label: string;
@@ -13,10 +36,20 @@ interface NodeData {
   fill: string;
   stroke: string;
   strokeWidth: string;
+  // New fields for resource metadata
+  resource?: any;
+  resourceType?: string;
 }
 
 interface EdgeData {
   points: Array<{ x: number; y: number }>;
+}
+
+interface ResourceNode {
+  id: string;
+  node: NodeData;
+  resource: any;
+  resourceType?: string;
 }
 
 // Helper function to calculate text width
@@ -43,6 +76,8 @@ export function createNode(
     fill: string;
     stroke: string;
     strokeWidth: string;
+    resource?: any;
+    resourceType?: string;
   },
 ) {
   const {
@@ -51,6 +86,8 @@ export function createNode(
     fill,
     stroke,
     strokeWidth,
+    resource,
+    resourceType,
   } = options;
 
   const textWidth = getTextWidth(label, fontSize, fontWeight);
@@ -66,6 +103,8 @@ export function createNode(
     fill,
     stroke,
     strokeWidth,
+    resource,
+    resourceType,
   });
 
   return id;
@@ -77,9 +116,196 @@ interface ResourceTreeProps {
 
 export function ResourceTree(props: ResourceTreeProps) {
   const { g } = props;
+  const navigate = useNavigate();
 
   let svgRef: SVGSVGElement | undefined;
   let gRef: SVGGElement | undefined;
+
+  // State for resource selection and drawers
+  const [selectedNodeId, setSelectedNodeId] = createSignal<string | null>(null);
+  const [selectedResource, setSelectedResource] = createSignal<any | null>(null);
+  const [drawerOpen, setDrawerOpen] = createSignal(false);
+  const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
+  const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
+  const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
+
+  // Get all nodes with their resources
+  const resourceNodes = createMemo(() => {
+    const graph = g();
+    if (!graph) return [];
+    
+    return graph.nodes().map((nodeId: string) => {
+      const node = graph.node(nodeId) as NodeData;
+      return {
+        id: nodeId,
+        node,
+        resource: node.resource,
+        resourceType: node.resourceType || (node.resource ? getResourceType(node.resource) : undefined)
+      };
+    }).filter((item: ResourceNode) => item.resource); // Only include nodes with actual resources
+  });
+
+  // Get selected resource node
+  const selectedResourceNode = createMemo(() => {
+    const nodeId = selectedNodeId();
+    if (!nodeId) return null;
+    
+    return resourceNodes().find((item: ResourceNode) => item.id === nodeId);
+  });
+
+  // Get resource type config for selected resource
+  const selectedResourceConfig = createMemo((): ResourceTypeConfig | null => {
+    const resourceNode = selectedResourceNode();
+    if (!resourceNode || !resourceNode.resourceType) return null;
+    
+    return resourceTypeConfigs[resourceNode.resourceType] || null;
+  });
+
+  // Import drawer-related functions from ResourceList component
+  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: any) => {
+    setSelectedResource(resource);
+    setActiveTab(tab);
+    setDrawerOpen(true);
+    // Prevent page scrolling when drawer is open
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    // Restore page scrolling when drawer is closed
+    document.body.style.overflow = '';
+  };
+
+  const openHelmDrawer = (resource: any, tab: "history" | "values" | "manifest" = "history") => {
+    setSelectedResource(resource);
+    setHelmActiveTab(tab);
+    setHelmDrawerOpen(true);
+    // Prevent page scrolling when drawer is open
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeHelmDrawer = () => {
+    setHelmDrawerOpen(false);
+    // Restore page scrolling when drawer is closed
+    document.body.style.overflow = '';
+  };
+
+  // Generate a list of all commands including built-in ones
+  const getAllCommands = (): ResourceCommand[] => {
+    const config = selectedResourceConfig();
+    if (!config) return [];
+    
+    // Get the commands from the resource config
+    const commands = [...(config.commands || builtInCommands)];
+    replaceHandlers(commands, {
+      openDrawer,
+      openHelmDrawer,
+      navigate
+    });
+    return commands;
+  };
+
+  // Find a command by its shortcut key
+  const findCommand = (key: string, ctrlKey: boolean): ResourceCommand | undefined => {
+    const allCommands = getAllCommands();
+    
+    return allCommands.find(cmd => {
+      const shortcutKey = cmd.shortcut.key;
+      // Handle both formats: "Ctrl+X" and direct ctrl key checks
+      const hasCtrl = shortcutKey.toLowerCase().includes('ctrl+');
+      const actualKey = hasCtrl ? shortcutKey.split('+')[1].toLowerCase() : shortcutKey.toLowerCase();
+      
+      return actualKey === key.toLowerCase() && (ctrlKey === hasCtrl);
+    });
+  };
+
+  // Execute a command with the current selected resource
+  const executeCommand = async (command: ResourceCommand) => {
+    const resourceNode = selectedResourceNode();
+    if (!resourceNode || !resourceNode.resource) return;
+    
+    try {
+      await command.handler(resourceNode.resource);
+    } catch (error) {
+      console.error(`Error executing command ${command.shortcut.description}:`, error);
+    }
+  };
+
+  const shouldIgnoreKeyboardEvents = () => {
+    // Ignore keyboard events when:
+    // 1. Any input element is focused
+    // 2. Any .filter-options element is visible in the DOM
+    if (document.activeElement instanceof HTMLInputElement || 
+        document.activeElement instanceof HTMLTextAreaElement) {
+      return true;
+    }
+    
+    // Check if any filter dropdown is open
+    const openFilterOptions = document.querySelector('.filter-options');
+    if (openFilterOptions) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Handle keyboard shortcuts
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const nodes = resourceNodes();
+    if (nodes.length === 0) return;
+    
+    // Don't process keyboard shortcuts if we should ignore them
+    if (shouldIgnoreKeyboardEvents()) {
+      return;
+    }
+
+    // Handle navigation keys first
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const currentIndex = selectedNodeId() ? nodes.findIndex((n: ResourceNode) => n.id === selectedNodeId()) : -1;
+      const nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, nodes.length - 1);
+      const nextNode = nodes[nextIndex];
+      if (nextNode) {
+        setSelectedNodeId(nextNode.id);
+        setSelectedResource(nextNode.resource);
+      }
+      return;
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const currentIndex = selectedNodeId() ? nodes.findIndex((n: ResourceNode) => n.id === selectedNodeId()) : -1;
+      const prevIndex = currentIndex === -1 ? 0 : Math.max(currentIndex - 1, 0);
+      const prevNode = nodes[prevIndex];
+      if (prevNode) {
+        setSelectedNodeId(prevNode.id);
+        setSelectedResource(prevNode.resource);
+      }
+      return;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // Find the Enter command
+      const enterCommand = findCommand('Enter', false);
+      if (enterCommand) {
+        executeCommand(enterCommand);
+      }
+      return;
+    }
+
+    // For all other keys, check if there's a resource selected
+    if (!selectedNodeId()) return;
+
+    // Find and execute the command
+    const command = findCommand(e.key, e.ctrlKey);
+    if (command) {
+      e.preventDefault();
+      executeCommand(command);
+    }
+  };
+
+  // Get available shortcuts for the selected resource
+  const getAvailableShortcuts = (): KeyboardShortcut[] => {
+    const allCommands = getAllCommands();
+    return allCommands.map(cmd => cmd.shortcut);
+  };
 
   const renderGraph = (g: graphlib.Graph) => {
     if (!svgRef || !gRef || !g) return;
@@ -111,6 +337,16 @@ export function ResourceTree(props: ResourceTreeProps) {
         `translate(${node.x! - node.width / 2},${node.y! - node.height / 2})`,
       );
 
+      // Add click handler for resource nodes
+      if (node.resource) {
+        group.style.cursor = "pointer";
+        group.addEventListener('click', (e) => {
+          e.stopPropagation();
+          setSelectedNodeId(v);
+          setSelectedResource(node.resource);
+        });
+      }
+
       // Create rectangle
       const rect = document.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -120,9 +356,17 @@ export function ResourceTree(props: ResourceTreeProps) {
       rect.setAttribute("height", node.height.toString());
       rect.setAttribute("rx", "4");
       rect.setAttribute("ry", "4");
-      rect.setAttribute("fill", node.fill);
-      rect.setAttribute("stroke", node.stroke);
-      rect.setAttribute("stroke-width", node.strokeWidth);
+      
+      // Highlight selected node
+      if (selectedNodeId() === v) {
+        rect.setAttribute("fill", "#e3f2fd");
+        rect.setAttribute("stroke", "#1976d2");
+        rect.setAttribute("stroke-width", "3");
+      } else {
+        rect.setAttribute("fill", node.fill);
+        rect.setAttribute("stroke", node.stroke);
+        rect.setAttribute("stroke-width", node.strokeWidth);
+      }
 
       // Create text
       const text = document.createElementNS(
@@ -189,11 +433,49 @@ export function ResourceTree(props: ResourceTreeProps) {
     renderGraph(g());
   });
 
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+  });
+
+  onCleanup(() => {
+    window.removeEventListener('keydown', handleKeyDown);
+    // Make sure to restore scrolling in case component is unmounted while drawer is open
+    document.body.style.overflow = '';
+  });
+
   return (
-    <div class="graph-container">
-      <svg ref={svgRef} class="graph-svg">
-        <g ref={gRef}></g>
-      </svg>
+    <div class="resource-tree-container">
+      <div class="graph-container">
+        <svg ref={svgRef} class="graph-svg">
+          <g ref={gRef}></g>
+        </svg>
+      </div>
+      
+      {/* Keyboard shortcuts display */}
+      <Show when={selectedNodeId() && selectedResource()}>
+        <div class="tree-keyboard-shortcuts">
+          <KeyboardShortcuts
+            shortcuts={getAvailableShortcuts()}
+            resourceSelected={!!selectedNodeId()}
+          />
+        </div>
+      </Show>
+
+      {/* Resource drawer */}
+      <ResourceDrawer
+        resource={selectedResource()}
+        isOpen={drawerOpen()}
+        onClose={closeDrawer}
+        initialTab={activeTab()}
+      />
+
+      {/* Helm drawer */}
+      <HelmDrawer
+        resource={selectedResource()}
+        isOpen={helmDrawerOpen()}
+        onClose={closeHelmDrawer}
+        initialTab={helmActiveTab()}
+      />
     </div>
   );
 }

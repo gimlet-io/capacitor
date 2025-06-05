@@ -202,11 +202,28 @@ export function ResourceDrawer(props: {
   // Set up keyboard event listener
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown, true);
+    
+    // Prevent body scrolling when drawer is open
+    if (props.isOpen) {
+      document.body.style.overflow = 'hidden';
+    }
   });
 
   // Clean up event listener
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown, true);
+    
+    // Restore body scrolling when drawer is closed or unmounted
+    document.body.style.overflow = '';
+  });
+
+  // Watch for changes to the isOpen prop
+  createEffect(() => {
+    if (props.isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
   });
 
   return (

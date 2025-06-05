@@ -224,6 +224,8 @@ export function ApplicationDetails() {
             ? "#137333"
             : "#c5221f",
         strokeWidth: "2",
+        resource: application,
+        resourceType: "argoproj.io/Application"
       },
     );
 
@@ -239,6 +241,8 @@ export function ApplicationDetails() {
           fill: isReady ? "#e6f4ea" : "#fce8e6",
           stroke: isReady ? "#137333" : "#c5221f",
           strokeWidth: "1",
+          resource: deployment,
+          resourceType: "apps/Deployment"
         },
       );
       g.setEdge(applicationId, deploymentId);
@@ -253,6 +257,8 @@ export function ApplicationDetails() {
             fill: "#e8f0fe",
             stroke: "#1a73e8",
             strokeWidth: "1",
+            resource: replicaSet,
+            resourceType: "apps/ReplicaSet"
           },
         );
         g.setEdge(deploymentId, rsId);
@@ -267,6 +273,8 @@ export function ApplicationDetails() {
               fill: "#fff",
               stroke: "#666",
               strokeWidth: "1",
+              resource: pod,
+              resourceType: "core/Pod"
             },
           );
           g.setEdge(rsId, podId);
@@ -284,6 +292,8 @@ export function ApplicationDetails() {
           fill: "#e6f4ea",
           stroke: "#137333",
           strokeWidth: "1",
+          resource: service,
+          resourceType: "core/Service"
         },
       );
       g.setEdge(applicationId, serviceId);
