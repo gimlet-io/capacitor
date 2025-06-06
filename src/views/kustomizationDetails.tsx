@@ -80,7 +80,6 @@ const getUniqueResourceTypesFromInventory = (inventory: Array<{ id: string; v: s
   
   inventory.forEach(entry => {
     const parsed = parseInventoryEntryId(entry.id);
-    console.log("Parsed inventory entry:", parsed);
     if (parsed && !resourceTypes.some(rt => rt.resourceType === parsed.resourceType && rt.namespace === parsed.namespace)) {
       resourceTypes.push({
         namespace: parsed.namespace,
@@ -184,7 +183,6 @@ export function KustomizationDetails() {
   // Monitor filterStore.k8sResources for changes
   createEffect(() => {
     if (filterStore.k8sResources.length > 0) {
-      console.log("k8sResources are now loaded, length:", filterStore.k8sResources.length);
       setK8sResourcesLoaded(true);
     }
   });
@@ -200,15 +198,9 @@ export function KustomizationDetails() {
   createEffect(() => {
     const k = kustomization();
     const resourcesLoaded = k8sResourcesLoaded();
-    
-    console.log("Checking if we can set up dynamic watches:", 
-      "kustomization loaded:", !!k, 
-      "inventory entries:", k?.status?.inventory?.entries?.length,
-      "k8sResources loaded:", resourcesLoaded);
-    
+
     if (k?.status?.inventory?.entries && resourcesLoaded && params.namespace) {
-      console.log("Setting up dynamic watches from reactive effect");
-      setupDynamicWatches(k.status.inventory.entries, params.namespace);
+      setupDynamicWatches(k.status.inventory.entries);
     }
   });
 
@@ -248,8 +240,7 @@ export function KustomizationDetails() {
             
             // Set up dynamic watches based on inventory - only if API resources are loaded
             if (event.object.status?.inventory?.entries && k8sResourcesLoaded()) {
-              console.log("Setting up dynamic watches from kustomization watch callback");
-              setupDynamicWatches(event.object.status.inventory.entries, ns);
+              setupDynamicWatches(event.object.status.inventory.entries);
             }
           }
         }
@@ -267,81 +258,98 @@ export function KustomizationDetails() {
 
   type ExtraWatchConfig = {
     resourceType: string;          // The type of resource to watch 
+    isParent: (resource: any, obj: any) => boolean;
   };
 
   const extraWatches: Record<string, ExtraWatchConfig[]> = {
     'apps/Deployment': [
       {
-        resourceType: 'core/Pod',
+        resourceType: 'apps/ReplicaSet',
+        isParent: (resource: any, obj: any) => {
+          return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'Deployment' && owner.name === obj.metadata.name);
+        }
+      }
+    ],
+    'apps/ReplicaSet': [
+      {
+        resourceType: 'core/Pod', 
+        isParent: (resource: any, obj: any) => {
+          return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'ReplicaSet' && owner.name === obj.metadata.name);
+        }
       }
     ]
   };
 
   // Set up dynamic watches based on inventory entries
-  const setupDynamicWatches = (inventory: Array<{ id: string; v: string }>, _kustomizationNs: string) => {
+  const setupDynamicWatches = (inventory: Array<{ id: string; v: string }>) => {
     const resourceTypes = getUniqueResourceTypesFromInventory(inventory);
 
     resourceTypes.forEach(resourceType => {
-      const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType.resourceType);
-      if (!k8sResource) {
-        console.warn(`Unknown resource type in inventory: ${resourceType}. Available resource types:`, filterStore.k8sResources.map(r => r.id));
-        return;
-      }
-
-      let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
-      if (k8sResource.namespaced) {
-        watchPath = `${k8sResource.apiPath}/namespaces/${resourceType.namespace}/${k8sResource.name}?watch=true`;
-      }
-      
-      const controller = new AbortController();
-      
-      watchResource(
-        watchPath,
-        (event: { type: string; object: any }) => {
-          if (event.type === 'ADDED') {
-            setDynamicResources(prev => {
-              const current = prev[resourceType.resourceType] || [];
-              return {
-                ...prev,
-                [resourceType.resourceType]: [...current, event.object].sort((a, b) => 
-                  a.metadata.name.localeCompare(b.metadata.name)
-                )
-              };
-            });
-          } else if (event.type === 'MODIFIED') {
-            setDynamicResources(prev => {
-              const current = prev[resourceType.resourceType] || [];
-              return {
-                ...prev,
-                [resourceType.resourceType]: current.map((res: any) => 
-                  res.metadata.name === event.object.metadata.name && 
-                  res.metadata.namespace === event.object.metadata.namespace 
-                    ? event.object 
-                    : res
-                )
-              };
-            });
-          } else if (event.type === 'DELETED') {
-            setDynamicResources(prev => {
-              const current = prev[resourceType.resourceType] || [];
-              return {
-                ...prev,
-                [resourceType.resourceType]: current.filter((res: any) => 
-                  !(res.metadata.name === event.object.metadata.name && 
-                    res.metadata.namespace === event.object.metadata.namespace)
-                )
-              };
-            });
-          }
-        },
-        controller,
-        setWatchStatus
-      );
-      
-      // Add this controller to the list
-      setWatchControllers(prev => [...prev, controller]);
+      watch(resourceType);
     });
   };
+
+  const watch = (resourceType: NamespaceResourceType) =>{
+    const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType.resourceType);
+    if (!k8sResource) {
+      console.warn(`Unknown resource type in inventory: ${resourceType}. Available resource types:`, filterStore.k8sResources.map(r => r.id));
+      return;
+    }
+
+    let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+    if (k8sResource.namespaced) {
+      watchPath = `${k8sResource.apiPath}/namespaces/${resourceType.namespace}/${k8sResource.name}?watch=true`;
+    }
+      
+    const controller = new AbortController();
+    watchResource(
+      watchPath,
+      (event: { type: string; object: any; }) => {
+        if (event.type === 'ADDED') {
+          setDynamicResources(prev => {
+            const current = prev[resourceType.resourceType] || [];
+            return {
+              ...prev,
+              [resourceType.resourceType]: [...current, event.object].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)
+              )
+            };
+          });
+        } else if (event.type === 'MODIFIED') {
+          setDynamicResources(prev => {
+            const current = prev[resourceType.resourceType] || [];
+            return {
+              ...prev,
+              [resourceType.resourceType]: current.map((res: any) => res.metadata.name === event.object.metadata.name &&
+                res.metadata.namespace === event.object.metadata.namespace
+                ? event.object
+                : res
+              )
+            };
+          });
+        } else if (event.type === 'DELETED') {
+          setDynamicResources(prev => {
+            const current = prev[resourceType.resourceType] || [];
+            return {
+              ...prev,
+              [resourceType.resourceType]: current.filter((res: any) => !(res.metadata.name === event.object.metadata.name &&
+                res.metadata.namespace === event.object.metadata.namespace)
+              )
+            };
+          });
+        }
+      },
+      controller,
+      setWatchStatus
+    );
+    // Add this controller to the list
+    setWatchControllers(prev => [...prev, controller]);
+
+    if (extraWatches[resourceType.resourceType]) {
+      extraWatches[resourceType.resourceType].forEach(extraWatch => {
+        watch({ namespace: resourceType.namespace, resourceType: extraWatch.resourceType });
+      });
+    }
+  }
 
   // Fetch source repository when needed
   const fetchSourceRepository = async (kind: string, name: string, namespace: string) => {
@@ -361,49 +369,32 @@ export function KustomizationDetails() {
     }
   };
 
-  // Filter resources that are actually in the inventory
-  const getInventoryResources = () => {
-    const k = kustomization();
-    if (!k?.status?.inventory?.entries) return {};
-    
-    const inventory = k.status.inventory.entries;
-    const inventoryResourcesByType: Record<string, any[]> = {};
-    
-    // Group inventory entries by resource type
-    const inventoryByType: Record<string, Array<{ id: string; parsed: InventoryResourceInfo }>> = {};
-    inventory.forEach(entry => {
-      const parsed = parseInventoryEntryId(entry.id);
-      if (parsed) {
-        if (!inventoryByType[parsed.resourceType]) {
-          inventoryByType[parsed.resourceType] = [];
-        }
-        inventoryByType[parsed.resourceType].push({ id: entry.id, parsed });
-      }
-    });
-    
-    // For each resource type, filter the dynamic resources to only include those in inventory
-    Object.entries(inventoryByType).forEach(([resourceType, inventoryEntries]) => {
-      const allResources = dynamicResources()[resourceType] || [];
-      const inventoryResources = allResources.filter(resource => 
-        inventoryEntries.some(entry => 
-          entry.parsed.namespace === resource.metadata.namespace &&
-          entry.parsed.name === resource.metadata.name
-        )
-      );
-      
-      if (inventoryResources.length > 0) {
-        inventoryResourcesByType[resourceType] = inventoryResources;
-      }
-    });
-    
-    return inventoryResourcesByType;
-  };
-
   createEffect(() => {
-    setGraph(createGraph(kustomization(), getInventoryResources()));
+    Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
+      let watchedBy = null;
+      for (const [key, value] of Object.entries(extraWatches)) {
+        if (value.some((extraWatch: ExtraWatchConfig) => extraWatch.resourceType === resourceType)) {
+          watchedBy = key;
+        }
+      }
+      resources.forEach((resource) => {
+        if (watchedBy) {
+          const parent = dynamicResources()[watchedBy]?.find((res: any) => extraWatches[watchedBy].some((extraWatch: ExtraWatchConfig) => extraWatch.isParent(resource, res)));
+          if (parent) {
+            if (!parent.children || !parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
+              parent.children = [...(parent.children || []), resource];
+            }
+          }
+        }
+      });
+    });
   });
 
-  const createGraph = (kustomization: Kustomization | null, inventoryResources: Record<string, any[]>) => {
+  createEffect(() => {
+    setGraph(createGraph(kustomization()));
+  });
+
+  const createGraph = (kustomization: Kustomization | null) => {
     if (!kustomization) return;
     
     const g = new graphlib.Graph({ directed: true });
@@ -438,73 +429,39 @@ export function KustomizationDetails() {
       }
     );
 
-    // Add nodes for each resource type in the inventory
-    Object.entries(inventoryResources).forEach(([resourceType, resources]) => {
-      resources.forEach((resource, index) => {
-        const resourceId = createNodeWithCardRenderer(
-          g,
-          `${resourceType.replace('/', '-')}-${resource.metadata.name}`,
-          resource,
-          resourceType,
-          {
-            fill: "#e6f4ea",
-            stroke: "#137333",
-            strokeWidth: "1"
-          }
-        );
-        
-        // Connect all resources to the kustomization
-        g.setEdge(kustomizationId, resourceId);
-      });
-    });
-
-    // Handle special relationships for deployments, replicasets, and pods
-    const deployments = inventoryResources['apps/Deployment'] || [];
-    const replicaSets = inventoryResources['apps/ReplicaSet'] || [];
-    const pods = inventoryResources['core/Pod'] || [];
-    
-    deployments.forEach(deployment => {
-      const deploymentId = `apps-Deployment-${deployment.metadata.name}`;
-      
-      // Find ReplicaSets owned by this Deployment
-      const deploymentReplicaSets = replicaSets.filter(rs => 
-        rs.metadata.ownerReferences?.some((ref: any) => 
-          ref.kind === 'Deployment' && 
-          ref.name === deployment.metadata.name &&
-          rs.metadata.namespace === deployment.metadata.namespace
-        )
-      );
-      
-      deploymentReplicaSets.forEach(replicaSet => {
-        const rsId = `apps-ReplicaSet-${replicaSet.metadata.name}`;
-        
-        // If both nodes exist in the graph, connect them
-        if (g.hasNode(deploymentId) && g.hasNode(rsId)) {
-          g.setEdge(deploymentId, rsId);
-        }
-        
-        // Find Pods owned by this ReplicaSet
-        const replicaSetPods = pods.filter(pod => 
-          pod.metadata.ownerReferences?.some((ref: any) => 
-            ref.kind === 'ReplicaSet' && 
-            ref.name === replicaSet.metadata.name &&
-            pod.metadata.namespace === replicaSet.metadata.namespace
-          )
-        );
-        
-        replicaSetPods.forEach(pod => {
-          const podId = `core-Pod-${pod.metadata.name}`;
-          
-          // If both nodes exist in the graph, connect them
-          if (g.hasNode(rsId) && g.hasNode(podId)) {
-            g.setEdge(rsId, podId);
-          }
-        });
-      });
+    kustomization.status?.inventory?.entries?.forEach((entry) => {
+      const parts = entry.id.split('_')
+      const resourceType = (parts[2]=== '' ? 'core' : parts[2]) + '/'+parts[3];
+      const resource = dynamicResources()[resourceType]?.find((res: any) => res.metadata.name === parts[1]);
+      if (resource) {
+        drawResource(g, resource, resourceType, kustomization, kustomizationId);
+      }
     });
 
     return g;
   };
+
+  const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, kustomization: Kustomization, parentId: string) => {
+    const resourceId = createNodeWithCardRenderer(
+      g,
+      `${resourceType.replace('/', '-')}-${resource.metadata.name}`,
+      resource,
+      resourceType,
+      {
+        fill: "#e6f4ea",
+        stroke: "#137333",
+        strokeWidth: "1"
+      }
+    );
+
+    g.setEdge(parentId, resourceId);
+    
+    if (resource.children) {
+      resource.children.forEach((child: any) => {
+        drawResource(g, child, resourceType, kustomization, resourceId);
+      });
+    }
+  }
 
   const handleBackClick = () => {
     // Global filter state is already maintained by the filter store
