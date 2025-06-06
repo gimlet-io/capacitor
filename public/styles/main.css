@@ -1488,7 +1488,7 @@ td.message-cell {
 }
 
 .status-unchanged {
-  color: var(--linear-green);
+  color: var(--linear-blue);
 }
 
 .status-modified {

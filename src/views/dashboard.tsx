@@ -28,8 +28,6 @@ export function Dashboard() {
   type ExtraWatchConfig = {
     resourceType: string;          // The type of resource to watch 
     updater: ResourceUpdater;      // Function to update main resource with the extra resource data
-    isNamespaced?: boolean;        // Whether this resource is namespaced
-    apiPath?: string;              // API path override (if different from default)
   };
 
   /**
@@ -60,27 +58,6 @@ export function Dashboard() {
       {
         resourceType: 'core/Pod',
         updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods)
-      }
-    ],
-    'core/Service': [
-      {
-        resourceType: 'core/Pod',
-        updater: (service, pods) => {
-          // We need to temporarily store pods separately for the second updater
-          // but the matchingPods field will be properly populated in the second updater
-          return { ...service, _tempPods: pods };
-        }
-      },
-      {
-        resourceType: 'apps/Deployment',
-        updater: (service, deployments) => {
-          // Get the pods from the temporary field
-          const allPods = service._tempPods || [];
-          // Create a clean version of service without the temp field
-          const { _tempPods, ...cleanService } = service;
-          // Use the utility function that correctly sets matchingPods and matchingDeployments
-          return updateServiceMatchingResources(cleanService, allPods, deployments);
-        }
       }
     ]
   };
@@ -231,15 +208,10 @@ export function Dashboard() {
         
         if (!extraResource) return;
         
-        // Determine the API path for this resource
-        const extraApiPath = config.apiPath || extraResource.apiPath;
-        const extraResourceName = extraResource.name;
-        const extraIsNamespaced = config.isNamespaced !== undefined ? config.isNamespaced : extraResource.namespaced;
-        
         // Set up watch for this extra resource
-        let extraWatchPath = `${extraApiPath}/${extraResourceName}?watch=true`;
-        if (extraIsNamespaced && ns && ns !== 'all-namespaces') {
-          extraWatchPath = `${extraApiPath}/namespaces/${ns}/${extraResourceName}?watch=true`;
+        let extraWatchPath = `${extraResource.apiPath}/${extraResource.name}?watch=true`;
+        if (extraResource.namespaced && ns && ns !== 'all-namespaces') {
+          extraWatchPath = `${extraResource.apiPath}/namespaces/${ns}/${extraResource.name}?watch=true`;
         }
         
         watches.push({

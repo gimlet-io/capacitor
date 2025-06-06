@@ -133,13 +133,7 @@ func fluxDiff(
 		}
 
 		if change.Action == ssa.CreatedAction {
-			clusterYaml, err := renderToYAML(liveObject)
-			if err != nil {
-				// gather errors and continue, as we want to see all the diffs
-				diffErrs = append(diffErrs, err)
-				continue
-			}
-			appliedYaml, err := renderToYAML(mergedObject)
+			appliedYaml, err := renderToYAML(obj)
 			if err != nil {
 				// gather errors and continue, as we want to see all the diffs
 				diffErrs = append(diffErrs, err)
@@ -148,7 +142,7 @@ func fluxDiff(
 
 			results = append(results, FluxDiffResult{
 				FileName:    change.Subject,
-				ClusterYaml: clusterYaml,
+				ClusterYaml: "",
 				AppliedYaml: appliedYaml,
 				Created:     true,
 				HasChanges:  false,

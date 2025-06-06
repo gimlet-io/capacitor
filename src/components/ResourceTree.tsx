@@ -130,7 +130,6 @@ export function createNodeWithCardRenderer(
     fill: string;
     stroke: string;
     strokeWidth: string;
-    rendererName?: string;
   }
 ) {
   const { fill, stroke, strokeWidth } = options;

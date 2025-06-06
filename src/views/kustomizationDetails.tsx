@@ -69,19 +69,27 @@ const parseInventoryEntryId = (id: string): InventoryResourceInfo | null => {
   return result;
 };
 
+type NamespaceResourceType = {
+  namespace: string;
+  resourceType: string;
+}
+
 // Utility function to get unique resource types from inventory
-const getUniqueResourceTypesFromInventory = (inventory: Array<{ id: string; v: string }>): string[] => {
-  const resourceTypes = new Set<string>();
+const getUniqueResourceTypesFromInventory = (inventory: Array<{ id: string; v: string }>): NamespaceResourceType[] => {
+  const resourceTypes: NamespaceResourceType[] = [];
   
   inventory.forEach(entry => {
     const parsed = parseInventoryEntryId(entry.id);
     console.log("Parsed inventory entry:", parsed);
-    if (parsed) {
-      resourceTypes.add(parsed.resourceType);
+    if (parsed && !resourceTypes.some(rt => rt.resourceType === parsed.resourceType && rt.namespace === parsed.namespace)) {
+      resourceTypes.push({
+        namespace: parsed.namespace,
+        resourceType: parsed.resourceType
+      });
     }
   });
   
-  return Array.from(resourceTypes);
+  return resourceTypes;
 };
 
 // Helper function to create commit URL for GitHub or GitLab repositories
@@ -257,103 +265,81 @@ export function KustomizationDetails() {
     setWatchControllers(controllers);
   };
 
+  type ExtraWatchConfig = {
+    resourceType: string;          // The type of resource to watch 
+  };
+
+  const extraWatches: Record<string, ExtraWatchConfig[]> = {
+    'apps/Deployment': [
+      {
+        resourceType: 'core/Pod',
+      }
+    ]
+  };
+
   // Set up dynamic watches based on inventory entries
   const setupDynamicWatches = (inventory: Array<{ id: string; v: string }>, _kustomizationNs: string) => {
     const resourceTypes = getUniqueResourceTypesFromInventory(inventory);
 
-    // Parse all inventory entries to get namespace/name mapping
-    const inventoryMap = new Map<string, Array<{namespace: string, name: string}>>();
-    inventory.forEach(entry => {
-      const parsed = parseInventoryEntryId(entry.id);
-      if (parsed) {
-        if (!inventoryMap.has(parsed.resourceType)) {
-          inventoryMap.set(parsed.resourceType, []);
-        }
-        inventoryMap.get(parsed.resourceType)!.push({
-          namespace: parsed.namespace,
-          name: parsed.name
-        });
-      }
-    });
-
     resourceTypes.forEach(resourceType => {
-      const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+      const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType.resourceType);
       if (!k8sResource) {
         console.warn(`Unknown resource type in inventory: ${resourceType}. Available resource types:`, filterStore.k8sResources.map(r => r.id));
         return;
       }
 
-      const inventoryEntries = inventoryMap.get(resourceType) || [];
-      if (inventoryEntries.length === 0) return;
-
-      // Get unique namespaces for this resource type from inventory
-      const namespacesForResource = [...new Set(inventoryEntries.map(entry => entry.namespace))];
+      let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+      if (k8sResource.namespaced) {
+        watchPath = `${k8sResource.apiPath}/namespaces/${resourceType.namespace}/${k8sResource.name}?watch=true`;
+      }
       
-      // Set up watches for each namespace that has resources of this type
-      namespacesForResource.forEach(namespace => {
-        let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
-        if (k8sResource.namespaced) {
-          watchPath = `${k8sResource.apiPath}/namespaces/${namespace}/${k8sResource.name}?watch=true`;
-        }
-        
-        const controller = new AbortController();
-        
-        watchResource(
-          watchPath,
-          (event: { type: string; object: any }) => {
-            // Filter: only process resources that are in the inventory
-            const resourceInInventory = inventoryEntries.some(entry => 
-              entry.namespace === event.object.metadata.namespace &&
-              entry.name === event.object.metadata.name
-            );
-            
-            if (!resourceInInventory) {
-              return; // Skip resources not in inventory
-            }
-
-            if (event.type === 'ADDED') {
-              setDynamicResources(prev => {
-                const current = prev[resourceType] || [];
-                return {
-                  ...prev,
-                  [resourceType]: [...current, event.object].sort((a, b) => 
-                    a.metadata.name.localeCompare(b.metadata.name)
-                  )
-                };
-              });
-            } else if (event.type === 'MODIFIED') {
-              setDynamicResources(prev => {
-                const current = prev[resourceType] || [];
-                return {
-                  ...prev,
-                  [resourceType]: current.map((res: any) => 
-                    res.metadata.name === event.object.metadata.name && 
-                    res.metadata.namespace === event.object.metadata.namespace 
-                      ? event.object 
-                      : res
-                  )
-                };
-              });
-            } else if (event.type === 'DELETED') {
-              setDynamicResources(prev => {
-                const current = prev[resourceType] || [];
-                return {
-                  ...prev,
-                  [resourceType]: current.filter((res: any) => 
-                    !(res.metadata.name === event.object.metadata.name && 
-                      res.metadata.namespace === event.object.metadata.namespace)
-                  )
-                };
-              });
-            }
-          },
-          controller,
-          setWatchStatus
-        );
-        
-        // Add this controller to the list
-        setWatchControllers(prev => [...prev, controller]);
-      });
+      const controller = new AbortController();
+      
+      watchResource(
+        watchPath,
+        (event: { type: string; object: any }) => {
+          if (event.type === 'ADDED') {
+            setDynamicResources(prev => {
+              const current = prev[resourceType.resourceType] || [];
+              return {
+                ...prev,
+                [resourceType.resourceType]: [...current, event.object].sort((a, b) => 
+                  a.metadata.name.localeCompare(b.metadata.name)
+                )
+              };
+            });
+          } else if (event.type === 'MODIFIED') {
+            setDynamicResources(prev => {
+              const current = prev[resourceType.resourceType] || [];
+              return {
+                ...prev,
+                [resourceType.resourceType]: current.map((res: any) => 
+                  res.metadata.name === event.object.metadata.name && 
+                  res.metadata.namespace === event.object.metadata.namespace 
+                    ? event.object 
+                    : res
+                )
+              };
+            });
+          } else if (event.type === 'DELETED') {
+            setDynamicResources(prev => {
+              const current = prev[resourceType.resourceType] || [];
+              return {
+                ...prev,
+                [resourceType.resourceType]: current.filter((res: any) => 
+                  !(res.metadata.name === event.object.metadata.name && 
+                    res.metadata.namespace === event.object.metadata.namespace)
+                )
+              };
+            });
+          }
+        },
+        controller,
+        setWatchStatus
+      );
+      
+      // Add this controller to the list
+      setWatchControllers(prev => [...prev, controller]);
     });
   };
 
@@ -463,9 +449,7 @@ export function KustomizationDetails() {
           {
             fill: "#e6f4ea",
             stroke: "#137333",
-            strokeWidth: "1",
-            rendererName: index % 3 === 0 ? "compact" : 
-                         index % 3 === 1 ? "detailed" : "horizontal"
+            strokeWidth: "1"
           }
         );
         
