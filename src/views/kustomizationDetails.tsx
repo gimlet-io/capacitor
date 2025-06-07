@@ -277,6 +277,14 @@ export function KustomizationDetails() {
           return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'ReplicaSet' && owner.name === obj.metadata.name);
         }
       }
+    ],
+    'core/PersistentVolumeClaim': [
+      {
+        resourceType: 'core/PersistentVolume',
+        isParent: (resource: any, obj: any) => {
+          return resource.metadata.name === obj.spec.claimRef.name;
+        }
+      }
     ]
   };
 
@@ -458,7 +466,8 @@ export function KustomizationDetails() {
     
     if (resource.children) {
       resource.children.forEach((child: any) => {
-        drawResource(g, child, resourceType, kustomization, resourceId);
+        const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion + '/' + child.kind);
+        drawResource(g, child, childResourceType, kustomization, resourceId);
       });
     }
   }

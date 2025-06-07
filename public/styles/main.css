@@ -518,6 +518,11 @@ h1 {
   border-color: var(--linear-blue);
 }
 
+.pod-card {
+  width: 300px;
+  background-color: rgb(205, 223, 229);
+}
+
 .resource-card-header {
   display: flex;
   justify-content: space-between;

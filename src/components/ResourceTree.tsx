@@ -126,8 +126,10 @@ export function createNodeWithCardRenderer(
   }
 ) {
   const { fill, stroke, strokeWidth } = options;
-  
+
+  console.log("resourceType", resourceType);
   let cardRenderer = resourceTypeConfigs[resourceType]?.treeCardRenderer;
+  console.log("cardRenderer", cardRenderer);
   if (!cardRenderer) {
     cardRenderer = defaultCardRenderer
   }
@@ -153,7 +155,7 @@ const defaultCardRenderer: ResourceCardRenderer = {
         </div>
         
         <div class="resource-name">
-          {resource.metadata.name}/{resource.metadata.namespace}
+          {resource.metadata.namespace}/{resource.metadata.name}
         </div>
       </div>
     );
