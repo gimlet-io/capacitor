@@ -16,7 +16,7 @@ import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./component
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
-import { podsStatusFilter, podsReadinessFilter, podCardRenderer } from "./components/resourceList/PodList.tsx";
+import { podsStatusFilter, podsReadinessFilter } from "./components/resourceList/PodList.tsx";
 import { deploymentReadinessFilter } from "./components/resourceList/DeploymentList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
@@ -90,6 +90,110 @@ export const showPodsInNamespace: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+// Helper function to create card renderers that reuse column accessors
+const createCardRenderer = (
+  columns: Column<any>[],
+  selectedColumns: string[],
+  backgroundColor: string = "var(--linear-bg-secondary)",
+  width: number = 250,
+  height: number = 80
+): ResourceCardRenderer => {
+  return {
+    render: (resource) => {
+      // Get the accessor functions for the selected columns
+      const columnData = selectedColumns.map(header => {
+        const column = columns.find(col => col.header === header);
+        return {
+          header,
+          element: column ? column.accessor(resource) : null
+        };
+      }).filter(item => item.element);
+
+      return (
+        <div 
+          class="resource-card" 
+          style={`width: ${width}px; height: ${height}px; --card-bg-color: ${backgroundColor};`}
+        >
+          <div class="resource-card-header">
+            <div class="resource-type">{resource.kind}</div>
+          </div>
+          
+          <div class="resource-name" title={resource.metadata.name}>
+            {resource.metadata.name}
+          </div>
+          
+          <div class="resource-card-details">
+            {columnData.map(({ element }) => (
+              <div class="resource-card-pill">
+                {element}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    },
+    width,
+    height
+  };
+};
+
+// Create card renderers for different resource types
+export const podCardRenderer = createCardRenderer(
+  podColumns,
+  ["READY", "STATUS"],
+  "rgb(225, 235, 245)", // Muted light blue that fits with other colors
+  300,
+  80
+);
+
+export const deploymentCardRenderer = createCardRenderer(
+  deploymentColumns,
+  ["READY"],
+  "rgb(245, 235, 220)" // Muted light orange
+);
+
+export const serviceCardRenderer = createCardRenderer(
+  serviceColumns,
+  ["TYPE"],
+  "rgb(230, 245, 230)" // Muted light green
+);
+
+export const nodeCardRenderer = createCardRenderer(
+  nodeColumns,
+  ["STATUS"],
+  "rgb(235, 235, 245)" // Muted light blue
+);
+
+export const ingressCardRenderer = createCardRenderer(
+  ingressColumns,
+  ["CLASS", "HOSTS"],
+  "rgb(230, 245, 245)" // Muted light cyan
+);
+
+export const daemonSetCardRenderer = createCardRenderer(
+  daemonSetColumns,
+  ["READY"],
+  "rgb(245, 230, 230)" // Muted light pink
+);
+
+export const jobCardRenderer = createCardRenderer(
+  jobColumns,
+  ["COMPLETIONS", "STATUS"],
+  "rgb(235, 245, 235)" // Muted light mint
+);
+
+export const cronJobCardRenderer = createCardRenderer(
+  cronJobColumns,
+  ["SCHEDULE", "SUSPEND"],
+  "rgb(235, 235, 245)" // Muted light lavender
+);
+
+export const pvcCardRenderer = createCardRenderer(
+  pvcColumns,
+  ["STATUS", "CAPACITY"],
+  "rgb(245, 240, 230)" // Muted light peach
+);
+
 // Define the centralized resource configurations
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
@@ -118,7 +222,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleScale
       }
     ],
-    filter: [deploymentReadinessFilter]
+    filter: [deploymentReadinessFilter],
+    treeCardRenderer: deploymentCardRenderer
   },
   
   'apps/StatefulSet': {
@@ -134,18 +239,21 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleScale
       }
     ],
-    filter: [deploymentReadinessFilter]
+    filter: [deploymentReadinessFilter],
+    treeCardRenderer: deploymentCardRenderer
   },
   
   'core/Service': {
-    columns: serviceColumns
+    columns: serviceColumns,
+    treeCardRenderer: serviceCardRenderer
   },
   
   'networking.k8s.io/Ingress': {
     columns: ingressColumns,
     commands: [
       ...builtInCommands
-    ]
+    ],
+    treeCardRenderer: ingressCardRenderer
   },
   
   'core/Node': {
@@ -153,7 +261,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [nodeReadinessFilter, nodeRoleFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    treeCardRenderer: nodeCardRenderer
   },
   
   'core/ConfigMap': {
@@ -177,7 +286,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [pvcStatusFilter, pvcStorageClassFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    treeCardRenderer: pvcCardRenderer
   },
   
   'apps/DaemonSet': {
@@ -189,7 +299,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: null as any  // Will be implemented in ResourceList
       },
       ...builtInCommands
-    ]
+    ],
+    treeCardRenderer: daemonSetCardRenderer
   },
   
   'core/Namespace': {
@@ -210,7 +321,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: null as any  // Will be implemented in ResourceList
       },
       ...builtInCommands
-    ]
+    ],
+    treeCardRenderer: jobCardRenderer
   },
   
   'batch/CronJob': {
@@ -218,7 +330,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [cronJobSuspendedFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    treeCardRenderer: cronJobCardRenderer
   },
   
   'autoscaling/HorizontalPodAutoscaler': {

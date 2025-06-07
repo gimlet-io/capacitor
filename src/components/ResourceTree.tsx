@@ -127,9 +127,7 @@ export function createNodeWithCardRenderer(
 ) {
   const { fill, stroke, strokeWidth } = options;
 
-  console.log("resourceType", resourceType);
   let cardRenderer = resourceTypeConfigs[resourceType]?.treeCardRenderer;
-  console.log("cardRenderer", cardRenderer);
   if (!cardRenderer) {
     cardRenderer = defaultCardRenderer
   }
@@ -435,7 +433,6 @@ export function ResourceTree(props: ResourceTreeProps) {
         const div = document.createElement("div");
         div.style.width = "100%";
         div.style.height = "100%";
-        div.style.overflow = "hidden";
         div.style.boxSizing = "border-box";
         
         // Render the JSX content

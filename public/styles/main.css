@@ -507,20 +507,30 @@ h1 {
   position: relative;
   padding: 8px;
   box-sizing: border-box;
-  background-color: var(--linear-bg-secondary);
+  background-color: var(--card-bg-color, var(--linear-bg-secondary));
   border-radius: 3.5px;
   border: 1px solid var(--linear-border);
   border-color: gray;
 }
 
 .selected-resource .resource-card {
-  background-color: var(--linear-blue-light);
+  background-color: var(--linear-blue-light) !important;
   border-color: var(--linear-blue);
 }
 
-.pod-card {
-  width: 300px;
-  background-color: rgb(205, 223, 229);
+.resource-card-details {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 8px;
+}
+
+.resource-card-pill {
+  background: rgba(0,0,0,0.1);
+  padding: 1px 4px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .resource-card-header {
@@ -529,7 +539,7 @@ h1 {
 }
 
 .resource-type {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--linear-text-secondary);
 }
 

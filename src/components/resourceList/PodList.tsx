@@ -227,21 +227,3 @@ export const podColumns = [
     ),
   },
 ];
-
-export const podCardRenderer: ResourceCardRenderer = {
-  render: (resource) => {
-    return (
-      <div class="resource-card pod-card">
-        <div class="resource-card-header">
-          <div class="resource-type">{resource.kind}</div>
-        </div>
-        
-        <div class="resource-name">
-          {resource.metadata.name}
-        </div>
-      </div>
-    );
-  },
-  width: 300,
-  height: 70
-}
