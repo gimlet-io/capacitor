@@ -355,6 +355,15 @@ export function ResourceTree(props: ResourceTreeProps) {
     }
   };
 
+  // Handle click outside nodes to deselect
+  const handleSvgClick = (e: MouseEvent) => {
+    // Only deselect if clicking directly on the SVG/container, not on a node
+    if (e.target === svgRef || e.target === gRef) {
+      setSelectedNodeId(null);
+      setSelectedResource(null);
+    }
+  };
+
   // Get available shortcuts for the selected resource
   const getAvailableShortcuts = (): KeyboardShortcut[] => {
     const allCommands = getAllCommands();
@@ -496,10 +505,16 @@ export function ResourceTree(props: ResourceTreeProps) {
 
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);
+    if (svgRef) {
+      svgRef.addEventListener('click', handleSvgClick);
+    }
   });
 
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    if (svgRef) {
+      svgRef.removeEventListener('click', handleSvgClick);
+    }
     // Make sure to restore scrolling in case component is unmounted while drawer is open
     document.body.style.overflow = '';
   });
