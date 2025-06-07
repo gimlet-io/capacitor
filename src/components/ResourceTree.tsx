@@ -32,12 +32,8 @@ interface NodeData {
   height: number;
   x?: number;
   y?: number;
-  fontSize?: number;
-  fontWeight?: string;
-  fill: string;
   stroke: string;
   strokeWidth: string;
-  // New fields for resource metadata
   resource?: any;
   resourceType?: string;
   jsxContent?: JSX.Element;
@@ -104,11 +100,8 @@ export function createNode(
   const height = customHeight || (jsxContent ? 80 : 40); // Custom height for JSX content or default
 
   g.setNode(id, {
-    label,
     width,
     height,
-    fontSize,
-    fontWeight,
     fill,
     stroke,
     strokeWidth,
@@ -153,24 +146,19 @@ export function createNodeWithCardRenderer(
 
 const defaultCardRenderer: ResourceCardRenderer = {
   render: (resource) => {
-    // Extract resource type and namespace
-    const kind = resource.kind || "";
-    const namespace = resource.metadata?.namespace || "";
-    
     return (
       <div class="resource-card">
         <div class="resource-card-header">
-          <div class="resource-type">{kind}</div>
-          <div class="resource-namespace">{namespace}</div>
+          <div class="resource-type">{resource.kind}</div>
         </div>
         
         <div class="resource-name">
-          {resource.metadata.name}
+          {resource.metadata.name}/{resource.metadata.namespace}
         </div>
       </div>
     );
   },
-  width: 180,
+  width: 250,
   height: 70
 }
 
@@ -420,17 +408,6 @@ export function ResourceTree(props: ResourceTreeProps) {
       rect.setAttribute("height", node.height.toString());
       rect.setAttribute("rx", "4");
       rect.setAttribute("ry", "4");
-      
-      // Highlight selected node
-      if (selectedNodeId() === v) {
-        rect.setAttribute("fill", "#e3f2fd");
-        rect.setAttribute("stroke", "#1976d2");
-        rect.setAttribute("stroke-width", "3");
-      } else {
-        rect.setAttribute("fill", node.fill);
-        rect.setAttribute("stroke", node.stroke);
-        rect.setAttribute("stroke-width", node.strokeWidth);
-      }
 
       group.appendChild(rect);
 
@@ -447,38 +424,22 @@ export function ResourceTree(props: ResourceTreeProps) {
         const div = document.createElement("div");
         div.style.width = "100%";
         div.style.height = "100%";
-        div.style.display = "flex";
-        div.style.alignItems = "center";
-        div.style.justifyContent = "center";
         div.style.overflow = "hidden";
-        div.style.padding = "8px";
         div.style.boxSizing = "border-box";
         
         // Render the JSX content
         const solidRoot = document.createElement("div");
         foreignObject.appendChild(div);
         div.appendChild(solidRoot);
+        if (selectedNodeId() === v) {
+          div.classList.add("selected-resource");
+        }
         
         // Use solid-js's render to insert the JSX content
         const dispose = render(() => node.jsxContent!, solidRoot);
         onCleanup(() => dispose());
         
         group.appendChild(foreignObject);
-      } else {
-        // Create text if no JSX content
-        const text = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "text",
-        );
-        text.setAttribute("x", (node.width / 2).toString());
-        text.setAttribute("y", (node.height / 2).toString());
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("dominant-baseline", "middle");
-        text.setAttribute("font-size", node.fontSize?.toString() || "12");
-        text.setAttribute("font-weight", node.fontWeight || "normal");
-        text.textContent = node.label;
-        
-        group.appendChild(text);
       }
       
       gRef?.appendChild(group);
