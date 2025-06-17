@@ -172,6 +172,20 @@ export function ResourceDrawer(props: {
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!props.isOpen) return;
     
+    // Don't handle shortcuts if any input is focused
+    if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      return;
+    }
+    
+    // Allow certain keys to pass through to LogsViewer when on logs tab
+    if (activeTab() === "logs") {
+      const logsKeys = ['/', 'n', 'N'];
+      if (logsKeys.includes(e.key) || (e.key === 'n' && e.shiftKey)) {
+        // Don't stop propagation for these keys when on logs tab
+        return;
+      }
+    }
+    
     // Stop propagation to prevent ResourceList from handling these events
     e.stopPropagation();
     
@@ -192,7 +206,7 @@ export function ResourceDrawer(props: {
       setActiveTab("events");
     } else if (e.key === "4" || e.key === "l") {
       // Only switch to logs tab if it's available
-      if (props.resource?.kind === "Pod" || props.resource?.kind === "Deployment") {
+      if (["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)) {
         e.preventDefault();
         setActiveTab("logs");
       }
@@ -256,7 +270,7 @@ export function ResourceDrawer(props: {
             >
               Events
             </button>
-            <Show when={props.resource?.kind === "Pod" || props.resource?.kind === "Deployment"}>
+            <Show when={["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)}>
               <button 
                 class={`drawer-tab ${activeTab() === "logs" ? "active" : ""}`}
                 onClick={() => setActiveTab("logs")}

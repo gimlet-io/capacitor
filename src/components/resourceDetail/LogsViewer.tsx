@@ -62,8 +62,17 @@ export function LogsViewer(props: {
   const [wrapText, setWrapText] = createSignal<boolean>(true);
   const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
   const [showPodNames, setShowPodNames] = createSignal<boolean>(false);
+  
+  // Search functionality
+  const [searchQuery, setSearchQuery] = createSignal<string>("");
+  const [currentMatchIndex, setCurrentMatchIndex] = createSignal<number>(-1);
+  const [searchMatches, setSearchMatches] = createSignal<Array<{entryIndex: number, matchStart: number, matchEnd: number}>>([]);
+  const [searchFocused, setSearchFocused] = createSignal<boolean>(false);
+  const [searchExpanded, setSearchExpanded] = createSignal<boolean>(false);
+  const [searchMode, setSearchMode] = createSignal<"text" | "regex" | "case-sensitive">("text");
 
   let logsContentRef: HTMLPreElement | undefined;
+  let searchInputRef: HTMLInputElement | undefined;
   // Store a reference to control our polling mechanism
   let logsEventSource: { close: () => void } | null = null;
 
@@ -142,7 +151,7 @@ export function LogsViewer(props: {
           initContainers: extractedContainers.initContainers,
           pods: [props.resource.metadata.name] 
         };
-      } else if (["Deployment", "StatefulSet", "DaemonSet", "Job"].includes(kind)) {
+      } else if (["Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(kind)) {
         const labelSelector = props.resource.spec?.selector?.matchLabels;
         containerInfo = await getResourcePodContainers(namespace, labelSelector);
       }
@@ -206,8 +215,8 @@ export function LogsViewer(props: {
       const name = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
 
-      if (!["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job"].includes(kind)) {
-        setLogs("Logs are only available for Pod, Deployment, StatefulSet, DaemonSet, and Job resources");
+      if (!["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(kind)) {
+        setLogs("Logs are only available for Pod, Deployment, StatefulSet, DaemonSet, Job, and ReplicaSet resources");
         return;
       }
 
@@ -215,7 +224,7 @@ export function LogsViewer(props: {
       let podsToFetch: string[] = [];
       if (kind === "Pod") {
         podsToFetch = [name];
-      } else if (["Deployment", "StatefulSet", "DaemonSet", "Job"].includes(kind)) {
+      } else if (["Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(kind)) {
         if (selectedPod() === "all") {
           podsToFetch = availablePods();
         } else {
@@ -521,6 +530,152 @@ export function LogsViewer(props: {
     setShowMetadata(!showMetadata());
   };
 
+  // Search functionality
+  const performSearch = () => {
+    const query = searchQuery().trim();
+    if (!query) {
+      setSearchMatches([]);
+      setCurrentMatchIndex(-1);
+      return;
+    }
+
+    const entries = processedEntries();
+    const matches: Array<{entryIndex: number, matchStart: number, matchEnd: number}> = [];
+    
+    try {
+      let searchRegex: RegExp;
+      const mode = searchMode();
+      
+      if (mode === "regex") {
+        // Use raw regex pattern
+        searchRegex = new RegExp(query, "gi");
+      } else {
+        // Escape special regex characters for text search
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Use case sensitive flag if in case-sensitive mode
+        const flags = mode === "case-sensitive" ? "g" : "gi";
+        searchRegex = new RegExp(escapedQuery, flags);
+      }
+
+      entries.forEach((entry, entryIndex) => {
+        const text = entry.line;
+        let match;
+        
+        // Reset regex lastIndex for global search
+        searchRegex.lastIndex = 0;
+        
+        while ((match = searchRegex.exec(text)) !== null) {
+          matches.push({
+            entryIndex,
+            matchStart: match.index,
+            matchEnd: match.index + match[0].length
+          });
+          
+          // Prevent infinite loop on zero-length matches
+          if (match[0].length === 0) {
+            searchRegex.lastIndex++;
+          }
+        }
+      });
+      
+      setSearchMatches(matches);
+      setCurrentMatchIndex(matches.length > 0 ? 0 : -1);
+      
+      // Scroll to first match if found
+      if (matches.length > 0) {
+        scrollToMatch(0);
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchMatches([]);
+      setCurrentMatchIndex(-1);
+    }
+  };
+
+  const navigateToNextMatch = () => {
+    const matches = searchMatches();
+    if (matches.length === 0) return;
+    
+    const newIndex = (currentMatchIndex() + 1) % matches.length;
+    setCurrentMatchIndex(newIndex);
+    scrollToMatch(newIndex);
+  };
+
+  const navigateToPreviousMatch = () => {
+    const matches = searchMatches();
+    if (matches.length === 0) return;
+    
+    const newIndex = currentMatchIndex() <= 0 ? matches.length - 1 : currentMatchIndex() - 1;
+    setCurrentMatchIndex(newIndex);
+    scrollToMatch(newIndex);
+  };
+
+  const scrollToMatch = (matchIndex: number) => {
+    const matches = searchMatches();
+    if (matchIndex < 0 || matchIndex >= matches.length || !logsContentRef) return;
+    
+    const match = matches[matchIndex];
+    const logLines = logsContentRef.querySelectorAll('.log-line');
+    const targetLine = logLines[match.entryIndex];
+    
+    if (targetLine) {
+      targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchMatches([]);
+    setCurrentMatchIndex(-1);
+  };
+
+  const toggleSearch = () => {
+    const newExpanded = !searchExpanded();
+    setSearchExpanded(newExpanded);
+    if (newExpanded) {
+      // Focus search input after a brief delay to ensure it's rendered
+      setTimeout(() => searchInputRef?.focus(), 50);
+    }
+  };
+
+  const openSearchAndFocus = () => {
+    setSearchExpanded(true);
+    setTimeout(() => searchInputRef?.focus(), 50);
+  };
+
+  const highlightMatches = (text: string, entryIndex: number): string => {
+    const query = searchQuery().trim();
+    if (!query || searchMatches().length === 0) {
+      return text;
+    }
+
+    const matches = searchMatches().filter(m => m.entryIndex === entryIndex);
+    if (matches.length === 0) {
+      return text;
+    }
+
+    // Sort matches by start position in reverse order to avoid offset issues
+    const sortedMatches = [...matches].sort((a, b) => b.matchStart - a.matchStart);
+    
+    let result = text;
+    sortedMatches.forEach((match, index) => {
+      const isCurrentMatch = searchMatches().findIndex(m => 
+        m.entryIndex === match.entryIndex && 
+        m.matchStart === match.matchStart && 
+        m.matchEnd === match.matchEnd
+      ) === currentMatchIndex();
+      
+      const beforeMatch = result.substring(0, match.matchStart);
+      const matchText = result.substring(match.matchStart, match.matchEnd);
+      const afterMatch = result.substring(match.matchEnd);
+      
+      const highlightClass = isCurrentMatch ? 'search-match-current' : 'search-match';
+      result = beforeMatch + `<span class="${highlightClass}">${matchText}</span>` + afterMatch;
+    });
+
+    return result;
+  };
+
   // Load data when viewer becomes visible
   createEffect(() => {
     if (props.isOpen) {
@@ -553,6 +708,69 @@ export function LogsViewer(props: {
     }
   });
 
+  // Perform search when query or mode changes
+  createEffect(() => {
+    const query = searchQuery();
+    const mode = searchMode();
+    // Only perform search if we have processed entries
+    if (processedEntries().length > 0) {
+      performSearch();
+    }
+  });
+
+  // Keyboard event handler for VIM-style navigation
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (!props.isOpen) return;
+
+    // Don't handle shortcuts if search input is focused or any input is focused
+    if (searchFocused() || document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+      // Only handle Enter and Escape when search is focused
+      if (searchFocused()) {
+        if (event.key === 'Escape') {
+          searchInputRef?.blur();
+          setSearchFocused(false);
+          event.preventDefault();
+          event.stopPropagation();
+        } else if (event.key === 'Enter') {
+          if (event.shiftKey) {
+            navigateToPreviousMatch();
+          } else {
+            navigateToNextMatch();
+          }
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }
+      return;
+    }
+
+    // Global keyboard shortcuts (only when logs tab is active and no input is focused)
+    if (event.key === '/') {
+      openSearchAndFocus();
+      event.preventDefault();
+      event.stopPropagation();
+    } else if (event.key === 'n' && !event.shiftKey) {
+      navigateToNextMatch();
+      event.preventDefault();
+      event.stopPropagation();
+    } else if (event.key === 'N' || (event.key === 'n' && event.shiftKey)) {
+      navigateToPreviousMatch();
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  // Add keyboard event listener when logs tab is active
+  createEffect(() => {
+    if (props.isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    
+    onCleanup(() => {
+      document.removeEventListener('keydown', handleKeyDown);
+    });
+  });
+
   // Clean up log stream when component unmounts
   onCleanup(() => {
     if (logsEventSource) {
@@ -563,15 +781,16 @@ export function LogsViewer(props: {
 
   return (
     <Show when={props.isOpen}>
-      <Show when={loading()}>
-        <div class="drawer-loading">Loading...</div>
-      </Show>
+      <div class="logs-viewer-container">
+        <Show when={loading()}>
+          <div class="drawer-loading">Loading...</div>
+        </Show>
 
-      <Show when={!loading()}>
+        <Show when={!loading()}>
         <div class="logs-controls">
           <div class="logs-options-row">
             <div class="logs-filter-group">
-              <Show when={["Deployment", "StatefulSet", "DaemonSet", "Job"].includes(props.resource?.kind) && availablePods().length > 0}>
+              <Show when={["Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind) && availablePods().length > 0}>
                 <div class="logs-select-container">
                   <label>Pod:</label>
                   <select
@@ -699,8 +918,85 @@ export function LogsViewer(props: {
                   class="json-filter-input"
                 />
               </Show>
+              <button
+                class="search-toggle-button"
+                onClick={toggleSearch}
+                title="Toggle search (/ to open and focus)"
+              >
+                🔍 Search
+              </button>
             </div>
           </div>
+          
+          <Show when={searchExpanded()}>
+            <div class="logs-search-row">
+              <div class="logs-search-container">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery()}
+                  onInput={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  placeholder="Search logs... (/ to focus, Esc to clear)"
+                  class="logs-search-input"
+                />
+                <div class="search-controls">
+                  <button
+                    class={`search-type-button ${searchMode() === "text" ? "active" : ""}`}
+                    onClick={() => setSearchMode("text")}
+                    title="Text search (case insensitive)"
+                  >
+                    Text
+                  </button>
+                  <button
+                    class={`search-type-button ${searchMode() === "case-sensitive" ? "active" : ""}`}
+                    onClick={() => setSearchMode("case-sensitive")}
+                    title="Case sensitive text search"
+                  >
+                    Aa
+                  </button>
+                  <button
+                    class={`search-type-button ${searchMode() === "regex" ? "active" : ""}`}
+                    onClick={() => setSearchMode("regex")}
+                    title="Regular expression search"
+                  >
+                    .*
+                  </button>
+                </div>
+                <div class="search-navigation">
+                  <Show when={searchMatches().length > 0}>
+                    <span class="search-results">
+                      {currentMatchIndex() + 1} of {searchMatches().length}
+                    </span>
+                  </Show>
+                  <button
+                    class="search-nav-button"
+                    onClick={navigateToPreviousMatch}
+                    disabled={searchMatches().length === 0}
+                    title="Previous match (Shift+N)"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    class="search-nav-button"
+                    onClick={navigateToNextMatch}
+                    disabled={searchMatches().length === 0}
+                    title="Next match (n)"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    class="search-clear-button"
+                    onClick={clearSearch}
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Show>
         </div>
 
         <Show
@@ -734,9 +1030,8 @@ export function LogsViewer(props: {
                     <span 
                       class={`log-message ${entry.parsedJson ? "json-log" : ""} ${wrapText() ? "" : "nowrap"}`}
                       tabIndex={0}
-                    >
-                      {entry.line}
-                    </span>
+                      innerHTML={highlightMatches(entry.line, processedEntries().indexOf(entry))}
+                    ></span>
                   </div>
                 )}
               </For>
@@ -744,6 +1039,7 @@ export function LogsViewer(props: {
           </pre>
         </Show>
       </Show>
+      </div>
     </Show>
   );
 }
