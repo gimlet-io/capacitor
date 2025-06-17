@@ -12,13 +12,9 @@ export function ErrorDisplay(props: ErrorDisplayProps) {
     return timestamp.toLocaleTimeString();
   };
 
-  // Debug logging
-  console.log('ErrorDisplay render - currentError:', errorStore.currentError);
-
   return (
     <Show when={errorStore.currentError}>
       {(error) => {
-        console.log('ErrorDisplay showing error:', error());
         return (
           <div class={`error-display ${props.class || ''}`}>
             <div class="error-container">            

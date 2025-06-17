@@ -165,8 +165,6 @@ export function Dashboard() {
     const namespaces = apiResourceStore.namespaces;
     const contexts = apiResourceStore.contextInfo;
     
-    console.log('Error monitoring effect:', { lastError, hasResources: resources !== undefined, hasNamespaces: namespaces !== undefined, hasContexts: contexts !== undefined, connectionLost: connectionLost() });
-    
     // If there's an error from the API resource store, show it
     if (lastError) {
       console.log('Setting connection lost due to error:', lastError);
