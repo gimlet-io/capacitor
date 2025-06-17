@@ -2242,3 +2242,89 @@ td.message-cell {
 .error-timestamp {
   font-size: 12px;
 }
+
+/* Custom compact styles for logs viewer */
+.logs-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.logs-select-container {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.logs-select-container label {
+  margin-right: 4px;
+  font-weight: 500;
+}
+
+.logs-select-container select {
+  min-width: 100px;
+  padding: 4px 6px;
+}
+
+/* Pod dropdown specific styles */
+.pod-select {
+  max-width: 150px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+select.pod-select option {
+  max-width: none;
+  width: auto;
+  overflow: visible;
+}
+
+/* Container for pod dropdown when open */
+select.pod-select[size]:not([size="1"]) {
+  max-width: 300px;
+  width: auto;
+}
+
+.logs-follow-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.logs-follow-controls label {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  gap: 2px;
+}
+
+.logs-follow-controls label span {
+  font-size: 13px;
+}
+
+.logs-follow-controls input[type="checkbox"] {
+  margin: 0;
+}
+
+.json-filter-input {
+  width: 120px;
+  padding: 2px 5px;
+  margin-left: 4px;
+  font-size: 13px;
+}
+
+/* Make logs controls more compact in drawer */
+.drawer-content .logs-controls {
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.drawer-content .logs-options-row {
+  gap: 8px;
+}

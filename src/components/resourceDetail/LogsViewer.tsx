@@ -5,15 +5,17 @@ type LogHistoryOption = "5m" | "10m" | "60m" | "24h" | "all";
 type LogEntry = { 
   timestamp: Date | null; 
   container: string; 
+  pod?: string; // Add pod name to log entries
   line: string;
   rawTimestamp?: string; // Raw timestamp string from Kubernetes API
   parsedJson?: any; // Parsed JSON content if the log is valid JSON
 };
 
-function formatLogEntries(entries: LogEntry[]): string {
+function formatLogEntries(entries: LogEntry[], showPods: boolean = false): string {
   return entries.map(entry => {
     const timestamp = formatTimestamp(entry.timestamp, entry.rawTimestamp);
-    return `${timestamp} [${entry.container}] ${entry.line}`;
+    const podContainer = (showPods && entry.pod) ? `[${entry.pod}/${entry.container}]` : `[${entry.container}]`;
+    return `${timestamp} ${podContainer} ${entry.line}`;
   }).join("\n");
 }
 
@@ -49,14 +51,17 @@ export function LogsViewer(props: {
 
   const [availableContainers, setAvailableContainers] = createSignal<string[]>([]);
   const [selectedContainer, setSelectedContainer] = createSignal<string>("all");
+  const [availablePods, setAvailablePods] = createSignal<string[]>([]);
+  const [selectedPod, setSelectedPod] = createSignal<string>("all");
   const [logHistoryOption, setLogHistoryOption] = createSignal<LogHistoryOption>("10m");
-  const [followLogs, setFollowLogs] = createSignal<boolean>(false);
-  const [logsAutoRefresh, setLogsAutoRefresh] = createSignal<boolean>(false);
+  const [followLogs, setFollowLogs] = createSignal<boolean>(true);
+  const [logsAutoRefresh, setLogsAutoRefresh] = createSignal<boolean>(true);
   const [availableInitContainers, setAvailableInitContainers] = createSignal<string[]>([]);
   const [formatJsonLogs, setFormatJsonLogs] = createSignal<boolean>(false);
   const [jsonFilter, setJsonFilter] = createSignal<string>(".");
   const [wrapText, setWrapText] = createSignal<boolean>(true);
   const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
+  const [showPodNames, setShowPodNames] = createSignal<boolean>(false);
 
   let logsContentRef: HTMLPreElement | undefined;
   // Store a reference to control our polling mechanism
@@ -78,8 +83,8 @@ export function LogsViewer(props: {
   const getDeploymentContainers = async (
     namespace: string,
     labelSelector: any,
-  ) => {
-    if (!labelSelector) return { containers: [], initContainers: [] };
+  ): Promise<{ containers: string[], initContainers: string[], pods: string[] }> => {
+    if (!labelSelector) return { containers: [], initContainers: [], pods: [] };
 
     // Convert labels to string format for the API
     const selectorString = Object.entries(labelSelector)
@@ -93,14 +98,28 @@ export function LogsViewer(props: {
     const podsData = await podsResponse.json();
 
     if (!podsData.items || podsData.items.length === 0) {
-      return { containers: [], initContainers: [] };
+      return { containers: [], initContainers: [], pods: [] };
     }
 
-    // Use the first pod to identify containers
-    return extractContainers(podsData.items[0]);
+    // Get all unique containers from all pods
+    const allContainers = new Set<string>();
+    const allInitContainers = new Set<string>();
+    const pods: string[] = podsData.items.map((pod: any) => pod.metadata.name);
+
+    podsData.items.forEach((pod: any) => {
+      const { containers, initContainers } = extractContainers(pod);
+      containers.forEach((c: string) => allContainers.add(c));
+      initContainers.forEach((c: string) => allInitContainers.add(c));
+    });
+
+    return { 
+      containers: Array.from(allContainers), 
+      initContainers: Array.from(allInitContainers),
+      pods
+    };
   };
 
-  // Update available containers for log selection
+  // Update available containers and pods for log selection
   const updateAvailableContainers = async () => {
     if (!props.resource) return;
 
@@ -110,10 +129,19 @@ export function LogsViewer(props: {
     if (!namespace) return;
 
     try {
-      let containerInfo = { containers: [], initContainers: [] };
+      let containerInfo: { containers: string[], initContainers: string[], pods: string[] } = { 
+        containers: [], 
+        initContainers: [], 
+        pods: [] 
+      };
 
       if (kind === "Pod") {
-        containerInfo = extractContainers(props.resource);
+        const extractedContainers = extractContainers(props.resource);
+        containerInfo = { 
+          containers: extractedContainers.containers,
+          initContainers: extractedContainers.initContainers,
+          pods: [props.resource.metadata.name] 
+        };
       } else if (kind === "Deployment") {
         const labelSelector = props.resource.spec?.selector?.matchLabels;
         containerInfo = await getDeploymentContainers(namespace, labelSelector);
@@ -121,6 +149,7 @@ export function LogsViewer(props: {
 
       setAvailableContainers(containerInfo.containers);
       setAvailableInitContainers(containerInfo.initContainers);
+      setAvailablePods(containerInfo.pods);
 
       // Keep the default "all" selection unless it was explicitly changed before
       if (selectedContainer() !== "all" && selectedContainer() === "") {
@@ -131,6 +160,15 @@ export function LogsViewer(props: {
           setSelectedContainer(containerInfo.initContainers[0]);
         }
       }
+
+      // Reset pod selection to "all" when switching resources
+      if (selectedPod() !== "all" && selectedPod() === "") {
+        setSelectedPod("all");
+      }
+      
+      // Set showPodNames based on whether there are multiple pods and if they're selectable
+      setShowPodNames(containerInfo.pods.length > 1);
+      
     } catch (error) {
       console.error("Error fetching container information:", error);
     }
@@ -173,21 +211,22 @@ export function LogsViewer(props: {
         return;
       }
 
-      let podName = name;
-      // For deployments, we need to find a pod first
-      if (kind === "Deployment") {
-        podName = props.resource.pods[0].metadata.name;
+      // Determine which pods to fetch logs from
+      let podsToFetch: string[] = [];
+      if (kind === "Pod") {
+        podsToFetch = [name];
+      } else if (kind === "Deployment") {
+        if (selectedPod() === "all") {
+          podsToFetch = availablePods();
+        } else {
+          podsToFetch = [selectedPod()];
+        }
       }
 
       const containerName = selectedContainer();
 
       // Prepare query parameters
       const params = new URLSearchParams();
-
-      // Add container name if selected and not "all"
-      if (containerName && containerName !== "all") {
-        params.append("container", containerName);
-      }
 
       // Add log history option
       const sinceSeconds = getLogSinceSeconds(logHistoryOption());
@@ -212,7 +251,7 @@ export function LogsViewer(props: {
         setProcessedEntries(processed);
         
         // Plain text fallback
-        const combinedLogs = formatLogEntries(containerLogEntries);
+        const combinedLogs = formatLogEntries(containerLogEntries, showPodNames());
         setLogs(combinedLogs || "No logs available for any container");
         
         // Scroll to bottom if auto-refresh is enabled
@@ -221,26 +260,27 @@ export function LogsViewer(props: {
         }
       };
 
-      // For streaming multiple containers
+      // For streaming multiple containers and pods
       if (followLogs()) {
-        // Set up streaming for multiple containers
+        // Set up streaming for multiple containers across multiple pods
         const abortController = new AbortController();
-        let logBuffer = "Starting multiple container log streams...\n";
+        let logBuffer = "Starting log streams...\n";
         setLogs(logBuffer);
         
         // Store container log lines with timestamps for sorting
         const containerLogEntries: LogEntry[] = [];
         // Keep track of active streams
-        let activeStreams = containers.length;
+        let activeStreams = podsToFetch.length * containers.length;
 
-        const streamContainerLogs = async (container: string) => {
-          // Ensure container has an assigned color
-          if (!containerColors[container]) {
-            setContainerColors(container, getContainerColor(container));
+        const streamPodContainerLogs = async (podName: string, container: string) => {
+          // Ensure pod-container combination has an assigned color
+          const colorKey = `${podName}/${container}`;
+          if (!containerColors[colorKey]) {
+            setContainerColors(colorKey, getPodContainerColor(podName, container));
           }
           
           try {
-            // Create URL for this specific container
+            // Create URL for this specific pod-container combination
             const containerLogsUrl = createContainerLogUrl(
               namespace, 
               podName, 
@@ -257,14 +297,14 @@ export function LogsViewer(props: {
             });
             
             if (!response.ok) {
-              logBuffer += `\n[Container ${container}: Error ${response.status} ${response.statusText}]\n`;
+              logBuffer += `\n[Pod ${podName}/Container ${container}: Error ${response.status} ${response.statusText}]\n`;
               setLogs(logBuffer);
               activeStreams--;
               return;
             }
             
             if (!response.body) {
-              logBuffer += `\n[Container ${container}: No response body]\n`;
+              logBuffer += `\n[Pod ${podName}/Container ${container}: No response body]\n`;
               setLogs(logBuffer);
               activeStreams--;
               return;
@@ -279,7 +319,7 @@ export function LogsViewer(props: {
               if (done) {
                 // Process any remaining partial line
                 if (partialLine) {
-                  processLogLine(container, containerLogEntries, partialLine);
+                  processLogLine(container, containerLogEntries, partialLine, podName);
                   partialLine = "";
                 }
                 break;
@@ -293,31 +333,33 @@ export function LogsViewer(props: {
               
               // Process complete lines
               for (const line of lines) {
-                processLogLine(container, containerLogEntries, line);
+                processLogLine(container, containerLogEntries, line, podName);
               }
               
               updateLogsDisplay(containerLogEntries);
             }
             
-            logBuffer += `\n[Container ${container}: Stream ended]\n`;
+            logBuffer += `\n[Pod ${podName}/Container ${container}: Stream ended]\n`;
             setLogs(logBuffer);
           } catch (error) {
             if (!(error instanceof DOMException && error.name === "AbortError")) {
-              logBuffer += `\n[Container ${container}: Error ${error instanceof Error ? error.message : String(error)}]\n`;
+              logBuffer += `\n[Pod ${podName}/Container ${container}: Error ${error instanceof Error ? error.message : String(error)}]\n`;
               setLogs(logBuffer);
             }
           } finally {
             activeStreams--;
             if (activeStreams === 0) {
-              logBuffer += "\n[All container streams have ended]\n";
+              logBuffer += "\n[All log streams have ended]\n";
               setLogs(logBuffer);
             }
           }
         };
         
-        // Start streaming for each container
-        for (const container of containers) {
-          streamContainerLogs(container);
+        // Start streaming for each pod-container combination
+        for (const podName of podsToFetch) {
+          for (const container of containers) {
+            streamPodContainerLogs(podName, container);
+          }
         }
         
         // Store cleanup function
@@ -329,56 +371,62 @@ export function LogsViewer(props: {
       } else { 
         const fetchAllLogs = async () => {
           const containerLogEntries: LogEntry[] = [];
-          for (const container of containers) {
-            try {
-              const containerLogsUrl = createContainerLogUrl(
-                namespace, 
-                podName, 
-                container, 
-                params, 
-                false
-              );
-              
-              const response = await fetch(containerLogsUrl, {
-                headers: {
-                  "Accept": "application/json,",
-                },
-              });
-              
-              if (!response.ok) {
-                containerLogEntries.push({
-                  timestamp: new Date(),
-                  container,
-                  line: `[Error: ${response.status} ${response.statusText}]`
+          for (const podName of podsToFetch) {
+            for (const container of containers) {
+              try {
+                const containerLogsUrl = createContainerLogUrl(
+                  namespace, 
+                  podName, 
+                  container, 
+                  params, 
+                  false
+                );
+                
+                const response = await fetch(containerLogsUrl, {
+                  headers: {
+                    "Accept": "application/json,",
+                  },
                 });
-                continue;
-              }
-              
-              const containerLogs = await response.text();
-              
-              // Ensure container has an assigned color
-              if (!containerColors[container]) {
-                setContainerColors(container, getContainerColor(container));
-              }
-              
-              if (!containerLogs.trim()) {
-                containerLogEntries.push({
-                  timestamp: new Date(),
-                  container,
-                  line: "[No logs available]"
-                });
-              } else {
-                const lines = containerLogs.split("\n");
-                for (const line of lines) {
-                  processLogLine(container, containerLogEntries, line);
+                
+                if (!response.ok) {
+                  containerLogEntries.push({
+                    timestamp: new Date(),
+                    container,
+                    pod: podName,
+                    line: `[Error: ${response.status} ${response.statusText}]`
+                  });
+                  continue;
                 }
+                
+                const containerLogs = await response.text();
+                
+                // Ensure pod-container combination has an assigned color
+                const colorKey = `${podName}/${container}`;
+                if (!containerColors[colorKey]) {
+                  setContainerColors(colorKey, getPodContainerColor(podName, container));
+                }
+                
+                if (!containerLogs.trim()) {
+                  containerLogEntries.push({
+                    timestamp: new Date(),
+                    container,
+                    pod: podName,
+                    line: "[No logs available]"
+                  });
+                } else {
+                  const lines = containerLogs.split("\n");
+                  for (const line of lines) {
+                    processLogLine(container, containerLogEntries, line, podName);
+                  }
+                }
+              } catch (error) {
+                containerLogEntries.push({
+                  timestamp: new Date(),
+                  container,
+                  pod: podName,
+                  line: `[Error: ${error instanceof Error ? error.message : String(error)}]`
+                });
               }
-            } catch (error) {
-              containerLogEntries.push({
-                timestamp: new Date(),
-                container,
-                line: `[Error: ${error instanceof Error ? error.message : String(error)}]`
-              });
             }
           }
 
@@ -397,6 +445,16 @@ export function LogsViewer(props: {
       setLoading(false);
       // Focus the logs content after loading
       setTimeout(() => logsContentRef?.focus(), 50);
+    }
+  };
+
+  // Handle pod selection change
+  const handlePodChange = (podName: string) => {
+    setSelectedPod(podName);
+
+    // Refetch logs with new pod selection
+    if (!loading()) {
+      fetchResourceLogs();
     }
   };
 
@@ -490,7 +548,7 @@ export function LogsViewer(props: {
       setProcessedEntries(processed);
       
       // Update text logs as well
-      const combinedLogs = formatLogEntries(processed);
+      const combinedLogs = formatLogEntries(processed, showPodNames());
       setLogs(combinedLogs || "No logs available for any container");
     }
   });
@@ -512,78 +570,100 @@ export function LogsViewer(props: {
       <Show when={!loading()}>
         <div class="logs-controls">
           <div class="logs-options-row">
-            <div>
-              <label>Container:</label>
-              <select
-                value={selectedContainer()}
-                onChange={(e) => handleContainerChange(e.target.value)}
-                disabled={loading()}
-                class="container-select"
-              >
-                <option value="all">All containers</option>
+            <div class="logs-filter-group">
+              <Show when={props.resource?.kind === "Deployment" && availablePods().length > 0}>
+                <div class="logs-select-container">
+                  <label>Pod:</label>
+                  <select
+                    value={selectedPod()}
+                    onChange={(e) => handlePodChange(e.target.value)}
+                    disabled={loading()}
+                    class="pod-select"
+                    title={selectedPod() === "all" ? "All pods" : selectedPod()}
+                  >
+                    <option value="all">All pods</option>
+                    <For each={availablePods()}>
+                      {(pod) => (
+                        <option value={pod} title={pod}>{pod}</option>
+                      )}
+                    </For>
+                  </select>
+                </div>
+              </Show>
 
-                <Show
-                  when={availableContainers().length === 0 &&
-                    availableInitContainers().length === 0}
+              <div class="logs-select-container">
+                <label>Container:</label>
+                <select
+                  value={selectedContainer()}
+                  onChange={(e) => handleContainerChange(e.target.value)}
+                  disabled={loading()}
+                  class="container-select"
                 >
-                  <option value="">No containers available</option>
-                </Show>
+                  <option value="all">All containers</option>
 
-                <Show when={availableContainers().length > 0}>
-                  <optgroup label="Containers">
-                    <For each={availableContainers()}>
-                      {(container) => (
-                        <option value={container}>{container}</option>
-                      )}
-                    </For>
-                  </optgroup>
-                </Show>
+                  <Show
+                    when={availableContainers().length === 0 &&
+                      availableInitContainers().length === 0}
+                  >
+                    <option value="">No containers available</option>
+                  </Show>
 
-                <Show when={availableInitContainers().length > 0}>
-                  <optgroup label="Init Containers">
-                    <For each={availableInitContainers()}>
-                      {(container) => (
-                        <option value={container}>{container}</option>
-                      )}
-                    </For>
-                  </optgroup>
-                </Show>
-              </select>
-            </div>
+                  <Show when={availableContainers().length > 0}>
+                    <optgroup label="Containers">
+                      <For each={availableContainers()}>
+                        {(container) => (
+                          <option value={container}>{container}</option>
+                        )}
+                      </For>
+                    </optgroup>
+                  </Show>
 
-            <div>
-              <label>History:</label>
-              <select
-                value={logHistoryOption()}
-                onChange={(e) =>
-                  handleLogHistoryChange(e.target.value as LogHistoryOption)}
-                disabled={loading()}
-              >
-                <option value="5m">5 minutes</option>
-                <option value="10m">10 minutes</option>
-                <option value="60m">1 hour</option>
-                <option value="24h">24 hours</option>
-                <option value="all">All logs</option>
-              </select>
+                  <Show when={availableInitContainers().length > 0}>
+                    <optgroup label="Init Containers">
+                      <For each={availableInitContainers()}>
+                        {(container) => (
+                          <option value={container}>{container}</option>
+                        )}
+                      </For>
+                    </optgroup>
+                  </Show>
+                </select>
+              </div>
+
+              <div class="logs-select-container">
+                <label>History:</label>
+                <select
+                  value={logHistoryOption()}
+                  onChange={(e) =>
+                    handleLogHistoryChange(e.target.value as LogHistoryOption)}
+                  disabled={loading()}
+                >
+                  <option value="5m">5 minutes</option>
+                  <option value="10m">10 minutes</option>
+                  <option value="60m">1 hour</option>
+                  <option value="24h">24 hours</option>
+                  <option value="all">All logs</option>
+                </select>
+              </div>
             </div>
 
             <div class="logs-follow-controls">
-              <label>
+              <label title="Stream logs in real-time">
                 <input
                   type="checkbox"
                   checked={followLogs()}
                   onChange={toggleFollowLogs}
                   disabled={loading()}
                 />
-                Follow logs
+                <span>Follow</span>
               </label>
-              <label>
+              <label title="Auto-scroll to bottom of logs">
                 <input
                   type="checkbox"
                   checked={logsAutoRefresh()}
                   onChange={toggleAutoRefresh}
                 />
-                Auto-scroll
+                <span>Auto-scroll</span>
               </label>
               <label title="Wrap log text to fit the container">
                 <input
@@ -591,7 +671,7 @@ export function LogsViewer(props: {
                   checked={wrapText()}
                   onChange={toggleWrapText}
                 />
-                Wrap text
+                <span>Wrap</span>
               </label>
               <label title="Show timestamp and container columns">
                 <input
@@ -599,7 +679,7 @@ export function LogsViewer(props: {
                   checked={showMetadata()}
                   onChange={toggleShowMetadata}
                 />
-                Show metadata
+                <span>Metadata</span>
               </label>
               <label title="Format log messages as JSON when possible">
                 <input
@@ -607,7 +687,7 @@ export function LogsViewer(props: {
                   checked={formatJsonLogs()}
                   onChange={handleJsonFormattingToggle}
                 />
-                Format JSON
+                <span>JSON</span>
               </label>
               <Show when={formatJsonLogs()}>
                 <input
@@ -646,9 +726,9 @@ export function LogsViewer(props: {
                       </span>
                       <span 
                         class="log-container"
-                        style={`color: ${containerColors[entry.container] || "#fff"}`}
+                        style={`color: ${containerColors[entry.pod ? `${entry.pod}/${entry.container}` : entry.container] || "#fff"}`}
                       >
-                        [{entry.container}]
+                        {showPodNames() && entry.pod ? `[${entry.pod}/${entry.container}]` : `[${entry.container}]`}
                       </span>
                     </Show>
                     <span 
@@ -672,7 +752,8 @@ export function LogsViewer(props: {
 const processLogLine = (
   container: string,
   containerLogLines: LogEntry[],
-  line: string
+  line: string,
+  pod?: string
 ) => {
   if (!line.trim()) return;
             
@@ -687,6 +768,7 @@ const processLogLine = (
     logEntry = {
       timestamp: new Date(rawTimestamp),
       container,
+      pod,
       line: logContent,
       rawTimestamp
     };
@@ -694,6 +776,7 @@ const processLogLine = (
     logEntry = {
       timestamp: extractLogTimestamp(line),
       container,
+      pod,
       line
     };
   }
@@ -727,7 +810,7 @@ const processLogLine = (
 
   // Limit buffer size to prevent memory issues
   if (containerLogLines.length > 5000) {
-    containerLogLines = containerLogLines.slice(-4000);
+    containerLogLines.splice(0, containerLogLines.length - 4000);
   }
 };
 
@@ -874,3 +957,27 @@ const detectJsonLogs = (entries: LogEntry[]): boolean => {
   // If most of the sample entries are JSON, auto-enable JSON formatting
   return jsonCount >= Math.ceil(sampleSize / 2);
 };
+
+function getPodContainerColor(pod: string, container: string): string {
+  const colors = [
+    "#e6194B", "#3cb44b", "#ffe119", "#4363d8", 
+    "#f58231", "#911eb4", "#42d4f4", "#f032e6", 
+    "#bfef45", "#fabed4", "#469990", "#dcbeff", 
+    "#9A6324", "#fffac8", "#800000", "#aaffc3", 
+    "#808000", "#ffd8b1", "#000075", "#a9a9a9"
+  ];
+  
+  // Simple hash function for pod-container combination
+  let hash = 0;
+  const combinedString = `${pod}/${container}`;
+  for (let i = 0; i < combinedString.length; i++) {
+    hash = ((hash << 5) - hash) + combinedString.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  // Ensure positive index
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+}
+
+// Using existing styles from main.css
