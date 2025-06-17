@@ -21,17 +21,29 @@ interface ApiResourceState {
   contextInfo: ContextInfo | undefined;
   switchContext: (contextName: string) => Promise<void>;
   isSwitchingContext: boolean;
+  lastError: string | null;
+  refetchResources: () => Promise<void>;
 }
 
 const ApiResourceContext = createContext<ApiResourceState>();
 
 export function ApiResourceProvider(props: { children: JSX.Element }) {
   const [isSwitchingContext, setIsSwitchingContext] = createSignal(false);
+  const [lastError, setLastError] = createSignal<string | null>(null);
   
   const [apiResources, { refetch: refetchApiResources }] = createResource(async () => {
     try {
+      // Clear error at the start of a successful fetch
+      setLastError(null);
+      
       // Fetch core API resources (v1)
       const coreResponse = await fetch('/k8s/api/v1');
+      
+      if (!coreResponse.ok) {
+        const errorText = await coreResponse.text();
+        throw new Error(`Failed to fetch API resources: ${coreResponse.status} ${coreResponse.statusText} - ${errorText}`);
+      }
+      
       const coreData = await coreResponse.json() as ApiResourceList;
       const coreResources = coreData.resources.map(resource => ({
         ...resource,
@@ -42,6 +54,12 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       
       // Fetch API groups
       const groupsResponse = await fetch('/k8s/apis');
+      
+      if (!groupsResponse.ok) {
+        const errorText = await groupsResponse.text();
+        throw new Error(`Failed to fetch API groups: ${groupsResponse.status} ${groupsResponse.statusText} - ${errorText}`);
+      }
+      
       const groupsData = await groupsResponse.json() as ApiGroupList;
       
       // Prepare priority groups first (apps/v1 and networking.k8s.io/v1)
@@ -101,22 +119,44 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       
       // Filter to include only resources that support listing (have 'list' in verbs)
       // and aren't subresources (don't contain '/')
-      return allApiResources.filter(resource => 
+      const filteredResources = allApiResources.filter(resource => 
         resource.verbs.includes('list') && 
         !resource.name.includes('/') &&
         resource.kind // Ensure it has a kind
       );
+      
+      // Explicitly clear error on successful completion
+      setLastError(null);
+      return filteredResources;
     } catch (error) {
       console.error("Error fetching API resources:", error);
-      return [];
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching API resources';
+      setLastError(errorMessage);
+      throw error; // Re-throw to let createResource handle the error state
     }
   });
 
   const [namespaces, { refetch: refetchNamespaces }] = createResource(async () => {
-    const response = await fetch('/k8s/api/v1/namespaces');
-    const data = await response.json();
-    const nsList = data.items.map((ns: { metadata: { name: string } }) => ns.metadata.name);
-    return nsList;
+    try {
+      const response = await fetch('/k8s/api/v1/namespaces');
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch namespaces: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      const nsList = data.items.map((ns: { metadata: { name: string } }) => ns.metadata.name);
+      
+      // Clear error on successful completion
+      setLastError(null);
+      return nsList;
+    } catch (error) {
+      console.error("Error fetching namespaces:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching namespaces';
+      setLastError(errorMessage);
+      throw error;
+    }
   });
 
   // Fetch context information from the API
@@ -124,13 +164,19 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     try {
       const response = await fetch('/api/contexts');
       if (!response.ok) {
-        throw new Error(`Failed to fetch contexts: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch contexts: ${response.status} ${response.statusText} - ${errorText}`);
       }
       const data = await response.json() as ContextInfo;
+      
+      // Clear error on successful completion
+      setLastError(null);
       return data;
     } catch (error) {
       console.error("Error fetching context information:", error);
-      return { contexts: [], current: "" };
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching contexts';
+      setLastError(errorMessage);
+      throw error;
     }
   });
 
@@ -150,8 +196,15 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to switch context');
+        let errorMessage = 'Failed to switch context';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
       // Refetch data with the new context
@@ -161,9 +214,31 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       
     } catch (error) {
       console.error('Error switching context:', error);
+      
+      // Set error in store for monitoring
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error switching context';
+      setLastError(`Context switch failed: ${errorMessage}`);
+      
       throw error;
     } finally {
       setIsSwitchingContext(false);
+    }
+  };
+
+  // Function to refetch all resources
+  const refetchResources = async () => {
+    try {
+      setLastError(null);
+      await Promise.all([
+        refetchApiResources(),
+        refetchNamespaces(),
+        refetchContexts()
+      ]);
+      console.log('Successfully refetched all resources');
+    } catch (error) {
+      console.error('Error refetching resources:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to refetch resources';
+      setLastError(errorMessage);
     }
   };
 
@@ -172,7 +247,9 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     get namespaces() { return namespaces(); },
     get contextInfo() { return contextInfo(); },
     switchContext,
-    get isSwitchingContext() { return isSwitchingContext(); }
+    get isSwitchingContext() { return isSwitchingContext(); },
+    get lastError() { return lastError(); },
+    refetchResources
   };
 
   return (

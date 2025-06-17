@@ -1,7 +1,13 @@
 import { getWebSocketClient } from './k8sWebSocketClient.ts';
 
 // WebSocket-based implementation for watching K8s resources
-export const watchResource = async (path: string, callback: (event: any) => void, controller: AbortController, setWatchStatus: (status: string) => void) => {
+export const watchResource = async (
+  path: string, 
+  callback: (event: any) => void, 
+  controller: AbortController, 
+  setWatchStatus: (status: string) => void,
+  onError?: (message: string, path: string) => void
+) => {
   const wsClient = getWebSocketClient();
 
   path = path.startsWith("/k8s") ? path.slice(4) : path;
@@ -21,11 +27,19 @@ export const watchResource = async (path: string, callback: (event: any) => void
     console.error('WebSocket watch error:', error);
     setWatchStatus("○");
     
-    // Try to reconnect or fall back to fetch-based implementation
+    // Call error handler if provided immediately
+    if (onError) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown WebSocket error';
+      onError(`Failed to watch resource: ${errorMessage}`, path);
+    }
+    
+    // Try to reconnect with exponential backoff
+    const retryDelay = Math.min(5000 + Math.random() * 2000, 30000);
     setTimeout(() => {
-      console.log('Restarting watch:', path);
-      // watchResourceWithFetch(path, callback, controller, setWatchStatus);
-      watchResource(path, callback, controller, setWatchStatus);
-    }, 5000);
+      // Only retry if the controller is not aborted
+      if (!controller.signal.aborted) {
+        watchResource(path, callback, controller, setWatchStatus, onError);
+      }
+    }, retryDelay);
   }
 };

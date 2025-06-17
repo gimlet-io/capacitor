@@ -466,7 +466,13 @@ export function ResourceList<T>(props: {
             </tr>
           </thead>
           <tbody>
-            <For each={sortedResources()}>
+            <For each={sortedResources()} fallback={
+              <tr>
+                <td colSpan={visibleColumns().length} class="no-results">
+                  {props.resources.length === 0 ? 'No resources found' : 'No resources match the current filters'}
+                </td>
+              </tr>
+            }>
               {(resource, index) => {
                 const handleClick = () => {
                   setSelectedIndex(index());

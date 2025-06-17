@@ -32,71 +32,105 @@ export class K8sWebSocketClient {
       const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
       console.log(`Connecting to WebSocket at ${wsUrl}`);
       
-      this.ws = new WebSocket(wsUrl);
-      
-      this.ws.onopen = () => {
-        console.log('WebSocket connection established, waiting for server ready signal');
-        this.reconnectAttempts = 0;
-        this.connected = true;
-        this.serverReady = false; // Reset server ready state
-      };
-      
-      this.ws.onclose = (event) => {
-        console.log(`WebSocket connection closed: ${event.code} ${event.reason}`);
-        this.connected = false;
-        this.serverReady = false;
-        this.connectionPromise = null;
+      try {
+        // Create WebSocket connection
+        this.ws = new WebSocket(wsUrl);
         
-        // Attempt to reconnect if not a normal closure
-        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
-          const delay = this.getReconnectDelay();
-          console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-          setTimeout(() => this.connect(), delay);
-        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          console.error('Maximum reconnection attempts reached');
-          reject(new Error('Maximum reconnection attempts reached'));
-        }
-      };
-      
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
+        // Set a connection timeout
+        const connectionTimeout = setTimeout(() => {
+          if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket connection timeout');
+            if (this.ws) this.ws.close();
+            // Reject the promise with a timeout error
+            reject(new Error('WebSocket connection timeout - server may be unreachable'));
+          }
+        }, 10000); // 10 second timeout
+        
+        // Set up all event handlers
+        this.ws.onopen = () => {
+          console.log('WebSocket connection established, waiting for server ready signal');
+          clearTimeout(connectionTimeout);
+          this.reconnectAttempts = 0;
+          this.connected = true;
+          this.serverReady = false; // Reset server ready state
+        };
+        
+        this.ws.onclose = (event) => {
+          console.log(`WebSocket connection closed: ${event.code} ${event.reason}`);
+          clearTimeout(connectionTimeout);
+          this.connected = false;
+          this.serverReady = false;
+          this.connectionPromise = null;
           
-          // Handle server ready message
-          if (message.type === 'ready') {
-            console.log('Server ready signal received');
-            this.serverReady = true;
+          // Always attempt to reconnect with increasing delay
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            const delay = this.getReconnectDelay();
+            console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+            setTimeout(() => this.connect(), delay);
+          } else {
+            console.error('Maximum reconnection attempts reached, will try again in 30 seconds');
+            // Reset attempts and try again after a longer delay
+            this.reconnectAttempts = 0;
+            setTimeout(() => this.connect(), 30000);
+            reject(new Error('Maximum reconnection attempts reached'));
+          }
+        };
+        
+        this.ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
             
-            console.log(`[onready] Resubscribing to ${this.subscribers.size} paths`);
-            
-            // Resubscribe to all paths now that server is ready
-            for (const [path, callback] of this.subscribers.entries()) {
-              console.log(`[onready] Resubscribing to: ${path}`);
-              this.sendSubscribeMessage(path);
+            // Handle server ready message
+            if (message.type === 'ready') {
+              console.log('Server ready signal received');
+              this.serverReady = true;
+              
+              console.log(`[onready] Resubscribing to ${this.subscribers.size} paths`);
+              
+              // Resubscribe to all paths now that server is ready
+              for (const [path, callback] of this.subscribers.entries()) {
+                console.log(`[onready] Resubscribing to: ${path}`);
+                this.sendSubscribeMessage(path);
+              }
+              
+              resolve();
+              return;
             }
             
-            resolve();
-            return;
+            if (message.type === 'error') {
+              console.error(`WebSocket error for path ${message.path}: ${message.error}`);
+              // Call the subscriber with error information if available
+              const subscriber = this.subscribers.get(message.path);
+              if (subscriber) {
+                // This will cause the error to be propagated to the watch function
+                subscriber({ type: 'ERROR', error: message.error, path: message.path });
+              }
+              return;
+            }
+            
+            const subscriber = this.subscribers.get(message.path);
+            if (subscriber && message.type === 'data') {
+              subscriber(message.data);
+            }
+          } catch (err) {
+            console.error('Error processing WebSocket message:', err);
           }
-          
-          if (message.type === 'error') {
-            console.error(`WebSocket error for path ${message.path}: ${message.error}`);
-            return;
+        };
+        
+        this.ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          clearTimeout(connectionTimeout);
+          // If we get an error before connection is established, reject immediately
+          if (!this.connected) {
+            reject(new Error('WebSocket connection failed - server may be down or unreachable'));
           }
-          
-          const subscriber = this.subscribers.get(message.path);
-          if (subscriber && message.type === 'data') {
-            subscriber(message.data);
-          }
-        } catch (err) {
-          console.error('Error processing WebSocket message:', err);
-        }
-      };
-      
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        // Don't reject here, let onclose handle reconnection
-      };
+          // Otherwise, let onclose handle reconnection
+        };
+      } catch (error) {
+        console.error('Error creating WebSocket:', error);
+        this.connectionPromise = null;
+        reject(error);
+      }
     });
     
     return this.connectionPromise;
@@ -119,7 +153,23 @@ export class K8sWebSocketClient {
       console.error('Failed to connect to WebSocket server:', err);
       // Remove subscriber if connection failed
       this.subscribers.delete(path);
-      throw err;
+      
+      // Enhanced error message for connection failures
+      if (err instanceof Error) {
+        if (err.message.includes('Maximum reconnection attempts reached')) {
+          throw new Error('Unable to connect to server. Please check if the server is running and accessible.');
+        }
+        // Check for various connection failure types
+        if (err.message.includes('WebSocket connection timeout') ||
+            err.message.includes('Connection refused') ||
+            err.message.includes('ECONNREFUSED') ||
+            err.message.includes('server may be down') ||
+            err.message.includes('server may be unreachable')) {
+          throw new Error('Cannot connect to server. Please check if the server is running.');
+        }
+        throw new Error(`Connection failed: ${err.message}`);
+      }
+      throw new Error('Failed to establish WebSocket connection to server');
     }
     
     // Send subscribe message if connected and server is ready

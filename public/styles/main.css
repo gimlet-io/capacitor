@@ -2219,3 +2219,26 @@ td.message-cell {
   color: var(--linear-text-secondary);
   font-style: italic;
 }
+
+/* Error Display Styles */
+.error-container {
+  background: var(--linear-red-light);
+  border: 1px solid var(--linear-red);
+  border-radius: 4px;
+}
+
+.error-content {
+  color: var(--linear-red);
+  padding: 1rem;
+}
+
+.error-message {
+  font-weight: 500;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.error-timestamp {
+  font-size: 12px;
+}

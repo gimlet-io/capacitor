@@ -5,14 +5,17 @@ import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { updateDeploymentMatchingResources, updateServiceMatchingResources } from "../utils/k8s.ts";
+import { updateDeploymentMatchingResources } from "../utils/k8s.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
+import { useErrorStore } from "../store/errorStore.tsx";
+import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
 import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
   const apiResourceStore = useApiResourceStore();
+  const errorStore = useErrorStore();
   
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
@@ -73,7 +76,25 @@ export function Dashboard() {
       await apiResourceStore.switchContext(contextName);
       setContextMenuOpen(false);
     } catch (error) {
-      console.error("Error switching context:", error);
+      console.error("Error switching context in dashboard:", error);
+      
+      // Show error to user when context switch fails
+      const errorMessage = error instanceof Error ? error.message : 'Failed to switch context';
+      console.log('Processing context switch error:', errorMessage);
+      
+      if (errorMessage.includes('Failed to fetch') || 
+          errorMessage.includes('NetworkError') || 
+          errorMessage.includes('TypeError') ||
+          errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+          errorMessage.includes('fetch')) {
+        console.log('Setting server error for context switch');
+        errorStore.setServerError('Cannot connect to server. Please check if the server is running.');
+      } else {
+        console.log('Setting API error for context switch');
+        errorStore.setApiError(`Context switch failed: ${errorMessage}`);
+      }
+      
+      setContextMenuOpen(false);
     }
   };
   
@@ -96,12 +117,124 @@ export function Dashboard() {
   });
 
   // Call setupWatches when namespace or resource filter changes
+  createEffect(() => {    
+    // Handle async setupWatches
+    const handleSetupWatches = async () => {
+      try {
+        await setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
+      } catch (error) {
+        console.error('Error setting up watches:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to set up watches';
+        if (errorMessage.includes('Cannot connect to server') || 
+            errorMessage.includes('server may be down') ||
+            errorMessage.includes('server may be unreachable')) {
+          console.log('[Dashboard] Setting server error due to watch setup failure');
+          errorStore.setServerError('Cannot connect to server. Please check if the server is running.');
+        } else {
+          console.log('[Dashboard] Setting watch error due to watch setup failure');
+          errorStore.setWatchError(`Failed to watch resources: ${errorMessage}`);
+        }
+      }
+    };
+    
+    handleSetupWatches();
+  });
+
+  // Monitor API resource loading errors and handle retries
+  const [retryTimer, setRetryTimer] = createSignal<number | null>(null);
+  const [connectionLost, setConnectionLost] = createSignal(false);
+  
+  // Function to retry loading resources
+  const retryLoadResources = () => {
+    console.log('Retrying to load resources...');
+    apiResourceStore.refetchResources();
+  };
+  
+  // Clear retry timer when component unmounts
+  onCleanup(() => {
+    if (retryTimer() !== null) {
+      clearTimeout(retryTimer()!);
+    }
+  });
+  
+  // Monitor API resource loading errors
   createEffect(() => {
-    setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
+    const lastError = apiResourceStore.lastError;
+    const resources = apiResourceStore.apiResources;
+    const namespaces = apiResourceStore.namespaces;
+    const contexts = apiResourceStore.contextInfo;
+    
+    console.log('Error monitoring effect:', { lastError, hasResources: resources !== undefined, hasNamespaces: namespaces !== undefined, hasContexts: contexts !== undefined, connectionLost: connectionLost() });
+    
+    // If there's an error from the API resource store, show it
+    if (lastError) {
+      console.log('Setting connection lost due to error:', lastError);
+      // Mark connection as lost to ensure we detect reconnection
+      setConnectionLost(true);
+      
+      if (lastError.includes('connection refused') || lastError.includes('Failed to fetch')) {
+        errorStore.setServerError('Cannot connect to Kubernetes cluster. Please check your connection and ensure the server can reach the Kubernetes API.');
+      } else {
+        errorStore.setApiError(lastError);
+      }
+      
+      // Set up retry timer if not already set
+      if (retryTimer() === null) {
+        const timer = setTimeout(() => {
+          retryLoadResources();
+          // Reset timer ID after retry
+          setRetryTimer(null);
+        }, 5000);
+        setRetryTimer(timer);
+      }
+    } else {
+      // No error from API store
+      // If we have successful data and previously had a connection error, connection is restored
+      if ((resources !== undefined || namespaces !== undefined || contexts !== undefined) &&
+          connectionLost()) {
+        
+        console.log('Connection restored! Clearing error and resetting state');
+        // Connection restored, clear error and reset connection state
+        errorStore.clearError();
+        setConnectionLost(false);
+        
+        // Clear any pending retry timer
+        if (retryTimer() !== null) {
+          clearTimeout(retryTimer()!);
+          setRetryTimer(null);
+        }
+        
+        // Reload resources and watches
+        setupWatches(filterStore.getNamespace(), filterStore.getResourceType()).catch(error => {
+          console.error('Error reloading watches after connection restoration:', error);
+        });
+      } else if (!connectionLost() && 
+                 (errorStore.currentError?.type === 'server' || errorStore.currentError?.type === 'api')) {
+        // We have data but still showing an error from a previous state - clear it
+        console.log('Clearing stale error');
+        errorStore.clearError();
+      }
+    }
   });
 
   // Maintain resources for each extra watch
   const extraResources: Record<string, any[]> = {};
+
+  // Error handler for watch failures
+  const handleWatchError = (message: string, path: string) => {
+    console.log('Watch error:', { message, path });
+    
+    // Check if this is a server connection error
+    if (message.includes('WebSocket connection closed') || 
+        message.includes('Failed to connect') ||
+        message.includes('Connection failed') ||
+        message.includes('Unable to connect to server') ||
+        message.includes('connection refused')) {
+      errorStore.setServerError('Cannot connect to server. Please check if the server is running.');
+    } else {
+      errorStore.setWatchError(message, path);
+    }
+  };
 
   /**
    * Sets up watches for the selected resource type and any related resources
@@ -110,7 +243,7 @@ export function Dashboard() {
    * @param ns The selected namespace or undefined for all namespaces
    * @param resourceFilter The selected resource type to watch
    */
-  const setupWatches = (ns: string | undefined, resourceType: string | undefined) => {
+  const setupWatches = async (ns: string | undefined, resourceType: string | undefined) => {
     if (!resourceType) return;
 
     // Cancel existing watches
@@ -137,7 +270,18 @@ export function Dashboard() {
     
     watches.push({
       path: watchPath,
-      callback: (event: { type: string; object: any }) => {
+      callback: (event: { type: string; object: any; error?: string; path?: string }) => {
+        // Handle ERROR events from the WebSocket
+        if (event.type === 'ERROR') {
+          handleWatchError(event.error || 'Unknown watch error', event.path || watchPath);
+          return;
+        }
+        
+        // Clear any existing errors when we receive data successfully
+        if (errorStore.currentError?.type === 'watch') {
+          errorStore.clearError();
+        }
+        
         if (event.type === 'ADDED') {
           setDynamicResources(prev => {
             const current = prev[k8sResource.id] || [];
@@ -216,7 +360,12 @@ export function Dashboard() {
         
         watches.push({
           path: extraWatchPath,
-          callback: (event: { type: string; object: any }) => {
+          callback: (event: { type: string; object: any; error?: string; path?: string }) => {
+            // Handle ERROR events from the WebSocket
+            if (event.type === 'ERROR') {
+              handleWatchError(event.error || 'Unknown watch error', event.path || extraWatchPath);
+              return;
+            }
             // Update cache based on event type
             if (event.type === 'ADDED') {
               extraResources[extraResourceType] = [
@@ -276,7 +425,13 @@ export function Dashboard() {
 
     const controllers = watches.map(({ path, callback }) => {
       const controller = new AbortController();
-      watchResource(path, callback, controller, setWatchStatus);
+      try {
+        watchResource(path, callback, controller, setWatchStatus, handleWatchError);
+      } catch (error) {
+        console.error(`Failed to start watch for ${path}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown watch error';
+        handleWatchError(errorMessage, path);
+      }
       return controller;
     });
 
@@ -378,10 +533,14 @@ export function Dashboard() {
         />
 
         <section class="resource-section full-width">
-          <ResourceList 
-            resources={filteredResources()}
-            resourceTypeConfig={currentResourceConfig()!}
-          />
+          <Show when={errorStore.currentError} fallback={
+            <ResourceList 
+              resources={filteredResources()}
+              resourceTypeConfig={currentResourceConfig()!}
+            />
+          }>
+            <ErrorDisplay class="inline" />
+          </Show>
         </section>
       </main>
     </div>
