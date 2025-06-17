@@ -1,6 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount } from "solid-js";
 import { untrack } from "solid-js";
+import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 
 export type FilterOption = {
   label: string;
@@ -25,6 +26,28 @@ export type Filter = {
 export type ActiveFilter = {
   name: string;
   value: string;
+};
+
+// Helper function to check if a search term matches any abbreviations for a resource kind
+const matchesAbbreviation = (resourceKind: string, searchTerm: string): boolean => {
+  // Find the resource config that matches this kind
+  for (const key in resourceTypeConfigs) {
+    const parts = key.split('/');
+    if (parts.length > 1 && parts[1] === resourceKind) {
+      const config = resourceTypeConfigs[key];
+      
+      if (config.abbreviations && config.abbreviations.length > 0) {
+        // Check if any abbreviation matches the search term
+        return config.abbreviations.some((abbrev: string) => 
+          abbrev.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+      
+      break;
+    }
+  }
+  
+  return false;
 };
 
 export function FilterBar(props: {
@@ -413,10 +436,19 @@ export function FilterBar(props: {
     const searchTerm = optionSearchInputs()[filter.name]?.toLowerCase() || "";
     if (!searchTerm) return filter.options;
     
-    return filter.options.filter(option => 
-      option.label.toLowerCase().includes(searchTerm) || 
-      option.value.toLowerCase().includes(searchTerm)
-    );
+    return filter.options.filter(option => {
+      // Standard matching by label and value
+      const standardMatch = option.label.toLowerCase().includes(searchTerm) || 
+                           option.value.toLowerCase().includes(searchTerm);
+      
+      // For ResourceType filter, also check abbreviations
+      if (filter.name === "ResourceType") {
+        const abbreviationMatch = matchesAbbreviation(option.label, searchTerm);
+        return standardMatch || abbreviationMatch;
+      }
+      
+      return standardMatch;
+    });
   };
 
   // Handle click outside to close filter options

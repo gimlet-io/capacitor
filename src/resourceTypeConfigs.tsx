@@ -65,6 +65,7 @@ export interface ResourceTypeConfig {
   filter?: Filter[];
   sortFunction?: (items: any[]) => any[];
   treeCardRenderer?: ResourceCardRenderer;
+  abbreviations?: string[]; // Common abbreviations for this resource type
 }
 
 // Define a reusable namespace column for all namespaced resources
@@ -241,12 +242,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [deploymentReadinessFilter],
-    treeCardRenderer: deploymentCardRenderer
+    treeCardRenderer: deploymentCardRenderer,
+    abbreviations: ['sts']
   },
   
   'core/Service': {
     columns: serviceColumns,
-    treeCardRenderer: serviceCardRenderer
+    treeCardRenderer: serviceCardRenderer,
+    abbreviations: ['svc']
   },
   
   'networking.k8s.io/Ingress': {
@@ -271,7 +274,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [configMapDataFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['cm']
   },
   
   'core/Secret': {
@@ -288,7 +292,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    treeCardRenderer: pvcCardRenderer
+    treeCardRenderer: pvcCardRenderer,
+    abbreviations: ['pvc']
   },
   
   'apps/DaemonSet': {
@@ -301,7 +306,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands
     ],
-    treeCardRenderer: daemonSetCardRenderer
+    treeCardRenderer: daemonSetCardRenderer,
+    abbreviations: ['ds']
   },
   
   'core/Namespace': {
@@ -310,7 +316,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       showPodsInNamespace
-    ]
+    ],
+    abbreviations: ['ns']
   },
   
   'batch/Job': {
@@ -332,7 +339,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    treeCardRenderer: cronJobCardRenderer
+    treeCardRenderer: cronJobCardRenderer,
+    abbreviations: ['cj']
   },
   
   'autoscaling/HorizontalPodAutoscaler': {
@@ -340,7 +348,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [hpaStatusFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['hpa']
   },
   
   'core/PersistentVolume': {
@@ -348,7 +357,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [pvPhaseFilter, pvReclaimPolicyFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['pv']
   },
   
   'rbac.authorization.k8s.io/Role': {
@@ -364,7 +374,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [roleBindingSubjectKindFilter, roleBindingRoleKindFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['rb']
   },
   
   'core/ServiceAccount': {
@@ -372,7 +383,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [serviceAccountAutomountFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['sa']
   },
   
   'networking.k8s.io/NetworkPolicy': {
@@ -380,7 +392,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [networkPolicyTypeFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['netpol']
   },
   
   'keda.sh/ScaledJob': {
@@ -388,7 +401,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [scaledJobTriggerFilter, scaledJobStrategyFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    abbreviations: ['sj']
   },
   
   'helm.sh/Release': {
@@ -423,7 +437,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       navigateToKustomization
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    abbreviations: ['ks']
   },
   
   'source.toolkit.fluxcd.io/GitRepository': {
@@ -513,7 +528,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleFluxReconcile
       }
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    abbreviations: ['hr']
   },
   
   'core/Event': {
