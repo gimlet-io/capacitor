@@ -79,8 +79,8 @@ export function LogsViewer(props: {
     return { containers, initContainers };
   };
 
-  // Get containers from a deployment's pods
-  const getDeploymentContainers = async (
+  // Get containers from pods managed by a resource (Deployment, StatefulSet, DaemonSet, Job)
+  const getResourcePodContainers = async (
     namespace: string,
     labelSelector: any,
   ): Promise<{ containers: string[], initContainers: string[], pods: string[] }> => {
@@ -142,9 +142,9 @@ export function LogsViewer(props: {
           initContainers: extractedContainers.initContainers,
           pods: [props.resource.metadata.name] 
         };
-      } else if (kind === "Deployment") {
+      } else if (["Deployment", "StatefulSet", "DaemonSet", "Job"].includes(kind)) {
         const labelSelector = props.resource.spec?.selector?.matchLabels;
-        containerInfo = await getDeploymentContainers(namespace, labelSelector);
+        containerInfo = await getResourcePodContainers(namespace, labelSelector);
       }
 
       setAvailableContainers(containerInfo.containers);
@@ -206,8 +206,8 @@ export function LogsViewer(props: {
       const name = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
 
-      if (kind !== "Pod" && kind !== "Deployment") {
-        setLogs("Logs are only available for Pod and Deployment resources");
+      if (!["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job"].includes(kind)) {
+        setLogs("Logs are only available for Pod, Deployment, StatefulSet, DaemonSet, and Job resources");
         return;
       }
 
@@ -215,7 +215,7 @@ export function LogsViewer(props: {
       let podsToFetch: string[] = [];
       if (kind === "Pod") {
         podsToFetch = [name];
-      } else if (kind === "Deployment") {
+      } else if (["Deployment", "StatefulSet", "DaemonSet", "Job"].includes(kind)) {
         if (selectedPod() === "all") {
           podsToFetch = availablePods();
         } else {
@@ -571,7 +571,7 @@ export function LogsViewer(props: {
         <div class="logs-controls">
           <div class="logs-options-row">
             <div class="logs-filter-group">
-              <Show when={props.resource?.kind === "Deployment" && availablePods().length > 0}>
+              <Show when={["Deployment", "StatefulSet", "DaemonSet", "Job"].includes(props.resource?.kind) && availablePods().length > 0}>
                 <div class="logs-select-container">
                   <label>Pod:</label>
                   <select
