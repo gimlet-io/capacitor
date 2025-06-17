@@ -1136,6 +1136,12 @@ export interface PersistentVolumeSpec {
   storageClassName?: string;
   mountOptions?: string[];
   volumeMode?: string; // "Filesystem", "Block"
+  claimRef?: {
+    kind?: string;
+    namespace?: string;
+    name?: string;
+    uid?: string;
+  };
   nodeAffinity?: {
     required?: {
       nodeSelectorTerms: Array<{

@@ -34,13 +34,13 @@ function getPVStatusComponent(pv: PersistentVolume): { element: JSX.Element, tit
 export const pvColumns = [
   {
     header: "NAME",
-    width: "20%",
+    width: "26%",
     accessor: (pv: PersistentVolume) => <>{pv.metadata.name}</>,
     title: (pv: PersistentVolume) => pv.metadata.name,
   },
   {
     header: "CAPACITY",
-    width: "10%",
+    width: "7%",
     accessor: (pv: PersistentVolume) => {
       const capacity = pv.spec.capacity?.storage || "-";
       return <>{capacity}</>;
@@ -65,21 +65,37 @@ export const pvColumns = [
   },
   {
     header: "STATUS",
-    width: "10%",
+    width: "7%",
     accessor: (pv: PersistentVolume) => getPVStatusComponent(pv).element,
     title: (pv: PersistentVolume) => getPVStatusComponent(pv).title,
   },
   {
     header: "CLAIM",
-    width: "15%",
+    width: "20%",
     accessor: (pv: PersistentVolume) => {
-      // In a real implementation, we'd parse this from the claimRef
-      return <>-</>;
+      if (!pv.spec.claimRef) return <>-</>;
+      
+      const namespace = pv.spec.claimRef.namespace || "";
+      const name = pv.spec.claimRef.name || "";
+      
+      if (!namespace || !name) return <>-</>;
+      
+      return <>{namespace}/{name}</>;
+    },
+    title: (pv: PersistentVolume) => {
+      if (!pv.spec.claimRef) return "No claim";
+      
+      const namespace = pv.spec.claimRef.namespace || "";
+      const name = pv.spec.claimRef.name || "";
+      
+      if (!namespace || !name) return "No claim";
+      
+      return `${namespace}/${name}`;
     },
   },
   {
     header: "STORAGE CLASS",
-    width: "15%",
+    width: "10%",
     accessor: (pv: PersistentVolume) => <>{pv.spec.storageClassName || "-"}</>,
   },
   {

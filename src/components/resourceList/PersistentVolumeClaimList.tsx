@@ -37,21 +37,26 @@ export const pvcColumns = [
   },
   {
     header: "STATUS",
-    width: "10%",
+    width: "7%",
     accessor: (pvc: PersistentVolumeClaim) => getPVCStatusComponent(pvc).element,
     title: (pvc: PersistentVolumeClaim) => getPVCStatusComponent(pvc).title,
   },
   {
     header: "VOLUME",
-    width: "15%",
+    width: "21%",
     accessor: (pvc: PersistentVolumeClaim) => <>{pvc.spec.volumeName || "-"}</>,
   },
   {
     header: "CAPACITY",
-    width: "10%",
+    width: "7%",
     accessor: (pvc: PersistentVolumeClaim) => {
+      // First try to get actual capacity from status (which is set when bound)
       const capacity = pvc.status?.capacity?.storage || pvc.spec.resources?.requests?.storage || "-";
       return <>{capacity}</>;
+    },
+    title: (pvc: PersistentVolumeClaim) => {
+      const capacity = pvc.status?.capacity?.storage || pvc.spec.resources?.requests?.storage || "Unknown";
+      return `Storage capacity: ${capacity}`;
     },
   },
   {

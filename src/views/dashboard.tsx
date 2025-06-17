@@ -11,6 +11,7 @@ import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
 import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
+import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
@@ -445,6 +446,26 @@ export function Dashboard() {
     if (filters.length === 0) { return resources }
 
     return resources.filter(resource => filters.some(filter => filterStore.filterRegistry[filter.name]?.filterFunction(resource, filter.value)));
+  });
+
+  // Populate node filter options for pods
+  createEffect(() => {
+    const resourceType = filterStore.getResourceType();
+    if (resourceType !== 'core/Pod') return;
+    
+    // Get all pods and extract unique node names
+    const allPods = dynamicResources()[resourceType] || [];
+    const uniqueNodes = [...new Set(
+      allPods
+        .map((pod: any) => pod.spec?.nodeName)
+        .filter((nodeName: string) => nodeName) // Filter out undefined/null nodes
+    )].sort();
+    
+    // Update the node filter options using the exported setter
+    setNodeOptions(uniqueNodes.map((nodeName: string) => ({
+      value: nodeName,
+      label: nodeName
+    })));
   });
 
   // Look up the current resource type configuration

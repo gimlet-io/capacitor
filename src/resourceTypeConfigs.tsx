@@ -16,7 +16,7 @@ import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./component
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
-import { podsStatusFilter, podsReadinessFilter } from "./components/resourceList/PodList.tsx";
+import { podsStatusFilter, podsReadinessFilter, podsNodeFilter } from "./components/resourceList/PodList.tsx";
 import { deploymentReadinessFilter } from "./components/resourceList/DeploymentList.tsx";
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
@@ -36,6 +36,7 @@ import { serviceAccountColumns, serviceAccountAutomountFilter } from "./componen
 import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
 import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
 import { handleFluxReconcile } from "./utils/fluxUtils.tsx";
+import { scaledJobColumns, scaledJobTriggerFilter, scaledJobStrategyFilter } from "./components/resourceList/ScaledJobList.tsx";
 
 export interface Column<T> {
   header: string;
@@ -198,7 +199,7 @@ export const pvcCardRenderer = createCardRenderer(
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
     columns: podColumns,
-    filter: [podsReadinessFilter, podsStatusFilter],
+    filter: [podsReadinessFilter, podsStatusFilter, podsNodeFilter],
     commands: [
       {
         shortcut: { key: "l", description: "Logs", isContextual: true },
@@ -377,6 +378,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'networking.k8s.io/NetworkPolicy': {
     columns: networkPolicyColumns,
     filter: [networkPolicyTypeFilter],
+    commands: [
+      ...builtInCommands
+    ]
+  },
+  
+  'keda.sh/ScaledJob': {
+    columns: scaledJobColumns,
+    filter: [scaledJobTriggerFilter, scaledJobStrategyFilter],
     commands: [
       ...builtInCommands
     ]

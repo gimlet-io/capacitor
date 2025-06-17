@@ -1,7 +1,13 @@
 import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
-import { ResourceCardRenderer } from "../../resourceTypeConfigs.tsx";
+import { createSignal } from "solid-js";
+
+// Create a signal for node options that can be updated externally
+const [nodeOptions, setNodeOptions] = createSignal<{value: string, label: string}[]>([]);
+
+// Export the setter so the dashboard can update the options
+export { setNodeOptions };
 
 export const podsStatusFilter: Filter = {
   name: "PodStatus",
@@ -54,6 +60,20 @@ export const podsReadinessFilter: Filter = {
       return readyContainers < totalContainers;
     }
     return true;
+  },
+};
+
+export const podsNodeFilter: Filter = {
+  name: "PodNode",
+  label: "Node",
+  type: "select",
+  get options() {
+    return nodeOptions();
+  },
+  multiSelect: true,
+  searchable: true,
+  filterFunction: (pod: Pod, value: string): boolean => {
+    return pod.spec.nodeName === value;
   },
 };
 
