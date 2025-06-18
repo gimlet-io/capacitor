@@ -228,40 +228,28 @@ func (s *Server) Setup() {
 
 		// Map of supported Flux resource kinds to their API path
 		resourceAPIs := map[string]string{
-			"kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
-			"helmrelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
-			"gitrepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
-			"helmrepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
-			"helmchart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
-			"ocirepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
-			"bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
-			"alert":           "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/alerts/%s",
-			"provider":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/providers/%s",
-			"receiver":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/receivers/%s",
-			"imagepolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
-			"imagerepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
-			"imageupdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+			"Kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
+			"HelmRelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
+			"GitRepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
+			"HelmRepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
+			"HelmChart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
+			"OCIRepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
+			"Bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
+			"Alert":           "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/alerts/%s",
+			"Provider":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/providers/%s",
+			"Receiver":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/receivers/%s",
+			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
+			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
+			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
 		}
 
-		// Convert to lowercase for case-insensitive lookup
+		// Direct lookup with the exact kind name
 		apiPath, found := resourceAPIs[kind]
 		if !found {
-			// Try with first letter capitalized for variants like "Kustomization" vs "kustomization"
-			if len(kind) > 0 {
-				lowercaseKind := kind
-				if 'A' <= kind[0] && kind[0] <= 'Z' {
-					lowercaseKind = string(kind[0]+'a'-'A') + kind[1:]
-				}
-
-				apiPath, found = resourceAPIs[lowercaseKind]
-				if !found {
-					return c.JSON(http.StatusBadRequest, map[string]string{
-						"error":          fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
-						"supportedKinds": "Supported kinds: kustomization, helmrelease, gitrepository, helmrepository, etc.",
-					})
-				}
-				kind = lowercaseKind
-			}
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error":          fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
+				"supportedKinds": "Supported kinds: Kustomization, HelmRelease, GitRepository, HelmRepository, etc.",
+			})
 		}
 
 		// Patch the resource to trigger reconciliation
@@ -333,37 +321,25 @@ func (s *Server) Setup() {
 
 		// Map of supported Flux resource kinds to their API path
 		resourceAPIs := map[string]string{
-			"kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
-			"helmrelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
-			"gitrepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
-			"helmrepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
-			"helmchart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
-			"ocirepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
-			"bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
-			"imagepolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
-			"imagerepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
-			"imageupdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+			"Kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
+			"HelmRelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
+			"GitRepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
+			"HelmRepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
+			"HelmChart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
+			"OCIRepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
+			"Bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
+			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
+			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
+			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
 		}
 
-		// Convert to lowercase for case-insensitive lookup
+		// Direct lookup with the exact kind name
 		apiPath, found := resourceAPIs[kind]
 		if !found {
-			// Try with first letter capitalized for variants like "Kustomization" vs "kustomization"
-			if len(kind) > 0 {
-				lowercaseKind := kind
-				if 'A' <= kind[0] && kind[0] <= 'Z' {
-					lowercaseKind = string(kind[0]+'a'-'A') + kind[1:]
-				}
-
-				apiPath, found = resourceAPIs[lowercaseKind]
-				if !found {
-					return c.JSON(http.StatusBadRequest, map[string]string{
-						"error":          fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
-						"supportedKinds": "Supported kinds: kustomization, helmrelease, gitrepository, helmrepository, etc.",
-					})
-				}
-				kind = lowercaseKind
-			}
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error":          fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
+				"supportedKinds": "Supported kinds: Kustomization, HelmRelease, GitRepository, HelmRepository, etc.",
+			})
 		}
 
 		// Patch the resource to suspend or resume it

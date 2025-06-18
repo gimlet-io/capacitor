@@ -210,7 +210,17 @@ export function ResourceTree(props: ResourceTreeProps) {
     const resourceNode = selectedResourceNode();
     if (!resourceNode || !resourceNode.resourceType) return null;
     
-    return resourceTypeConfigs[resourceNode.resourceType] || null;
+    // Extract just group and kind from the resource type, skipping version if present
+    const resourceType = resourceNode.resourceType;
+    let lookupKey = resourceType;
+    
+    // If the format is group/version/kind (e.g., apps/v1/Deployment)
+    if (resourceType.split('/').length === 3) {
+      const [group, , kind] = resourceType.split('/');
+      lookupKey = `${group}/${kind}`;
+    }
+    
+    return resourceTypeConfigs[lookupKey] || null;
   });
 
   // Import drawer-related functions from ResourceList component

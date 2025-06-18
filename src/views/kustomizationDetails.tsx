@@ -282,7 +282,40 @@ export function KustomizationDetails() {
       {
         resourceType: 'core/PersistentVolume',
         isParent: (resource: any, obj: any) => {
-          return resource.metadata.name === obj.spec.claimRef.name;
+          return resource.spec.claimRef?.name === obj.metadata.name;
+        }
+      }
+    ],
+    'batch/CronJob': [
+      {
+        resourceType: 'batch/Job',
+        isParent: (resource: any, obj: any) => {
+          return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'CronJob' && owner.name === obj.metadata.name);
+        }
+      }
+    ],
+    'bitnami.com/SealedSecret': [
+      {
+        resourceType: 'core/Secret',
+        isParent: (resource: any, obj: any) => {
+          return resource.metadata.name === obj.metadata.name && resource.metadata.namespace === obj.metadata.namespace;
+        }
+      }
+    ],
+    'keda.sh/ScaledJob': [
+      {
+        resourceType: 'batch/Job',
+        isParent: (resource: any, obj: any) => {
+          return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'ScaledJob' && owner.name === obj.metadata.name);
+        }
+      }
+    ],
+    'keda.sh/ScaledObject': [
+      {
+        resourceType: 'apps/Deployment',
+        isParent: (resource: any, obj: any) => {
+          return resource.spec?.scaleTargetRef?.name === obj.metadata.name && 
+                 resource.spec?.scaleTargetRef?.kind === 'Deployment';
         }
       }
     ]
@@ -379,20 +412,24 @@ export function KustomizationDetails() {
 
   createEffect(() => {
     Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
-      let watchedBy = null;
+      let watchedBy: string[] = [];
       for (const [key, value] of Object.entries(extraWatches)) {
         if (value.some((extraWatch: ExtraWatchConfig) => extraWatch.resourceType === resourceType)) {
-          watchedBy = key;
+          watchedBy.push(key);
         }
       }
       resources.forEach((resource) => {
-        if (watchedBy) {
-          const parent = dynamicResources()[watchedBy]?.find((res: any) => extraWatches[watchedBy].some((extraWatch: ExtraWatchConfig) => extraWatch.isParent(resource, res)));
-          if (parent) {
-            if (!parent.children || !parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
-              parent.children = [...(parent.children || []), resource];
-            }
-          }
+        if (watchedBy.length > 0) {
+          watchedBy.forEach(parentType => {
+            const parents = dynamicResources()[parentType] || [];
+            parents.forEach(parent => {
+              if (extraWatches[parentType].some((extraWatch: ExtraWatchConfig) => extraWatch.isParent(resource, parent))) {
+                if (!parent.children || !parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
+                  parent.children = [...(parent.children || []), resource];
+                }
+              }
+            });
+          });
         }
       });
     });
