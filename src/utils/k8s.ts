@@ -1,4 +1,4 @@
-import type { Pod, Deployment, Service, ServiceWithResources, DeploymentWithResources } from '../types/k8s.ts';
+import type { Pod, Deployment, Service, ServiceWithResources, DeploymentWithResources, ReplicaSet, ReplicaSetWithResources } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
   if (!selector || !labels) return false;
@@ -33,6 +33,13 @@ export const updateDeploymentMatchingResources = (deployment: Deployment, allPod
   };
 };
 
+export const updateReplicaSetMatchingResources = (replicaSet: ReplicaSet, allPods: Pod[]): ReplicaSetWithResources => {
+  return {
+    ...replicaSet,
+    pods: getReplicaSetMatchingPods(replicaSet, allPods)
+  };
+};
+
 export const getDeploymentMatchingPods = (deployment: Deployment, allPods: Pod[]) => {
   if (!deployment.spec.selector.matchLabels) return [];
   return allPods.filter(pod => 
@@ -41,3 +48,12 @@ export const getDeploymentMatchingPods = (deployment: Deployment, allPods: Pod[]
     )
   );
 }; 
+
+export const getReplicaSetMatchingPods = (replicaSet: ReplicaSet, allPods: Pod[]) => {
+  if (!replicaSet.spec.selector.matchLabels) return [];
+  return allPods.filter(pod => 
+    Object.entries(replicaSet.spec.selector.matchLabels).every(([key, value]) => 
+      pod.metadata.labels?.[key] === value
+    )
+  );
+};

@@ -5,7 +5,7 @@ import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { updateDeploymentMatchingResources } from "../utils/k8s.ts";
+import { updateDeploymentMatchingResources, updateReplicaSetMatchingResources } from "../utils/k8s.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
@@ -62,6 +62,12 @@ export function Dashboard() {
       {
         resourceType: 'core/Pod',
         updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods)
+      }
+    ],
+    'apps/ReplicaSet': [
+      {
+        resourceType: 'core/Pod',
+        updater: (replicaSet, pods) => updateReplicaSetMatchingResources(replicaSet, pods)
       }
     ]
   };
