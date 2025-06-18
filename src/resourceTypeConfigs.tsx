@@ -180,7 +180,7 @@ export const daemonSetCardRenderer = createCardRenderer(
 
 export const jobCardRenderer = createCardRenderer(
   jobColumns,
-  ["COMPLETIONS", "STATUS"],
+  ["COMPLETIONS", "STATUS", "AGE"],
   "rgb(235, 245, 235)" // Muted light mint
 );
 
@@ -192,6 +192,12 @@ export const cronJobCardRenderer = createCardRenderer(
 
 export const pvcCardRenderer = createCardRenderer(
   pvcColumns,
+  ["STATUS", "CAPACITY"],
+  "rgb(245, 240, 230)" // Muted light peach
+);
+
+export const pvCardRenderer = createCardRenderer(
+  pvColumns,
   ["STATUS", "CAPACITY"],
   "rgb(245, 240, 230)" // Muted light peach
 );
@@ -358,6 +364,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    treeCardRenderer: pvCardRenderer,
     abbreviations: ['pv']
   },
   

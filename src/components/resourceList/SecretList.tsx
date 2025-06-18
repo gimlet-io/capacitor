@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import type { Secret } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Define the columns for the Secret resource list
 export const secretColumns = [
@@ -32,18 +33,9 @@ export const secretColumns = [
   },
   {
     header: "AGE",
-    width: "20%",
-    accessor: (secret: Secret) => {
-      if (!secret.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(secret.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    width: "15%",
+    accessor: (secret: Secret) => 
+      useCalculateAge(secret.metadata.creationTimestamp || "")(),
   },
 ];
 

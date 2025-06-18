@@ -1,5 +1,7 @@
+import { JSX } from "solid-js";
 import type { Role } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Simplify the rules into a human-readable summary
 function getRulesString(role: Role): string {
@@ -63,18 +65,9 @@ export const roleColumns = [
   },
   {
     header: "AGE",
-    width: "10%",
-    accessor: (role: Role) => {
-      if (!role.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(role.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    width: "15%",
+    accessor: (role: Role) => 
+      useCalculateAge(role.metadata.creationTimestamp || "")(),
   },
 ];
 

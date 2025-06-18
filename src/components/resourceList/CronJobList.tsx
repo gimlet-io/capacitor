@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import type { CronJob } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Helper function to determine if CronJob is suspended
 function getSuspendedComponent(cronJob: CronJob): { element: JSX.Element, title: string } {
@@ -83,17 +84,8 @@ export const cronJobColumns = [
   {
     header: "AGE",
     width: "15%",
-    accessor: (cronJob: CronJob) => {
-      if (!cronJob.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(cronJob.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    accessor: (cronJob: CronJob) => 
+      useCalculateAge(cronJob.metadata.creationTimestamp || "")(),
   },
 ];
 

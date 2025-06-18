@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import type { PersistentVolume } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Helper function to determine PV status with appropriate styling
 function getPVStatusComponent(pv: PersistentVolume): { element: JSX.Element, title: string } {
@@ -100,18 +101,9 @@ export const pvColumns = [
   },
   {
     header: "AGE",
-    width: "10%",
-    accessor: (pv: PersistentVolume) => {
-      if (!pv.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(pv.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    width: "15%",
+    accessor: (pv: PersistentVolume) => 
+      useCalculateAge(pv.metadata.creationTimestamp || "")(),
   },
 ];
 

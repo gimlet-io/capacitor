@@ -1,5 +1,7 @@
+import { JSX } from "solid-js";
 import type { ServiceAccount } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Define the columns for the ServiceAccount resource list
 export const serviceAccountColumns = [
@@ -53,17 +55,8 @@ export const serviceAccountColumns = [
   {
     header: "AGE",
     width: "15%",
-    accessor: (sa: ServiceAccount) => {
-      if (!sa.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(sa.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    accessor: (sa: ServiceAccount) => 
+      useCalculateAge(sa.metadata.creationTimestamp || "")(),
   },
 ];
 

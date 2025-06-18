@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import type { Job } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Helper function to determine job completion status with appropriate styling
 function getJobCompletionComponent(job: Job): { element: JSX.Element, title: string } {
@@ -92,17 +93,8 @@ export const jobColumns = [
   {
     header: "AGE",
     width: "15%",
-    accessor: (job: Job) => {
-      if (!job.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(job.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    accessor: (job: Job) => 
+      useCalculateAge(job.metadata.creationTimestamp || "")(),
   },
 ];
 

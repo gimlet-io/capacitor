@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import type { NetworkPolicy } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Helper function to summarize policy types
 function getPolicyTypesString(policy: NetworkPolicy): string {
@@ -77,17 +78,8 @@ export const networkPolicyColumns = [
   {
     header: "AGE",
     width: "15%",
-    accessor: (policy: NetworkPolicy) => {
-      if (!policy.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(policy.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    accessor: (policy: NetworkPolicy) => 
+      useCalculateAge(policy.metadata.creationTimestamp || "")(),
   },
 ];
 

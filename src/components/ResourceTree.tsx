@@ -26,6 +26,20 @@ const getResourceType = (resource: any): string => {
   }
 };
 
+// Helper function to get resource type without version
+const getResourceTypeWithoutVersion = (resourceType: string): string => {
+  if (!resourceType) return '';
+  
+  // If the format is group/version/kind (e.g., apps/v1/Deployment)
+  if (resourceType.split('/').length === 3) {
+    const [group, , kind] = resourceType.split('/');
+    return `${group}/${kind}`;
+  }
+  
+  // Already in the right format (group/kind)
+  return resourceType;
+};
+
 interface NodeData {
   label: string;
   width: number;
@@ -127,7 +141,8 @@ export function createNodeWithCardRenderer(
 ) {
   const { fill, stroke, strokeWidth } = options;
 
-  let cardRenderer = resourceTypeConfigs[resourceType]?.treeCardRenderer;
+  const lookupKey = getResourceTypeWithoutVersion(resourceType);
+  let cardRenderer = resourceTypeConfigs[lookupKey]?.treeCardRenderer;
   if (!cardRenderer) {
     cardRenderer = defaultCardRenderer
   }
@@ -210,16 +225,7 @@ export function ResourceTree(props: ResourceTreeProps) {
     const resourceNode = selectedResourceNode();
     if (!resourceNode || !resourceNode.resourceType) return null;
     
-    // Extract just group and kind from the resource type, skipping version if present
-    const resourceType = resourceNode.resourceType;
-    let lookupKey = resourceType;
-    
-    // If the format is group/version/kind (e.g., apps/v1/Deployment)
-    if (resourceType.split('/').length === 3) {
-      const [group, , kind] = resourceType.split('/');
-      lookupKey = `${group}/${kind}`;
-    }
-    
+    const lookupKey = getResourceTypeWithoutVersion(resourceNode.resourceType);
     return resourceTypeConfigs[lookupKey] || null;
   });
 

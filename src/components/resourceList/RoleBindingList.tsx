@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import type { RoleBinding } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { useCalculateAge } from "./timeUtils.ts";
 
 // Format the subjects into a user-friendly string
 function getSubjectsString(roleBinding: RoleBinding): string {
@@ -45,18 +46,9 @@ export const roleBindingColumns = [
   },
   {
     header: "AGE",
-    width: "10%",
-    accessor: (roleBinding: RoleBinding) => {
-      if (!roleBinding.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(roleBinding.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    width: "15%",
+    accessor: (roleBinding: RoleBinding) => 
+      useCalculateAge(roleBinding.metadata.creationTimestamp || "")(),
   },
 ];
 
