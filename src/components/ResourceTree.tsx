@@ -260,11 +260,8 @@ export function ResourceTree(props: ResourceTreeProps) {
 
   // Generate a list of all commands including built-in ones
   const getAllCommands = (): ResourceCommand[] => {
-    const config = selectedResourceConfig();
-    if (!config) return [];
-    
-    // Get the commands from the resource config
-    const commands = [...(config.commands || builtInCommands)];
+    const config = selectedResourceConfig();    
+    const commands = [...(config?.commands || builtInCommands)];
     replaceHandlers(commands, {
       openDrawer,
       openHelmDrawer,

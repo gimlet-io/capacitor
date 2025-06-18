@@ -315,6 +315,20 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds']
   },
+
+  'apps/ReplicaSet': {
+    columns: deploymentColumns,
+    filter: [],
+    commands: [
+      {
+        shortcut: { key: "l", description: "Logs", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      ...builtInCommands
+    ],
+    treeCardRenderer: deploymentCardRenderer,
+    abbreviations: ['rs']
+  },
   
   'core/Namespace': {
     columns: namespaceColumns,
