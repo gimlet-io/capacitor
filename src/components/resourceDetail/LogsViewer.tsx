@@ -923,7 +923,7 @@ export function LogsViewer(props: {
                 onClick={toggleSearch}
                 title="Toggle search (/ to open and focus)"
               >
-                🔍 Search
+                Search
               </button>
             </div>
           </div>
