@@ -56,9 +56,19 @@ Capacitor's goal is to level the field: providing a UI option for Flux users tha
 
 ## Capacitor Next - currently under development
 
-> 💡 **Tip:** Capacitor Next is a rewrite and rethink of the original Capacitor release.
+Capacitor Next is a rewrite and rethink of the original Capacitor release.
 
 The development is happening on the `main` branch and releases are pushed frequently under this [Github release](https://github.com/gimlet-io/capacitor/releases/tag/capacitor-next).
+
+| Capacitor Next                             | Capacitor                                                             |
+|--------------------------------------|-----------------------------------------------------------------------------|
+| client-side | server-side        |
+| multi-cluster   | single cluster                        |
+| respects RBAC   |          ❌               |
+| Supports all k8s resources and versions   |            ❌             |
+| Kustomization Resource Tree   |          ❌               |
+| Helm values and manifest diffing   |        ❌                |
+| Kustomization diffing between cluster and git   |          ❌               |
 
 ## Star History
 
