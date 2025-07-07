@@ -2,7 +2,7 @@
 
 ## Commands
 - **Build**: `make build` (frontend + Go backend), `deno task build` (frontend only)
-- **Dev**: `deno task watch` (watch frontend) + in separate terminal `make build` (build all) then `./cli/next`
+- **Dev**: `deno task watch` (watch frontend) + in separate terminal `make build` (build all) then `./cli/next` - but don't ever start up the app.
 - **Test**: `cd cli && go test ./...` for Go tests, `go test -run TestName ./pkg/path` for single test
 - **Lint**: `cd cli && go fmt ./...` for Go formatting
 
