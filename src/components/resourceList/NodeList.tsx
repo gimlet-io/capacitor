@@ -3,28 +3,54 @@ import type { Node } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 
-// Helper function to determine node readiness status
-function getNodeReadiness(node: Node): { status: string; message: string } {
+// Helper function to determine node status including all conditions
+function getNodeStatus(node: Node): { status: string; message: string } {
+  const statuses = [];
+  let message = "";
+
+  // Check if node is schedulable
+  if (node.spec.unschedulable) {
+    statuses.push("SchedulingDisabled");
+  }
+
   if (!node.status.conditions) {
     return { status: "Unknown", message: "No conditions reported" };
   }
 
+  // Check Ready condition first
   const readyCondition = node.status.conditions.find(
     (condition) => condition.type === "Ready"
   );
 
   if (!readyCondition) {
-    return { status: "Unknown", message: "Ready condition not found" };
+    statuses.push("Unknown");
+    message = "Ready condition not found";
+  } else if (readyCondition.status === "True") {
+    statuses.push("Ready");
+    message = readyCondition.message || "Node is ready";
+  } else {
+    statuses.push("NotReady");
+    message = readyCondition.message || readyCondition.reason || "Node is not ready";
   }
 
-  if (readyCondition.status === "True") {
-    return { status: "Ready", message: readyCondition.message || "Node is ready" };
-  } else {
-    return { 
-      status: "NotReady", 
-      message: readyCondition.message || readyCondition.reason || "Node is not ready" 
-    };
-  }
+  // Check for pressure conditions and other important states
+  const pressureConditions = [
+    "DiskPressure",
+    "MemoryPressure", 
+    "PIDPressure",
+    "NetworkUnavailable"
+  ];
+
+  node.status.conditions.forEach(condition => {
+    if (pressureConditions.includes(condition.type) && condition.status === "True") {
+      statuses.push(condition.type);
+    }
+  });
+
+  return { 
+    status: statuses.join(","), 
+    message 
+  };
 }
 
 // Helper function to get node internal IP
@@ -50,12 +76,12 @@ export const nodeColumns = [
     header: "STATUS",
     width: "15%",
     accessor: (node: Node) => {
-      const { status } = getNodeReadiness(node);
-      const statusClass = status === "Ready" ? "text-success" : "text-danger";
+      const { status } = getNodeStatus(node);
+      const statusClass = status.includes("Ready") && !status.includes("NotReady") ? "text-success" : "text-danger";
       return <span class={statusClass}>{status}</span>;
     },
     title: (node: Node) => {
-      const { message } = getNodeReadiness(node);
+      const { message } = getNodeStatus(node);
       return message;
     },
   },
@@ -123,8 +149,8 @@ export const nodeReadinessFilter: Filter = {
     { value: "NotReady", label: "Not Ready" },
   ],
   filterFunction: (node: Node, value: string) => {
-    const { status } = getNodeReadiness(node);
-    return status === value;
+    const { status } = getNodeStatus(node);
+    return status.includes(value);
   },
 };
 
