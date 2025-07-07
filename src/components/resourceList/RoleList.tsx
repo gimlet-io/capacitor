@@ -71,6 +71,8 @@ export const roleColumns = [
     width: "15%",
     accessor: (role: Role) => 
       useCalculateAge(role.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];
 
