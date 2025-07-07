@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { Role } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Simplify the rules into a human-readable summary
 function getRulesString(role: Role): string {
@@ -53,6 +54,8 @@ export const roleColumns = [
     width: "25%",
     accessor: (role: Role) => <>{role.metadata.name}</>,
     title: (role: Role) => role.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "RULES",

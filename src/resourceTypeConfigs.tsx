@@ -316,6 +316,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: nodeCardRenderer
   },
   
@@ -325,6 +326,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     abbreviations: ['cm']
   },
   
@@ -333,7 +335,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [secretTypeFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    defaultSortColumn: "NAME"
   },
   
   'core/PersistentVolumeClaim': {
@@ -342,6 +345,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: pvcCardRenderer,
     abbreviations: ['pvc']
   },
@@ -360,6 +364,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleRolloutRestart
       }
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds']
   },
@@ -374,6 +379,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['rs']
   },
@@ -385,6 +391,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       showPodsInNamespace
     ],
+    defaultSortColumn: "NAME",
     abbreviations: ['ns']
   },
   
@@ -398,6 +405,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: jobCardRenderer
   },
   
@@ -407,6 +415,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: cronJobCardRenderer,
     abbreviations: ['cj']
   },

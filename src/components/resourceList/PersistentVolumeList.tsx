@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { PersistentVolume } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Helper function to determine PV status with appropriate styling
 function getPVStatusComponent(pv: PersistentVolume): { element: JSX.Element, title: string } {
@@ -38,6 +39,8 @@ export const pvColumns = [
     width: "26%",
     accessor: (pv: PersistentVolume) => <>{pv.metadata.name}</>,
     title: (pv: PersistentVolume) => pv.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "CAPACITY",
@@ -104,6 +107,8 @@ export const pvColumns = [
     width: "15%",
     accessor: (pv: PersistentVolume) => 
       useCalculateAge(pv.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];
 
