@@ -1,6 +1,7 @@
 import type { ConfigMap } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Define the columns for the ConfigMap resource list
 export const configMapColumns = [
@@ -9,6 +10,8 @@ export const configMapColumns = [
     width: "30%",
     accessor: (configMap: ConfigMap) => <>{configMap.metadata.name}</>,
     title: (configMap: ConfigMap) => configMap.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "DATA",
@@ -30,6 +33,8 @@ export const configMapColumns = [
     width: "15%",
     accessor: (configMap: ConfigMap) => 
       useCalculateAge(configMap.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];
 

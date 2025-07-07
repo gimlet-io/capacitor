@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { Node } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Helper function to determine node status including all conditions
 function getNodeStatus(node: Node): { status: string; message: string } {
@@ -71,6 +72,8 @@ export const nodeColumns = [
     width: "20%",
     accessor: (node: Node) => <>{node.metadata.name}</>,
     title: (node: Node) => node.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "STATUS",
@@ -137,6 +140,8 @@ export const nodeColumns = [
     width: "15%",
     accessor: (node: Node) => 
       useCalculateAge(node.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];
 

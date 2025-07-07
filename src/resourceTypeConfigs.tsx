@@ -65,7 +65,6 @@ export interface ResourceTypeConfig {
   rowKeyField?: string;
   commands?: ResourceCommand[];
   filter?: Filter[];
-  sortFunction?: (items: any[]) => any[];
   defaultSortColumn?: string;
   treeCardRenderer?: ResourceCardRenderer;
   abbreviations?: string[]; // Common abbreviations for this resource type
@@ -297,6 +296,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'core/Service': {
     columns: serviceColumns,
+    defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
     abbreviations: ['svc']
   },
@@ -306,6 +306,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: ingressCardRenderer
   },
   
@@ -603,7 +604,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Event': {
     columns: eventColumns,
     filter: [eventTypeFilter],
-    sortFunction: sortEventsByLastSeen
+    defaultSortColumn: "LAST SEEN"
   },
   
   'argoproj.io/Application': {

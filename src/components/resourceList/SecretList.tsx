@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { Secret } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Define the columns for the Secret resource list
 export const secretColumns = [
@@ -10,6 +11,8 @@ export const secretColumns = [
     width: "30%",
     accessor: (secret: Secret) => <>{secret.metadata.name}</>,
     title: (secret: Secret) => secret.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "TYPE",
@@ -36,6 +39,8 @@ export const secretColumns = [
     width: "15%",
     accessor: (secret: Secret) => 
       useCalculateAge(secret.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];
 

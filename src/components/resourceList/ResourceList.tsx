@@ -225,11 +225,6 @@ export function ResourceList<T>(props: {
   const sortedResources = createMemo(() => {
     let resources = props.resources;
     
-    // If there's a global sort function, apply it first
-    if (props.resourceTypeConfig.sortFunction) {
-      resources = props.resourceTypeConfig.sortFunction(resources);
-    }
-    
     // Apply column-specific sorting
     const currentSortColumn = sortColumn();
     if (currentSortColumn) {

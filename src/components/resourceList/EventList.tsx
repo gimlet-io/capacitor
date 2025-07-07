@@ -3,6 +3,7 @@ import { createSignal } from "solid-js";
 import type { Event } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
+import { sortByName } from '../../resourceTypeConfigs.tsx';
 
 export function EventList(props: { events: Event[] }) {
   const [showAll, setShowAll] = createSignal(false);
@@ -72,10 +73,12 @@ export const eventTypeFilter: Filter = {
 };
 
 // Default sorting function to order events by lastTimestamp, most recent first
-export const sortEventsByLastSeen = (events: Event[]): Event[] => {
-  return [...events].sort((a, b) => 
-    new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()
-  );
+export const sortEventsByLastSeen = (events: Event[], ascending: boolean): Event[] => {
+  return [...events].sort((a, b) => {
+    const dateA = new Date(a.lastTimestamp).getTime();
+    const dateB = new Date(b.lastTimestamp).getTime();
+    return ascending ? dateA - dateB : dateB - dateA;
+  });
 };
 
 export const eventColumns = [
@@ -95,6 +98,8 @@ export const eventColumns = [
     width: "8%",
     accessor: (event: Event) => useCalculateAge(event.lastTimestamp)(),
     title: (event: Event) => event.lastTimestamp,
+    sortable: true,
+    sortFunction: sortEventsByLastSeen,
   },
   {
     header: "COUNT",
@@ -106,6 +111,12 @@ export const eventColumns = [
     width: "15%",
     accessor: (event: Event) => <>{event.reason}</>,
     title: (event: Event) => event.reason,
+    sortable: true,
+    sortFunction: (events: Event[], ascending: boolean) => {
+      return [...events].sort((a, b) => {
+        return ascending ? a.reason.localeCompare(b.reason) : b.reason.localeCompare(a.reason);
+      });
+    },
   },
   {
     header: "OBJECT",
