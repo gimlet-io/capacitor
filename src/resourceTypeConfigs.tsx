@@ -43,6 +43,8 @@ export interface Column<T> {
   width: string;
   accessor: (item: T) => JSX.Element;
   title?: (item: T) => string;
+  sortable?: boolean;
+  sortFunction?: (items: T[], ascending: boolean) => T[];
 }
 
 export interface ResourceCommand {
@@ -64,15 +66,45 @@ export interface ResourceTypeConfig {
   commands?: ResourceCommand[];
   filter?: Filter[];
   sortFunction?: (items: any[]) => any[];
+  defaultSortColumn?: string;
   treeCardRenderer?: ResourceCardRenderer;
   abbreviations?: string[]; // Common abbreviations for this resource type
 }
+
+// Common sorting functions
+export const sortByName = (items: any[], ascending: boolean) => {
+  return [...items].sort((a, b) => {
+    const nameA = a.metadata?.name || '';
+    const nameB = b.metadata?.name || '';
+    return ascending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+  });
+};
+
+export const sortByAge = (items: any[], ascending: boolean) => {
+  return [...items].sort((a, b) => {
+    const timestampA = a.metadata?.creationTimestamp || '';
+    const timestampB = b.metadata?.creationTimestamp || '';
+    const dateA = new Date(timestampA);
+    const dateB = new Date(timestampB);
+    return ascending ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+  });
+};
+
+export const sortByNamespace = (items: any[], ascending: boolean) => {
+  return [...items].sort((a, b) => {
+    const nsA = a.metadata?.namespace || '';
+    const nsB = b.metadata?.namespace || '';
+    return ascending ? nsA.localeCompare(nsB) : nsB.localeCompare(nsA);
+  });
+};
 
 // Define a reusable namespace column for all namespaced resources
 export const namespaceColumn: Column<any> = {
   header: "NAMESPACE",
   width: "15%",
   accessor: (resource: any) => <>{resource.metadata.namespace}</>,
+  sortable: true,
+  sortFunction: sortByNamespace,
 };
 
 // Define navigation command placeholders that will be implemented in ResourceList
@@ -214,6 +246,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands, 
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: podCardRenderer
   },
   
@@ -235,6 +268,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [deploymentReadinessFilter],
+    defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer
   },
   
@@ -256,6 +290,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [deploymentReadinessFilter],
+    defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['sts']
   },

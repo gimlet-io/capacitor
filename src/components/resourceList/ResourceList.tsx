@@ -185,6 +185,8 @@ export function ResourceList<T>(props: {
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
   const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
+  const [sortColumn, setSortColumn] = createSignal<string | null>(props.resourceTypeConfig.defaultSortColumn || null);
+  const [sortAscending, setSortAscending] = createSignal(true);
 
   // Get the selected namespace
   const selectedNamespace = createMemo(() => {
@@ -219,12 +221,26 @@ export function ResourceList<T>(props: {
     return resourceColumns;
   });
 
-  // Apply the sort function if provided in the resourceTypeConfig
+  // Apply sorting based on the current sort column and direction
   const sortedResources = createMemo(() => {
+    let resources = props.resources;
+    
+    // If there's a global sort function, apply it first
     if (props.resourceTypeConfig.sortFunction) {
-      return props.resourceTypeConfig.sortFunction(props.resources);
+      resources = props.resourceTypeConfig.sortFunction(resources);
     }
-    return props.resources;
+    
+    // Apply column-specific sorting
+    const currentSortColumn = sortColumn();
+    if (currentSortColumn) {
+      const columns = visibleColumns();
+      const sortingColumn = columns.find(col => col.header === currentSortColumn);
+      if (sortingColumn?.sortFunction) {
+        resources = sortingColumn.sortFunction(resources, sortAscending());
+      }
+    }
+    
+    return resources;
   });
 
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
@@ -245,6 +261,22 @@ export function ResourceList<T>(props: {
 
   const closeHelmDrawer = () => {
     setHelmDrawerOpen(false);
+  };
+
+  const handleColumnHeaderClick = (columnHeader: string) => {
+    const columns = visibleColumns();
+    const column = columns.find(col => col.header === columnHeader);
+    
+    if (!column?.sortable) return;
+    
+    if (sortColumn() === columnHeader) {
+      // Toggle sort direction
+      setSortAscending(!sortAscending());
+    } else {
+      // Set new sort column
+      setSortColumn(columnHeader);
+      setSortAscending(true);
+    }
   };
 
   // Generate a list of all commands including built-in ones
@@ -461,7 +493,24 @@ export function ResourceList<T>(props: {
           <thead>
             <tr>
               {visibleColumns().map(column => (
-                <th style={`width: ${column.width}`}>{column.header}</th>
+                <th 
+                  style={`width: ${column.width}; ${column.sortable ? 'cursor: pointer; user-select: none;' : ''}`}
+                  onClick={() => handleColumnHeaderClick(column.header)}
+                  title={column.sortable ? 'Click to sort' : undefined}
+                >
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    {column.header}
+                    {column.sortable && (
+                      <span class="sort-indicator">
+                        {sortColumn() === column.header ? (
+                          sortAscending() ? '▲' : '▼'
+                        ) : (
+                          <span style="color: var(--linear-text-tertiary);">▲▼</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>

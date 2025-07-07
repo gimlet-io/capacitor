@@ -1,6 +1,7 @@
 import type { DeploymentWithResources, ObjectMeta } from "../../types/k8s.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 export const deploymentReadinessFilter: Filter = {
   name: "DeploymentReadiness",
@@ -134,6 +135,8 @@ export const deploymentColumns = [
       <>{deployment.metadata.name}</>
     ),
     title: (deployment: DeploymentWithResources) => deployment.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "READY",
@@ -183,5 +186,7 @@ export const deploymentColumns = [
     width: "10%",
     accessor: (deployment: DeploymentWithResources) =>
       useCalculateAge(deployment.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];
