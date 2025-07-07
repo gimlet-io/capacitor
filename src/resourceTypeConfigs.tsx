@@ -14,7 +14,7 @@ import { applicationColumns, renderApplicationDetails } from "./components/resou
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
 import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./components/resourceList/EventList.tsx";
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
-import { handleScale } from "./components/resourceList/DeploymentList.tsx";
+import { handleScale, handleRolloutRestart } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
 import { podsStatusFilter, podsReadinessFilter, podsNodeFilter } from "./components/resourceList/PodList.tsx";
 import { deploymentReadinessFilter } from "./components/resourceList/DeploymentList.tsx";
@@ -228,6 +228,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+s", description: "Scale deployment", isContextual: true },
         handler: handleScale
+      },
+      {
+        shortcut: { key: "Ctrl+r", description: "Rollout restart", isContextual: true },
+        handler: handleRolloutRestart
       }
     ],
     filter: [deploymentReadinessFilter],
@@ -245,6 +249,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+s", description: "Scale statefulset", isContextual: true },
         handler: handleScale
+      },
+      {
+        shortcut: { key: "Ctrl+r", description: "Rollout restart", isContextual: true },
+        handler: handleRolloutRestart
       }
     ],
     filter: [deploymentReadinessFilter],
@@ -310,7 +318,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "l", description: "Logs", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
-      ...builtInCommands
+      ...builtInCommands,
+      {
+        shortcut: { key: "Ctrl+r", description: "Rollout restart", isContextual: true },
+        handler: handleRolloutRestart
+      }
     ],
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds']

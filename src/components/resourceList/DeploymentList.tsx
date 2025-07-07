@@ -86,6 +86,46 @@ export const handleScale = (resource: any) => {
   return scaleResource(resource.kind, resource.metadata, replicas);
 };
 
+export const rolloutRestart = async (
+  kind: string,
+  metadata: ObjectMeta,
+) => {
+  try {
+    const response = await fetch("/api/rollout-restart", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        kind: kind,
+        name: metadata.name,
+        namespace: metadata.namespace,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || `Failed to restart rollout: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error("Error restarting rollout:", error);
+    throw error;
+  }
+};
+
+export const handleRolloutRestart = (resource: any) => {
+  if (!resource || !resource.metadata) return;
+  
+  const confirmed = window.confirm(
+    `Are you sure you want to restart the rollout for ${resource.kind} "${resource.metadata.name}"?`
+  );
+  
+  if (!confirmed) return;
+  
+  // Call the API to restart the rollout
+  return rolloutRestart(resource.kind, resource.metadata);
+};
+
 export const deploymentColumns = [
   {
     header: "NAME",
