@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 
-type LogHistoryOption = "5m" | "10m" | "60m" | "24h" | "all";
+type LogHistoryOption = "5m" | "10m" | "60m" | "24h" | "all" | "previous";
 type LogEntry = { 
   timestamp: Date | null; 
   container: string; 
@@ -67,7 +67,6 @@ export function LogsViewer(props: {
   const [wrapText, setWrapText] = createSignal<boolean>(true);
   const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
   const [showPodNames, setShowPodNames] = createSignal<boolean>(false);
-  const [previousLogs, setPreviousLogs] = createSignal<boolean>(false);
   
   // Search functionality
   const [searchQuery, setSearchQuery] = createSignal<string>("");
@@ -200,6 +199,8 @@ export function LogsViewer(props: {
         return 60 * 60;
       case "24h":
         return 24 * 60 * 60;
+      case "previous":
+      case "all":
       default:
         return undefined;
     }
@@ -302,7 +303,7 @@ export function LogsViewer(props: {
               container, 
               params, 
               true,
-              previousLogs()
+              logHistoryOption() === "previous"
             );
             
             const response = await fetch(containerLogsUrl, {
@@ -396,7 +397,7 @@ export function LogsViewer(props: {
                   container, 
                   params, 
                   false,
-                  previousLogs()
+                  logHistoryOption() === "previous"
                 );
                 
                 const response = await fetch(containerLogsUrl, {
@@ -489,6 +490,11 @@ export function LogsViewer(props: {
   const handleLogHistoryChange = (option: LogHistoryOption) => {
     setLogHistoryOption(option);
 
+    // Previous logs cannot be followed, so disable follow mode if enabled
+    if (option === "previous" && followLogs()) {
+      setFollowLogs(false);
+    }
+
     // Refetch logs with new history option
     if (!loading()) {
       fetchResourceLogs();
@@ -538,20 +544,7 @@ export function LogsViewer(props: {
     setShowMetadata(!showMetadata());
   };
 
-  const togglePreviousLogs = () => {
-    const newPreviousState = !previousLogs();
-    setPreviousLogs(newPreviousState);
-    
-    // Previous logs cannot be followed, so disable follow mode if enabled
-    if (newPreviousState && followLogs()) {
-      setFollowLogs(false);
-    }
 
-    // Refetch logs with updated previous setting
-    if (!loading()) {
-      fetchResourceLogs();
-    }
-  };
 
   // Search functionality
   const performSearch = () => {
@@ -885,6 +878,7 @@ export function LogsViewer(props: {
                   <option value="60m">1 hour</option>
                   <option value="24h">24 hours</option>
                   <option value="all">All logs</option>
+                  <option value="previous">Previous logs</option>
                 </select>
               </div>
             </div>
@@ -930,15 +924,6 @@ export function LogsViewer(props: {
                   onChange={handleJsonFormattingToggle}
                 />
                 <span>JSON</span>
-              </label>
-              <label title="Show previous logs from previous instance of the container (like kubectl logs --previous)">
-                <input
-                  type="checkbox"
-                  checked={previousLogs()}
-                  onChange={togglePreviousLogs}
-                  disabled={loading()}
-                />
-                <span>Previous</span>
               </label>
               <Show when={formatJsonLogs()}>
                 <input
