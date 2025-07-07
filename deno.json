@@ -2,7 +2,7 @@
   "tasks": {
     "build": "deno run --allow-read --allow-write --allow-run --allow-net --allow-env bundle.ts",
     "watch": "deno run --watch=src/ --watch-exclude=public --no-clear-screen --allow-read --allow-write --allow-run --allow-net --allow-env bundle.ts",
-    "serve": "deno run --allow-net --allow-read dev_server.ts",
+    "serve": "deno run --allow-net --allow-read dev_server.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
