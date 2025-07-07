@@ -1075,9 +1075,17 @@ td.message-cell {
 }
 
 .filter-history-button .shortcut-key {
-  font-size: 10px;
-  color: var(--linear-text-tertiary);
-  margin-left: 2px;
+  background-color: var(--linear-bg-secondary);
+  color: var(--linear-text-secondary);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--linear-border);
+  white-space: nowrap;
+  margin-left: 6px;
+  line-height: 1;
+  font-weight: normal;
+  height: 18px;
 }
 
 .filter-group {
