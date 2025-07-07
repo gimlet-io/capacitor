@@ -24,7 +24,8 @@ function createContainerLogUrl(
   podName: string, 
   container: string, 
   baseParams: URLSearchParams, 
-  isFollow: boolean
+  isFollow: boolean,
+  isPrevious: boolean = false
 ): string {
   const containerParams = new URLSearchParams(baseParams);
   containerParams.append("container", container);
@@ -34,6 +35,10 @@ function createContainerLogUrl(
   
   if (isFollow) {
     containerParams.append("follow", "true");
+  }
+  
+  if (isPrevious) {
+    containerParams.append("previous", "true");
   }
   
   return `/k8s/api/v1/namespaces/${namespace}/pods/${podName}/log?${containerParams.toString()}`;
@@ -62,6 +67,7 @@ export function LogsViewer(props: {
   const [wrapText, setWrapText] = createSignal<boolean>(true);
   const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
   const [showPodNames, setShowPodNames] = createSignal<boolean>(false);
+  const [previousLogs, setPreviousLogs] = createSignal<boolean>(false);
   
   // Search functionality
   const [searchQuery, setSearchQuery] = createSignal<string>("");
@@ -295,7 +301,8 @@ export function LogsViewer(props: {
               podName, 
               container, 
               params, 
-              true
+              true,
+              previousLogs()
             );
             
             const response = await fetch(containerLogsUrl, {
@@ -388,7 +395,8 @@ export function LogsViewer(props: {
                   podName, 
                   container, 
                   params, 
-                  false
+                  false,
+                  previousLogs()
                 );
                 
                 const response = await fetch(containerLogsUrl, {
@@ -528,6 +536,21 @@ export function LogsViewer(props: {
 
   const toggleShowMetadata = () => {
     setShowMetadata(!showMetadata());
+  };
+
+  const togglePreviousLogs = () => {
+    const newPreviousState = !previousLogs();
+    setPreviousLogs(newPreviousState);
+    
+    // Previous logs cannot be followed, so disable follow mode if enabled
+    if (newPreviousState && followLogs()) {
+      setFollowLogs(false);
+    }
+
+    // Refetch logs with updated previous setting
+    if (!loading()) {
+      fetchResourceLogs();
+    }
   };
 
   // Search functionality
@@ -907,6 +930,15 @@ export function LogsViewer(props: {
                   onChange={handleJsonFormattingToggle}
                 />
                 <span>JSON</span>
+              </label>
+              <label title="Show previous logs from previous instance of the container (like kubectl logs --previous)">
+                <input
+                  type="checkbox"
+                  checked={previousLogs()}
+                  onChange={togglePreviousLogs}
+                  disabled={loading()}
+                />
+                <span>Previous</span>
               </label>
               <Show when={formatJsonLogs()}>
                 <input
