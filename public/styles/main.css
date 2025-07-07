@@ -1025,6 +1025,7 @@ td.message-cell {
   padding: 8px 0;
   border-bottom: 1px solid var(--linear-border);
   margin-bottom: 16px;
+  align-items: center;
 }
 
 .filter-groups {
@@ -1032,6 +1033,51 @@ td.message-cell {
   flex: 1;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.filter-history-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.filter-history-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background-color: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--linear-text-primary);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  min-width: 40px;
+}
+
+.filter-history-button:hover:not(.disabled) {
+  background-color: var(--linear-bg-secondary);
+}
+
+.filter-history-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--linear-text-tertiary);
+}
+
+.filter-history-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.filter-history-button .shortcut-key {
+  font-size: 10px;
+  color: var(--linear-text-tertiary);
+  margin-left: 2px;
 }
 
 .filter-group {
