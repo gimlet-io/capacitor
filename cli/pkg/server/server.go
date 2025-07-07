@@ -537,6 +537,146 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoint for rollout restart of Kubernetes resources
+	s.echo.POST("/api/rollout-restart", func(c echo.Context) error {
+		var req struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Verify required fields
+		if req.Kind == "" || req.Name == "" || req.Namespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Kind, name, and namespace are required fields",
+			})
+		}
+
+		// Create a context
+		ctx := context.Background()
+
+		var output string
+
+		// Normalize kind to lowercase for case-insensitive comparison
+		kind := req.Kind
+
+		// Get the Kubernetes client
+		clientset := s.k8sClient.Clientset
+
+		switch strings.ToLower(kind) {
+		case "deployment", "deployments":
+			// Restart deployment rollout by patching the pod template with a restart annotation
+			deployment, err := clientset.
+				AppsV1().
+				Deployments(req.Namespace).
+				Get(ctx, req.Name, metav1.GetOptions{})
+			if err != nil {
+				log.Printf("Error getting deployment: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to get deployment: %v", err),
+				})
+			}
+
+			// Add or update the restart annotation
+			if deployment.Spec.Template.Annotations == nil {
+				deployment.Spec.Template.Annotations = make(map[string]string)
+			}
+			deployment.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+			_, err = clientset.
+				AppsV1().
+				Deployments(req.Namespace).
+				Update(ctx, deployment, metav1.UpdateOptions{})
+			if err != nil {
+				log.Printf("Error restarting deployment rollout: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to restart deployment rollout: %v", err),
+				})
+			}
+
+			output = fmt.Sprintf("Deployment %s/%s rollout restarted", req.Namespace, req.Name)
+
+		case "statefulset", "statefulsets":
+			// Restart statefulset rollout by patching the pod template with a restart annotation
+			statefulset, err := clientset.
+				AppsV1().
+				StatefulSets(req.Namespace).
+				Get(ctx, req.Name, metav1.GetOptions{})
+			if err != nil {
+				log.Printf("Error getting statefulset: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to get statefulset: %v", err),
+				})
+			}
+
+			// Add or update the restart annotation
+			if statefulset.Spec.Template.Annotations == nil {
+				statefulset.Spec.Template.Annotations = make(map[string]string)
+			}
+			statefulset.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+			_, err = clientset.
+				AppsV1().
+				StatefulSets(req.Namespace).
+				Update(ctx, statefulset, metav1.UpdateOptions{})
+			if err != nil {
+				log.Printf("Error restarting statefulset rollout: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to restart statefulset rollout: %v", err),
+				})
+			}
+
+			output = fmt.Sprintf("StatefulSet %s/%s rollout restarted", req.Namespace, req.Name)
+
+		case "daemonset", "daemonsets":
+			// Restart daemonset rollout by patching the pod template with a restart annotation
+			daemonset, err := clientset.
+				AppsV1().
+				DaemonSets(req.Namespace).
+				Get(ctx, req.Name, metav1.GetOptions{})
+			if err != nil {
+				log.Printf("Error getting daemonset: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to get daemonset: %v", err),
+				})
+			}
+
+			// Add or update the restart annotation
+			if daemonset.Spec.Template.Annotations == nil {
+				daemonset.Spec.Template.Annotations = make(map[string]string)
+			}
+			daemonset.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+			_, err = clientset.
+				AppsV1().
+				DaemonSets(req.Namespace).
+				Update(ctx, daemonset, metav1.UpdateOptions{})
+			if err != nil {
+				log.Printf("Error restarting daemonset rollout: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to restart daemonset rollout: %v", err),
+				})
+			}
+
+			output = fmt.Sprintf("DaemonSet %s/%s rollout restarted", req.Namespace, req.Name)
+
+		default:
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Unsupported resource kind for rollout restart: %s. Only Deployment, StatefulSet, and DaemonSet are supported", req.Kind),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Successfully restarted rollout for %s/%s", kind, req.Name),
+			"output":  output,
+		})
+	})
+
 	// Add endpoint for describing Kubernetes resources using kubectl describe
 	s.echo.GET("/api/describe/:namespace/:kind/:name", func(c echo.Context) error {
 		namespace := c.Param("namespace")
