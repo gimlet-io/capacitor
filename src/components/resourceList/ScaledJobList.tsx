@@ -1,6 +1,7 @@
 import { JSX } from "solid-js";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 // Define the ScaledJob type
 interface ScaledJob {
@@ -116,6 +117,8 @@ export const scaledJobColumns = [
     width: "20%",
     accessor: (scaledJob: ScaledJob) => <>{scaledJob.metadata.name}</>,
     title: (scaledJob: ScaledJob) => scaledJob.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "TRIGGERS",
@@ -151,6 +154,8 @@ export const scaledJobColumns = [
     header: "AGE",
     width: "10%",
     accessor: (scaledJob: ScaledJob) => useCalculateAge(scaledJob.metadata.creationTimestamp || '')(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

@@ -1,6 +1,7 @@
 import type { Ingress } from "../../types/k8s.ts";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 export const ingressColumns = [
   {
@@ -8,6 +9,8 @@ export const ingressColumns = [
     width: "25%",
     accessor: (ingress: Ingress) => <>{ingress.metadata.name}</>,
     title: (ingress: Ingress) => ingress.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "CLASS",
@@ -44,7 +47,9 @@ export const ingressColumns = [
   {
     header: "AGE",
     width: "10%",
-    accessor: (ingress: Ingress) => 
+    accessor: (ingress: Ingress) =>
       useCalculateAge(ingress.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];

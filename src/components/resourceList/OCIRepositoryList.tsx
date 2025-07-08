@@ -1,6 +1,7 @@
 import type { OCIRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 export const renderOCIRepositoryDetails = (ociRepository: OCIRepository, columnCount = 4) => (
   <td colSpan={columnCount}>
@@ -41,12 +42,16 @@ export const ociRepositoryColumns = [
       <>{ociRepository.metadata.name}</>
     ),
     title: (ociRepository: OCIRepository) => ociRepository.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "AGE",
     width: "5%",
     accessor: (ociRepository: OCIRepository) =>
       useCalculateAge(ociRepository.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "READY",

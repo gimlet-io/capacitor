@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { Job } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Helper function to determine job completion status with appropriate styling
 function getJobCompletionComponent(job: Job): { element: JSX.Element, title: string } {
@@ -41,6 +42,8 @@ export const jobColumns = [
     width: "25%",
     accessor: (job: Job) => <>{job.metadata.name}</>,
     title: (job: Job) => job.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "COMPLETIONS",
@@ -95,6 +98,8 @@ export const jobColumns = [
     width: "15%",
     accessor: (job: Job) => 
       useCalculateAge(job.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

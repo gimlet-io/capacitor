@@ -2,6 +2,7 @@ import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
 import { createSignal } from "solid-js";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Create a signal for node options that can be updated externally
 const [nodeOptions, setNodeOptions] = createSignal<{value: string, label: string}[]>([]);
@@ -83,6 +84,8 @@ export const podColumns = [
     width: "30%",
     accessor: (pod: Pod) => <>{pod.metadata.name}</>,
     title: (pod: Pod) => `${pod.metadata.name}`,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "READY",
@@ -228,6 +231,8 @@ export const podColumns = [
     header: "AGE",
     width: "10%",
     accessor: (pod: Pod) => useCalculateAge(pod.status.startTime || '')(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "IP",

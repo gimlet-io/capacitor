@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { DaemonSet } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Helper function to determine readiness status
 function getReadinessComponent(daemonSet: DaemonSet): { element: JSX.Element, title: string } {
@@ -31,6 +32,8 @@ export const daemonSetColumns = [
     width: "25%",
     accessor: (daemonSet: DaemonSet) => <>{daemonSet.metadata.name}</>,
     title: (daemonSet: DaemonSet) => daemonSet.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "DESIRED",
@@ -63,6 +66,8 @@ export const daemonSetColumns = [
     width: "15%",
     accessor: (daemonSet: DaemonSet) => 
       useCalculateAge(daemonSet.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

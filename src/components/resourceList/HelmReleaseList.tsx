@@ -1,4 +1,5 @@
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 import type { Column } from "../../resourceTypeConfigs.tsx";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 
@@ -57,7 +58,9 @@ export const helmReleaseColumns: Column<HelmRelease>[] = [
     header: "Name",
     width: "20%",
     accessor: (release) => <>{release.metadata?.name || ""}</>,
-    title: (release) => release.metadata?.name || ""
+    title: (release) => release.metadata?.name || "",
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "Chart",
@@ -70,7 +73,9 @@ export const helmReleaseColumns: Column<HelmRelease>[] = [
         </span>
       </div>
     ),
-    title: (release) => `${release.spec?.chart || ""} (${release.spec?.chartVersion || ""})`
+    title: (release) => `${release.spec?.chart || ""} (${release.spec?.chartVersion || ""})`,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "App Version",
@@ -94,7 +99,9 @@ export const helmReleaseColumns: Column<HelmRelease>[] = [
     header: "Age",
     width: "13%",
     accessor: (release) => useCalculateAge(release.metadata?.creationTimestamp || '')(),
-    title: (release) => release.metadata?.creationTimestamp || ""
+    title: (release) => release.metadata?.creationTimestamp || "",
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   }
 ];
 

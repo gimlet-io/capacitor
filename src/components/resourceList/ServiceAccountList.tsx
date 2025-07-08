@@ -1,7 +1,7 @@
-import { JSX } from "solid-js";
 import type { ServiceAccount } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 // Define the columns for the ServiceAccount resource list
 export const serviceAccountColumns = [
@@ -10,6 +10,8 @@ export const serviceAccountColumns = [
     width: "30%",
     accessor: (sa: ServiceAccount) => <>{sa.metadata.name}</>,
     title: (sa: ServiceAccount) => sa.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "SECRETS",
@@ -57,6 +59,8 @@ export const serviceAccountColumns = [
     width: "15%",
     accessor: (sa: ServiceAccount) => 
       useCalculateAge(sa.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

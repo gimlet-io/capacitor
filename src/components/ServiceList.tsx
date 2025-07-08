@@ -1,4 +1,6 @@
 import type { Service } from "../types/k8s.ts";
+import { sortByName, sortByAge } from '../resourceTypeConfigs.tsx';
+import { useCalculateAge } from './resourceList/timeUtils.ts';
 
 export const serviceColumns = [
   {
@@ -6,6 +8,8 @@ export const serviceColumns = [
     width: "30%",
     accessor: (service: Service) => <>{service.metadata.name}</>,
     title: (service: Service) => service.metadata.name,
+    sortable: true,
+    sortFunction: sortByName,
   },
   {
     header: "TYPE",
@@ -42,16 +46,8 @@ export const serviceColumns = [
   {
     header: "AGE",
     width: "10%",
-    accessor: (service: Service) => {
-      if (!service.metadata.creationTimestamp) return <>N/A</>;
-      const startTime = new Date(service.metadata.creationTimestamp);
-      const now = new Date();
-      const diff = now.getTime() - startTime.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-      );
-      return <>{days > 0 ? `${days}d${hours}h` : `${hours}h`}</>;
-    },
+    accessor: (service: Service) => useCalculateAge(service.metadata.creationTimestamp || '')(),
+    sortable: true,
+    sortFunction: sortByAge,
   },
 ];

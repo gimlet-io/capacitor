@@ -2,6 +2,7 @@ import { JSX } from "solid-js";
 import type { HorizontalPodAutoscaler } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
 
 // Helper function to determine HPA status
 function getHPAStatusComponent(hpa: HorizontalPodAutoscaler): { element: JSX.Element, title: string } {
@@ -92,6 +93,8 @@ export const hpaColumns = [
     width: "25%",
     accessor: (hpa: HorizontalPodAutoscaler) => <>{hpa.metadata.name}</>,
     title: (hpa: HorizontalPodAutoscaler) => hpa.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "REFERENCE",
@@ -144,6 +147,8 @@ export const hpaColumns = [
     width: "10%",
     accessor: (hpa: HorizontalPodAutoscaler) => 
       useCalculateAge(hpa.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

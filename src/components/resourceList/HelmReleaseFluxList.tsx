@@ -1,6 +1,7 @@
 import type { HelmRelease } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
   <td colSpan={columnCount}>
@@ -37,12 +38,16 @@ export const helmReleaseFluxColumns = [
       <>{helmRelease.metadata.name}</>
     ),
     title: (helmRelease: HelmRelease) => helmRelease.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "AGE",
     width: "5%",
     accessor: (helmRelease: HelmRelease) =>
       useCalculateAge(helmRelease.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "READY",

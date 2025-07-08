@@ -12,7 +12,7 @@ import { helmReleaseFluxColumns, renderHelmReleaseFluxDetails } from "./componen
 import { bucketColumns, renderBucketDetails } from "./components/resourceList/BucketList.tsx";
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
-import { eventColumns, eventTypeFilter, sortEventsByLastSeen } from "./components/resourceList/EventList.tsx";
+import { eventColumns, eventTypeFilter } from "./components/resourceList/EventList.tsx";
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale, handleRolloutRestart } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
@@ -43,6 +43,8 @@ export interface Column<T> {
   width: string;
   accessor: (item: T) => JSX.Element;
   title?: (item: T) => string;
+  sortable?: boolean;
+  sortFunction?: (items: T[], ascending: boolean) => T[];
 }
 
 export interface ResourceCommand {
@@ -63,16 +65,45 @@ export interface ResourceTypeConfig {
   rowKeyField?: string;
   commands?: ResourceCommand[];
   filter?: Filter[];
-  sortFunction?: (items: any[]) => any[];
+  defaultSortColumn?: string;
   treeCardRenderer?: ResourceCardRenderer;
   abbreviations?: string[]; // Common abbreviations for this resource type
 }
+
+// Common sorting functions
+export const sortByName = (items: any[], ascending: boolean) => {
+  return [...items].sort((a, b) => {
+    const nameA = a.metadata?.name || '';
+    const nameB = b.metadata?.name || '';
+    return ascending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+  });
+};
+
+export const sortByAge = (items: any[], ascending: boolean) => {
+  return [...items].sort((a, b) => {
+    const timestampA = a.metadata?.creationTimestamp || '';
+    const timestampB = b.metadata?.creationTimestamp || '';
+    const dateA = new Date(timestampA);
+    const dateB = new Date(timestampB);
+    return ascending ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+  });
+};
+
+export const sortByNamespace = (items: any[], ascending: boolean) => {
+  return [...items].sort((a, b) => {
+    const nsA = a.metadata?.namespace || '';
+    const nsB = b.metadata?.namespace || '';
+    return ascending ? nsA.localeCompare(nsB) : nsB.localeCompare(nsA);
+  });
+};
 
 // Define a reusable namespace column for all namespaced resources
 export const namespaceColumn: Column<any> = {
   header: "NAMESPACE",
   width: "15%",
   accessor: (resource: any) => <>{resource.metadata.namespace}</>,
+  sortable: true,
+  sortFunction: sortByNamespace,
 };
 
 // Define navigation command placeholders that will be implemented in ResourceList
@@ -214,6 +245,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands, 
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: podCardRenderer
   },
   
@@ -235,6 +267,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [deploymentReadinessFilter],
+    defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer
   },
   
@@ -256,12 +289,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [deploymentReadinessFilter],
+    defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['sts']
   },
   
   'core/Service': {
     columns: serviceColumns,
+    defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
     abbreviations: ['svc']
   },
@@ -271,6 +306,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: ingressCardRenderer
   },
   
@@ -280,6 +316,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: nodeCardRenderer
   },
   
@@ -289,6 +326,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     abbreviations: ['cm']
   },
   
@@ -297,7 +335,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [secretTypeFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    defaultSortColumn: "NAME"
   },
   
   'core/PersistentVolumeClaim': {
@@ -306,6 +345,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: pvcCardRenderer,
     abbreviations: ['pvc']
   },
@@ -324,6 +364,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleRolloutRestart
       }
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds']
   },
@@ -338,6 +379,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['rs']
   },
@@ -349,6 +391,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       showPodsInNamespace
     ],
+    defaultSortColumn: "NAME",
     abbreviations: ['ns']
   },
   
@@ -362,6 +405,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: jobCardRenderer
   },
   
@@ -371,6 +415,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
+    defaultSortColumn: "NAME",
     treeCardRenderer: cronJobCardRenderer,
     abbreviations: ['cj']
   },
@@ -568,7 +613,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Event': {
     columns: eventColumns,
     filter: [eventTypeFilter],
-    sortFunction: sortEventsByLastSeen
+    defaultSortColumn: "LAST SEEN"
   },
   
   'argoproj.io/Application': {
