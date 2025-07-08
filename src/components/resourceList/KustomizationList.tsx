@@ -1,6 +1,7 @@
 import type { Kustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 export const renderKustomizationDetails = (kustomization: Kustomization, columnCount = 4) => (
   <td colSpan={columnCount}>
@@ -24,12 +25,16 @@ export const kustomizationColumns = [
       <>{kustomization.metadata.name}</>
     ),
     title: (kustomization: Kustomization) => kustomization.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "AGE",
     width: "5%",
     accessor: (kustomization: Kustomization) =>
       useCalculateAge(kustomization.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "READY",

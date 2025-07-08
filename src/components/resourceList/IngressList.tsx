@@ -10,7 +10,7 @@ export const ingressColumns = [
     accessor: (ingress: Ingress) => <>{ingress.metadata.name}</>,
     title: (ingress: Ingress) => ingress.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "CLASS",
@@ -50,6 +50,6 @@ export const ingressColumns = [
     accessor: (ingress: Ingress) =>
       useCalculateAge(ingress.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];

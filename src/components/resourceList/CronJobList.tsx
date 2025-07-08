@@ -31,7 +31,7 @@ export const cronJobColumns = [
     accessor: (cronJob: CronJob) => <>{cronJob.metadata.name}</>,
     title: (cronJob: CronJob) => cronJob.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "SCHEDULE",
@@ -90,7 +90,7 @@ export const cronJobColumns = [
     accessor: (cronJob: CronJob) => 
       useCalculateAge(cronJob.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

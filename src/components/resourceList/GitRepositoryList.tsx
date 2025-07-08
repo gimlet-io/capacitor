@@ -1,6 +1,7 @@
 import type { GitRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByAge, sortByName } from "../../resourceTypeConfigs.tsx";
 
 export const renderGitRepositoryDetails = (gitRepository: GitRepository, columnCount = 4) => (
   <td colSpan={columnCount}>
@@ -35,12 +36,16 @@ export const gitRepositoryColumns = [
       <>{gitRepository.metadata.name}</>
     ),
     title: (gitRepository: GitRepository) => gitRepository.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "AGE",
     width: "5%",
     accessor: (gitRepository: GitRepository) =>
       useCalculateAge(gitRepository.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "READY",

@@ -12,7 +12,7 @@ export const secretColumns = [
     accessor: (secret: Secret) => <>{secret.metadata.name}</>,
     title: (secret: Secret) => secret.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "TYPE",
@@ -40,7 +40,7 @@ export const secretColumns = [
     accessor: (secret: Secret) => 
       useCalculateAge(secret.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

@@ -95,11 +95,11 @@ export const eventColumns = [
   },
   {
     header: "LAST SEEN",
-    width: "8%",
+    width: "10%",
     accessor: (event: Event) => useCalculateAge(event.lastTimestamp)(),
     title: (event: Event) => event.lastTimestamp,
     sortable: true,
-    sortFunction: sortEventsByLastSeen,
+    sortFunction: (items: any[], ascending: boolean) => sortEventsByLastSeen(items, ascending),
   },
   {
     header: "COUNT",
@@ -120,7 +120,7 @@ export const eventColumns = [
   },
   {
     header: "OBJECT",
-    width: "20%",
+    width: "18%",
     accessor: (event: Event) => (
       <>{`${event.involvedObject.kind}/${event.involvedObject.name}`}</>
     ),

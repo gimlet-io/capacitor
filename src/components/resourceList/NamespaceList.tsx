@@ -34,7 +34,7 @@ export const namespaceColumns = [
     accessor: (namespace: Namespace) => <>{namespace.metadata.name}</>,
     title: (namespace: Namespace) => namespace.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "STATUS",
@@ -48,7 +48,7 @@ export const namespaceColumns = [
     accessor: (namespace: Namespace) => 
       useCalculateAge(namespace.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

@@ -1,7 +1,7 @@
-import { JSX } from "solid-js";
 import type { NetworkPolicy } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 // Helper function to summarize policy types
 function getPolicyTypesString(policy: NetworkPolicy): string {
@@ -59,6 +59,8 @@ export const networkPolicyColumns = [
     width: "25%",
     accessor: (policy: NetworkPolicy) => <>{policy.metadata.name}</>,
     title: (policy: NetworkPolicy) => policy.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "POD SELECTOR",
@@ -80,6 +82,8 @@ export const networkPolicyColumns = [
     width: "15%",
     accessor: (policy: NetworkPolicy) => 
       useCalculateAge(policy.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

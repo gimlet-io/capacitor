@@ -1,6 +1,7 @@
 import type { ArgoCDApplication } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 export const argocdApplicationSyncFilter: Filter = {
   name: "ApplicationSyncStatus",
@@ -65,6 +66,8 @@ export const applicationColumns = [
       <>{application.metadata.name}</>
     ),
     title: (application: ArgoCDApplication) => application.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "STATUS",
@@ -95,5 +98,7 @@ export const applicationColumns = [
     width: "10%",
     accessor: (application: ArgoCDApplication) =>
       useCalculateAge(application.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];

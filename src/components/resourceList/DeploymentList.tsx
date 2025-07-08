@@ -136,7 +136,7 @@ export const deploymentColumns = [
     ),
     title: (deployment: DeploymentWithResources) => deployment.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "READY",
@@ -187,6 +187,6 @@ export const deploymentColumns = [
     accessor: (deployment: DeploymentWithResources) =>
       useCalculateAge(deployment.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];

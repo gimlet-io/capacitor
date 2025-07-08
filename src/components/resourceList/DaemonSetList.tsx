@@ -33,7 +33,7 @@ export const daemonSetColumns = [
     accessor: (daemonSet: DaemonSet) => <>{daemonSet.metadata.name}</>,
     title: (daemonSet: DaemonSet) => daemonSet.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "DESIRED",
@@ -67,7 +67,7 @@ export const daemonSetColumns = [
     accessor: (daemonSet: DaemonSet) => 
       useCalculateAge(daemonSet.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

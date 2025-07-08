@@ -1,6 +1,7 @@
 import type { HelmChart } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 export const renderHelmChartDetails = (helmChart: HelmChart, columnCount = 4) => (
   <td colSpan={columnCount}>
@@ -27,12 +28,16 @@ export const helmChartColumns = [
       <>{helmChart.metadata.name}</>
     ),
     title: (helmChart: HelmChart) => helmChart.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "AGE",
     width: "5%",
     accessor: (helmChart: HelmChart) =>
       useCalculateAge(helmChart.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "READY",

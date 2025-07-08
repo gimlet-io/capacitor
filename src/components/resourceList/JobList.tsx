@@ -43,7 +43,7 @@ export const jobColumns = [
     accessor: (job: Job) => <>{job.metadata.name}</>,
     title: (job: Job) => job.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "COMPLETIONS",
@@ -99,7 +99,7 @@ export const jobColumns = [
     accessor: (job: Job) => 
       useCalculateAge(job.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

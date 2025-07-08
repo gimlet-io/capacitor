@@ -40,7 +40,7 @@ export const pvColumns = [
     accessor: (pv: PersistentVolume) => <>{pv.metadata.name}</>,
     title: (pv: PersistentVolume) => pv.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "CAPACITY",
@@ -108,7 +108,7 @@ export const pvColumns = [
     accessor: (pv: PersistentVolume) => 
       useCalculateAge(pv.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

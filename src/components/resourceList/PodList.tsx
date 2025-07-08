@@ -85,7 +85,7 @@ export const podColumns = [
     accessor: (pod: Pod) => <>{pod.metadata.name}</>,
     title: (pod: Pod) => `${pod.metadata.name}`,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "READY",
@@ -232,7 +232,7 @@ export const podColumns = [
     width: "10%",
     accessor: (pod: Pod) => useCalculateAge(pod.status.startTime || '')(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "IP",

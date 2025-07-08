@@ -73,7 +73,7 @@ export const nodeColumns = [
     accessor: (node: Node) => <>{node.metadata.name}</>,
     title: (node: Node) => node.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "STATUS",
@@ -141,7 +141,7 @@ export const nodeColumns = [
     accessor: (node: Node) => 
       useCalculateAge(node.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

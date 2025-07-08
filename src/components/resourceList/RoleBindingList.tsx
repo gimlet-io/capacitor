@@ -1,4 +1,3 @@
-import { JSX } from "solid-js";
 import type { RoleBinding } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
@@ -26,6 +25,8 @@ export const roleBindingColumns = [
     width: "25%",
     accessor: (roleBinding: RoleBinding) => <>{roleBinding.metadata.name}</>,
     title: (roleBinding: RoleBinding) => roleBinding.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "ROLE",
@@ -50,6 +51,8 @@ export const roleBindingColumns = [
     width: "15%",
     accessor: (roleBinding: RoleBinding) => 
       useCalculateAge(roleBinding.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

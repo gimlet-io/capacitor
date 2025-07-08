@@ -94,7 +94,7 @@ export const hpaColumns = [
     accessor: (hpa: HorizontalPodAutoscaler) => <>{hpa.metadata.name}</>,
     title: (hpa: HorizontalPodAutoscaler) => hpa.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "REFERENCE",
@@ -148,7 +148,7 @@ export const hpaColumns = [
     accessor: (hpa: HorizontalPodAutoscaler) => 
       useCalculateAge(hpa.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

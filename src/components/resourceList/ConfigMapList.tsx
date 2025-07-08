@@ -11,7 +11,7 @@ export const configMapColumns = [
     accessor: (configMap: ConfigMap) => <>{configMap.metadata.name}</>,
     title: (configMap: ConfigMap) => configMap.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "DATA",
@@ -34,7 +34,7 @@ export const configMapColumns = [
     accessor: (configMap: ConfigMap) => 
       useCalculateAge(configMap.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

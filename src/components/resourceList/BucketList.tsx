@@ -1,6 +1,7 @@
 import type { Source } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
+import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 // Type definition for Bucket since it's not in k8s.ts
 type Bucket = Source & {
@@ -53,12 +54,16 @@ export const bucketColumns = [
       <>{bucket.metadata.name}</>
     ),
     title: (bucket: Bucket) => bucket.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "AGE",
     width: "5%",
     accessor: (bucket: Bucket) =>
       useCalculateAge(bucket.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
   {
     header: "READY",

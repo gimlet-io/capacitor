@@ -37,7 +37,7 @@ export const pvcColumns = [
     accessor: (pvc: PersistentVolumeClaim) => <>{pvc.metadata.name}</>,
     title: (pvc: PersistentVolumeClaim) => pvc.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "STATUS",
@@ -86,7 +86,7 @@ export const pvcColumns = [
     accessor: (pvc: PersistentVolumeClaim) => 
       useCalculateAge(pvc.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 

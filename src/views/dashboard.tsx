@@ -12,6 +12,7 @@ import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
 import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
+import { sortByName, sortByNamespace, sortByAge } from "../resourceTypeConfigs.tsx";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
@@ -480,17 +481,20 @@ export function Dashboard() {
         { 
           header: "Name", 
           width: "40%", 
-          accessor: (item) => <>{item.metadata?.name || ""}</> 
+          accessor: (item) => <>{item.metadata?.name || ""}</>,
+          sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
         },
         { 
           header: "Namespace", 
           width: "30%", 
-          accessor: (item) => <>{item.metadata?.namespace || ""}</> 
+          accessor: (item) => <>{item.metadata?.namespace || ""}</>,
+          sortFunction: (items: any[], ascending: boolean) => sortByNamespace(items, ascending),
         },
         { 
           header: "Age", 
           width: "30%", 
-          accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')()
+          accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')(),
+          sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
         }
       ]
     };

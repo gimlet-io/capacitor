@@ -1,4 +1,3 @@
-import { JSX } from "solid-js";
 import type { Role } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
@@ -55,7 +54,7 @@ export const roleColumns = [
     accessor: (role: Role) => <>{role.metadata.name}</>,
     title: (role: Role) => role.metadata.name,
     sortable: true,
-    sortFunction: sortByName,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "RULES",
@@ -72,7 +71,7 @@ export const roleColumns = [
     accessor: (role: Role) => 
       useCalculateAge(role.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: sortByAge,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 
