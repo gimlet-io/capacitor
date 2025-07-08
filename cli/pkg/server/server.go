@@ -1151,6 +1151,11 @@ func (s *Server) describeResourceWithKubectl(namespace, kind, name, apiVersion s
 	}
 	configFlags.Insecure = &s.k8sClient.Config.Insecure
 
+	// Set the kubeconfig path from the server's config
+	if s.config.KubeConfigPath != "" {
+		configFlags.KubeConfig = &s.config.KubeConfigPath
+	}
+
 	// Create a discovery client
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.k8sClient.Config)
 	if err != nil {
@@ -1335,6 +1340,11 @@ func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kus
 		configFlags.CAFile = &s.k8sClient.Config.CAFile
 	}
 	configFlags.Insecure = &s.k8sClient.Config.Insecure
+
+	// Set the kubeconfig path from the server's config
+	if s.config.KubeConfigPath != "" {
+		configFlags.KubeConfig = &s.config.KubeConfigPath
+	}
 
 	namespace := kustomization.ObjectMeta.Namespace
 	configFlags.Namespace = &namespace
