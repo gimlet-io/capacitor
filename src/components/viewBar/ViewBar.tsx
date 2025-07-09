@@ -99,6 +99,7 @@ export function ViewBar(props: ViewBarProps) {
   };
   
   const selectView = (viewId: string) => {
+    if (viewId === filterStore.selectedView) return;
     filterStore.setSelectedView(viewId);
 
     untrack(() => {
