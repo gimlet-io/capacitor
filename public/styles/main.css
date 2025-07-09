@@ -1025,7 +1025,6 @@ td.message-cell {
   padding: 8px 0;
   border-bottom: 1px solid var(--linear-border);
   margin-bottom: 16px;
-  align-items: center;
 }
 
 .filter-groups {
