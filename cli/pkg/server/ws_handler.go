@@ -169,7 +169,7 @@ func (h *WebSocketHandler) handleSubscribe(
 
 	// Check if already subscribed
 	if _, exists := watchContextsForConn[msg.Path]; exists {
-		h.sendErrorMessage(ws, msg.ID, msg.Path, "already subscribed to this path")
+		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
 		return
 	}
 
