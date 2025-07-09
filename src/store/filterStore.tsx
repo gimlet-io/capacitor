@@ -3,6 +3,7 @@ import type { ActiveFilter, Filter, FilterOption, FilterType } from "../componen
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
 import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
+import { parseGlobFilter, matchGlobPatterns } from "../utils/glob.ts";
 interface FilterState {
   filters: Filter[]; // all filters
   filterRegistry: Record<string, Filter>;
@@ -45,9 +46,10 @@ export function FilterProvider(props: { children: JSX.Element }) {
     name: "Name",
     label: "Name",
     type: "text" as FilterType,
-    placeholder: "Filter by name",
+    placeholder: "Filter by name (supports glob patterns: *, ?, [abc], and negation: !pattern)",
     filterFunction: (resource: any, value: string) => {
-      return resource.metadata.name.toLowerCase().includes(value.toLowerCase());
+      const patterns = parseGlobFilter(value);
+      return matchGlobPatterns(patterns, resource.metadata.name);
     }
   };
 
