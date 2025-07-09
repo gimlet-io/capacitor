@@ -510,11 +510,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile kustomization", isContextual: true },
+        shortcut: { key: "Ctrl+r", description: "Reconcile", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile kustomization with sources", isContextual: true },
+        shortcut: { key: "Ctrl+w", description: "Reconcile with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       },
       navigateToKustomization
