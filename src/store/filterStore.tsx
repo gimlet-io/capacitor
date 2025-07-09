@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext, JSX, createEffect, createMemo } from "solid-js";
+import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack } from "solid-js";
 import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
@@ -18,6 +18,14 @@ interface FilterState {
   selectedView: string;
   previousSelectedView: string | null;
   setSelectedView: (viewId: string) => void;
+
+  // Filter history
+  filterHistory: { filters: ActiveFilter[]; viewId: string }[];
+  currentHistoryIndex: number;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
 }
 
 const FilterContext = createContext<FilterState>();
@@ -28,6 +36,9 @@ export function FilterProvider(props: { children: JSX.Element }) {
   const [previousSelectedView, setPreviousSelectedView] = createSignal<string | null>(null);
   const [k8sResources, setK8sResources] = createSignal<K8sResource[]>([]);
   const [filterRegistry, setFilterRegistry] = createSignal<Record<string, Filter>>({});
+  const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
+  const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
   const apiResourceStore = useApiResourceStore();
 
   const nameFilter: Filter = {
@@ -46,6 +57,65 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
   const getNamespace = () => {
     return activeFilters().find(f => f.name === "Namespace")?.value;
+  };
+
+  // Filter history management
+  const addToHistory = (filters: ActiveFilter[], viewId: string) => {
+    if (isNavigating()) return; // Don't add to history when navigating
+    if (filters.length === 0) return;
+
+    untrack(() => {
+      const current = filterHistory();
+      const currentIndex = currentHistoryIndex();
+      
+      // Remove any history after current index (when branching from middle of history)
+      const newHistory = current.slice(0, currentIndex + 1);
+      
+      // Add new state to history
+      newHistory.push({ filters: [...filters], viewId });
+      
+      // Keep history size reasonable (last 50 states)
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      } else {
+        setCurrentHistoryIndex(currentIndex + 1);
+      }
+    
+      setFilterHistory(newHistory);
+    });
+  };
+
+  const canGoBack = createMemo(() => currentHistoryIndex() >= 1);
+  const canGoForward = createMemo(() => currentHistoryIndex() < filterHistory().length - 1);
+
+  const goBack = () => {
+    if (!canGoBack()) return;
+
+    setIsNavigating(true);
+    const newIndex = currentHistoryIndex() - 1;
+    setCurrentHistoryIndex(newIndex);
+    const historyState = filterHistory()[newIndex];
+    setActiveFilters([...historyState.filters]);
+    setSelectedView(historyState.viewId);
+    setIsNavigating(false);
+  };
+
+  const goForward = () => {
+    if (!canGoForward()) return;
+
+    setIsNavigating(true);
+    const newIndex = currentHistoryIndex() + 1;
+    setCurrentHistoryIndex(newIndex);
+    const historyState = filterHistory()[newIndex];
+    setActiveFilters([...historyState.filters]);
+    setSelectedView(historyState.viewId);
+    setIsNavigating(false);
+  };
+
+  // Custom setActiveFilters that manages history
+  const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+    addToHistory(filters, selectedView());
   };
 
   const namespaceOptions = createMemo<FilterOption[]>(() => {
@@ -198,7 +268,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
     get filterRegistry() { return filterRegistry(); },
 
     get activeFilters() { return activeFilters(); },
-    setActiveFilters: setActiveFilters,
+    setActiveFilters: setActiveFiltersWithHistory,
     getResourceType,
     getNamespace,
 
@@ -208,6 +278,13 @@ export function FilterProvider(props: { children: JSX.Element }) {
     get selectedView() { return selectedView(); },
     get previousSelectedView() { return previousSelectedView(); },
     setSelectedView: setSelectedView,
+
+    get filterHistory() { return filterHistory(); },
+    get currentHistoryIndex() { return currentHistoryIndex(); },
+    get canGoBack() { return canGoBack(); },
+    get canGoForward() { return canGoForward(); },
+    goBack,
+    goForward,
   };
 
   return (

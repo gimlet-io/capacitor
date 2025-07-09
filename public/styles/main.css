@@ -1034,6 +1034,13 @@ td.message-cell {
   gap: 8px;
 }
 
+.filter-history-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+}
+
 .filter-group {
   position: relative;
 }
