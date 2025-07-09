@@ -676,31 +676,35 @@ export function FilterBar(props: {
       </div>
       
       {/* Filter history navigation */}
-      <div class="filter-history-nav">
+      <div class="filter-groups">
+      <div class="filter-group">
         <button 
-          class="filter-history-button"
-          classList={{ "disabled": !filterStore.canGoBack }}
-          onClick={() => filterStore.goBack()}
-          disabled={!filterStore.canGoBack}
-          title="Go back in filter history"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span class="shortcut-key">⌃←</span>
-        </button>
+        class="filter-group-button"
+        classList={{ "has-active-filters": false, "disabled": !filterStore.canGoBack }}
+        onClick={() => filterStore.goBack()}
+        disabled={!filterStore.canGoBack}
+        title="Go back in filter history"
+      >
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="shortcut-key">Ctrl+←</span>
+      </button>
+      </div>
+      <div class="filter-group">
         <button 
-          class="filter-history-button"
-          classList={{ "disabled": !filterStore.canGoForward }}
-          onClick={() => filterStore.goForward()}
-          disabled={!filterStore.canGoForward}
-          title="Go forward in filter history"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span class="shortcut-key">⌃→</span>
-        </button>
+        class="filter-group-button"
+        classList={{ "has-active-filters": false, "disabled": !filterStore.canGoForward }}
+        onClick={() => filterStore.goForward()}
+        disabled={!filterStore.canGoForward}
+        title="Go forward in filter history"
+      >
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="shortcut-key">ctrl+→</span>
+      </button>
+      </div>
       </div>
     </div>
   );
