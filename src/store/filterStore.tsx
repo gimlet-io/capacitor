@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext, JSX, createEffect, createMemo } from "solid-js";
+import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack } from "solid-js";
 import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
@@ -36,8 +36,8 @@ export function FilterProvider(props: { children: JSX.Element }) {
   const [previousSelectedView, setPreviousSelectedView] = createSignal<string | null>(null);
   const [k8sResources, setK8sResources] = createSignal<K8sResource[]>([]);
   const [filterRegistry, setFilterRegistry] = createSignal<Record<string, Filter>>({});
-  const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([{ filters: [], viewId: '' }]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(0);
+  const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
   const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
   const apiResourceStore = useApiResourceStore();
 
@@ -62,36 +62,47 @@ export function FilterProvider(props: { children: JSX.Element }) {
   // Filter history management
   const addToHistory = (filters: ActiveFilter[], viewId: string) => {
     if (isNavigating()) return; // Don't add to history when navigating
+    if (filters.length === 0) return;
+
+    untrack(() => {
+      const current = filterHistory();
+      const currentIndex = currentHistoryIndex();
+      
+      // Remove any history after current index (when branching from middle of history)
+      const newHistory = current.slice(0, currentIndex + 1);
+      
+      // Add new state to history
+      newHistory.push({ filters: [...filters], viewId });
+      
+      // Keep history size reasonable (last 50 states)
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      } else {
+        setCurrentHistoryIndex(currentIndex + 1);
+      }
     
-    const current = filterHistory();
-    const currentIndex = currentHistoryIndex();
-    
-    // Remove any history after current index (when branching from middle of history)
-    const newHistory = current.slice(0, currentIndex + 1);
-    
-    // Add new state to history
-    newHistory.push({ filters: [...filters], viewId });
-    
-    // Keep history size reasonable (last 50 states)
-    if (newHistory.length > 50) {
-      newHistory.shift();
-    } else {
-      setCurrentHistoryIndex(currentIndex + 1);
-    }
-    
-    setFilterHistory(newHistory);
+      console.log("newHistory");
+      console.log(newHistory);
+      setFilterHistory(newHistory);
+      console.log(currentIndex+1);
+    });
   };
 
-  const canGoBack = createMemo(() => currentHistoryIndex() > 0);
+  const canGoBack = createMemo(() => currentHistoryIndex() >= 1);
   const canGoForward = createMemo(() => currentHistoryIndex() < filterHistory().length - 1);
 
   const goBack = () => {
     if (!canGoBack()) return;
     
+    console.log("goBack");
+    console.log(filterHistory());
+    console.log(currentHistoryIndex());
     setIsNavigating(true);
     const newIndex = currentHistoryIndex() - 1;
     setCurrentHistoryIndex(newIndex);
     const historyState = filterHistory()[newIndex];
+    console.log(newIndex);
+    console.log(historyState);
     setActiveFilters([...historyState.filters]);
     setSelectedView(historyState.viewId);
     setIsNavigating(false);
@@ -100,10 +111,15 @@ export function FilterProvider(props: { children: JSX.Element }) {
   const goForward = () => {
     if (!canGoForward()) return;
     
+    console.log("goForward");
+    console.log(filterHistory());
+    console.log(currentHistoryIndex());
     setIsNavigating(true);
     const newIndex = currentHistoryIndex() + 1;
     setCurrentHistoryIndex(newIndex);
     const historyState = filterHistory()[newIndex];
+    console.log(newIndex);
+    console.log(historyState);
     setActiveFilters([...historyState.filters]);
     setSelectedView(historyState.viewId);
     setIsNavigating(false);
@@ -112,14 +128,14 @@ export function FilterProvider(props: { children: JSX.Element }) {
   // Custom setActiveFilters that manages history
   const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
-    addToHistory(filters, selectedView());
+    // addToHistory(filters, selectedView());
+    addToHistory(filters, "test");
   };
 
   // Custom setSelectedView that manages history
   const setSelectedViewWithHistory = (viewId: string) => {
     setPreviousSelectedView(selectedView());
     setSelectedView(viewId);
-    addToHistory(activeFilters(), viewId);
   };
 
   const namespaceOptions = createMemo<FilterOption[]>(() => {
