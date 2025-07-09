@@ -437,11 +437,32 @@ h1 {
   color: var(--linear-blue);
 }
 
+/* Header Actions */
 .header-actions {
   display: flex;
   gap: 8px;
 }
 
+/* Dropdown container for split buttons */
+.dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Split button container */
+.split-button {
+  display: flex;
+}
+
+/* Context menu within dropdown container */
+.dropdown-container .context-menu {
+  width: auto;
+  min-width: 180px;
+  right: 0;
+  left: auto;
+}
+
+/* Sync Button */
 .sync-button, .refresh-button {
   background: var(--linear-bg);
   border: 1px solid var(--linear-border);
@@ -841,7 +862,9 @@ td.message-cell {
   padding: 8px 12px;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
   transition: background-color 0.2s ease;
 }
 

@@ -98,6 +98,39 @@ export async function handleFluxReconcile(resource: FluxResource) {
   }
 }
 
+/**
+ * Generic reconcile function for Flux CD resources with sources
+ * Equivalent to running `flux reconcile <kind> <name> --with-sources`
+ */
+export async function handleFluxReconcileWithSources(resource: FluxResource) {
+  try {
+    const response = await fetch('/api/flux/reconcile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: resource.kind,
+        name: resource.metadata.name,
+        namespace: resource.metadata.namespace,
+        withSources: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to reconcile resource with sources');
+    }
+
+    const data = await response.json();
+    console.log(data.message);
+    return data;
+  } catch (error) {
+    console.error('Error reconciling resource with sources:', error);
+    throw error;
+  }
+}
+
 export async function handleFluxSuspend(resource: FluxResource, suspend: boolean = true) {
   try {
     const response = await fetch('/api/flux/suspend', {

@@ -186,9 +186,10 @@ func (s *Server) Setup() {
 	// Add endpoint for reconciling Flux resources
 	s.echo.POST("/api/flux/reconcile", func(c echo.Context) error {
 		var req struct {
-			Kind      string `json:"kind"`
-			Name      string `json:"name"`
-			Namespace string `json:"namespace"`
+			Kind        string `json:"kind"`
+			Name        string `json:"name"`
+			Namespace   string `json:"namespace"`
+			WithSources bool   `json:"withSources,omitempty"`
 		}
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
@@ -218,7 +219,12 @@ func (s *Server) Setup() {
 
 		// Request immediate reconciliation by adding/updating the reconcile annotation
 		// This is what the Flux CLI does behind the scenes
-		patchData := fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, metav1.Now().Format(time.RFC3339Nano))
+		var patchData string
+		if req.WithSources {
+			patchData = fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s","fluxcd.io/reconcile":"with-sources"}}}`, metav1.Now().Format(time.RFC3339Nano))
+		} else {
+			patchData = fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, metav1.Now().Format(time.RFC3339Nano))
+		}
 
 		var err error
 		var output string
@@ -260,7 +266,11 @@ func (s *Server) Setup() {
 			Body([]byte(patchData)).
 			DoRaw(ctx)
 
-		output = fmt.Sprintf("%s %s/%s reconciliation requested", kind, resourceNamespace, resourceName)
+		if req.WithSources {
+			output = fmt.Sprintf("%s %s/%s reconciliation requested with sources", kind, resourceNamespace, resourceName)
+		} else {
+			output = fmt.Sprintf("%s %s/%s reconciliation requested", kind, resourceNamespace, resourceName)
+		}
 
 		if err != nil {
 			log.Printf("Error reconciling Flux resource: %v", err)

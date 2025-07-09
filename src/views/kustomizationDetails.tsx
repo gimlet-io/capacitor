@@ -11,7 +11,7 @@ import { createNodeWithCardRenderer, ResourceTree } from "../components/Resource
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
-import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
+import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff, handleFluxReconcileWithSources } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
 
@@ -179,6 +179,31 @@ export function KustomizationDetails() {
   const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
   const [diffData, setDiffData] = createSignal<any>(null);
   const [diffLoading, setDiffLoading] = createSignal(false);
+
+  // Dropdown state
+  const [dropdownOpen, setDropdownOpen] = createSignal(false);
+  
+  // Click outside handler for dropdown
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (dropdownOpen() && !target.closest('.dropdown-container')) {
+      setDropdownOpen(false);
+    }
+  };
+
+  // Set up click outside listener
+  createEffect(() => {
+    if (dropdownOpen()) {
+      document.addEventListener('click', handleClickOutside);
+    } else {
+      document.removeEventListener('click', handleClickOutside);
+    }
+    
+    // Clean up event listener when component is unmounted
+    onCleanup(() => {
+      document.removeEventListener('click', handleClickOutside);
+    });
+  });
 
   // Monitor filterStore.k8sResources for changes
   createEffect(() => {
@@ -553,7 +578,51 @@ export function KustomizationDetails() {
                         setDiffLoading(false);
                       }
                     }}>Diff</button>
-                    <button class="sync-button" onClick={() => handleFluxReconcile(k())}>Reconcile</button>
+                    <div class="dropdown-container">
+                      <div class="split-button">
+                        <button 
+                          class="sync-button reconcile-button" 
+                          onClick={() => {
+                            handleFluxReconcile(k());
+                            setDropdownOpen(false);
+                          }}
+                          style={{ 
+                            "border-top-right-radius": "0", 
+                            "border-bottom-right-radius": "0", 
+                            "margin-right": "1px"
+                          }}
+                        >
+                          Reconcile
+                        </button>
+                        <button 
+                          class="sync-button dropdown-toggle" 
+                          onClick={(e) => { e.stopPropagation(); setDropdownOpen(!dropdownOpen()) }}
+                          style={{ 
+                            "border-top-left-radius": "0", 
+                            "border-bottom-left-radius": "0",
+                            "padding": "0 8px",
+                            "min-width": "24px"
+                          }}
+                          aria-label="Show more reconcile options"
+                          title="More reconcile options"
+                        >
+                          <span style={{ "font-size": "10px" }}>▼</span>
+                        </button>
+                      </div>
+                      <Show when={dropdownOpen()}>
+                        <div class="context-menu">
+                          <div 
+                            class="context-menu-item"
+                            onClick={() => { 
+                              handleFluxReconcileWithSources(k());
+                              setDropdownOpen(false);
+                            }}
+                          >
+                            <span>Reconcile with sources</span>
+                          </div>
+                        </div>
+                      </Show>
+                    </div>
                     {k().spec.suspend ? (
                       <button 
                         class="sync-button resume"
