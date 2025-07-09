@@ -89,7 +89,7 @@ export function ViewBar(props: ViewBarProps) {
       const viewExists = allViews.some(v => v.id === currentViewId);
       
       if (!viewExists && allViews.length > 0) {
-        filterStore.setSelectedView(allViews[0].id);
+        selectView(allViews[0].id);
       }
     } catch (error) {
       console.error('Error loading views:', error);
@@ -98,6 +98,17 @@ export function ViewBar(props: ViewBarProps) {
     }
   };
   
+  const selectView = (viewId: string) => {
+    filterStore.setSelectedView(viewId);
+
+    untrack(() => {
+        const view = views().find(v => v.id === viewId);
+        if (view) {
+          props.setActiveFilters(view.filters);
+        }
+    })
+  };
+
   const saveCustomViews = (viewsToSave: View[]) => {
     try {
       const customViews = viewsToSave.filter(view => !view.isSystem);
@@ -133,29 +144,10 @@ export function ViewBar(props: ViewBarProps) {
   const selectViewByIndex = (index: number) => {
     const viewsList = views();
     if (index >= 0 && index < viewsList.length) {
-      filterStore.setSelectedView(viewsList[index].id);
+      selectView(viewsList[index].id);
     }
   };
-  
-  // Update active filters when view changes
-  createEffect(() => {
-    let view: View | undefined;
-    const selectedViewId = filterStore.selectedView;
     
-    untrack(() => {
-      // Only look for a view if we have a non-empty selectedViewId
-      if (selectedViewId) {
-        view = views().find(v => v.id === selectedViewId);
-      }
-    })
-
-    if (view) {
-      // Apply the view's filters when a view is selected
-      props.setActiveFilters(view.filters);
-    }
-    // If no view is selected (empty string), don't change the active filters
-  });
-  
   const handleViewCreate = (viewName: string) => {
     if (!viewName.trim()) return;
     
@@ -164,14 +156,14 @@ export function ViewBar(props: ViewBarProps) {
     const updatedViews = [...views(), newView];
     setViews(updatedViews);
     saveCustomViews(updatedViews);
-    filterStore.setSelectedView(newView.id);
+    selectView(newView.id);
   };
   
   const handleViewDelete = (viewId: string) => {
     const updatedViews = views().filter(view => view.id !== viewId);
     setViews(updatedViews);
     saveCustomViews(updatedViews);
-    filterStore.setSelectedView(SYSTEM_VIEWS[0].id);
+    selectView(SYSTEM_VIEWS[0].id);
   };
 
   // Handle view keyboard shortcuts
@@ -218,7 +210,7 @@ export function ViewBar(props: ViewBarProps) {
     
     // If filters don't match and we have a selected view, unselect it
     if (!filtersMatch && viewId) {
-      filterStore.setSelectedView('');
+      selectView('');
     }
   });
 
@@ -267,7 +259,7 @@ export function ViewBar(props: ViewBarProps) {
               <div class="view-pill-container">
                 <button
                   class={`view-pill ${filterStore.selectedView === view.id ? 'selected' : ''}`}
-                  onClick={() => filterStore.setSelectedView(view.id)}
+                  onClick={() => selectView(view.id)}
                 >
                   <span>{view.label}</span>
                   {filterStore.selectedView === view.id && !view.isSystem && (

@@ -81,10 +81,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
         setCurrentHistoryIndex(currentIndex + 1);
       }
     
-      console.log("newHistory");
-      console.log(newHistory);
       setFilterHistory(newHistory);
-      console.log(currentIndex+1);
     });
   };
 
@@ -93,16 +90,11 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
   const goBack = () => {
     if (!canGoBack()) return;
-    
-    console.log("goBack");
-    console.log(filterHistory());
-    console.log(currentHistoryIndex());
+
     setIsNavigating(true);
     const newIndex = currentHistoryIndex() - 1;
     setCurrentHistoryIndex(newIndex);
     const historyState = filterHistory()[newIndex];
-    console.log(newIndex);
-    console.log(historyState);
     setActiveFilters([...historyState.filters]);
     setSelectedView(historyState.viewId);
     setIsNavigating(false);
@@ -110,16 +102,11 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
   const goForward = () => {
     if (!canGoForward()) return;
-    
-    console.log("goForward");
-    console.log(filterHistory());
-    console.log(currentHistoryIndex());
+
     setIsNavigating(true);
     const newIndex = currentHistoryIndex() + 1;
     setCurrentHistoryIndex(newIndex);
     const historyState = filterHistory()[newIndex];
-    console.log(newIndex);
-    console.log(historyState);
     setActiveFilters([...historyState.filters]);
     setSelectedView(historyState.viewId);
     setIsNavigating(false);
@@ -128,14 +115,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
   // Custom setActiveFilters that manages history
   const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
-    // addToHistory(filters, selectedView());
-    addToHistory(filters, "test");
-  };
-
-  // Custom setSelectedView that manages history
-  const setSelectedViewWithHistory = (viewId: string) => {
-    setPreviousSelectedView(selectedView());
-    setSelectedView(viewId);
+    addToHistory(filters, selectedView());
   };
 
   const namespaceOptions = createMemo<FilterOption[]>(() => {
@@ -297,7 +277,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
     
     get selectedView() { return selectedView(); },
     get previousSelectedView() { return previousSelectedView(); },
-    setSelectedView: setSelectedViewWithHistory,
+    setSelectedView: setSelectedView,
 
     get filterHistory() { return filterHistory(); },
     get currentHistoryIndex() { return currentHistoryIndex(); },
