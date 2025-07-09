@@ -69,12 +69,33 @@ function globToRegex(pattern: string): RegExp {
 }
 
 /**
+ * Checks if a glob pattern contains any wildcard characters
+ * @param pattern The glob pattern to check
+ * @returns true if the pattern contains wildcards (*, ?, or [])
+ */
+function hasWildcards(pattern: string): boolean {
+  // Check for *, ?, or [ (character class)
+  return /[*?[]/.test(pattern);
+}
+
+/**
+ * Ensures a glob pattern has wildcards by appending * if needed
+ * @param pattern The glob pattern to check
+ * @returns The pattern with wildcards (original if it already had wildcards, or with * appended)
+ */
+export function ensureWildcard(pattern: string): string {
+  return hasWildcards(pattern) ? pattern : pattern + '*';
+}
+
+/**
  * Tests if a string matches a glob pattern
  * @param pattern The glob pattern (e.g., "pod-*", "test-?", "app-[123]")
  * @param text The text to test
  * @returns true if the text matches the pattern
  */
 export function matchGlob(pattern: string, text: string): boolean {
+  // Ensure the pattern has wildcards
+  pattern = ensureWildcard(pattern);
   const regex = globToRegex(pattern);
   return regex.test(text);
 }
@@ -94,9 +115,9 @@ export function matchGlobPatterns(patterns: string[], text: string): boolean {
   patterns.forEach(pattern => {
     const trimmed = pattern.trim();
     if (trimmed.startsWith('!')) {
-      negativePatterns.push(trimmed.slice(1));
+      negativePatterns.push(ensureWildcard(trimmed.slice(1)));
     } else if (trimmed) {
-      positivePatterns.push(trimmed);
+      positivePatterns.push(ensureWildcard(trimmed));
     }
   });
   
