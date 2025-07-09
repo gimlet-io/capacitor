@@ -35,7 +35,7 @@ import { roleBindingColumns, roleBindingSubjectKindFilter, roleBindingRoleKindFi
 import { serviceAccountColumns, serviceAccountAutomountFilter } from "./components/resourceList/ServiceAccountList.tsx";
 import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
 import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
-import { handleFluxReconcile } from "./utils/fluxUtils.tsx";
+import { handleFluxReconcile, handleFluxReconcileWithSources } from "./utils/fluxUtils.tsx";
 import { scaledJobColumns, scaledJobTriggerFilter, scaledJobStrategyFilter } from "./components/resourceList/ScaledJobList.tsx";
 
 export interface Column<T> {
@@ -513,6 +513,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "Ctrl+r", description: "Reconcile kustomization", isContextual: true },
         handler: handleFluxReconcile
       },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile kustomization with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
+      },
       navigateToKustomization
     ],
     filter: [fluxReadyFilter],
@@ -529,6 +533,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile GitRepository", isContextual: true },
         handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile GitRepository with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
       }
     ],
     filter: [fluxReadyFilter]
@@ -544,6 +552,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile HelmRepository", isContextual: true },
         handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile HelmRepository with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
       }
     ],
     filter: [fluxReadyFilter]
@@ -559,6 +571,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile HelmChart", isContextual: true },
         handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile HelmChart with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
       }
     ],
     filter: [fluxReadyFilter]
@@ -574,6 +590,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile OCIRepository", isContextual: true },
         handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile OCIRepository with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
       }
     ],
     filter: [fluxReadyFilter]
@@ -589,6 +609,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile Bucket", isContextual: true },
         handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile Bucket with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
       }
     ],
     filter: [fluxReadyFilter]
@@ -604,6 +628,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+r", description: "Reconcile HelmRelease", isContextual: true },
         handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Ctrl+w", description: "Reconcile HelmRelease with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
       }
     ],
     filter: [fluxReadyFilter],
