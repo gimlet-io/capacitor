@@ -46,7 +46,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
     name: "Name",
     label: "Name",
     type: "text" as FilterType,
-    placeholder: "Filter by name (supports glob patterns: *, ?, [abc], and negation: !pattern)",
+    placeholder: "glob support: *, ?, [abc], !pattern",
     filterFunction: (resource: any, value: string) => {
       const patterns = parseGlobFilter(value);
       return matchGlobPatterns(patterns, resource.metadata.name);
