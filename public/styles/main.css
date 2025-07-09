@@ -1042,52 +1042,6 @@ td.message-cell {
   align-items: center;
 }
 
-.filter-history-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background-color: var(--linear-bg);
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--linear-text-primary);
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  min-width: 40px;
-}
-
-.filter-history-button:hover:not(.disabled) {
-  background-color: var(--linear-bg-secondary);
-}
-
-.filter-history-button.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  color: var(--linear-text-tertiary);
-}
-
-.filter-history-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-.filter-history-button .shortcut-key {
-  background-color: var(--linear-bg-secondary);
-  color: var(--linear-text-secondary);
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--linear-border);
-  white-space: nowrap;
-  margin-left: 6px;
-  line-height: 1;
-  font-weight: normal;
-  height: 18px;
-}
-
 .filter-group {
   position: relative;
 }
