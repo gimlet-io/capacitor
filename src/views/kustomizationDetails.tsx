@@ -715,16 +715,7 @@ export function KustomizationDetails() {
                       )}
                     </div>
                   </div>
-                  <div class="header-actions">
-                    {/* Add the resource type visibility dropdown with local state */}
-                    <ResourceTypeVisibilityDropdown 
-                      resourceTypes={allResourceTypes()}
-                      visibleResourceTypes={visibleResourceTypes()}
-                      toggleResourceTypeVisibility={toggleResourceTypeVisibility}
-                      setResourceTypeVisibility={setResourceTypeVisibility}
-                      setAllResourceTypesVisibility={setAllResourceTypesVisibility}
-                    />
-                    
+                  <div class="header-actions">                    
                     <button class="sync-button" onClick={async () => {
                       if (!k()) return;
                       
@@ -875,7 +866,16 @@ export function KustomizationDetails() {
               </header>
 
               <div class="resource-tree-container">
-                <ResourceTree g={graph} />
+                <ResourceTree
+                  g={graph} 
+                  resourceTypeVisibilityDropdown={<ResourceTypeVisibilityDropdown 
+                      resourceTypes={allResourceTypes()}
+                      visibleResourceTypes={visibleResourceTypes()}
+                      toggleResourceTypeVisibility={toggleResourceTypeVisibility}
+                      setResourceTypeVisibility={setResourceTypeVisibility}
+                      setAllResourceTypesVisibility={setAllResourceTypesVisibility}
+                    />}
+                />
               </div>
             </>
           );

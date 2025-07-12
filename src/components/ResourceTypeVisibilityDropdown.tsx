@@ -1,5 +1,13 @@
 import { createSignal, createEffect, For, Show } from "solid-js";
 
+// Define resource types that should be hidden by default
+const DEFAULT_HIDDEN_RESOURCE_TYPES = [
+  'apps/ReplicaSet',
+  'rbac.authorization.k8s.io/Role',
+  'rbac.authorization.k8s.io/ClusterRole',
+  'core/ServiceAccount'
+];
+
 interface ResourceTypeVisibilityDropdownProps {
   resourceTypes: string[];
   visibleResourceTypes: Set<string>;
@@ -91,6 +99,7 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
   return (
     <div class="resource-type-visibility-dropdown">
       <button 
+        style="width: 100%"
         class="filter-group-button" 
         onClick={() => setIsOpen(!isOpen())}
         title="Configure which resource types are shown in the tree"

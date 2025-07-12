@@ -589,11 +589,17 @@ h1 {
   background-color: var(--linear-bg);
 }
 
-/* Tree keyboard shortcuts positioned in top right */
-.tree-keyboard-shortcuts {
+.tree-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+/* Tree keyboard shortcuts positioned in top right */
+.tree-keyboard-shortcuts {
   z-index: 10;
   background-color: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--linear-border);
@@ -601,6 +607,7 @@ h1 {
   padding: 8px;
   box-shadow: var(--linear-shadow);
   backdrop-filter: blur(4px);
+  display: flex;
 }
 
 .tree-keyboard-shortcuts .keyboard-shortcut-container {
@@ -1099,7 +1106,7 @@ td.message-cell {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 10;
+  z-index: 50;
   background-color: var(--linear-bg);
   border: 1px solid var(--linear-border);
   border-radius: 4px;
@@ -2571,6 +2578,7 @@ select.pod-select[size]:not([size="1"]) {
 .resource-type-visibility-dropdown {
   position: relative;
   margin-right: 8px;
+  width: 250px;
 }
 
 .filter-option {
