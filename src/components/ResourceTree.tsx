@@ -179,6 +179,7 @@ const defaultCardRenderer: ResourceCardRenderer = {
 
 interface ResourceTreeProps {
   g: Accessor<graphlib.Graph>
+  resourceTypeVisibilityDropdown: JSX.Element
 }
 
 export function ResourceTree(props: ResourceTreeProps) {
@@ -537,15 +538,18 @@ export function ResourceTree(props: ResourceTreeProps) {
         </svg>
       </div>
       
-      {/* Keyboard shortcuts display */}
-      <Show when={selectedNodeId() && selectedResource()}>
-        <div class="tree-keyboard-shortcuts">
-          <KeyboardShortcuts
-            shortcuts={getAvailableShortcuts()}
-            resourceSelected={!!selectedNodeId()}
-          />
-        </div>
-      </Show>
+      <div class="tree-controls">
+        {props.resourceTypeVisibilityDropdown}
+        {/* Keyboard shortcuts display */}
+        <Show when={selectedNodeId() && selectedResource()}>
+          <div class="tree-keyboard-shortcuts">
+            <KeyboardShortcuts
+              shortcuts={getAvailableShortcuts()}
+              resourceSelected={!!selectedNodeId()}
+            />
+          </div>
+        </Show>
+      </div>
 
       {/* Resource drawer */}
       <ResourceDrawer
