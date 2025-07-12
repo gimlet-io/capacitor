@@ -23,6 +23,14 @@ interface InventoryResourceInfo {
   resourceType: string; // e.g., "apps/Deployment", "core/Service"
 }
 
+// Define resource types that should be hidden by default
+const DEFAULT_HIDDEN_RESOURCE_TYPES = [
+  'apps/ReplicaSet',
+  'rbac.authorization.k8s.io/Role',
+  'rbac.authorization.k8s.io/ClusterRole',
+  'core/ServiceAccount'
+];
+
 const parseInventoryEntryId = (id: string): InventoryResourceInfo | null => {
   // Examples:
   // "namespace_name_apps_Deployment" -> { namespace: "namespace", name: "name", resourceType: "apps/Deployment" }
@@ -201,69 +209,25 @@ export function KustomizationDetails() {
     setVisibleResourceTypes(prev => {
       const newSet = new Set<string>(prev);
 
-      // If all types are currently visible (empty set)
-      if (newSet.size === 0) {
-        // Add all types except the one being toggled
-        allResourceTypes().forEach(type => {
-          if (type !== resourceType) {
-            newSet.add(type);
-          }
-        });
-        return newSet;
-      }
-      
-      // Normal toggle behavior
       if (newSet.has(resourceType)) {
         newSet.delete(resourceType);
       } else {
         newSet.add(resourceType);
       }
-      
-      // If all types are now selected, return empty set (all visible)
-      if (newSet.size === allResourceTypes().length) {
-        return new Set<string>();
-      }
 
       return newSet;
     });
   };
 
-  const setResourceTypeVisibility = (resourceType: string, isVisible: boolean): void => {
-    setVisibleResourceTypes(prev => {
-      // If all types are currently visible (empty set) and we're hiding one
-      if (prev.size === 0 && !isVisible) {
-        const newSet = new Set<string>();
-        // Add all types except the one being hidden
-        allResourceTypes().forEach(type => {
-          if (type !== resourceType) {
-            newSet.add(type);
-          }
-        });
-        return newSet;
-      }
-      
-      const newSet = new Set<string>(prev);
-      if (isVisible) {
-        newSet.add(resourceType);
-      } else {
-        newSet.delete(resourceType);
-      }
-      
-      // If all types are now selected, return empty set (all visible)
-      if (newSet.size === allResourceTypes().length) {
-        return new Set<string>();
-      }
-      
-      return newSet;
-    });
-  };
-
-  const setAllResourceTypesVisibility = (resourceTypes: string[], isVisible: boolean): void => {
+  const setAllResourceTypesVisibility = (isVisible: boolean): void => {
     if (isVisible) {
-      // If setting all to visible, use empty set
-      setVisibleResourceTypes(new Set<string>());
+      const newSet = new Set<string>();
+      allResourceTypes().forEach(type => {
+        newSet.add(type);
+      });
+
+      setVisibleResourceTypes(newSet);
     } else {
-      // If hiding all, set to empty array (none visible)
       setVisibleResourceTypes(new Set<string>([]));
     }
   };
@@ -478,6 +442,16 @@ export function KustomizationDetails() {
       });
     }
   };
+
+  createEffect(() => {
+    const newSet = new Set<string>();
+    allResourceTypes().forEach(type => {
+      if (!DEFAULT_HIDDEN_RESOURCE_TYPES.includes(type)) {
+        newSet.add(type);
+      }
+    });
+    setVisibleResourceTypes(newSet);
+  }); 
 
   const watch = (resourceType: NamespaceResourceType) =>{
     const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType.resourceType);
@@ -867,12 +841,11 @@ export function KustomizationDetails() {
 
               <div class="resource-tree-container">
                 <ResourceTree
-                  g={graph} 
+                  g={graph}
                   resourceTypeVisibilityDropdown={<ResourceTypeVisibilityDropdown 
                       resourceTypes={allResourceTypes()}
                       visibleResourceTypes={visibleResourceTypes()}
                       toggleResourceTypeVisibility={toggleResourceTypeVisibility}
-                      setResourceTypeVisibility={setResourceTypeVisibility}
                       setAllResourceTypesVisibility={setAllResourceTypesVisibility}
                     />}
                 />

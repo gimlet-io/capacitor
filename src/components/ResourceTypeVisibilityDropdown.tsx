@@ -1,19 +1,10 @@
 import { createSignal, createEffect, For, Show } from "solid-js";
 
-// Define resource types that should be hidden by default
-const DEFAULT_HIDDEN_RESOURCE_TYPES = [
-  'apps/ReplicaSet',
-  'rbac.authorization.k8s.io/Role',
-  'rbac.authorization.k8s.io/ClusterRole',
-  'core/ServiceAccount'
-];
-
 interface ResourceTypeVisibilityDropdownProps {
   resourceTypes: string[];
   visibleResourceTypes: Set<string>;
   toggleResourceTypeVisibility: (resourceType: string) => void;
-  setResourceTypeVisibility: (resourceType: string, isVisible: boolean) => void;
-  setAllResourceTypesVisibility: (resourceTypes: string[], isVisible: boolean) => void;
+  setAllResourceTypesVisibility: (isVisible: boolean) => void;
 }
 
 export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDropdownProps) {
@@ -82,11 +73,6 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
   
   // Count visible resource types
   const visibleCount = () => {
-    // If the set is empty, all are visible
-    if (props.visibleResourceTypes.size === 0) {
-      return props.resourceTypes.length;
-    }
-    
     let count = 0;
     props.resourceTypes.forEach(type => {
       if (props.visibleResourceTypes.has(type)) {
@@ -129,7 +115,7 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
                   ref={(el) => setIndeterminate(el, props.visibleResourceTypes.size > 0 && visibleCount() < props.resourceTypes.length)}
                   onChange={(e) => {
                     const shouldCheck = visibleCount() < props.resourceTypes.length;
-                    props.setAllResourceTypesVisibility(props.resourceTypes, shouldCheck);
+                    props.setAllResourceTypesVisibility(shouldCheck);
                   }}
                 />
                 <span>All Resource Types</span>
