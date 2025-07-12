@@ -200,7 +200,7 @@ export function KustomizationDetails() {
   const toggleResourceTypeVisibility = (resourceType: string): void => {
     setVisibleResourceTypes(prev => {
       const newSet = new Set<string>(prev);
-      
+
       // If all types are currently visible (empty set)
       if (newSet.size === 0) {
         // Add all types except the one being toggled
@@ -223,7 +223,7 @@ export function KustomizationDetails() {
       if (newSet.size === allResourceTypes().length) {
         return new Set<string>();
       }
-      
+
       return newSet;
     });
   };
@@ -560,6 +560,14 @@ export function KustomizationDetails() {
   };
 
   createEffect(() => {
+    // First, reset all children
+    Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
+      resources.forEach(resource => {
+        resource.children = [];
+      });
+    });
+    
+    // Then populate children based on extraWatches
     Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
       let watchedBy: string[] = [];
       for (const [key, value] of Object.entries(extraWatches)) {
@@ -567,20 +575,25 @@ export function KustomizationDetails() {
           watchedBy.push(key);
         }
       }
-      resources.forEach((resource) => {
-        if (watchedBy.length > 0) {
+      
+      if (watchedBy.length > 0) {
+        resources.forEach((resource) => {
           watchedBy.forEach(parentType => {
             const parents = dynamicResources()[parentType] || [];
             parents.forEach(parent => {
               if (extraWatches[parentType].some((extraWatch: ExtraWatchConfig) => extraWatch.isParent(resource, parent))) {
-                if (!parent.children || !parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
-                  parent.children = [...(parent.children || []), resource];
+                // Add this resource as a child of the parent
+                if (!parent.children) {
+                  parent.children = [];
+                }
+                if (!parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
+                  parent.children.push(resource);
                 }
               }
             });
           });
-        }
-      });
+        });
+      }
     });
   });
 
@@ -638,16 +651,16 @@ export function KustomizationDetails() {
   const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, kustomization: Kustomization, parentId: string) => {
     // Check if this resource type should be visible
     const visible = isResourceTypeVisible(resourceType);
-    
+
+    // If this resource is not visible
     if (!visible) {
-      // If the resource is not visible and has children, draw the children directly from the parent
+      // If the resource has children, draw the children directly from the parent
       if (resource.children && resource.children.length > 0) {
         resource.children.forEach((child: any) => {
-          const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion + '/' + child.kind);
+          const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
           drawResource(g, child, childResourceType, kustomization, parentId);
         });
       }
-      // If it's a leaf node or has no children, don't draw it
       return;
     }
     
@@ -666,13 +679,14 @@ export function KustomizationDetails() {
 
     g.setEdge(parentId, resourceId);
     
+    // Draw children if any
     if (resource.children) {
       resource.children.forEach((child: any) => {
-        const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion + '/' + child.kind);
+        const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
         drawResource(g, child, childResourceType, kustomization, resourceId);
       });
     }
-  }
+  };
 
   const handleBackClick = () => {
     // Global filter state is already maintained by the filter store

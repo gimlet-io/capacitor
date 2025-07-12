@@ -1,5 +1,4 @@
 import { createSignal, createEffect, For, Show } from "solid-js";
-import { useFilterStore } from "../store/filterStore.tsx";
 
 interface ResourceTypeVisibilityDropdownProps {
   resourceTypes: string[];
@@ -12,7 +11,6 @@ interface ResourceTypeVisibilityDropdownProps {
 export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDropdownProps) {
   const [isOpen, setIsOpen] = createSignal(false);
   const [searchTerm, setSearchTerm] = createSignal("");
-  const filterStore = useFilterStore();
   
   // Get sorted resource types
   const sortedResourceTypes = () => {
@@ -27,7 +25,7 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
   // Filter resource types based on search term
   const filteredResourceTypes = () => {
     const sorted = sortedResourceTypes();
-    
+
     if (!searchTerm()) {
       return sorted;
     }
@@ -60,13 +58,7 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
       document.removeEventListener('click', handleClickOutside);
     };
   });
-  
-  // Get human-readable resource name from resource type
-  const getResourceName = (resourceType: string): string => {
-    const [group, kind] = resourceType.split('/');
-    return `${kind}`;
-  };
-  
+
   // Check if a resource type is visible
   const isResourceTypeVisible = (resourceType: string): boolean => {
     // If the set is empty, all resource types are visible by default
