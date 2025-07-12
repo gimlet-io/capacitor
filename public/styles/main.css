@@ -2566,3 +2566,47 @@ select.pod-select[size]:not([size="1"]) {
     justify-content: center;
   }
 }
+
+/* Resource Type Visibility Dropdown */
+.resource-type-visibility-dropdown {
+  position: relative;
+  margin-right: 8px;
+}
+
+.filter-option {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.filter-option label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  cursor: pointer;
+}
+
+.filter-option input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.filter-option span {
+  font-size: 13px;
+}
+
+.filter-text-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--linear-text-primary);
+  background-color: var(--linear-bg);
+}
+
+.filter-text-input:focus {
+  outline: none;
+  border-color: var(--linear-blue);
+  box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.1);
+}
