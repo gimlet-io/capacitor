@@ -14,6 +14,7 @@ import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff, handleFluxReconcileWithSources } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
+import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -168,6 +169,12 @@ export function KustomizationDetails() {
   // Dynamic resources state - keyed by resource type
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
 
+  // Add a signal to track all resource types in the inventory
+  const [allResourceTypes, setAllResourceTypes] = createSignal<string[]>([]);
+  
+  // Add a signal for visible resource types
+  const [visibleResourceTypes, setVisibleResourceTypes] = createSignal<Set<string>>(new Set());
+
   const [graph, setGraph] = createSignal<graphlib.Graph>();
 
   const [watchStatus, setWatchStatus] = createSignal("●");
@@ -182,6 +189,84 @@ export function KustomizationDetails() {
 
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
+  
+  // Resource visibility functions
+  const isResourceTypeVisible = (resourceType: string): boolean => {
+    // If the set is empty, all resource types are visible by default
+    if (visibleResourceTypes().size === 0) return true;
+    return visibleResourceTypes().has(resourceType);
+  };
+
+  const toggleResourceTypeVisibility = (resourceType: string): void => {
+    setVisibleResourceTypes(prev => {
+      const newSet = new Set<string>(prev);
+
+      // If all types are currently visible (empty set)
+      if (newSet.size === 0) {
+        // Add all types except the one being toggled
+        allResourceTypes().forEach(type => {
+          if (type !== resourceType) {
+            newSet.add(type);
+          }
+        });
+        return newSet;
+      }
+      
+      // Normal toggle behavior
+      if (newSet.has(resourceType)) {
+        newSet.delete(resourceType);
+      } else {
+        newSet.add(resourceType);
+      }
+      
+      // If all types are now selected, return empty set (all visible)
+      if (newSet.size === allResourceTypes().length) {
+        return new Set<string>();
+      }
+
+      return newSet;
+    });
+  };
+
+  const setResourceTypeVisibility = (resourceType: string, isVisible: boolean): void => {
+    setVisibleResourceTypes(prev => {
+      // If all types are currently visible (empty set) and we're hiding one
+      if (prev.size === 0 && !isVisible) {
+        const newSet = new Set<string>();
+        // Add all types except the one being hidden
+        allResourceTypes().forEach(type => {
+          if (type !== resourceType) {
+            newSet.add(type);
+          }
+        });
+        return newSet;
+      }
+      
+      const newSet = new Set<string>(prev);
+      if (isVisible) {
+        newSet.add(resourceType);
+      } else {
+        newSet.delete(resourceType);
+      }
+      
+      // If all types are now selected, return empty set (all visible)
+      if (newSet.size === allResourceTypes().length) {
+        return new Set<string>();
+      }
+      
+      return newSet;
+    });
+  };
+
+  const setAllResourceTypesVisibility = (resourceTypes: string[], isVisible: boolean): void => {
+    if (isVisible) {
+      // If setting all to visible, use empty set
+      setVisibleResourceTypes(new Set<string>());
+    } else {
+      // If hiding all, set to empty array (none visible)
+      setVisibleResourceTypes(new Set<string>([]));
+    }
+  };
   
   // Click outside handler for dropdown
   const handleClickOutside = (event: MouseEvent) => {
@@ -349,10 +434,49 @@ export function KustomizationDetails() {
   // Set up dynamic watches based on inventory entries
   const setupDynamicWatches = (inventory: Array<{ id: string; v: string }>) => {
     const resourceTypes = getUniqueResourceTypesFromInventory(inventory);
+    
+    // Extract resource types from inventory
+    const inventoryTypes = resourceTypes.map(rt => rt.resourceType);
+    
+    // Collect extra watch resource types
+    const extraWatchTypes = new Set<string>();
+    Object.entries(extraWatches).forEach(([parentType, configs]) => {
+      configs.forEach(config => {
+        extraWatchTypes.add(config.resourceType);
+      });
+    });
+    
+    // Combine inventory types with extra watch types
+    const allTypes = [...inventoryTypes];
+    extraWatchTypes.forEach(type => {
+      if (!allTypes.includes(type)) {
+        allTypes.push(type);
+      }
+    });
+    
+    // Sort alphabetically by kind
+    allTypes.sort((a, b) => {
+      const kindA = a.split('/')[1] || '';
+      const kindB = b.split('/')[1] || '';
+      return kindA.localeCompare(kindB);
+    });
+    
+    // Set all resource types for the visibility dropdown
+    setAllResourceTypes(allTypes);
 
+    // Watch inventory resource types
     resourceTypes.forEach(resourceType => {
       watch(resourceType);
     });
+    
+    // Watch extra resource types that aren't in the inventory
+    if (params.namespace) {
+      extraWatchTypes.forEach(type => {
+        if (!inventoryTypes.includes(type)) {
+          watch({ namespace: params.namespace, resourceType: type });
+        }
+      });
+    }
   };
 
   const watch = (resourceType: NamespaceResourceType) =>{
@@ -436,6 +560,14 @@ export function KustomizationDetails() {
   };
 
   createEffect(() => {
+    // First, reset all children
+    Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
+      resources.forEach(resource => {
+        resource.children = [];
+      });
+    });
+    
+    // Then populate children based on extraWatches
     Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
       let watchedBy: string[] = [];
       for (const [key, value] of Object.entries(extraWatches)) {
@@ -443,20 +575,25 @@ export function KustomizationDetails() {
           watchedBy.push(key);
         }
       }
-      resources.forEach((resource) => {
-        if (watchedBy.length > 0) {
+      
+      if (watchedBy.length > 0) {
+        resources.forEach((resource) => {
           watchedBy.forEach(parentType => {
             const parents = dynamicResources()[parentType] || [];
             parents.forEach(parent => {
               if (extraWatches[parentType].some((extraWatch: ExtraWatchConfig) => extraWatch.isParent(resource, parent))) {
-                if (!parent.children || !parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
-                  parent.children = [...(parent.children || []), resource];
+                // Add this resource as a child of the parent
+                if (!parent.children) {
+                  parent.children = [];
+                }
+                if (!parent.children.find((child: any) => child.metadata.name === resource.metadata.name)) {
+                  parent.children.push(resource);
                 }
               }
             });
           });
-        }
-      });
+        });
+      }
     });
   });
 
@@ -512,6 +649,22 @@ export function KustomizationDetails() {
   };
 
   const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, kustomization: Kustomization, parentId: string) => {
+    // Check if this resource type should be visible
+    const visible = isResourceTypeVisible(resourceType);
+
+    // If this resource is not visible
+    if (!visible) {
+      // If the resource has children, draw the children directly from the parent
+      if (resource.children && resource.children.length > 0) {
+        resource.children.forEach((child: any) => {
+          const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
+          drawResource(g, child, childResourceType, kustomization, parentId);
+        });
+      }
+      return;
+    }
+    
+    // Resource is visible, draw it normally
     const resourceId = createNodeWithCardRenderer(
       g,
       `${resourceType.replace('/', '-')}-${resource.metadata.name}`,
@@ -526,13 +679,14 @@ export function KustomizationDetails() {
 
     g.setEdge(parentId, resourceId);
     
+    // Draw children if any
     if (resource.children) {
       resource.children.forEach((child: any) => {
-        const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion + '/' + child.kind);
+        const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
         drawResource(g, child, childResourceType, kustomization, resourceId);
       });
     }
-  }
+  };
 
   const handleBackClick = () => {
     // Global filter state is already maintained by the filter store
@@ -562,6 +716,15 @@ export function KustomizationDetails() {
                     </div>
                   </div>
                   <div class="header-actions">
+                    {/* Add the resource type visibility dropdown with local state */}
+                    <ResourceTypeVisibilityDropdown 
+                      resourceTypes={allResourceTypes()}
+                      visibleResourceTypes={visibleResourceTypes()}
+                      toggleResourceTypeVisibility={toggleResourceTypeVisibility}
+                      setResourceTypeVisibility={setResourceTypeVisibility}
+                      setAllResourceTypesVisibility={setAllResourceTypesVisibility}
+                    />
+                    
                     <button class="sync-button" onClick={async () => {
                       if (!k()) return;
                       
@@ -695,8 +858,8 @@ export function KustomizationDetails() {
                             <span class="label">Last Applied Revision:</span>
                             {renderRevision(k().status?.lastAppliedRevision, k().spec.sourceRef.kind, sourceRepository()?.spec?.url )}
                           </div>
+                        </div>
                       </div>
-                    </div>
                     )}
                     
                     <div class="info-item full-width">
