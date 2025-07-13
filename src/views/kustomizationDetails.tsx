@@ -622,6 +622,9 @@ export function KustomizationDetails() {
     return g;
   };
 
+  // Add state for pagination
+  const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
+
   const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, kustomization: Kustomization, parentId: string) => {
     // Check if this resource type should be visible
     const visible = isResourceTypeVisible(resourceType);
@@ -655,9 +658,97 @@ export function KustomizationDetails() {
     
     // Draw children if any
     if (resource.children) {
-      resource.children.forEach((child: any) => {
+      // Group children by resourceType
+      const childrenByType = resource.children.reduce((acc: Record<string, any[]>, child: any) => {
         const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
-        drawResource(g, child, childResourceType, kustomization, resourceId);
+        if (!acc[childResourceType]) {
+          acc[childResourceType] = [];
+        }
+        acc[childResourceType].push(child);
+        return acc;
+      }, {});
+
+      // Process each resource type group
+      Object.entries(childrenByType).forEach(([childResourceType, children]) => {
+        if (children.length > 20) {
+          // Paginate if more than 20 children of same type
+          const paginationKey = `${resourceId}-${childResourceType}`;
+          const currentPage = paginationState()[paginationKey] || 0;
+          const pageSize = 20;
+          const totalPages = Math.ceil(children.length / pageSize);
+          const startIndex = currentPage * pageSize;
+          const endIndex = Math.min(startIndex + pageSize, children.length);
+          const visibleChildren = children.slice(startIndex, endIndex);
+
+          // Create pagination controls if needed
+          if (totalPages > 1) {
+            const paginationId = `pagination-${paginationKey}`;
+            const paginationContent = (
+              <div class="pagination-controls">
+                <div class="pagination-info">
+                  {childResourceType.split('/')[1]} ({startIndex + 1}-{endIndex} of {children.length})
+                </div>
+                <div class="pagination-buttons">
+                  <button 
+                    onClick={() => {
+                      if (currentPage > 0) {
+                        setPaginationState(prev => ({
+                          ...prev,
+                          [paginationKey]: currentPage - 1
+                        }));
+                      }
+                    }}
+                    disabled={currentPage === 0}
+                    class="pagination-btn"
+                  >
+                    ‹
+                  </button>
+                  <span class="page-indicator">{currentPage + 1}/{totalPages}</span>
+                  <button 
+                    onClick={() => {
+                      if (currentPage < totalPages - 1) {
+                        setPaginationState(prev => ({
+                          ...prev,
+                          [paginationKey]: currentPage + 1
+                        }));
+                      }
+                    }}
+                    disabled={currentPage >= totalPages - 1}
+                    class="pagination-btn"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            );
+
+            createNode(g, paginationId, "", {
+              fill: "#f8f9fa",
+              stroke: "#dee2e6",
+              strokeWidth: "1",
+              jsxContent: paginationContent,
+              width: 280,
+              height: 50
+            });
+
+            g.setEdge(resourceId, paginationId);
+
+            // Draw visible children connected to pagination node
+            visibleChildren.forEach((child: any) => {
+              drawResource(g, child, childResourceType, kustomization, paginationId);
+            });
+          } else {
+            // Less than or equal to 20, draw normally
+            children.forEach((child: any) => {
+              drawResource(g, child, childResourceType, kustomization, resourceId);
+            });
+          }
+        } else {
+          // Less than or equal to 20, draw normally
+          children.forEach((child: any) => {
+            drawResource(g, child, childResourceType, kustomization, resourceId);
+          });
+        }
       });
     }
   };
