@@ -1,4 +1,4 @@
-import { Accessor, createEffect, onMount, onCleanup, createSignal, createMemo, Show, JSX } from "solid-js";
+import { Accessor, Setter, createEffect, onMount, onCleanup, createSignal, createMemo, Show, JSX } from "solid-js";
 import { render } from "solid-js/web";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
@@ -125,6 +125,55 @@ export function createNode(
   });
 
   return id;
+}
+
+export function createPaginationNode(
+  resourceType: string,
+  startIndex: number,
+  endIndex: number,
+  totalPages: number,
+  currentPage: number,
+  setPaginationState: Setter<Record<string, number>>,
+  paginationKey: string,
+) {
+  return (
+    <div class="pagination-controls">
+      <div class="pagination-info">
+        {resourceType.split('/')[1]} ({startIndex + 1}-{endIndex} of {totalPages})
+      </div>
+      <div class="pagination-buttons">
+        <button 
+          onClick={() => {
+            if (currentPage > 0) {
+              setPaginationState(prev => ({
+                ...prev,
+                [paginationKey]: currentPage - 1
+              }));
+            }
+          }}
+          disabled={currentPage === 0}
+          class="pagination-btn"
+        >
+          ‹
+        </button>
+        <span class="page-indicator">{currentPage + 1}/{totalPages}</span>
+        <button 
+          onClick={() => {
+            if (currentPage < totalPages - 1) {
+              setPaginationState(prev => ({
+                ...prev,
+                [paginationKey]: currentPage + 1
+              }));
+            }
+          }}
+          disabled={currentPage >= totalPages - 1}
+          class="pagination-btn"
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // Helper function to create a node with card renderer

@@ -7,7 +7,7 @@ import type {
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { getHumanReadableStatus } from "../utils/conditions.ts";
-import { createNodeWithCardRenderer, ResourceTree } from "../components/ResourceTree.tsx";
+import { createNodeWithCardRenderer, createNode, ResourceTree, createPaginationNode } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
@@ -622,42 +622,85 @@ export function KustomizationDetails() {
     return g;
   };
 
+  // Add state for pagination
+  const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
+
   const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, kustomization: Kustomization, parentId: string) => {
-    // Check if this resource type should be visible
     const visible = isResourceTypeVisible(resourceType);
-
-    // If this resource is not visible
-    if (!visible) {
-      // If the resource has children, draw the children directly from the parent
-      if (resource.children && resource.children.length > 0) {
-        resource.children.forEach((child: any) => {
-          const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
-          drawResource(g, child, childResourceType, kustomization, parentId);
-        });
-      }
-      return;
+    
+    let resourceId = null;
+    if (visible) {
+      resourceId = createNodeWithCardRenderer(
+        g,
+        `${resourceType.replace('/', '-')}-${resource.metadata.name}`,
+        resource,
+        resourceType,
+        {
+          fill: "#e6f4ea",
+          stroke: "#137333",
+          strokeWidth: "1"
+        }
+      );
+      g.setEdge(parentId, resourceId);
+    } else {
+      resourceId = parentId; // If not visible, draw its children as a children of the parent
     }
-    
-    // Resource is visible, draw it normally
-    const resourceId = createNodeWithCardRenderer(
-      g,
-      `${resourceType.replace('/', '-')}-${resource.metadata.name}`,
-      resource,
-      resourceType,
-      {
-        fill: "#e6f4ea",
-        stroke: "#137333",
-        strokeWidth: "1"
-      }
-    );
 
-    g.setEdge(parentId, resourceId);
-    
     // Draw children if any
     if (resource.children) {
-      resource.children.forEach((child: any) => {
+      const MAX_CHILDREN_PER_PAGE = 10;
+
+      // Group children by resourceType
+      const childrenByType = resource.children.reduce((acc: Record<string, any[]>, child: any) => {
         const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
-        drawResource(g, child, childResourceType, kustomization, resourceId);
+        if (!acc[childResourceType]) {
+          acc[childResourceType] = [];
+        }
+        acc[childResourceType].push(child);
+        return acc;
+      }, {});
+
+      // Process each resource type group
+      Object.entries(childrenByType).forEach(([childResourceType, children]) => {
+        if (children.length > MAX_CHILDREN_PER_PAGE) {
+          // Paginate if more than MAX_CHILDREN_PER_PAGE children of same type
+          const paginationKey = `${resourceId}-${childResourceType}`;
+          const currentPage = paginationState()[paginationKey] || 0;
+          const pageSize = MAX_CHILDREN_PER_PAGE;
+          const totalPages = Math.ceil(children.length / pageSize);
+          const startIndex = currentPage * pageSize;
+          const endIndex = Math.min(startIndex + pageSize, children.length);
+          const visibleChildren = children.slice(startIndex, endIndex);
+
+          const paginationResourceId = createNode(g, `pagination-${paginationKey}`, "", {
+            fill: "#f8f9fa",
+            stroke: "#dee2e6",
+            strokeWidth: "1",
+            jsxContent: createPaginationNode(
+              childResourceType,
+              startIndex,
+              endIndex,
+              totalPages,
+              currentPage,
+              setPaginationState,
+              paginationKey
+            ),
+            width: 280,
+            height: 50
+          });
+
+          g.setEdge(resourceId, paginationResourceId);
+
+          // Draw visible children connected to pagination node
+          visibleChildren.forEach((child: any) => {
+            drawResource(g, child, childResourceType, kustomization, paginationResourceId);
+          });
+        } else {
+          // Less than or equal to MAX_CHILDREN_PER_PAGE, draw normally
+          children.forEach((child: any) => {
+            drawResource(g, child, childResourceType, kustomization, resourceId);
+          });
+        }
       });
     }
   };
