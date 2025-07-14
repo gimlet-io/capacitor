@@ -27,9 +27,13 @@ interface InventoryResourceInfo {
 const DEFAULT_HIDDEN_RESOURCE_TYPES = [
   'apps/ReplicaSet',
   'rbac.authorization.k8s.io/Role',
+  'rbac.authorization.k8s.io/RoleBinding',
   'rbac.authorization.k8s.io/ClusterRole',
+  'rbac.authorization.k8s.io/ClusterRoleBinding',
   'core/ServiceAccount'
 ];
+
+const MAX_CHILDREN_PER_PAGE = 5;
 
 const parseInventoryEntryId = (id: string): InventoryResourceInfo | null => {
   // Examples:
@@ -456,7 +460,7 @@ export function KustomizationDetails() {
   const watch = (resourceType: NamespaceResourceType) =>{
     const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType.resourceType);
     if (!k8sResource) {
-      console.warn(`Unknown resource type in inventory: ${resourceType}. Available resource types:`, filterStore.k8sResources.map(r => r.id));
+      console.warn(`Unknown resource type in inventory: ${resourceType.resourceType}. Available resource types:`, filterStore.k8sResources.map(r => r.id));
       return;
     }
 
@@ -610,12 +614,60 @@ export function KustomizationDetails() {
       }
     );
 
-    kustomization.status?.inventory?.entries?.forEach((entry) => {
+    const childrenByType = kustomization.status?.inventory?.entries?.reduce((acc: Record<string, any[]>, entry: any) => {
       const parts = entry.id.split('_')
-      const resourceType = (parts[2]=== '' ? 'core' : parts[2]) + '/'+parts[3];
-      const resource = dynamicResources()[resourceType]?.find((res: any) => res.metadata.name === parts[1]);
-      if (resource) {
-        drawResource(g, resource, resourceType, kustomization, kustomizationId);
+      const childResourceType = (parts[2]=== '' ? 'core' : parts[2]) + '/'+parts[3];
+      const childResource = dynamicResources()[childResourceType]?.find((res: any) => res.metadata.name === parts[1]);
+      if (childResource) {
+        if (!acc[childResourceType]) {
+          acc[childResourceType] = [];
+        }
+        acc[childResourceType].push(childResource);
+        
+      }
+      return acc;
+    }, {});
+
+    // Process each resource type group
+    Object.entries(childrenByType || {}).forEach(([childResourceType, children]) => {
+      if (children.length > MAX_CHILDREN_PER_PAGE) {
+        // Paginate if more than MAX_CHILDREN_PER_PAGE children of same type
+        const paginationKey = `${kustomizationId}-${childResourceType}`;
+        const currentPage = paginationState()[paginationKey] || 0;
+        const pageSize = MAX_CHILDREN_PER_PAGE;
+        const totalPages = Math.ceil(children.length / pageSize);
+        const startIndex = currentPage * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, children.length);
+        const visibleChildren = children.slice(startIndex, endIndex);
+
+        const paginationResourceId = createNode(g, `pagination-${paginationKey}`, "", {
+          fill: "#f8f9fa",
+          stroke: "#dee2e6",
+          strokeWidth: "1",
+          jsxContent: createPaginationNode(
+            childResourceType,
+            startIndex,
+            endIndex,
+            totalPages,
+            currentPage,
+            setPaginationState,
+            paginationKey
+          ),
+          width: 280,
+          height: 50
+        });
+
+        g.setEdge(kustomizationId, paginationResourceId);
+
+        // Draw visible children connected to pagination node
+        visibleChildren.forEach((child: any) => {
+          drawResource(g, child, childResourceType, paginationResourceId);
+        });
+      } else {
+        // Less than or equal to MAX_CHILDREN_PER_PAGE, draw normally
+        children.forEach((child: any) => {
+          drawResource(g, child, childResourceType, kustomizationId);
+        });
       }
     });
 
@@ -625,7 +677,7 @@ export function KustomizationDetails() {
   // Add state for pagination
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
 
-  const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, kustomization: Kustomization, parentId: string) => {
+  const drawResource = (g: graphlib.Graph, resource: any, resourceType: string, parentId: string) => {
     const visible = isResourceTypeVisible(resourceType);
     
     let resourceId = null;
@@ -648,9 +700,6 @@ export function KustomizationDetails() {
 
     // Draw children if any
     if (resource.children) {
-      const MAX_CHILDREN_PER_PAGE = 10;
-
-      // Group children by resourceType
       const childrenByType = resource.children.reduce((acc: Record<string, any[]>, child: any) => {
         const childResourceType = child.apiVersion === 'v1'? 'core/' + child.kind : (child.apiVersion.split('/')[0] + '/' + child.kind);
         if (!acc[childResourceType]) {
@@ -693,12 +742,12 @@ export function KustomizationDetails() {
 
           // Draw visible children connected to pagination node
           visibleChildren.forEach((child: any) => {
-            drawResource(g, child, childResourceType, kustomization, paginationResourceId);
+            drawResource(g, child, childResourceType, paginationResourceId);
           });
         } else {
           // Less than or equal to MAX_CHILDREN_PER_PAGE, draw normally
           children.forEach((child: any) => {
-            drawResource(g, child, childResourceType, kustomization, resourceId);
+            drawResource(g, child, childResourceType, resourceId);
           });
         }
       });
