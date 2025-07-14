@@ -1,6 +1,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount } from "solid-js";
 import { untrack } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 
@@ -57,7 +58,12 @@ export function FilterBar(props: {
   onFilterChange: (filters: ActiveFilter[]) => void;
 }) {
   const filterStore = useFilterStore();
-  const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Initialize activeFilter from URL search param or null
+  const [activeFilter, setActiveFilter] = createSignal<string | null>(
+    searchParams.activeFilter || null
+  );
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
   const [optionSearchInputs, setOptionSearchInputs] = createSignal<Record<string, string>>({});
@@ -65,6 +71,24 @@ export function FilterBar(props: {
   const filtersRef = new Map<string, HTMLDivElement>();
   const textInputRefs = new Map<string, HTMLInputElement>();
   const optionSearchInputRefs = new Map<string, HTMLInputElement>();
+
+  // Update URL when activeFilter changes
+  const updateActiveFilter = (filterName: string | null) => {
+    setActiveFilter(filterName);
+    if (filterName) {
+      setSearchParams({ activeFilter: filterName });
+    } else {
+      setSearchParams({ activeFilter: undefined });
+    }
+  };
+
+  // Sync activeFilter from URL changes
+  createEffect(() => {
+    const urlActiveFilter = searchParams.activeFilter;
+    if (urlActiveFilter !== activeFilter()) {
+      setActiveFilter(urlActiveFilter || null);
+    }
+  });
 
   const toggleFilter = (filter: string, value: string) => {
     let newFilters: ActiveFilter[] = [...props.activeFilters];
@@ -210,7 +234,7 @@ export function FilterBar(props: {
         setPendingTextInputs(prev => ({ ...prev, [filterName]: currentValue }));
       }
       
-      setActiveFilter(filterName);
+      updateActiveFilter(filterName);
       
       // Find active filter selection (if any)
       let initialIndex = -1;
@@ -386,7 +410,7 @@ export function FilterBar(props: {
       }
       
       // Close the filter on Enter
-      setActiveFilter(null);
+      updateActiveFilter(null);
     } else if (event.key === "Escape") {
       // For text filters, reset to the last applied value
       if (filter.type === "text") {
@@ -396,7 +420,7 @@ export function FilterBar(props: {
       }
       
       // Close the filter on Escape without making a selection
-      setActiveFilter(null);
+      updateActiveFilter(null);
     } 
     
     // If this is a text filter, we don't need the navigation logic
@@ -474,7 +498,7 @@ export function FilterBar(props: {
         applyTextFilter(filter.name, pendingValue);
       }
       
-      setActiveFilter(null);
+      updateActiveFilter(null);
     }
   };
 
@@ -553,7 +577,7 @@ export function FilterBar(props: {
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveFilter(current => current === filter.name ? null : filter.name);
+                    updateActiveFilter(activeFilter() === filter.name ? null : filter.name);
                   }}
                 >
                   {getFilterButtonText(filter)}
