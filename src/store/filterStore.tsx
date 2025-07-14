@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack } from "solid-js";
+import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack, onMount } from "solid-js";
 import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
@@ -31,6 +31,47 @@ interface FilterState {
 
 const FilterContext = createContext<FilterState>();
 
+// URL parameter utilities
+const serializeFilters = (filters: ActiveFilter[]): string => {
+  if (filters.length === 0) return '';
+  const filterParams = filters.map(f => `${f.name}=${encodeURIComponent(f.value)}`).join('&');
+  return filterParams;
+};
+
+const deserializeFilters = (searchParams: URLSearchParams): ActiveFilter[] => {
+  const filters: ActiveFilter[] = [];
+  for (const [name, value] of searchParams) {
+    if (name !== 'view') { // Skip view parameter
+      filters.push({ name, value: decodeURIComponent(value) });
+    }
+  }
+  return filters;
+};
+
+const updateURL = (filters: ActiveFilter[], view: string) => {
+  const url = new URL(window.location.href);
+  url.search = '';
+  
+  // Add view parameter
+  if (view) {
+    url.searchParams.set('view', view);
+  }
+  
+  // Add filter parameters
+  filters.forEach(filter => {
+    url.searchParams.set(filter.name, filter.value);
+  });
+  
+  window.history.replaceState(null, '', url.toString());
+};
+
+const loadFromURL = (): { filters: ActiveFilter[], view: string } => {
+  const url = new URL(window.location.href);
+  const view = url.searchParams.get('view') || '';
+  const filters = deserializeFilters(url.searchParams);
+  return { filters, view };
+};
+
 export function FilterProvider(props: { children: JSX.Element }) {
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
   const [selectedView, setSelectedView] = createSignal<string>('');
@@ -40,6 +81,7 @@ export function FilterProvider(props: { children: JSX.Element }) {
   const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
   const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
+  const [isInitialized, setIsInitialized] = createSignal<boolean>(false);
   const apiResourceStore = useApiResourceStore();
 
   const nameFilter: Filter = {
@@ -114,9 +156,12 @@ export function FilterProvider(props: { children: JSX.Element }) {
     setIsNavigating(false);
   };
 
-  // Custom setActiveFilters that manages history
+  // Custom setActiveFilters that manages history and URL
   const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
+    if (isInitialized()) {
+      updateURL(filters, selectedView());
+    }
     addToHistory(filters, selectedView());
   };
 
@@ -255,6 +300,37 @@ export function FilterProvider(props: { children: JSX.Element }) {
     });
 
     setFilterRegistry(registry);
+  });
+
+  // Initialize from URL on mount
+  onMount(() => {
+    const urlState = loadFromURL();
+    if (urlState.filters.length > 0 || urlState.view) {
+      setActiveFilters(urlState.filters);
+      setSelectedView(urlState.view);
+    }
+    setIsInitialized(true);
+
+    // Handle browser back/forward navigation
+    const handlePopState = () => {
+      const urlState = loadFromURL();
+      setActiveFilters(urlState.filters);
+      setSelectedView(urlState.view);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  });
+
+  // Sync URL when selectedView changes
+  createEffect(() => {
+    if (isInitialized()) {
+      updateURL(activeFilters(), selectedView());
+    }
   });
 
   // Handle view changes - keep this simple for integration with ViewBar
