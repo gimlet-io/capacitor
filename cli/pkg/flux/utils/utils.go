@@ -18,12 +18,9 @@ package utils
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -62,48 +59,6 @@ const (
 	ModeStderrOS ExecMode = "os.stderr"
 	ModeCapture  ExecMode = "capture.stderr|stdout"
 )
-
-func ExecKubectlCommand(ctx context.Context, mode ExecMode, kubeConfigPath string, kubeContext string, args ...string) (string, error) {
-	var stdoutBuf, stderrBuf bytes.Buffer
-
-	if kubeConfigPath != "" && len(filepath.SplitList(kubeConfigPath)) == 1 {
-		args = append(args, "--kubeconfig="+kubeConfigPath)
-	}
-
-	if kubeContext != "" {
-		args = append(args, "--context="+kubeContext)
-	}
-
-	c := exec.CommandContext(ctx, "kubectl", args...)
-
-	if mode == ModeStderrOS {
-		c.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
-	}
-	if mode == ModeOS {
-		c.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
-		c.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
-	}
-
-	if mode == ModeStderrOS || mode == ModeOS {
-		if err := c.Run(); err != nil {
-			return "", err
-		} else {
-			return "", nil
-		}
-	}
-
-	if mode == ModeCapture {
-		c.Stdout = &stdoutBuf
-		c.Stderr = &stderrBuf
-		if err := c.Run(); err != nil {
-			return stderrBuf.String(), err
-		} else {
-			return stdoutBuf.String(), nil
-		}
-	}
-
-	return "", nil
-}
 
 func KubeConfig(rcg genericclioptions.RESTClientGetter, opts *runclient.Options) (*rest.Config, error) {
 	cfg, err := rcg.ToRESTConfig()
