@@ -185,8 +185,18 @@ export function ResourceList<T>(props: {
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
   const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
-  const [sortColumn, setSortColumn] = createSignal<string | null>(props.resourceTypeConfig.defaultSortColumn || null);
-  const [sortAscending, setSortAscending] = createSignal(true);
+  // Use filterStore for sorting state
+  const sortColumn = () => filterStore.sortColumn;
+  const sortAscending = () => filterStore.sortAscending;
+  const setSortColumn = (column: string | null) => filterStore.setSortColumn(column);
+  const setSortAscending = (ascending: boolean) => filterStore.setSortAscending(ascending);
+
+  // Initialize sort column from config if not already set
+  createEffect(() => {
+    if (!filterStore.sortColumn && props.resourceTypeConfig.defaultSortColumn) {
+      filterStore.setSortColumn(props.resourceTypeConfig.defaultSortColumn);
+    }
+  });
 
   // Get the selected namespace
   const selectedNamespace = createMemo(() => {
