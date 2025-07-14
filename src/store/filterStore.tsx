@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack } from "solid-js";
+import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack, onMount } from "solid-js";
 import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
@@ -27,9 +27,64 @@ interface FilterState {
   canGoForward: boolean;
   goBack: () => void;
   goForward: () => void;
+
+  // Sorting
+  sortColumn: string | null;
+  setSortColumn: (column: string | null) => void;
+  sortAscending: boolean;
+  setSortAscending: (ascending: boolean) => void;
 }
 
 const FilterContext = createContext<FilterState>();
+
+// URL parameter utilities
+const serializeFilters = (filters: ActiveFilter[]): string => {
+  if (filters.length === 0) return '';
+  const filterParams = filters.map(f => `${f.name}=${encodeURIComponent(f.value)}`).join('&');
+  return filterParams;
+};
+
+const deserializeFilters = (searchParams: URLSearchParams): ActiveFilter[] => {
+  const filters: ActiveFilter[] = [];
+  for (const [name, value] of searchParams) {
+    if (name !== 'view' && name !== 'sortColumn' && name !== 'sortAscending') { // Skip view and sort parameters
+      filters.push({ name, value: decodeURIComponent(value) });
+    }
+  }
+  return filters;
+};
+
+const updateURL = (filters: ActiveFilter[], view: string, sortColumn: string | null, sortAscending: boolean) => {
+  const url = new URL(window.location.href);
+  url.search = '';
+  
+  // Add view parameter
+  if (view) {
+    url.searchParams.set('view', view);
+  }
+  
+  // Add sort parameters
+  if (sortColumn) {
+    url.searchParams.set('sortColumn', sortColumn);
+    url.searchParams.set('sortAscending', sortAscending.toString());
+  }
+  
+  // Add filter parameters
+  filters.forEach(filter => {
+    url.searchParams.set(filter.name, filter.value);
+  });
+  
+  window.history.replaceState(null, '', url.toString());
+};
+
+const loadFromURL = (): { filters: ActiveFilter[], view: string, sortColumn: string | null, sortAscending: boolean } => {
+  const url = new URL(window.location.href);
+  const view = url.searchParams.get('view') || '';
+  const sortColumn = url.searchParams.get('sortColumn') || null;
+  const sortAscending = url.searchParams.get('sortAscending') !== 'false'; // Default to true
+  const filters = deserializeFilters(url.searchParams);
+  return { filters, view, sortColumn, sortAscending };
+};
 
 export function FilterProvider(props: { children: JSX.Element }) {
   const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
@@ -40,6 +95,9 @@ export function FilterProvider(props: { children: JSX.Element }) {
   const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
   const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
+  const [isInitialized, setIsInitialized] = createSignal<boolean>(false);
+  const [sortColumn, setSortColumn] = createSignal<string | null>(null);
+  const [sortAscending, setSortAscending] = createSignal<boolean>(true);
   const apiResourceStore = useApiResourceStore();
 
   const nameFilter: Filter = {
@@ -114,9 +172,12 @@ export function FilterProvider(props: { children: JSX.Element }) {
     setIsNavigating(false);
   };
 
-  // Custom setActiveFilters that manages history
+  // Custom setActiveFilters that manages history and URL
   const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
+    if (isInitialized()) {
+      updateURL(filters, selectedView(), sortColumn(), sortAscending());
+    }
     addToHistory(filters, selectedView());
   };
 
@@ -257,6 +318,41 @@ export function FilterProvider(props: { children: JSX.Element }) {
     setFilterRegistry(registry);
   });
 
+  // Initialize from URL on mount
+  onMount(() => {
+    const urlState = loadFromURL();
+    if (urlState.filters.length > 0 || urlState.view || urlState.sortColumn) {
+      setActiveFilters(urlState.filters);
+      setSelectedView(urlState.view);
+      setSortColumn(urlState.sortColumn);
+      setSortAscending(urlState.sortAscending);
+    }
+    setIsInitialized(true);
+
+    // Handle browser back/forward navigation
+    const handlePopState = () => {
+      const urlState = loadFromURL();
+      setActiveFilters(urlState.filters);
+      setSelectedView(urlState.view);
+      setSortColumn(urlState.sortColumn);
+      setSortAscending(urlState.sortAscending);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  });
+
+  // Sync URL when selectedView or sorting changes
+  createEffect(() => {
+    if (isInitialized()) {
+      updateURL(activeFilters(), selectedView(), sortColumn(), sortAscending());
+    }
+  });
+
   // Handle view changes - keep this simple for integration with ViewBar
   createEffect(() => {
     const currentViewId = selectedView();
@@ -287,6 +383,10 @@ export function FilterProvider(props: { children: JSX.Element }) {
     get canGoForward() { return canGoForward(); },
     goBack,
     goForward,
+    get sortColumn() { return sortColumn(); },
+    setSortColumn: setSortColumn,
+    get sortAscending() { return sortAscending(); },
+    setSortAscending: setSortAscending,
   };
 
   return (
