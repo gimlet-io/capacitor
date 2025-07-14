@@ -1,9 +1,11 @@
 package config
 
 import (
-	"flag"
 	"os"
 	"path/filepath"
+	"strconv"
+
+	"github.com/spf13/pflag"
 )
 
 // Config holds the main application configuration
@@ -34,22 +36,23 @@ func New() *Config {
 // Parse processes command line arguments and environment variables
 func (c *Config) Parse() {
 	// Command line arguments
-	flag.StringVar(&c.Address, "address", c.Address, "Address to listen on")
-	flag.IntVar(&c.Port, "port", c.Port, "Port to listen on")
-	flag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve")
-	flag.StringVar(&c.KubeConfigPath, "kube-config", c.KubeConfigPath, "Path to kubeconfig file")
-	flag.BoolVar(&c.InCluster, "in-cluster", c.InCluster, "Use in-cluster configuration")
-	flag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development)")
+	pflag.StringVar(&c.Address, "address", c.Address, "Address to listen on")
+	pflag.IntVar(&c.Port, "port", c.Port, "Port to listen on")
+	pflag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve")
+	pflag.StringVar(&c.KubeConfigPath, "kube-config", c.KubeConfigPath, "Path to kubeconfig file")
+	pflag.BoolVar(&c.InCluster, "in-cluster", c.InCluster, "Use in-cluster configuration")
+	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development)")
 
-	flag.Parse()
+	pflag.Parse()
 
 	// Environment variables override command line flags
 	if env := os.Getenv("K8S_PROXY_ADDRESS"); env != "" {
 		c.Address = env
 	}
 	if env := os.Getenv("K8S_PROXY_PORT"); env != "" {
-		// Note: In a production app, you'd want to parse string to int and handle errors
-		// For simplicity, we're not doing that here
+		if port, err := strconv.Atoi(env); err == nil {
+			c.Port = port
+		}
 	}
 	if env := os.Getenv("K8S_PROXY_STATIC_DIR"); env != "" {
 		c.StaticFilesDirectory = env
