@@ -4,6 +4,7 @@ import { EventList } from "../resourceList/EventList.tsx";
 import { LogsViewer } from "./LogsViewer.tsx";
 import type { Event } from "../../types/k8s.ts";
 import { stringify } from "@std/yaml";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 
 type DrawerTab = "describe" | "yaml" | "events" | "logs";
 
@@ -18,6 +19,7 @@ export function ResourceDrawer(props: {
   const [yamlData, setYamlData] = createSignal<string>("");
   const [events, setEvents] = createSignal<Event[]>([]);
   const [loading, setLoading] = createSignal<boolean>(true);
+  const apiResourceStore = useApiResourceStore();
   
   let describeContentRef: HTMLPreElement | undefined;
   let yamlContentRef: HTMLPreElement | undefined;
@@ -67,6 +69,25 @@ export function ResourceDrawer(props: {
     }
   };
 
+  // Helper function to get the correct plural resource name
+  const getResourceName = (kind: string, apiVersion: string) => {
+    // Find the matching API resource to get the correct plural form
+    const apiResources = apiResourceStore.apiResources || [];
+    const matchingResource = apiResources.find(resource => 
+      resource.kind.toLowerCase() === kind.toLowerCase() && 
+      (apiVersion.includes(resource.group || '') || (!resource.group && apiVersion === 'v1'))
+    );
+    
+    // If we found a matching resource, use its name (which is the plural form)
+    if (matchingResource) {
+      return matchingResource.name;
+    }
+    
+    // Fallback to adding 's' for plural if we can't find the resource
+    // This is not ideal but maintains backward compatibility
+    return `${kind.toLowerCase()}s`;
+  };
+
   // Fetch the YAML data when the drawer opens
   const fetchYamlData = async () => {
     if (!props.resource) return;
@@ -84,9 +105,12 @@ export function ResourceDrawer(props: {
         ? `/k8s/apis/${apiVersion}` 
         : `/k8s/api/${apiVersion || 'v1'}`;
       
+      // Get the correct plural resource name
+      const resourceName = getResourceName(kind, apiVersion);
+      
       const url = isNamespaced
-        ? `${resourcePath}/namespaces/${namespace}/${kind.toLowerCase()}s/${name}`
-        : `${resourcePath}/${kind.toLowerCase()}s/${name}`;
+        ? `${resourcePath}/namespaces/${namespace}/${resourceName}/${name}`
+        : `${resourcePath}/${resourceName}/${name}`;
       
       const response = await fetch(url);
       if (!response.ok) {
