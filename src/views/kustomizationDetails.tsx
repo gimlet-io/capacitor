@@ -163,22 +163,43 @@ const renderRevision = (revision: string | undefined, sourceKind: string, source
   return <span class="value">{`${revision}`}</span>;
 };
 
-// Add debounce utility function
-const debounce = <T extends (...args: any[]) => any>(
+// Add throttle utility function
+const throttle = <T extends (...args: any[]) => any>(
   fn: T,
   ms: number
 ): ((...args: Parameters<T>) => void) => {
-  let timeoutId: number | undefined;
+  let lastExecution = 0;
+  let pendingExecution: { args: Parameters<T>; timeout: number } | null = null;
   
   return (...args: Parameters<T>) => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
+    const now = Date.now();
     
-    timeoutId = setTimeout(() => {
+    // If enough time has passed since last execution, run immediately
+    if (now - lastExecution >= ms) {
+      lastExecution = now;
       fn(...args);
-      timeoutId = undefined;
-    }, ms) as unknown as number;
+      
+      // Clear any pending execution
+      if (pendingExecution) {
+        clearTimeout(pendingExecution.timeout);
+        pendingExecution = null;
+      }
+    } 
+    // Otherwise schedule for next interval
+    else if (!pendingExecution) {
+      const timeUntilNextExecution = ms - (now - lastExecution);
+      
+      pendingExecution = {
+        args,
+        timeout: setTimeout(() => {
+          if (pendingExecution) {
+            lastExecution = Date.now();
+            fn(...pendingExecution.args);
+            pendingExecution = null;
+          }
+        }, timeUntilNextExecution) as unknown as number
+      };
+    }
   };
 };
 
@@ -485,7 +506,7 @@ export function KustomizationDetails() {
     if (k8sResource.namespaced) {
       watchPath = `${k8sResource.apiPath}/namespaces/${resourceType.namespace}/${k8sResource.name}?watch=true`;
     }
-      
+
     const controller = new AbortController();
     watchResource(
       watchPath,
@@ -559,7 +580,7 @@ export function KustomizationDetails() {
   });
 
   // Debounced function to process dynamic resources
-  const processDynamicResources = debounce((dResources: Record<string, any[]>) => {
+  const processDynamicResources = throttle((dResources: Record<string, any[]>) => {
     // First, reset all children
     Object.entries(dResources).forEach(([resourceType, resources]) => {
       resources.forEach(resource => {
@@ -652,7 +673,7 @@ export function KustomizationDetails() {
 
     // Process each resource type group
     Object.entries(childrenByType || {}).forEach(([childResourceType, children]) => {
-      if (children.length > MAX_CHILDREN_PER_PAGE) {
+      if (children.length > MAX_CHILDREN_PER_PAGE && isResourceTypeVisible(childResourceType)) {
         // Paginate if more than MAX_CHILDREN_PER_PAGE children of same type
         const paginationKey = `${kustomizationId}-${childResourceType}`;
         const currentPage = paginationState()[paginationKey] || 0;
@@ -737,7 +758,7 @@ export function KustomizationDetails() {
         const childResourceType = entry[0];
         const children = entry[1] as any[];
         
-        if (children.length > MAX_CHILDREN_PER_PAGE && visible) {
+        if (children.length > MAX_CHILDREN_PER_PAGE && isResourceTypeVisible(childResourceType)) {
           // Paginate if more than MAX_CHILDREN_PER_PAGE children of same type
           const paginationKey = `${resourceId}-${childResourceType}`;
           const currentPage = paginationState()[paginationKey] || 0;
