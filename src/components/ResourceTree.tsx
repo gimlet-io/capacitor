@@ -624,24 +624,25 @@ export function ResourceTree(props: ResourceTreeProps) {
       const sourceNode = g.node(e.v) as NodeData;
       const targetNode = g.node(e.w) as NodeData;
 
-      // Calculate middle points
+      // Calculate connection points - source at right side, target at left side
       const sourceX = sourceNode.x! + sourceNode.width / 2;
       const sourceY = sourceNode.y!;
       const targetX = targetNode.x! - targetNode.width / 2;
       const targetY = targetNode.y!;
 
-      // Create Manhattan-style path
+      // Calculate path with square corners
       let pathData = `M ${sourceX} ${sourceY}`;
-
-      // Calculate intermediate points for Manhattan routing
-      const midX = (sourceX + targetX) / 2;
-
-      // First move horizontally to the midpoint
-      pathData += ` H ${midX}`;
-      // Then move vertically to target's y
-      pathData += ` V ${targetY}`;
-      // Finally move horizontally to target
-      pathData += ` H ${targetX}`;
+      
+      // Determine the midpoint between nodes
+      const midX = sourceX + (targetX - sourceX) / 2;
+      
+      // Create square path with right angles
+      // First go horizontally to midpoint
+      pathData += ` L ${midX} ${sourceY}`;
+      // Then go vertically to target's y-coordinate
+      pathData += ` L ${midX} ${targetY}`;
+      // Finally go horizontally to target
+      pathData += ` L ${targetX} ${targetY}`;
 
       path.setAttribute("d", pathData);
       path.setAttribute("fill", "none");
