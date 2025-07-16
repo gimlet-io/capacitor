@@ -370,7 +370,6 @@ h1 {
 .kustomization-header {
   flex-shrink: 0;
   padding: 1rem;
-  border-bottom: 1px solid var(--linear-border);
 }
 
 .resource-tree-wrapper {
@@ -501,14 +500,14 @@ h1 {
 }
 
 .header-info {
-  padding: 20px;
+  padding: 16px;
   background: var(--linear-bg-secondary);
 }
 
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .info-item {
