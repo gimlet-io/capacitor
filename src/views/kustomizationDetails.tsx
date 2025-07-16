@@ -223,8 +223,6 @@ export function KustomizationDetails() {
   
   // Resource visibility functions
   const isResourceTypeVisible = (resourceType: string): boolean => {
-    // If the set is empty, all resource types are visible by default
-    if (visibleResourceTypes().size === 0) return true;
     return visibleResourceTypes().has(resourceType);
   };
 
@@ -739,7 +737,7 @@ export function KustomizationDetails() {
         const childResourceType = entry[0];
         const children = entry[1] as any[];
         
-        if (children.length > MAX_CHILDREN_PER_PAGE) {
+        if (children.length > MAX_CHILDREN_PER_PAGE && visible) {
           // Paginate if more than MAX_CHILDREN_PER_PAGE children of same type
           const paginationKey = `${resourceId}-${childResourceType}`;
           const currentPage = paginationState()[paginationKey] || 0;
@@ -964,7 +962,7 @@ export function KustomizationDetails() {
                   g={graph}
                   resourceTypeVisibilityDropdown={<ResourceTypeVisibilityDropdown 
                       resourceTypes={allResourceTypes()}
-                      visibleResourceTypes={visibleResourceTypes()}
+                      visibleResourceTypes={visibleResourceTypes}
                       toggleResourceTypeVisibility={toggleResourceTypeVisibility}
                       setAllResourceTypesVisibility={setAllResourceTypesVisibility}
                     />}

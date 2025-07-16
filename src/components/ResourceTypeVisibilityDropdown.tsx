@@ -1,8 +1,8 @@
-import { createSignal, createEffect, For, Show } from "solid-js";
+import { createSignal, createEffect, For, Show, Accessor } from "solid-js";
 
 interface ResourceTypeVisibilityDropdownProps {
   resourceTypes: string[];
-  visibleResourceTypes: Set<string>;
+  visibleResourceTypes: Accessor<Set<string>>;
   toggleResourceTypeVisibility: (resourceType: string) => void;
   setAllResourceTypesVisibility: (isVisible: boolean) => void;
 }
@@ -60,9 +60,8 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
 
   // Check if a resource type is visible
   const isResourceTypeVisible = (resourceType: string): boolean => {
-    // If the set is empty, all resource types are visible by default
-    if (props.visibleResourceTypes.size === 0) return true;
-    return props.visibleResourceTypes.has(resourceType);
+    const visibleTypes = props.visibleResourceTypes();
+    return visibleTypes.has(resourceType);
   };
   
   // Toggle visibility for a specific resource type
@@ -74,8 +73,9 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
   // Count visible resource types
   const visibleCount = () => {
     let count = 0;
+    const visibleTypes = props.visibleResourceTypes();
     props.resourceTypes.forEach(type => {
-      if (props.visibleResourceTypes.has(type)) {
+      if (visibleTypes.has(type)) {
         count++;
       }
     });
@@ -112,7 +112,7 @@ export function ResourceTypeVisibilityDropdown(props: ResourceTypeVisibilityDrop
                 <input
                   type="checkbox"
                   checked={visibleCount() === props.resourceTypes.length}
-                  ref={(el) => setIndeterminate(el, props.visibleResourceTypes.size > 0 && visibleCount() < props.resourceTypes.length)}
+                  ref={(el) => setIndeterminate(el, props.visibleResourceTypes().size > 0 && visibleCount() < props.resourceTypes.length)}
                   onChange={(e) => {
                     const shouldCheck = visibleCount() < props.resourceTypes.length;
                     props.setAllResourceTypesVisibility(shouldCheck);
