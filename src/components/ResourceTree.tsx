@@ -217,7 +217,7 @@ const defaultCardRenderer: ResourceCardRenderer = {
           <div class="resource-type">{resource.kind}</div>
         </div>
         
-        <div class="resource-name">
+        <div class="resource-name" title={resource.metadata.namespace+'/'+resource.metadata.name}>
           {resource.metadata.namespace}/{resource.metadata.name}
         </div>
       </div>
