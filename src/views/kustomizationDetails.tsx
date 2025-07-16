@@ -163,6 +163,25 @@ const renderRevision = (revision: string | undefined, sourceKind: string, source
   return <span class="value">{`${revision}`}</span>;
 };
 
+// Add debounce utility function
+const debounce = <T extends (...args: any[]) => any>(
+  fn: T,
+  ms: number
+): ((...args: Parameters<T>) => void) => {
+  let timeoutId: number | undefined;
+  
+  return (...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    
+    timeoutId = setTimeout(() => {
+      fn(...args);
+      timeoutId = undefined;
+    }, ms) as unknown as number;
+  };
+};
+
 export function KustomizationDetails() {
   const params = useParams();
   const navigate = useNavigate();
@@ -538,15 +557,20 @@ export function KustomizationDetails() {
   };
 
   createEffect(() => {
+    processDynamicResources(dynamicResources());
+  });
+
+  // Debounced function to process dynamic resources
+  const processDynamicResources = debounce((dResources: Record<string, any[]>) => {
     // First, reset all children
-    Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
+    Object.entries(dResources).forEach(([resourceType, resources]) => {
       resources.forEach(resource => {
         resource.children = [];
       });
     });
     
     // Then populate children based on extraWatches
-    Object.entries(dynamicResources()).forEach(([resourceType, resources]) => {
+    Object.entries(dResources).forEach(([resourceType, resources]) => {
       let watchedBy: string[] = [];
       for (const [key, value] of Object.entries(extraWatches)) {
         if (value.some((extraWatch: ExtraWatchConfig) => extraWatch.resourceType === resourceType)) {
@@ -557,7 +581,7 @@ export function KustomizationDetails() {
       if (watchedBy.length > 0) {
         resources.forEach((resource) => {
           watchedBy.forEach(parentType => {
-            const parents = dynamicResources()[parentType] || [];
+            const parents = dResources[parentType] || [];
             parents.forEach(parent => {
               if (extraWatches[parentType].some((extraWatch: ExtraWatchConfig) => extraWatch.isParent(resource, parent))) {
                 // Add this resource as a child of the parent
@@ -573,7 +597,7 @@ export function KustomizationDetails() {
         });
       }
     });
-  });
+  }, 100);
 
   createEffect(() => {
     setGraph(createGraph(kustomization()));
