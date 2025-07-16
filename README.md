@@ -70,6 +70,15 @@ The development is happening on the `main` branch and releases are pushed freque
 | Helm values and manifest diffing   |        ❌                |
 | Kustomization diffing between cluster and git   |          ❌               |
 
+## Capacitor Next on a URL
+
+Capacitor Next is a tool you can run on your laptop.
+
+- Are you looking to host it for your team on a URL?
+- Or integrate with Backstage?
+
+Reach out to laszlo at gimlet.io. We are looking for design partners.
+
 ## Star History
 
 ![Star History Chart](https://api.star-history.com/svg?repos=gimlet-io/capacitor&type=Date)
