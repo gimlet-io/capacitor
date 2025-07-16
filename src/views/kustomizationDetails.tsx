@@ -651,10 +651,11 @@ export function KustomizationDetails() {
             totalPages,
             currentPage,
             setPaginationState,
-            paginationKey
+            paginationKey,
+            children.length
           ),
-          width: 280,
-          height: 50
+          width: 250,
+          height: 70
         });
 
         g.setEdge(kustomizationId, paginationResourceId);
@@ -710,7 +711,10 @@ export function KustomizationDetails() {
       }, {});
 
       // Process each resource type group
-      Object.entries(childrenByType).forEach(([childResourceType, children]) => {
+      Object.entries(childrenByType).forEach(entry => {
+        const childResourceType = entry[0];
+        const children = entry[1] as any[];
+        
         if (children.length > MAX_CHILDREN_PER_PAGE) {
           // Paginate if more than MAX_CHILDREN_PER_PAGE children of same type
           const paginationKey = `${resourceId}-${childResourceType}`;
@@ -732,10 +736,11 @@ export function KustomizationDetails() {
               totalPages,
               currentPage,
               setPaginationState,
-              paginationKey
+              paginationKey,
+              children.length
             ),
-            width: 280,
-            height: 50
+            width: 250,
+            height: 70
           });
 
           g.setEdge(resourceId, paginationResourceId);
@@ -930,8 +935,7 @@ export function KustomizationDetails() {
                   </div>
                 </div>
               </header>
-
-              <div class="resource-tree-container">
+              <div class="resource-tree-wrapper">
                 <ResourceTree
                   g={graph}
                   resourceTypeVisibilityDropdown={<ResourceTypeVisibilityDropdown 

@@ -3,7 +3,23 @@
    License: none (public domain)
 */
 
-html, body, div, span, applet, object, iframe,
+html {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--linear-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+}
+
+div, span, applet, object, iframe,
 h1, h2, h3, h4, h5, h6, p, blockquote, pre,
 a, abbr, acronym, address, big, cite, code,
 del, dfn, em, img, ins, kbd, q, s, samp,
@@ -75,6 +91,10 @@ body {
   color: var(--linear-text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -344,26 +364,26 @@ h1 {
 .kustomization-details {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0;
-  margin: 0;
+  height: 100vh;
 }
 
 .kustomization-header {
-  flex-shrink: 0; /* Prevent header from shrinking */
-  padding: 16px 24px;
+  flex-shrink: 0;
+  padding: 1rem;
   border-bottom: 1px solid var(--linear-border);
-  background-color: var(--linear-bg);
+}
+
+.resource-tree-wrapper {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 
 .header-top {
-  padding: 20px;
-  border-bottom: 1px solid var(--linear-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 1rem;
 }
 
 .header-left {
@@ -516,7 +536,8 @@ h1 {
 .resource-tree-container {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: calc(100vh - 200px); /* Adjust height to fit the screen */
+  overflow: hidden;
 }
 
 /* Resource Card Styling */
@@ -578,13 +599,18 @@ h1 {
 .graph-container {
   position: relative;
   width: 100%;
-  min-height: 400px;
+  height: 100%;
+  overflow: auto hidden; /* horizontal scroll only */
+  cursor: grab;
+}
+
+.graph-container:active {
+  cursor: grabbing;
 }
 
 .graph-svg {
-  width: 100%;
-  height: auto;
-  min-height: 400px;
+  display: block;
+  min-width: 100%;
   border: 1px solid var(--linear-border);
   background-color: var(--linear-bg);
 }
@@ -596,6 +622,51 @@ h1 {
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+/* Zoom controls */
+.zoom-controls {
+  display: flex;
+  flex-direction: row;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  box-shadow: var(--linear-shadow);
+  z-index: 10;
+}
+
+.zoom-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--linear-text-secondary);
+  transition: background-color 0.2s ease;
+}
+
+.zoom-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--linear-text-primary);
+}
+
+.zoom-button:active {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.zoom-button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 /* Tree keyboard shortcuts positioned in top right */
@@ -2641,6 +2712,7 @@ select.pod-select[size]:not([size="1"]) {
 .pagination-buttons {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 }
 
