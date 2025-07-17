@@ -1,4 +1,4 @@
-import type { Pod, Deployment, Service, ServiceWithResources, DeploymentWithResources, ReplicaSet, ReplicaSetWithResources } from '../types/k8s.ts';
+import type { Pod, Deployment, Service, ServiceWithResources, DeploymentWithResources, ReplicaSet, ReplicaSetWithResources, Kustomization, KustomizationWithEvents, Event } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
   if (!selector || !labels) return false;
@@ -56,4 +56,11 @@ export const getReplicaSetMatchingPods = (replicaSet: ReplicaSet, allPods: Pod[]
       pod.metadata.labels?.[key] === value
     )
   );
+};
+
+export const updateKustomizationMatchingEvents = (kustomization: Kustomization, allEvents: Event[]): KustomizationWithEvents => {
+  return {
+    ...kustomization,
+    events: allEvents.filter(event => event.metadata.namespace === kustomization.metadata.namespace && event.involvedObject.kind === "Kustomization" && event.involvedObject.name === kustomization.metadata.name)
+  };
 };

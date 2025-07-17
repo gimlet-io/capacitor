@@ -1,21 +1,31 @@
-import type { Kustomization } from "../../types/k8s.ts";
+import type { Kustomization, KustomizationWithEvents } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
-export const renderKustomizationDetails = (kustomization: Kustomization, columnCount = 4) => (
+export const renderKustomizationDetails = (kustomization: KustomizationWithEvents, columnCount = 4) => (
   <td colSpan={columnCount}>
-    <div class="second-row">
-      <strong>Source:</strong> {kustomization.spec.sourceRef.name} <br />
-      <strong>Path:</strong> {kustomization.spec.path} <br />
-      <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"}{" "}
-      <br />
-      <strong>Suspended:</strong>{" "}
-      {kustomization.spec.suspend ? "True" : "False"} <br />
-      <strong>Interval:</strong> {kustomization.spec.interval}
+    <div class="second-row" style="display: flex; gap: 50px;">
+      <div>
+        <strong>Source:</strong> {kustomization.spec.sourceRef.name} <br />
+        <strong>Path:</strong> {kustomization.spec.path} <br />
+        <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"}{" "}
+        <br />
+        <strong>Suspended:</strong>{" "}
+        {kustomization.spec.suspend ? "True" : "False"} <br />
+        <strong>Interval:</strong> {kustomization.spec.interval}
+      </div>
+      <div>
+        <strong>Events:</strong>
+        <ul>
+          {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).map((event) => (
+            <li>{event.lastTimestamp} {event.message}</li>
+          ))} 
+        </ul>
+      </div>
     </div>
   </td>
-);
+)
 
 export const kustomizationColumns = [
   {

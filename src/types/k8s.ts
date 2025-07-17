@@ -225,6 +225,10 @@ export interface Kustomization {
   };
 }
 
+export interface KustomizationWithEvents extends Kustomization {
+  events: Event[];
+}
+
 export interface Source {
   apiVersion: string;
   kind: string;
