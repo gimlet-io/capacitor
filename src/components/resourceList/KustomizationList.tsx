@@ -12,8 +12,6 @@ export const renderKustomizationDetails = (kustomization: ExtendedKustomization,
         <strong>Path:</strong> {kustomization.spec.path} <br />
         <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"}{" "}
         <br />
-        <strong>Suspended:</strong>{" "}
-        {kustomization.spec.suspend ? "True" : "False"} <br />
         <strong>Interval:</strong> {kustomization.spec.interval}
       </div>
       <div>
