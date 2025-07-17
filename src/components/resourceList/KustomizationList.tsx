@@ -4,7 +4,6 @@ import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
 export const renderKustomizationDetails = (kustomization: ExtendedKustomization, columnCount = 4) => {
-  console.log(kustomization);
   return(
   <td colSpan={columnCount}>
     <div class="second-row" style="display: flex; gap: 50px;">
@@ -51,11 +50,17 @@ export const kustomizationColumns = [
   {
     header: "READY",
     width: "20%",
-    accessor: (kustomization: Kustomization) => {
+    accessor: (kustomization: ExtendedKustomization) => {
       const readyCondition = kustomization.status?.conditions?.find((c) =>
         c.type === ConditionType.Ready
       );
       const reconcilingCondition = kustomization.status?.conditions?.find((c) =>
+        c.type === ConditionType.Reconciling
+      );
+      const sourceReadyCondition = kustomization.source?.status?.conditions?.find((c) =>
+        c.type === ConditionType.Ready
+      );
+      const sourceReconcilingCondition = kustomization.source?.status?.conditions?.find((c) =>
         c.type === ConditionType.Reconciling
       );
 
@@ -72,6 +77,15 @@ export const kustomizationColumns = [
           )}
           {kustomization.spec.suspend && (
             <span class="status-badge suspended">Suspended</span>
+          )}
+          {sourceReadyCondition?.status === ConditionStatus.True && (
+            <span class="status-badge ready">Source: Ready</span>
+          )}
+          {sourceReadyCondition?.status === ConditionStatus.False && (
+            <span class="status-badge not-ready">Source: NotReady</span>
+          )}
+          {sourceReconcilingCondition?.status === ConditionStatus.True && (
+            <span class="status-badge reconciling">Source: Reconciling</span>
           )}
         </div>
       );
