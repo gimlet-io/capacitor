@@ -8,7 +8,10 @@ import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import {
   updateDeploymentMatchingResources,
   updateKustomizationMatchingEvents,
-  updateReplicaSetMatchingResources
+  updateReplicaSetMatchingResources,
+  updateKustomizationMatchingGitRepositories,
+  updateKustomizationMatchingBuckets,
+  updateKustomizationMatchingOCIRepositories
 } from "../utils/k8s.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
@@ -76,6 +79,18 @@ export function Dashboard() {
       }
     ],
     'kustomize.toolkit.fluxcd.io/Kustomization': [
+      {
+        resourceType: 'source.toolkit.fluxcd.io/GitRepository',
+        updater: (kustomization, gitRepositories) => updateKustomizationMatchingGitRepositories(kustomization, gitRepositories)
+      },
+      {
+        resourceType: 'source.toolkit.fluxcd.io/Bucket',
+        updater: (kustomization, buckets) => updateKustomizationMatchingBuckets(kustomization, buckets)
+      },
+      {
+        resourceType: 'source.toolkit.fluxcd.io/OCIRepository',
+        updater: (kustomization, ocirepositories) => updateKustomizationMatchingOCIRepositories(kustomization, ocirepositories)
+      },
       {
         resourceType: 'core/Event',
         updater: (kustomization, events) => updateKustomizationMatchingEvents(kustomization, events)

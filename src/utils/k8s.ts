@@ -1,4 +1,16 @@
-import type { Pod, Deployment, Service, ServiceWithResources, DeploymentWithResources, ReplicaSet, ReplicaSetWithResources, Kustomization, KustomizationWithEvents, Event } from '../types/k8s.ts';
+import type { Pod, 
+  Deployment,
+  Service,
+  ServiceWithResources, 
+  DeploymentWithResources, 
+  ReplicaSet, 
+  ReplicaSetWithResources, 
+  ExtendedKustomization, 
+  Event, 
+  GitRepository, 
+  OCIRepository, 
+  Bucket,
+} from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
   if (!selector || !labels) return false;
@@ -58,9 +70,58 @@ export const getReplicaSetMatchingPods = (replicaSet: ReplicaSet, allPods: Pod[]
   );
 };
 
-export const updateKustomizationMatchingEvents = (kustomization: Kustomization, allEvents: Event[]): KustomizationWithEvents => {
+export const updateKustomizationMatchingEvents = (kustomization: ExtendedKustomization, allEvents: Event[]): ExtendedKustomization => {
   return {
     ...kustomization,
-    events: allEvents.filter(event => event.metadata.namespace === kustomization.metadata.namespace && event.involvedObject.kind === "Kustomization" && event.involvedObject.name === kustomization.metadata.name)
+    events: allEvents.filter(event => 
+      (event.metadata.namespace === kustomization.metadata.namespace && 
+      event.involvedObject.kind === "Kustomization" && 
+      event.involvedObject.name === kustomization.metadata.name) ||
+      ((event.metadata.namespace === kustomization.spec.sourceRef.namespace || event.metadata.namespace === kustomization.metadata.namespace) && 
+      event.involvedObject.kind === kustomization.spec.sourceRef.kind && 
+      event.involvedObject.name === kustomization.spec.sourceRef.name)
+    )
+  };
+};
+
+export const updateKustomizationMatchingGitRepositories = (kustomization: ExtendedKustomization, allGitRepositories: GitRepository[]): ExtendedKustomization => {
+  let namespace = kustomization.spec.sourceRef.namespace;
+  if (namespace === undefined) {
+    namespace = kustomization.metadata.namespace;
+  }
+  const source = allGitRepositories.find(gitRepository => gitRepository.metadata.namespace === namespace && gitRepository.metadata.name === kustomization.spec.sourceRef.name);
+  if (source === undefined) {
+    return kustomization;
+  } else return {
+    ...kustomization,
+    source: source
+  };
+};
+
+export const updateKustomizationMatchingOCIRepositories = (kustomization: ExtendedKustomization, allOCIRepositories: OCIRepository[]): ExtendedKustomization => {
+  let namespace = kustomization.spec.sourceRef.namespace;
+  if (namespace === undefined) {
+    namespace = kustomization.metadata.namespace;
+  }
+  const source = allOCIRepositories.find(ocirepository => ocirepository.metadata.namespace === namespace && ocirepository.metadata.name === kustomization.spec.sourceRef.name);
+  if (source === undefined) {
+    return kustomization;
+  } else return {
+    ...kustomization,
+    source: source
+  };
+};
+
+export const updateKustomizationMatchingBuckets = (kustomization: ExtendedKustomization, allBuckets: Bucket[]): ExtendedKustomization => {
+  let namespace = kustomization.spec.sourceRef.namespace;
+  if (namespace === undefined) {
+    namespace = kustomization.metadata.namespace;
+  }
+  const source = allBuckets.find(bucket => bucket.metadata.namespace === namespace && bucket.metadata.name === kustomization.spec.sourceRef.name);
+  if (source === undefined) {
+    return kustomization;
+  } else return {
+    ...kustomization,
+    source: source
   };
 };

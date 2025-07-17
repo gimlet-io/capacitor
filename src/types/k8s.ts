@@ -225,8 +225,9 @@ export interface Kustomization {
   };
 }
 
-export interface KustomizationWithEvents extends Kustomization {
+export interface ExtendedKustomization extends Kustomization {
   events: Event[];
+  source: Source;
 }
 
 export interface Source {
@@ -268,6 +269,13 @@ export interface OCIRepository extends Source {
       name: string;
     };
     insecure?: boolean;
+    interval: string;
+  };
+}
+
+export interface Bucket extends Source {
+  spec: Source['spec'] & {
+    url: string;
     interval: string;
   };
 }

@@ -1,13 +1,15 @@
-import type { Kustomization, KustomizationWithEvents } from "../../types/k8s.ts";
+import type { Kustomization, ExtendedKustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
 
-export const renderKustomizationDetails = (kustomization: KustomizationWithEvents, columnCount = 4) => (
+export const renderKustomizationDetails = (kustomization: ExtendedKustomization, columnCount = 4) => {
+  console.log(kustomization);
+  return(
   <td colSpan={columnCount}>
     <div class="second-row" style="display: flex; gap: 50px;">
       <div>
-        <strong>Source:</strong> {kustomization.spec.sourceRef.name} <br />
+        <strong>Source:</strong> {kustomization.spec.sourceRef.kind}/{kustomization.spec.sourceRef.namespace ? kustomization.spec.sourceRef.namespace : kustomization.metadata.namespace}/{kustomization.spec.sourceRef.name} <br />
         <strong>Path:</strong> {kustomization.spec.path} <br />
         <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"}{" "}
         <br />
@@ -18,14 +20,14 @@ export const renderKustomizationDetails = (kustomization: KustomizationWithEvent
       <div>
         <strong>Events:</strong>
         <ul>
-          {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).map((event) => (
-            <li>{event.lastTimestamp} {event.message}</li>
+          {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
+            <li>{event.lastTimestamp} {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
           ))} 
         </ul>
       </div>
     </div>
   </td>
-)
+)}
 
 export const kustomizationColumns = [
   {
