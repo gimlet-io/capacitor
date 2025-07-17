@@ -210,9 +210,6 @@ func (s *Server) Setup() {
 		// Create a context
 		ctx := context.Background()
 
-		// Instead of using the CLI command, we'll use the Kubernetes API to add a reconcile annotation
-		// This is the same approach the Flux CLI uses under the hood
-
 		// Generate the resource name and namespace
 		resourceName := req.Name
 		resourceNamespace := req.Namespace
@@ -220,11 +217,11 @@ func (s *Server) Setup() {
 		// Request immediate reconciliation by adding/updating the reconcile annotation
 		// This is what the Flux CLI does behind the scenes
 		var patchData string
-		if req.WithSources {
-			patchData = fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s","fluxcd.io/reconcile":"with-sources"}}}`, metav1.Now().Format(time.RFC3339Nano))
-		} else {
-			patchData = fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, metav1.Now().Format(time.RFC3339Nano))
-		}
+
+		// Format the current time in RFC3339Nano format
+		currentTime := metav1.Now().Format(time.RFC3339Nano)
+
+		patchData = fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, currentTime)
 
 		var err error
 		var output string
@@ -266,8 +263,110 @@ func (s *Server) Setup() {
 			Body([]byte(patchData)).
 			DoRaw(ctx)
 
-		if req.WithSources {
-			output = fmt.Sprintf("%s %s/%s reconciliation requested with sources", kind, resourceNamespace, resourceName)
+		if err != nil {
+			log.Printf("Error reconciling Flux resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error":     fmt.Sprintf("Failed to reconcile resource: %v", err),
+				"kind":      kind,
+				"name":      resourceName,
+				"namespace": resourceNamespace,
+			})
+		}
+
+		// If WithSources is true, we need to find and patch the source reference
+		if req.WithSources && (kind == "Kustomization" || kind == "HelmRelease") {
+			// Get the resource to find its sourceRef
+			resourceData, err := clientset.
+				RESTClient().
+				Get().
+				AbsPath(fmt.Sprintf(apiPath, resourceNamespace, resourceName)).
+				DoRaw(ctx)
+			if err != nil {
+				log.Printf("Error getting resource for source reconciliation: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to get resource for source reconciliation: %v", err),
+				})
+			}
+
+			// Parse the resource to extract sourceRef
+			var resourceObj map[string]interface{}
+			if err := json.Unmarshal(resourceData, &resourceObj); err != nil {
+				log.Printf("Error parsing resource data: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to parse resource data: %v", err),
+				})
+			}
+
+			// Extract sourceRef from the spec
+			spec, ok := resourceObj["spec"].(map[string]interface{})
+			if !ok {
+				log.Printf("Resource does not have a spec field")
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": "Resource does not have a spec field",
+				})
+			}
+
+			sourceRef, ok := spec["sourceRef"].(map[string]interface{})
+			if !ok {
+				log.Printf("Resource does not have a sourceRef field")
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": "Resource does not have a sourceRef field",
+				})
+			}
+
+			// Extract sourceRef details
+			sourceKind, ok := sourceRef["kind"].(string)
+			if !ok {
+				log.Printf("SourceRef does not have a kind field")
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": "SourceRef does not have a kind field",
+				})
+			}
+
+			sourceName, ok := sourceRef["name"].(string)
+			if !ok {
+				log.Printf("SourceRef does not have a name field")
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": "SourceRef does not have a name field",
+				})
+			}
+
+			// Get sourceRef namespace (default to resource namespace if not specified)
+			sourceNamespace := resourceNamespace
+			if sourceRefNamespace, ok := sourceRef["namespace"].(string); ok && sourceRefNamespace != "" {
+				sourceNamespace = sourceRefNamespace
+			}
+
+			// Get the API path for the source kind
+			sourceAPIPath, found := resourceAPIs[sourceKind]
+			if !found {
+				log.Printf("Unsupported source kind: %s", sourceKind)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Unsupported source kind: %s", sourceKind),
+				})
+			}
+
+			// Create patch data for the source
+			sourcePatchData := fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, currentTime)
+
+			// Patch the source resource
+			_, err = clientset.
+				RESTClient().
+				Patch(types.MergePatchType).
+				AbsPath(fmt.Sprintf(sourceAPIPath, sourceNamespace, sourceName)).
+				Body([]byte(sourcePatchData)).
+				DoRaw(ctx)
+
+			if err != nil {
+				log.Printf("Error reconciling source resource: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("Failed to reconcile source resource: %v", err),
+				})
+			}
+
+			output = fmt.Sprintf("%s %s/%s reconciliation requested with source %s %s/%s",
+				kind, resourceNamespace, resourceName,
+				sourceKind, sourceNamespace, sourceName)
 		} else {
 			output = fmt.Sprintf("%s %s/%s reconciliation requested", kind, resourceNamespace, resourceName)
 		}
