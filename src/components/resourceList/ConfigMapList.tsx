@@ -1,7 +1,7 @@
 import type { ConfigMap } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Define the columns for the ConfigMap resource list
 export const configMapColumns = [

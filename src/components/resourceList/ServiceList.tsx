@@ -1,6 +1,6 @@
-import type { Service } from "../types/k8s.ts";
-import { sortByName, sortByAge } from '../resourceTypeConfigs.tsx';
-import { useCalculateAge } from './resourceList/timeUtils.ts';
+import type { Service } from "../../types/k8s.ts";
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
+import { useCalculateAge } from './timeUtils.ts';
 
 export const serviceColumns = [
   {

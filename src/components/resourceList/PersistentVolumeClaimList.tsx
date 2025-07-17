@@ -2,7 +2,7 @@ import { JSX } from "solid-js";
 import type { PersistentVolumeClaim } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Helper function to determine PVC status with appropriate styling
 function getPVCStatusComponent(pvc: PersistentVolumeClaim): { element: JSX.Element, title: string } {

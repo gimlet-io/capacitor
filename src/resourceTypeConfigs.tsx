@@ -1,9 +1,9 @@
 import { JSX } from "solid-js";
 import { podColumns } from "./components/resourceList/PodList.tsx";
 import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx";
-import { serviceColumns } from "./components/ServiceList.tsx";
+import { serviceColumns } from "./components/resourceList/ServiceList.tsx";
 import { ingressColumns } from "./components/resourceList/IngressList.tsx";
-import { kustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
+import { KustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
 import { gitRepositoryColumns, renderGitRepositoryDetails } from "./components/resourceList/GitRepositoryList.tsx";
 import { helmRepositoryColumns, renderHelmRepositoryDetails } from "./components/resourceList/HelmRepositoryList.tsx";
 import { ociRepositoryColumns, renderOCIRepositoryDetails } from "./components/resourceList/OCIRepositoryList.tsx";
@@ -37,6 +37,15 @@ import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/reso
 import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources } from "./utils/fluxUtils.tsx";
 import { scaledJobColumns, scaledJobTriggerFilter, scaledJobStrategyFilter } from "./components/resourceList/ScaledJobList.tsx";
+import { sortByNamespace } from "./utils/sortUtils.ts";
+import {
+  updateDeploymentMatchingResources,
+  updateKustomizationMatchingEvents,
+  updateReplicaSetMatchingResources,
+  updateKustomizationMatchingGitRepositories,
+  updateKustomizationMatchingBuckets,
+  updateKustomizationMatchingOCIRepositories
+} from "./utils/k8s.ts";
 
 export interface Column<T> {
   header: string;
@@ -68,34 +77,8 @@ export interface ResourceTypeConfig {
   defaultSortColumn?: string;
   treeCardRenderer?: ResourceCardRenderer;
   abbreviations?: string[]; // Common abbreviations for this resource type
+  extraWatches?: ExtraWatchConfig[];
 }
-
-// Common sorting functions
-export const sortByName = (items: any[], ascending: boolean) => {
-  return [...items].sort((a, b) => {
-    const nameA = a.metadata?.name || '';
-    const nameB = b.metadata?.name || '';
-    return ascending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
-  });
-};
-
-export const sortByAge = (items: any[], ascending: boolean) => {
-  return [...items].sort((a, b) => {
-    const timestampA = a.metadata?.creationTimestamp || '';
-    const timestampB = b.metadata?.creationTimestamp || '';
-    const dateA = new Date(timestampA);
-    const dateB = new Date(timestampB);
-    return ascending ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
-  });
-};
-
-export const sortByNamespace = (items: any[], ascending: boolean) => {
-  return [...items].sort((a, b) => {
-    const nsA = a.metadata?.namespace || '';
-    const nsB = b.metadata?.namespace || '';
-    return ascending ? nsA.localeCompare(nsB) : nsB.localeCompare(nsA);
-  });
-};
 
 // Define a reusable namespace column for all namespaced resources
 export const namespaceColumn: Column<any> = {
@@ -233,6 +216,14 @@ export const pvCardRenderer = createCardRenderer(
   "rgb(245, 240, 230)" // Muted light peach
 );
 
+// Define extra watches for certain resource types
+export type ResourceUpdater = (mainResource: any, extraResources: any[]) => any;
+export type ExtraWatchConfig = {
+  resourceType: string;          // The type of resource to watch 
+  updater: ResourceUpdater;      // Function to update main resource with the extra resource data
+  isParent: (resource: any, obj: any) => boolean;
+};
+
 // Define the centralized resource configurations
 export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/Pod': {
@@ -268,7 +259,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
-    treeCardRenderer: deploymentCardRenderer
+    treeCardRenderer: deploymentCardRenderer,
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ],
   },
   
   'apps/StatefulSet': {
@@ -381,7 +379,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
-    abbreviations: ['rs']
+    abbreviations: ['rs'],
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (replicaSet, pods) => updateReplicaSetMatchingResources(replicaSet, pods),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ],
   },
   
   'core/Namespace': {
@@ -503,7 +508,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   },
   
   'kustomize.toolkit.fluxcd.io/Kustomization': {
-    columns: kustomizationColumns,
+    columns: KustomizationColumns,
     detailRowRenderer: renderKustomizationDetails,
     noSelectClass: true,
     rowKeyField: "name",
@@ -520,9 +525,30 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       navigateToKustomization
     ],
     filter: [fluxReadyFilter],
-    abbreviations: ['ks']
+    abbreviations: ['ks'],
+    extraWatches: [
+      {
+        resourceType: 'source.toolkit.fluxcd.io/GitRepository',
+        updater: (kustomization, gitRepositories) => updateKustomizationMatchingGitRepositories(kustomization, gitRepositories),
+        isParent: (resource: any, obj: any) => {return false}
+      },
+      {
+        resourceType: 'source.toolkit.fluxcd.io/Bucket',
+        updater: (kustomization, buckets) => updateKustomizationMatchingBuckets(kustomization, buckets),
+        isParent: (resource: any, obj: any) => {return false}
+      },
+      {
+        resourceType: 'source.toolkit.fluxcd.io/OCIRepository',
+        updater: (kustomization, ocirepositories) => updateKustomizationMatchingOCIRepositories(kustomization, ocirepositories),
+        isParent: (resource: any, obj: any) => {return false}
+      },
+      {
+        resourceType: 'core/Event',
+        updater: (kustomization, events) => updateKustomizationMatchingEvents(kustomization, events),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ]
   },
-  
   'source.toolkit.fluxcd.io/GitRepository': {
     columns: gitRepositoryColumns,
     detailRowRenderer: renderGitRepositoryDetails,

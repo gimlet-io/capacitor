@@ -1,7 +1,7 @@
 import type { Role } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Simplify the rules into a human-readable summary
 function getRulesString(role: Role): string {

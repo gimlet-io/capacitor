@@ -2,7 +2,7 @@ import { JSX } from "solid-js";
 import type { DaemonSet } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Helper function to determine readiness status
 function getReadinessComponent(daemonSet: DaemonSet): { element: JSX.Element, title: string } {

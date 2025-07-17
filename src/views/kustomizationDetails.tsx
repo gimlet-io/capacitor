@@ -4,9 +4,10 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { Show, JSX } from "solid-js";
 import type {
   Kustomization,
+  ExtendedKustomization,
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
-import { getHumanReadableStatus } from "../utils/conditions.ts";
+import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { createNodeWithCardRenderer, createNode, ResourceTree, createPaginationNode } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
@@ -15,6 +16,8 @@ import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff, handleFluxRecon
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
+import { ExtraWatchConfig, resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
+import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -215,7 +218,7 @@ export function KustomizationDetails() {
   const [k8sResourcesLoaded, setK8sResourcesLoaded] = createSignal(false);
 
   // Initialize state for the specific kustomization and its related resources
-  const [kustomization, setKustomization] = createSignal<Kustomization | null>(null);
+  const [kustomization, setKustomization] = createSignal<ExtendedKustomization | null>(null);
   const [sourceRepository, setSourceRepository] = createSignal<any | null>(null);
   
   // Dynamic resources state - keyed by resource type
@@ -343,16 +346,13 @@ export function KustomizationDetails() {
       callback: (event: { type: string; object: Kustomization }) => {
         if (event.type === "ADDED" || event.type === "MODIFIED") {
           if (event.object.metadata.name === name) {
-            setKustomization(event.object);
-            
-            // When kustomization is updated, check if we need to fetch the source repository
-            if (event.object.spec.sourceRef.kind === "GitRepository") {
-              fetchSourceRepository(
-                event.object.spec.sourceRef.kind,
-                event.object.spec.sourceRef.name,
-                event.object.spec.sourceRef.namespace || ns
-              );
-            }
+            setKustomization(prev => {
+              if (!prev) return {...event.object, events: [], source: undefined};
+              return {
+                ...prev,
+                ...event.object
+              };
+            });
             
             // Set up dynamic watches based on inventory - only if API resources are loaded
             if (event.object.status?.inventory?.entries && k8sResourcesLoaded()) {
@@ -361,6 +361,49 @@ export function KustomizationDetails() {
           }
         }
       },
+    }); 
+
+    const extraResources: Record<string, any[]> = {};
+    const extraWatchesForResource = resourceTypeConfigs['kustomize.toolkit.fluxcd.io/Kustomization']?.extraWatches || [];
+    extraWatchesForResource.forEach((config: ExtraWatchConfig) => {
+      const extraResourceType = config.resourceType;
+      const extraResource = filterStore.k8sResources.find(res => res.id === extraResourceType);
+      
+      if (!extraResource) return;
+      
+      // Set up watch for this extra resource
+      let extraWatchPath = `${extraResource.apiPath}/${extraResource.name}?watch=true`;
+      if (extraResource.namespaced && ns && ns !== 'all-namespaces') {
+        extraWatchPath = `${extraResource.apiPath}/namespaces/${ns}/${extraResource.name}?watch=true`;
+      }
+      
+      watches.push({
+        path: extraWatchPath,
+        callback: (event: { type: string; object: any; error?: string; path?: string }) => {
+          // Update cache based on event type
+          if (event.type === 'ADDED') {
+            extraResources[extraResourceType] = [
+              ...(extraResources[extraResourceType] || []),
+              event.object
+            ];
+          } else if (event.type === 'MODIFIED') {
+            extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
+              .map(item => item.metadata.name === event.object.metadata.name ? event.object : item);
+          } else if (event.type === 'DELETED') {
+            extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
+              .filter(item => item.metadata.name !== event.object.metadata.name);
+          }
+          
+          setKustomization(prev => {
+            const updated = config.updater(prev, extraResources[extraResourceType] || [])
+            if (!prev) return null;
+            return {
+              ...prev,
+              ...updated
+            };
+          });
+        }
+      });
     });
 
     const controllers = watches.map(({ path, callback }) => {
@@ -372,15 +415,11 @@ export function KustomizationDetails() {
     setWatchControllers(controllers);
   };
 
-  type ExtraWatchConfig = {
-    resourceType: string;          // The type of resource to watch 
-    isParent: (resource: any, obj: any) => boolean;
-  };
-
   const extraWatches: Record<string, ExtraWatchConfig[]> = {
     'apps/Deployment': [
       {
         resourceType: 'apps/ReplicaSet',
+        updater: (deployment, pods) => {},
         isParent: (resource: any, obj: any) => {
           return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'Deployment' && owner.name === obj.metadata.name);
         }
@@ -389,6 +428,7 @@ export function KustomizationDetails() {
     'apps/ReplicaSet': [
       {
         resourceType: 'core/Pod', 
+        updater: (replicaSet, pods) => {},
         isParent: (resource: any, obj: any) => {
           return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'ReplicaSet' && owner.name === obj.metadata.name);
         }
@@ -397,6 +437,7 @@ export function KustomizationDetails() {
     'core/PersistentVolumeClaim': [
       {
         resourceType: 'core/PersistentVolume',
+        updater: (pvc, pv) => {},
         isParent: (resource: any, obj: any) => {
           return resource.spec.claimRef?.name === obj.metadata.name;
         }
@@ -405,6 +446,7 @@ export function KustomizationDetails() {
     'batch/CronJob': [
       {
         resourceType: 'batch/Job',
+        updater: (cronJob, job) => {},
         isParent: (resource: any, obj: any) => {
           return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'CronJob' && owner.name === obj.metadata.name);
         }
@@ -413,6 +455,7 @@ export function KustomizationDetails() {
     'bitnami.com/SealedSecret': [
       {
         resourceType: 'core/Secret',
+        updater: (sealedSecret, secret) => {},
         isParent: (resource: any, obj: any) => {
           return resource.metadata.name === obj.metadata.name && resource.metadata.namespace === obj.metadata.namespace;
         }
@@ -421,6 +464,7 @@ export function KustomizationDetails() {
     'keda.sh/ScaledJob': [
       {
         resourceType: 'batch/Job',
+        updater: (scaledJob, job) => {},
         isParent: (resource: any, obj: any) => {
           return resource.metadata.ownerReferences?.some((owner: any) => owner.kind === 'ScaledJob' && owner.name === obj.metadata.name);
         }
@@ -429,6 +473,7 @@ export function KustomizationDetails() {
     'keda.sh/ScaledObject': [
       {
         resourceType: 'apps/Deployment',
+        updater: (scaledObject, deployment) => {},
         isParent: (resource: any, obj: any) => {
           return resource.spec?.scaleTargetRef?.name === obj.metadata.name && 
                  resource.spec?.scaleTargetRef?.kind === 'Deployment';
@@ -556,24 +601,6 @@ export function KustomizationDetails() {
       });
     }
   }
-
-  // Fetch source repository when needed
-  const fetchSourceRepository = async (kind: string, name: string, namespace: string) => {
-    if (kind === "GitRepository") {
-      try {
-        const controller = new AbortController();
-        const path = `/k8s/apis/source.toolkit.fluxcd.io/v1/namespaces/${namespace}/gitrepositories/${name}`;
-        
-        const response = await fetch(path, { signal: controller.signal });
-        if (!response.ok) throw new Error(`Failed to fetch source repository: ${response.statusText}`);
-        
-        const data = await response.json();
-        setSourceRepository(data);
-      } catch (error) {
-        console.error("Error fetching source repository:", error);
-      }
-    }
-  };
 
   createEffect(() => {
     processDynamicResources(dynamicResources());
@@ -821,12 +848,7 @@ export function KustomizationDetails() {
                     </button>
                     <h1>{k().metadata.namespace}/{k().metadata.name}</h1>
                     <div class="kustomization-status">
-                      <span class={`status-badge ${getHumanReadableStatus(k().status?.conditions || []).toLowerCase().replace(/[^a-z]/g, '-')}`}>
-                        {getHumanReadableStatus(k().status?.conditions || [])}
-                      </span>
-                      {k().spec.suspend && (
-                        <span class="status-badge suspended">Suspended</span>
-                      )}
+                      {StatusBadges(k())}
                     </div>
                   </div>
                   <div class="header-actions">                    
@@ -934,8 +956,16 @@ export function KustomizationDetails() {
                       <span class="label">Interval:</span>
                       <span class="value">{k().spec.interval}</span>
                     </div>
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
+                      <span class="label">Events:</span>
+                      <ul style="font-family: monospace; font-size: 12px;">
+                        {k().events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
+                          <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
+                        ))} 
+                      </ul>
+                    </div>
                     {k().status?.conditions?.find(c => c.type === 'Ready') && (
-                      <div class="info-item full-width">
+                      <div class="info-item full-width" style="grid-row: 2 / 4;">
                         <div class="info-grid">
                         <div class="info-item" style={{ "grid-column": "1 / 3" }}>
                           <span class="label">Message:</span>
@@ -969,7 +999,7 @@ export function KustomizationDetails() {
                     
                     <div class="info-item full-width">
                       <details>
-                        <summary>Conditions</summary>
+                        <summary class="label">Conditions</summary>
                         <pre class="conditions-yaml">
                           {k().status?.conditions ? stringifyYAML(k().status?.conditions) : 'No conditions available'}
                         </pre>

@@ -1,7 +1,7 @@
 import type { RoleBinding } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Format the subjects into a user-friendly string
 function getSubjectsString(roleBinding: RoleBinding): string {

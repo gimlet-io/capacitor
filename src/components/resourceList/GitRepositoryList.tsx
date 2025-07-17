@@ -1,7 +1,7 @@
 import type { GitRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByAge, sortByName } from "../../resourceTypeConfigs.tsx";
+import { sortByAge, sortByName } from "../../utils/sortUtils.ts";
 
 export const renderGitRepositoryDetails = (gitRepository: GitRepository, columnCount = 4) => (
   <td colSpan={columnCount}>

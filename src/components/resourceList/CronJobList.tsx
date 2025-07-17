@@ -2,7 +2,7 @@ import { JSX } from "solid-js";
 import type { CronJob } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Helper function to determine if CronJob is suspended
 function getSuspendedComponent(cronJob: CronJob): { element: JSX.Element, title: string } {

@@ -1,7 +1,7 @@
 import { JSX } from "solid-js";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
-import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 
 // Define the ScaledJob type
 interface ScaledJob {

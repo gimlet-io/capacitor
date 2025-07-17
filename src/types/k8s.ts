@@ -227,7 +227,7 @@ export interface Kustomization {
 
 export interface ExtendedKustomization extends Kustomization {
   events: Event[];
-  source: Source;
+  source: Source | undefined;
 }
 
 export interface Source {

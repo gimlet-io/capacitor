@@ -1,7 +1,7 @@
 import type { Kustomization, ExtendedKustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 
 export const renderKustomizationDetails = (kustomization: ExtendedKustomization, columnCount = 4) => {
   return(
@@ -28,7 +28,7 @@ export const renderKustomizationDetails = (kustomization: ExtendedKustomization,
   </td>
 )}
 
-export const kustomizationColumns = [
+export const KustomizationColumns = [
   {
     header: "NAME",
     width: "30%",
@@ -50,46 +50,7 @@ export const kustomizationColumns = [
   {
     header: "READY",
     width: "20%",
-    accessor: (kustomization: ExtendedKustomization) => {
-      const readyCondition = kustomization.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      const reconcilingCondition = kustomization.status?.conditions?.find((c) =>
-        c.type === ConditionType.Reconciling
-      );
-      const sourceReadyCondition = kustomization.source?.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      const sourceReconcilingCondition = kustomization.source?.status?.conditions?.find((c) =>
-        c.type === ConditionType.Reconciling
-      );
-
-      return (
-        <div class="status-badges">
-          {readyCondition?.status === ConditionStatus.True && (
-            <span class="status-badge ready">Ready</span>
-          )}
-          {readyCondition?.status === ConditionStatus.False && (
-            <span class="status-badge not-ready">NotReady</span>
-          )}
-          {reconcilingCondition?.status === ConditionStatus.True && (
-            <span class="status-badge reconciling">Reconciling</span>
-          )}
-          {kustomization.spec.suspend && (
-            <span class="status-badge suspended">Suspended</span>
-          )}
-          {sourceReadyCondition?.status === ConditionStatus.True && (
-            <span class="status-badge ready">Source: Ready</span>
-          )}
-          {sourceReadyCondition?.status === ConditionStatus.False && (
-            <span class="status-badge not-ready">Source: NotReady</span>
-          )}
-          {sourceReconcilingCondition?.status === ConditionStatus.True && (
-            <span class="status-badge reconciling">Source: Reconciling</span>
-          )}
-        </div>
-      );
-    },
+    accessor: (kustomization: ExtendedKustomization) => StatusBadges(kustomization),
   },
   {
     header: "STATUS",
@@ -102,3 +63,44 @@ export const kustomizationColumns = [
     },
   },
 ];
+
+export const StatusBadges = (kustomization: ExtendedKustomization) => {
+  const readyCondition = kustomization.status?.conditions?.find((c) =>
+    c.type === ConditionType.Ready
+  );
+  const reconcilingCondition = kustomization.status?.conditions?.find((c) =>
+    c.type === ConditionType.Reconciling
+  );
+  const sourceReadyCondition = kustomization.source?.status?.conditions?.find((c) =>
+    c.type === ConditionType.Ready
+  );
+  const sourceReconcilingCondition = kustomization.source?.status?.conditions?.find((c) =>
+    c.type === ConditionType.Reconciling
+  );
+
+  return (
+    <div class="status-badges">
+      {readyCondition?.status === ConditionStatus.True && (
+        <span class="status-badge ready">Ready</span>
+      )}
+      {readyCondition?.status === ConditionStatus.False && (
+        <span class="status-badge not-ready">NotReady</span>
+      )}
+      {reconcilingCondition?.status === ConditionStatus.True && (
+        <span class="status-badge reconciling">Reconciling</span>
+      )}
+      {kustomization.spec.suspend && (
+        <span class="status-badge suspended">Suspended</span>
+      )}
+      {sourceReadyCondition?.status === ConditionStatus.True && (
+        <span class="status-badge ready">Source: Ready</span>
+      )}
+      {sourceReadyCondition?.status === ConditionStatus.False && (
+        <span class="status-badge not-ready">Source: NotReady</span>
+      )}
+      {sourceReconcilingCondition?.status === ConditionStatus.True && (
+        <span class="status-badge reconciling">Source: Reconciling</span>
+      )}
+    </div>
+  );
+};

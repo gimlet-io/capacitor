@@ -5,21 +5,14 @@ import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import {
-  updateDeploymentMatchingResources,
-  updateKustomizationMatchingEvents,
-  updateReplicaSetMatchingResources,
-  updateKustomizationMatchingGitRepositories,
-  updateKustomizationMatchingBuckets,
-  updateKustomizationMatchingOCIRepositories
-} from "../utils/k8s.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
 import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
-import { sortByName, sortByNamespace, sortByAge } from "../resourceTypeConfigs.tsx";
+import { ExtraWatchConfig } from "../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge, sortByNamespace } from "../utils/sortUtils.ts";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
@@ -34,69 +27,6 @@ export function Dashboard() {
 
   // Resource state
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
-
-  // Define extra watches for certain resource types
-  type ResourceUpdater = (mainResource: any, extraResources: any[]) => any;
-  type ExtraWatchConfig = {
-    resourceType: string;          // The type of resource to watch 
-    updater: ResourceUpdater;      // Function to update main resource with the extra resource data
-  };
-
-  /**
-   * Configuration for extra watches that maintain relationships between resources.
-   * 
-   * For example, when viewing Deployments, we also watch Pods to show which pods
-   * belong to each deployment.
-   * 
-   * The structure is:
-   * {
-   *   'mainResourceType': [
-   *     {
-   *       resourceType: 'relatedResourceType',  // The type of resource to watch
-   *       updater: (mainResource, relatedResources) => updatedMainResource,
-   *       // Optional API path and namespace configuration if needed
-   *     }
-   *   ]
-   * }
-   * 
-   * The updater function is called when:
-   * 1. The main resource is added or modified
-   * 2. Any related resource is added, modified, or deleted
-   * 
-   * To add additional relationships, add more entries to this object.
-   */
-  const extraWatches: Record<string, ExtraWatchConfig[]> = {
-    'apps/Deployment': [
-      {
-        resourceType: 'core/Pod',
-        updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods)
-      }
-    ],
-    'apps/ReplicaSet': [
-      {
-        resourceType: 'core/Pod',
-        updater: (replicaSet, pods) => updateReplicaSetMatchingResources(replicaSet, pods)
-      }
-    ],
-    'kustomize.toolkit.fluxcd.io/Kustomization': [
-      {
-        resourceType: 'source.toolkit.fluxcd.io/GitRepository',
-        updater: (kustomization, gitRepositories) => updateKustomizationMatchingGitRepositories(kustomization, gitRepositories)
-      },
-      {
-        resourceType: 'source.toolkit.fluxcd.io/Bucket',
-        updater: (kustomization, buckets) => updateKustomizationMatchingBuckets(kustomization, buckets)
-      },
-      {
-        resourceType: 'source.toolkit.fluxcd.io/OCIRepository',
-        updater: (kustomization, ocirepositories) => updateKustomizationMatchingOCIRepositories(kustomization, ocirepositories)
-      },
-      {
-        resourceType: 'core/Event',
-        updater: (kustomization, events) => updateKustomizationMatchingEvents(kustomization, events)
-      }
-    ]
-  };
 
   // Function to switch to a new context
   const handleContextSwitch = async (contextName: string) => {
@@ -318,7 +248,7 @@ export function Dashboard() {
             const current = prev[k8sResource.id] || [];
             
             // Check if we need to apply extra resource updates
-            const extraWatchesForResource = extraWatches[k8sResource.id];
+            const extraWatchesForResource = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
             let enhancedResource = event.object;
             
             if (extraWatchesForResource && extraWatchesForResource.length > 0) {
@@ -341,7 +271,7 @@ export function Dashboard() {
             const current = prev[k8sResource.id] || [];
             
             // Check if we need to apply extra resource updates
-            const extraWatchesForResource = extraWatches[k8sResource.id];
+            const extraWatchesForResource = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
             let enhancedResource = event.object;
             
             if (extraWatchesForResource && extraWatchesForResource.length > 0) {
@@ -374,10 +304,10 @@ export function Dashboard() {
     });
 
     // Set up extra watches if configured for this resource type
-    const extraWatchesForResource = extraWatches[k8sResource.id];
+    const extraWatchesForResource = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
     if (extraWatchesForResource && extraWatchesForResource.length > 0) {
       // For each extra watch configuration
-      extraWatchesForResource.forEach(config => {
+      extraWatchesForResource.forEach((config: ExtraWatchConfig) => {
         const extraResourceType = config.resourceType;
         const extraResource = filterStore.k8sResources.find(res => res.id === extraResourceType);
         
@@ -432,9 +362,9 @@ export function Dashboard() {
                 );
                 
                 // For resources with multiple watches, we need to make sure all updaters are applied
-                const otherExtraWatches = extraWatchesForResource.filter(w => w !== config);
+                const otherExtraWatches = extraWatchesForResource.filter((w: ExtraWatchConfig) => w !== config);
                 if (otherExtraWatches.length > 0) {
-                  otherExtraWatches.forEach(otherConfig => {
+                  otherExtraWatches.forEach((otherConfig: ExtraWatchConfig) => {
                     // Get the cache for this other watch type
                     const otherResources = extraResources[otherConfig.resourceType] || [];
                     // Apply the other updater to each resource
@@ -443,8 +373,8 @@ export function Dashboard() {
                     );
                   });
                 }
-                
-                newState[resourceType] = updatedResources;
+
+                (newState as Record<string, any[]>)[resourceType] = updatedResources;
               }
               
               return newState;

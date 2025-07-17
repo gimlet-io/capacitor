@@ -1,7 +1,7 @@
 import type { HelmRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 
 export const renderHelmRepositoryDetails = (helmRepository: HelmRepository, columnCount = 4) => (
   <td colSpan={columnCount}>

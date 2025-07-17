@@ -1,7 +1,7 @@
 import type { Source } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 
 // Type definition for Bucket since it's not in k8s.ts
 type Bucket = Source & {

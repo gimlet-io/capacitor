@@ -1,5 +1,5 @@
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import type { Column } from "../../resourceTypeConfigs.tsx";
 import type { Filter } from "../filterBar/FilterBar.tsx";
 

@@ -1,7 +1,7 @@
 import type { DeploymentWithResources, ObjectMeta } from "../../types/k8s.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 export const deploymentReadinessFilter: Filter = {
   name: "DeploymentReadiness",

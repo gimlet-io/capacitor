@@ -3,7 +3,6 @@ import { createSignal } from "solid-js";
 import type { Event } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
-import { sortByName } from '../../resourceTypeConfigs.tsx';
 
 export function EventList(props: { events: Event[] }) {
   const [showAll, setShowAll] = createSignal(false);

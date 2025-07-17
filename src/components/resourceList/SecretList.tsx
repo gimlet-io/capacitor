@@ -1,8 +1,7 @@
-import { JSX } from "solid-js";
 import type { Secret } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Define the columns for the Secret resource list
 export const secretColumns = [

@@ -1,7 +1,7 @@
 import type { HelmRelease } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
-import { sortByName, sortByAge } from "../../resourceTypeConfigs.tsx";
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 
 export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
   <td colSpan={columnCount}>

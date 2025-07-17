@@ -2,7 +2,7 @@ import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from './timeUtils.ts';
 import { createSignal } from "solid-js";
-import { sortByName, sortByAge } from '../../resourceTypeConfigs.tsx';
+import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Create a signal for node options that can be updated externally
 const [nodeOptions, setNodeOptions] = createSignal<{value: string, label: string}[]>([]);
