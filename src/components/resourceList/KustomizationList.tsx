@@ -20,7 +20,7 @@ export const renderKustomizationDetails = (kustomization: ExtendedKustomization,
         <strong>Events:</strong>
         <ul>
           {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
-            <li>{event.lastTimestamp} {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
+            <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
           ))} 
         </ul>
       </div>
