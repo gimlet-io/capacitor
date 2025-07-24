@@ -2647,6 +2647,196 @@ select.pod-select[size]:not([size="1"]) {
   }
 }
 
+/* Terminal Viewer Styles */
+.terminal-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.terminal-controls {
+  background-color: var(--linear-bg-secondary);
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.terminal-connection-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.terminal-pod-info {
+  font-size: 14px;
+  color: var(--linear-text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.terminal-status {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.terminal-status.connected {
+  color: var(--linear-green);
+}
+
+.terminal-status.disconnected {
+  color: var(--linear-text-secondary);
+}
+
+.terminal-status.error {
+  color: var(--linear-red);
+}
+
+.terminal-shell-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.terminal-shell-controls label {
+  font-size: 14px;
+  color: var(--linear-text-secondary);
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+.terminal-shell-controls select {
+  padding: 6px 8px;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  background-color: var(--linear-bg);
+  color: var(--linear-text-primary);
+  font-size: 14px;
+  min-width: 80px;
+}
+
+.terminal-shell-controls select:focus {
+  outline: none;
+  border-color: var(--linear-blue);
+  box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.1);
+}
+
+.terminal-connect-btn,
+.terminal-disconnect-btn,
+.terminal-retry-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.terminal-connect-btn,
+.terminal-retry-btn {
+  background-color: var(--linear-blue);
+  color: white;
+  border-color: var(--linear-blue);
+}
+
+.terminal-connect-btn:hover,
+.terminal-retry-btn:hover {
+  background-color: #0052cc;
+  border-color: #0052cc;
+}
+
+.terminal-disconnect-btn {
+  background-color: var(--linear-red);
+  color: white;
+  border-color: var(--linear-red);
+}
+
+.terminal-disconnect-btn:hover {
+  background-color: #cc0000;
+  border-color: #cc0000;
+}
+
+.terminal-error {
+  background-color: var(--linear-red-light);
+  border: 1px solid var(--linear-red);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: var(--linear-red);
+}
+
+.terminal-error p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.terminal-container {
+  flex: 1;
+  min-height: 400px;
+  height: calc(100vh - 320px);
+  width: 100%;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  background-color: #1e1e1e;
+  overflow: hidden;
+}
+
+/* Import xterm.js default styles */
+@import url('https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css');
+
+/* Override xterm.js styles to match our theme */
+.xterm {
+  font-family: Monaco, Menlo, "Ubuntu Mono", monospace !important;
+  font-size: 14px;
+}
+
+.xterm .xterm-viewport {
+  background-color: #1e1e1e !important;
+}
+
+.xterm .xterm-screen {
+  background-color: #1e1e1e !important;
+}
+
+.xterm .xterm-cursor {
+  background-color: #ffffff !important;
+}
+
+/* Responsive terminal */
+@media (max-width: 768px) {
+  .terminal-controls {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+  
+  .terminal-connection-info {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .terminal-shell-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .terminal-shell-controls select,
+  .terminal-connect-btn,
+  .terminal-disconnect-btn,
+  .terminal-retry-btn {
+    width: 100%;
+  }
+  
+  .terminal-container {
+    min-height: 300px;
+    height: calc(100vh - 280px);
+  }
+}
+
 /* Resource Type Visibility Dropdown */
 .resource-type-visibility-dropdown {
   position: relative;

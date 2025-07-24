@@ -2,11 +2,12 @@
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";
 import { LogsViewer } from "./LogsViewer.tsx";
+import { TerminalViewer } from "./TerminalViewer.tsx";
 import type { Event } from "../../types/k8s.ts";
 import { stringify } from "@std/yaml";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 
-type DrawerTab = "describe" | "yaml" | "events" | "logs";
+type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec";
 
 export function ResourceDrawer(props: {
   resource: any;
@@ -234,6 +235,12 @@ export function ResourceDrawer(props: {
         e.preventDefault();
         setActiveTab("logs");
       }
+    } else if (e.ctrlKey && e.key === "e") {
+      // Ctrl+E shortcut for exec tab (only available for Pods)
+      if (props.resource?.kind === "Pod") {
+        e.preventDefault();
+        setActiveTab("exec");
+      }
     }
   };
 
@@ -302,6 +309,14 @@ export function ResourceDrawer(props: {
                 Logs
               </button>
             </Show>
+            <Show when={props.resource?.kind === "Pod"}>
+              <button 
+                class={`drawer-tab ${activeTab() === "exec" ? "active" : ""}`}
+                onClick={() => setActiveTab("exec")}
+              >
+                Exec <span class="shortcut-key">Ctrl+E</span>
+              </button>
+            </Show>
           </div>
           
           <div class="drawer-content">
@@ -336,6 +351,10 @@ export function ResourceDrawer(props: {
             
             <Show when={activeTab() === "logs"}>
               <LogsViewer resource={props.resource} isOpen={activeTab() === "logs"} />
+            </Show>
+            
+            <Show when={activeTab() === "exec"}>
+              <TerminalViewer resource={props.resource} isOpen={activeTab() === "exec"} />
             </Show>
           </div>
         </div>

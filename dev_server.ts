@@ -6,7 +6,8 @@ Deno.serve({ port: 8001 }, async (req: Request) => {
     const url = new URL(req.url);
   
     // 🔁 Proxy WebSocket requests
-    if (url.pathname.startsWith("/ws") && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+    if ((url.pathname.startsWith("/ws") || url.pathname.startsWith("/api/exec"))
+      && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
       const wsUrl = `${API_PROXY_TARGET}${url.pathname}${url.search}`;
       const { socket, response } = Deno.upgradeWebSocket(req);
   

@@ -22,6 +22,7 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/config"
 	"github.com/gimlet-io/capacitor/pkg/helm"
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
+	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,8 +30,11 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/describe"
+	"k8s.io/kubectl/pkg/scheme"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/transport/spdy"
@@ -916,6 +920,11 @@ func (s *Server) Setup() {
 		return s.k8sProxy.HandleAPIRequest(c)
 	})
 
+	// Add endpoint for kubectl exec WebSocket connections
+	s.echo.GET("/api/exec/:namespace/:podname", func(c echo.Context) error {
+		return s.handleExecWebSocket(c)
+	})
+
 	// Health check endpoint
 	s.echo.GET("/healthz", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
@@ -1418,6 +1427,259 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 	}
 
 	return localURL, cleanup, nil
+}
+
+// handleExecWebSocket handles WebSocket connections for kubectl exec
+func (s *Server) handleExecWebSocket(c echo.Context) error {
+	namespace := c.Param("namespace")
+	podname := c.Param("podname")
+	shell := c.QueryParam("shell")
+
+	if shell == "" {
+		shell = "bash" // default shell
+	}
+
+	log.Printf("Setting up exec WebSocket for pod %s/%s with shell %s", namespace, podname, shell)
+
+	// Create WebSocket upgrader
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow all origins for now
+		},
+	}
+
+	// Upgrade to WebSocket connection
+	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		log.Printf("Failed to upgrade to websocket: %v", err)
+		return fmt.Errorf("failed to upgrade to websocket: %w", err)
+	}
+	defer ws.Close()
+
+	// Try multiple shells in order of preference
+	shells := []string{shell}
+	if shell != "sh" {
+		shells = append(shells, "sh")
+	}
+	if shell != "ash" && shell != "sh" {
+		shells = append(shells, "ash")
+	}
+
+	log.Printf("Will try shells in order: %v", shells)
+
+	var executor remotecommand.Executor
+	var execCmd []string
+	var shellFound bool
+
+	// Try each shell until one works
+	for _, tryShell := range shells {
+		execCmd = []string{tryShell}
+		log.Printf("Trying shell: %s", tryShell)
+
+		// Set up kubectl exec via Kubernetes client
+		req := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
+			Resource("pods").
+			Name(podname).
+			Namespace(namespace).
+			SubResource("exec").
+			VersionedParams(&corev1.PodExecOptions{
+				Command: execCmd,
+				Stdin:   true,
+				Stdout:  true,
+				Stderr:  true,
+				TTY:     true,
+			}, scheme.ParameterCodec)
+
+		// Create SPDY executor
+		config := s.k8sClient.Config
+		exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+		if err != nil {
+			log.Printf("Failed to create executor for shell %s: %v", tryShell, err)
+			continue
+		}
+
+		executor = exec
+		shell = tryShell // Update shell to the one that worked
+		shellFound = true
+		break
+	}
+
+	if !shellFound {
+		errorMsg := map[string]interface{}{
+			"type":  "error",
+			"error": "No compatible shell found (tried: bash, sh, ash)",
+		}
+		ws.WriteJSON(errorMsg)
+		return fmt.Errorf("no compatible shell found")
+	}
+
+	log.Printf("Using shell: %s", shell)
+
+	// Send connected message now that we have a working executor
+	connectedMsg := map[string]interface{}{
+		"type":    "connected",
+		"message": fmt.Sprintf("Connected to %s/%s with shell %s", namespace, podname, shell),
+	}
+	if err := ws.WriteJSON(connectedMsg); err != nil {
+		log.Printf("Error sending connected message: %v", err)
+		return err
+	}
+
+	// Create pipes for stdin/stdout/stderr
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+
+	// Channel to signal when to stop
+	done := make(chan struct{})
+
+	// Start monitoring WebSocket and handle messages
+	go func() {
+		defer func() {
+			stdinWriter.Close()
+			// Signal all goroutines to stop
+			select {
+			case <-done:
+				// Already closed
+			default:
+				close(done)
+			}
+		}()
+
+		for {
+			var msg map[string]interface{}
+			if err := ws.ReadJSON(&msg); err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("WebSocket read error: %v", err)
+				} else {
+					log.Printf("WebSocket closed by client")
+				}
+				return
+			}
+
+			if msgType, ok := msg["type"].(string); ok {
+				switch msgType {
+				case "input":
+					if data, ok := msg["data"].(string); ok {
+						if _, err := stdinWriter.Write([]byte(data)); err != nil {
+							log.Printf("Error writing to stdin: %v", err)
+							return
+						}
+					}
+				case "resize":
+					// Handle terminal resize - TODO: Implement if needed
+					if cols, ok := msg["cols"].(float64); ok {
+						if rows, ok := msg["rows"].(float64); ok {
+							log.Printf("Terminal resize: %dx%d", int(cols), int(rows))
+						}
+					}
+				}
+			}
+		}
+	}()
+
+	// Handle stdout in a goroutine
+	go func() {
+		defer stdoutWriter.Close()
+		buf := make([]byte, 1024)
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				n, err := stdoutReader.Read(buf)
+				if err != nil {
+					if err != io.EOF {
+						log.Printf("Error reading stdout: %v", err)
+					}
+					return
+				}
+
+				data := string(buf[:n])
+				outputMsg := map[string]interface{}{
+					"type": "data",
+					"data": data,
+				}
+
+				if err := ws.WriteJSON(outputMsg); err != nil {
+					log.Printf("Error sending stdout to WebSocket: %v", err)
+					return
+				}
+			}
+		}
+	}()
+
+	// Handle stderr in a goroutine
+	go func() {
+		defer stderrWriter.Close()
+		buf := make([]byte, 1024)
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				n, err := stderrReader.Read(buf)
+				if err != nil {
+					if err != io.EOF {
+						log.Printf("Error reading stderr: %v", err)
+					}
+					return
+				}
+
+				data := string(buf[:n])
+				outputMsg := map[string]interface{}{
+					"type": "data",
+					"data": data,
+				}
+
+				if err := ws.WriteJSON(outputMsg); err != nil {
+					log.Printf("Error sending stderr to WebSocket: %v", err)
+					return
+				}
+			}
+		}
+	}()
+
+	// Execute the command in a goroutine so we can handle WebSocket messages
+	execDone := make(chan error, 1)
+	go func() {
+		log.Printf("Starting exec stream for %s/%s with shell %s", namespace, podname, shell)
+		err := executor.Stream(remotecommand.StreamOptions{
+			Stdin:  stdinReader,
+			Stdout: stdoutWriter,
+			Stderr: stderrWriter,
+			Tty:    true,
+		})
+		log.Printf("Exec stream finished for %s/%s with error: %v", namespace, podname, err)
+		execDone <- err
+	}()
+
+	// Wait for either exec to complete or WebSocket to close
+	select {
+	case err := <-execDone:
+		if err != nil {
+			log.Printf("Exec stream error: %v", err)
+			errorMsg := map[string]interface{}{
+				"type":  "error",
+				"error": fmt.Sprintf("Exec stream error: %v", err),
+			}
+			ws.WriteJSON(errorMsg)
+		} else {
+			log.Printf("Exec stream completed successfully")
+		}
+	case <-done:
+		log.Printf("WebSocket closed, terminating exec session")
+	}
+
+	// Signal all goroutines to stop
+	select {
+	case <-done:
+		// Already closed
+	default:
+		close(done)
+	}
+
+	return nil
 }
 
 // generateKustomizationDiffWithFluxStyle generates a diff using the actual FluxCD Builder and Diff functionality
