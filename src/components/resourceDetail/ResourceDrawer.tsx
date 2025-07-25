@@ -287,26 +287,26 @@ export function ResourceDrawer(props: {
               class={`drawer-tab ${activeTab() === "describe" ? "active" : ""}`}
               onClick={() => setActiveTab("describe")}
             >
-              Describe
+              Describe <span class="shortcut-key">d</span>
             </button>
             <button 
               class={`drawer-tab ${activeTab() === "yaml" ? "active" : ""}`}
               onClick={() => setActiveTab("yaml")}
             >
-              YAML
+              YAML <span class="shortcut-key">y</span>
             </button>
             <button 
               class={`drawer-tab ${activeTab() === "events" ? "active" : ""}`}
               onClick={() => setActiveTab("events")}
             >
-              Events
+              Events <span class="shortcut-key">e</span>
             </button>
             <Show when={["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)}>
               <button 
                 class={`drawer-tab ${activeTab() === "logs" ? "active" : ""}`}
                 onClick={() => setActiveTab("logs")}
               >
-                Logs
+                Logs <span class="shortcut-key">l</span>
               </button>
             </Show>
             <Show when={props.resource?.kind === "Pod"}>

@@ -10,6 +10,7 @@ export function TerminalViewer(props: {
   const [fitAddon, setFitAddon] = createSignal<FitAddon | null>(null);
   const [isConnected, setIsConnected] = createSignal<boolean>(false);
   const [connectionError, setConnectionError] = createSignal<string>("");
+  const [noShellAvailable, setNoShellAvailable] = createSignal<boolean>(false);
 
   
   let terminalContainer: HTMLDivElement | undefined;
@@ -90,6 +91,11 @@ export function TerminalViewer(props: {
     if (isConnected()) {
       return;
     }
+    
+    // If we already know there's no shell available, don't try to reconnect
+    if (noShellAvailable()) {
+      return;
+    }
 
     try {
       setConnectionError("");
@@ -129,6 +135,12 @@ export function TerminalViewer(props: {
           } else if (data.type === 'error') {
             setConnectionError(data.error || 'Connection error');
             setIsConnected(false);
+            
+            // Check if error is about no suitable shell found
+            if (data.error && data.error.includes('no suitable shell found')) {
+              console.log("No shell available in container, won't reconnect");
+              setNoShellAvailable(true);
+            }
           }
         } catch (error) {
           console.error("Error parsing WebSocket message:", error);
@@ -145,11 +157,11 @@ export function TerminalViewer(props: {
         console.log("Exec WebSocket disconnected");
         setIsConnected(false);
         
-        // Auto-reconnect if drawer is still open
-        if (props.isOpen) {
+        // Auto-reconnect if drawer is still open and we haven't determined that no shell is available
+        if (props.isOpen && !noShellAvailable()) {
           console.log("Auto-reconnecting...");
           setTimeout(() => {
-            if (props.isOpen && !isConnected()) {
+            if (props.isOpen && !isConnected() && !noShellAvailable()) {
               handleConnect();
             }
           }, 2000);
@@ -218,6 +230,14 @@ export function TerminalViewer(props: {
     });
   });
 
+  // Reset the noShellAvailable flag when the resource changes
+  createEffect(() => {
+    // This will run whenever props.resource changes
+    if (props.resource) {
+      setNoShellAvailable(false);
+    }
+  });
+
   // Watch for isOpen prop changes using createEffect
   createEffect(() => {
     if (props.isOpen && terminal() && fitAddon()) {
@@ -225,8 +245,8 @@ export function TerminalViewer(props: {
       setTimeout(() => {
         fitAddon()?.fit();
         
-        // Auto-connect when tab becomes active
-        if (!isConnected() && !connectionError()) {
+        // Auto-connect when tab becomes active (only if shell is available)
+        if (!isConnected() && !connectionError() && !noShellAvailable()) {
           handleConnect();
         }
         
@@ -258,12 +278,15 @@ export function TerminalViewer(props: {
         </Show>
         
         <Show when={props.resource?.kind === "Pod"}>
-
-
           <Show when={connectionError()}>
             <div class="terminal-error">
               <p>Connection Error: {connectionError()}</p>
-              <p class="terminal-retry-message">Retrying in 2 seconds...</p>
+              <Show when={!noShellAvailable()}>
+                <p class="terminal-retry-message">Retrying in 2 seconds...</p>
+              </Show>
+              <Show when={noShellAvailable()}>
+                <p class="terminal-no-shell-message">No shell available in this container.</p>
+              </Show>
             </div>
           </Show>
 
