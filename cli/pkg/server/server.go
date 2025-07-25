@@ -1433,13 +1433,9 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 func (s *Server) handleExecWebSocket(c echo.Context) error {
 	namespace := c.Param("namespace")
 	podname := c.Param("podname")
-	shell := c.QueryParam("shell")
+	// We'll auto-detect the best available shell
 
-	if shell == "" {
-		shell = "bash" // default shell
-	}
-
-	log.Printf("Setting up exec WebSocket for pod %s/%s with shell %s", namespace, podname, shell)
+	log.Printf("Setting up exec WebSocket for pod %s/%s with auto shell detection", namespace, podname)
 
 	// Create WebSocket upgrader
 	upgrader := websocket.Upgrader{
@@ -1456,27 +1452,71 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 	}
 	defer ws.Close()
 
-	// Try multiple shells in order of preference
-	shells := []string{shell}
-	if shell != "sh" {
-		shells = append(shells, "sh")
-	}
-	if shell != "ash" && shell != "sh" {
-		shells = append(shells, "ash")
-	}
+	// Try shells in order of preference: bash -> sh -> ash
+	shells := []string{"bash", "sh", "ash"}
 
 	log.Printf("Will try shells in order: %v", shells)
 
 	var executor remotecommand.Executor
 	var execCmd []string
+	var shell string
 	var shellFound bool
 
-	// Try each shell until one works
+	// Try each shell until one works by actually testing if it exists
 	for _, tryShell := range shells {
-		execCmd = []string{tryShell}
 		log.Printf("Trying shell: %s", tryShell)
 
-		// Set up kubectl exec via Kubernetes client
+		// Test if the shell exists by trying to execute it with --version or --help
+		var shellExists bool
+
+		// Try different ways to test shell existence
+		testMethods := [][]string{
+			{tryShell, "--version"},
+			{tryShell, "--help"},
+			{tryShell, "-c", "exit 0"},
+		}
+
+		for _, testCmd := range testMethods {
+			testReq := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
+				Resource("pods").
+				Name(podname).
+				Namespace(namespace).
+				SubResource("exec").
+				VersionedParams(&corev1.PodExecOptions{
+					Command: testCmd,
+					Stdin:   false,
+					Stdout:  true,
+					Stderr:  true,
+					TTY:     false,
+				}, scheme.ParameterCodec)
+
+			testExec, err := remotecommand.NewSPDYExecutor(s.k8sClient.Config, "POST", testReq.URL())
+			if err != nil {
+				continue
+			}
+
+			// Test if shell responds
+			var testOut, testErr bytes.Buffer
+			err = testExec.Stream(remotecommand.StreamOptions{
+				Stdout: &testOut,
+				Stderr: &testErr,
+			})
+
+			// If any test method works, the shell exists
+			if err == nil {
+				shellExists = true
+				log.Printf("Shell %s found using test: %v", tryShell, testCmd)
+				break
+			}
+		}
+
+		if !shellExists {
+			log.Printf("Shell %s not found in container", tryShell)
+			continue
+		}
+
+		// Now set up the interactive session with the working shell
+		execCmd = []string{tryShell}
 		req := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
 			Resource("pods").
 			Name(podname).
@@ -1490,16 +1530,15 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 				TTY:     true,
 			}, scheme.ParameterCodec)
 
-		// Create SPDY executor
-		config := s.k8sClient.Config
-		exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+		// Create interactive executor
+		exec, err := remotecommand.NewSPDYExecutor(s.k8sClient.Config, "POST", req.URL())
 		if err != nil {
-			log.Printf("Failed to create executor for shell %s: %v", tryShell, err)
+			log.Printf("Failed to create interactive executor for shell %s: %v", tryShell, err)
 			continue
 		}
 
 		executor = exec
-		shell = tryShell // Update shell to the one that worked
+		shell = tryShell
 		shellFound = true
 		break
 	}
@@ -1507,10 +1546,10 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 	if !shellFound {
 		errorMsg := map[string]interface{}{
 			"type":  "error",
-			"error": "No compatible shell found (tried: bash, sh, ash)",
+			"error": "no suitable shell found in container",
 		}
 		ws.WriteJSON(errorMsg)
-		return fmt.Errorf("no compatible shell found")
+		return fmt.Errorf("no suitable shell found in container")
 	}
 
 	log.Printf("Using shell: %s", shell)
@@ -1650,7 +1689,7 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 			Stderr: stderrWriter,
 			Tty:    true,
 		})
-		log.Printf("Exec stream finished for %s/%s with error: %v", namespace, podname, err)
+		log.Printf("Exec stream finished for %s/%s (shell: %s) with error: %v", namespace, podname, shell, err)
 		execDone <- err
 	}()
 

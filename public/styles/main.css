@@ -2768,6 +2768,13 @@ select.pod-select[size]:not([size="1"]) {
   padding: 16px;
   margin-bottom: 16px;
   color: var(--linear-red);
+  text-align: center;
+}
+
+.terminal-retry-message {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 5px;
 }
 
 .terminal-error p {
@@ -2805,6 +2812,24 @@ select.pod-select[size]:not([size="1"]) {
 
 .xterm .xterm-cursor {
   background-color: #ffffff !important;
+}
+
+/* Hide the internal textarea that xterm.js uses for input */
+.xterm .xterm-helper-textarea {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Make sure any textareas in terminal container are hidden */
+.terminal-container textarea {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Responsive terminal */

@@ -10,8 +10,7 @@ export function TerminalViewer(props: {
   const [fitAddon, setFitAddon] = createSignal<FitAddon | null>(null);
   const [isConnected, setIsConnected] = createSignal<boolean>(false);
   const [connectionError, setConnectionError] = createSignal<string>("");
-  const [shells] = createSignal<string[]>(["bash", "sh", "ash"]);
-  const [selectedShell, setSelectedShell] = createSignal<string>("bash");
+
   
   let terminalContainer: HTMLDivElement | undefined;
   let wsUnsubscribe: (() => void) | null = null;
@@ -86,6 +85,11 @@ export function TerminalViewer(props: {
     if (!props.resource || props.resource.kind !== "Pod" || !terminal()) {
       return;
     }
+    
+    // If already connected, don't reconnect
+    if (isConnected()) {
+      return;
+    }
 
     try {
       setConnectionError("");
@@ -93,11 +97,10 @@ export function TerminalViewer(props: {
 
       const podName = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
-      const shell = selectedShell();
       
-      // Create WebSocket URL for exec (direct connection)
+      // Create WebSocket URL for exec (direct connection) - backend will auto-select shell
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/exec/${namespace}/${podName}?shell=${shell}`;
+      const wsUrl = `${protocol}//${window.location.host}/api/exec/${namespace}/${podName}`;
       
       console.log("Connecting to exec WebSocket:", wsUrl);
       
@@ -107,6 +110,9 @@ export function TerminalViewer(props: {
       ws.onopen = () => {
         console.log("Exec WebSocket connected");
         setIsConnected(true);
+        
+        // Focus terminal on connect
+        setTimeout(() => terminal()?.focus(), 100);
       };
       
       ws.onmessage = (event) => {
@@ -116,7 +122,7 @@ export function TerminalViewer(props: {
 
           if (data.type === 'connected') {
             setIsConnected(true);
-            terminal()?.write(`\r\n🎉 Connected to ${podName} (${shell})\r\n\r\n`);
+            terminal()?.write(`\r\n🎉 ${data.message || 'Connected'}\r\n\r\n`);
           } else if (data.type === 'data' && data.data) {
             // Write received data to terminal
             terminal()?.write(data.data);
@@ -138,6 +144,16 @@ export function TerminalViewer(props: {
       ws.onclose = () => {
         console.log("Exec WebSocket disconnected");
         setIsConnected(false);
+        
+        // Auto-reconnect if drawer is still open
+        if (props.isOpen) {
+          console.log("Auto-reconnecting...");
+          setTimeout(() => {
+            if (props.isOpen && !isConnected()) {
+              handleConnect();
+            }
+          }, 2000);
+        }
       };
 
       // Store WebSocket reference for cleanup
@@ -206,7 +222,29 @@ export function TerminalViewer(props: {
   createEffect(() => {
     if (props.isOpen && terminal() && fitAddon()) {
       // Fit terminal when tab becomes active
-      setTimeout(() => fitAddon()?.fit(), 50);
+      setTimeout(() => {
+        fitAddon()?.fit();
+        
+        // Auto-connect when tab becomes active
+        if (!isConnected() && !connectionError()) {
+          handleConnect();
+        }
+        
+        // Auto-focus terminal
+        if (isConnected()) {
+          terminal()?.focus();
+        }
+      }, 50);
+    } else if (!props.isOpen) {
+      // Disconnect when drawer is closed
+      disconnect();
+    }
+  });
+  
+  // Auto-focus terminal when connected
+  createEffect(() => {
+    if (isConnected() && terminal()) {
+      setTimeout(() => terminal()?.focus(), 100);
     }
   });
 
@@ -220,55 +258,12 @@ export function TerminalViewer(props: {
         </Show>
         
         <Show when={props.resource?.kind === "Pod"}>
-          <div class="terminal-controls">
-            <div class="terminal-connection-info">
-              <span class="terminal-pod-info">
-                Pod: {props.resource?.metadata?.name} | Namespace: {props.resource?.metadata?.namespace}
-              </span>
-              <Show when={isConnected()}>
-                <span class="terminal-status connected">● Connected</span>
-              </Show>
-              <Show when={!isConnected() && !connectionError()}>
-                <span class="terminal-status disconnected">○ Disconnected</span>
-              </Show>
-              <Show when={connectionError()}>
-                <span class="terminal-status error">✗ Error</span>
-              </Show>
-            </div>
 
-            <div class="terminal-shell-controls">
-              <label for="shell-select">Shell:</label>
-              <select 
-                id="shell-select"
-                value={selectedShell()} 
-                onChange={(e) => setSelectedShell(e.target.value)}
-                disabled={isConnected()}
-              >
-                {shells().map(shell => (
-                  <option value={shell}>{shell}</option>
-                ))}
-              </select>
-              
-              <Show when={!isConnected()}>
-                <button onClick={handleConnect} class="terminal-connect-btn">
-                  Connect
-                </button>
-              </Show>
-              
-              <Show when={isConnected()}>
-                <button onClick={disconnect} class="terminal-disconnect-btn">
-                  Disconnect
-                </button>
-              </Show>
-            </div>
-          </div>
 
           <Show when={connectionError()}>
             <div class="terminal-error">
               <p>Connection Error: {connectionError()}</p>
-              <button onClick={handleConnect} class="terminal-retry-btn">
-                Retry
-              </button>
+              <p class="terminal-retry-message">Retrying in 2 seconds...</p>
             </div>
           </Show>
 
