@@ -235,8 +235,8 @@ export function ResourceDrawer(props: {
         e.preventDefault();
         setActiveTab("logs");
       }
-    } else if (e.ctrlKey && e.key === "e") {
-      // Ctrl+E shortcut for exec tab (only available for Pods)
+    } else if (e.key === "5" || e.key === "x") {
+      // Ctrl+x shortcut for exec tab (only available for Pods)
       if (props.resource?.kind === "Pod") {
         e.preventDefault();
         setActiveTab("exec");
@@ -314,7 +314,7 @@ export function ResourceDrawer(props: {
                 class={`drawer-tab ${activeTab() === "exec" ? "active" : ""}`}
                 onClick={() => setActiveTab("exec")}
               >
-                Exec <span class="shortcut-key">Ctrl+E</span>
+                Exec <span class="shortcut-key">x</span>
               </button>
             </Show>
           </div>
