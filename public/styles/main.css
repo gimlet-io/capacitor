@@ -2791,6 +2791,8 @@ select.pod-select[size]:not([size="1"]) {
   border-radius: 4px;
   background-color: #1e1e1e;
   overflow: hidden;
+  position: relative;
+  display: block;
 }
 
 /* Import xterm.js default styles */
@@ -2800,18 +2802,66 @@ select.pod-select[size]:not([size="1"]) {
 .xterm {
   font-family: Monaco, Menlo, "Ubuntu Mono", monospace !important;
   font-size: 14px;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .xterm .xterm-viewport {
   background-color: #1e1e1e !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .xterm .xterm-screen {
   background-color: #1e1e1e !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
 }
 
 .xterm .xterm-cursor {
   background-color: #ffffff !important;
+}
+
+/* Ensure xterm layers are properly stacked */
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-decoration-container,
+.xterm .xterm-cursor-layer,
+.xterm .xterm-selection-container {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Make sure text content is visible */
+.xterm .xterm-rows {
+  color: #ffffff !important;
+}
+
+.xterm .xterm-rows .xterm-row {
+  color: #ffffff !important;
+}
+
+.xterm .xterm-rows .xterm-row span {
+  color: #ffffff !important;
+}
+
+/* Ensure the character layer is visible */
+.xterm .xterm-char-measure-element {
+  visibility: hidden !important;
+}
+
+.xterm .xterm-decoration-container .xterm-decoration {
+  position: absolute !important;
+}
+
+/* Fix any potential z-index issues */
+.xterm .xterm-screen canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 1 !important;
 }
 
 /* Hide the internal textarea that xterm.js uses for input */

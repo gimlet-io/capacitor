@@ -47,11 +47,12 @@ export function TerminalViewer(props: {
         brightCyan: '#29b8db',
         brightWhite: '#e5e5e5'
       },
-      allowTransparency: true,
+      allowTransparency: false, // Disable transparency to avoid rendering issues
       convertEol: true,
       scrollback: 1000,
       rows: 24,
-      cols: 80
+      cols: 80,
+      macOptionIsMeta: true
     });
 
     // Create fit addon
@@ -60,7 +61,14 @@ export function TerminalViewer(props: {
 
     // Open terminal in container
     term.open(terminalContainer);
-    fit.fit();
+    
+    // Wait a moment then fit and force a refresh
+    setTimeout(() => {
+      fit.fit();
+      term.refresh(0, term.rows - 1);
+      term.focus();
+      term.scrollToBottom();
+    }, 10);
 
     // Store references
     setTerminal(term);
@@ -69,7 +77,13 @@ export function TerminalViewer(props: {
     // Handle terminal resize
     const handleResize = () => {
       if (fit && props.isOpen) {
-        setTimeout(() => fit.fit(), 10);
+        setTimeout(() => {
+          fit.fit();
+          // Scroll to bottom after resize to maintain proper viewport
+          if (terminal()) {
+            terminal()?.scrollToBottom();
+          }
+        }, 10);
       }
     };
 
@@ -117,8 +131,11 @@ export function TerminalViewer(props: {
         console.log("Exec WebSocket connected");
         setIsConnected(true);
         
-        // Focus terminal on connect
-        setTimeout(() => terminal()?.focus(), 100);
+        // Focus terminal on connect and scroll to bottom
+        setTimeout(() => {
+          terminal()?.focus();
+          terminal()?.scrollToBottom();
+        }, 100);
       };
       
       ws.onmessage = (event) => {
@@ -129,9 +146,13 @@ export function TerminalViewer(props: {
           if (data.type === 'connected') {
             setIsConnected(true);
             terminal()?.write(`\r\n🎉 ${data.message || 'Connected'}\r\n\r\n`);
+            // Scroll to bottom after connection message
+            setTimeout(() => terminal()?.scrollToBottom(), 10);
           } else if (data.type === 'data' && data.data) {
             // Write received data to terminal
             terminal()?.write(data.data);
+            // Auto-scroll to bottom when new data arrives
+            setTimeout(() => terminal()?.scrollToBottom(), 10);
           } else if (data.type === 'error') {
             setConnectionError(data.error || 'Connection error');
             setIsConnected(false);
@@ -180,6 +201,8 @@ export function TerminalViewer(props: {
         if (isConnected() && ws.readyState === WebSocket.OPEN) {
           // Send input to backend via websocket
           ws.send(JSON.stringify({ type: 'input', data }));
+          // Scroll to bottom after user input to show cursor position
+          setTimeout(() => terminal()?.scrollToBottom(), 10);
         }
       });
 
@@ -250,9 +273,10 @@ export function TerminalViewer(props: {
           handleConnect();
         }
         
-        // Auto-focus terminal
+        // Auto-focus terminal and scroll to bottom
         if (isConnected()) {
           terminal()?.focus();
+          terminal()?.scrollToBottom();
         }
       }, 50);
     } else if (!props.isOpen) {
@@ -264,7 +288,10 @@ export function TerminalViewer(props: {
   // Auto-focus terminal when connected
   createEffect(() => {
     if (isConnected() && terminal()) {
-      setTimeout(() => terminal()?.focus(), 100);
+      setTimeout(() => {
+        terminal()?.focus();
+        terminal()?.scrollToBottom();
+      }, 100);
     }
   });
 
