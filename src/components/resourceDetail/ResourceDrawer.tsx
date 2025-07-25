@@ -236,7 +236,7 @@ export function ResourceDrawer(props: {
         setActiveTab("logs");
       }
     } else if (e.key === "5" || e.key === "x") {
-      // Ctrl+x shortcut for exec tab (only available for Pods)
+      // x shortcut for exec tab (only available for Pods)
       if (props.resource?.kind === "Pod") {
         e.preventDefault();
         setActiveTab("exec");

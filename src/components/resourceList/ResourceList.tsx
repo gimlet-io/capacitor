@@ -87,7 +87,7 @@ export const handleDeleteResource = async (resource: any) => {
 export const replaceHandlers = (
   commands: ResourceCommand[],
   handlers: {
-    openDrawer: (tab: "describe" | "yaml" | "events" | "logs", resource: any) => void;
+    openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: any) => void;
     openHelmDrawer: (resource: any, tab: "history" | "values" | "manifest") => void;
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
@@ -118,6 +118,11 @@ export const replaceHandlers = (
         commands[i] = {
           ...cmd,
           handler: (resource) => handlers.openDrawer("logs", resource)
+        };
+      } else if (cmd.shortcut.key === 'x' && cmd.shortcut.description === 'Exec') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("exec", resource)
         };
       } else if (cmd.shortcut.key === 'Ctrl+d' && cmd.shortcut.description === 'Delete resource') {
         commands[i] = {
@@ -182,7 +187,7 @@ export function ResourceList<T>(props: {
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
-  const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
+  const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
   const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
   // Use filterStore for sorting state
@@ -248,7 +253,7 @@ export function ResourceList<T>(props: {
     return resources;
   });
 
-  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: T) => {
+  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: T) => {
     setSelectedResource(() => resource);
     setActiveTab(tab);
     setDrawerOpen(true);
