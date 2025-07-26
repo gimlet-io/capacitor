@@ -2655,16 +2655,6 @@ select.pod-select[size]:not([size="1"]) {
   width: 100%;
 }
 
-.terminal-controls {
-  background-color: var(--linear-bg-secondary);
-  border-radius: 4px;
-  padding: 12px;
-  margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .terminal-error {
   background-color: var(--linear-red-light);
   border: 1px solid var(--linear-red);

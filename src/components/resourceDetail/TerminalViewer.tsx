@@ -141,7 +141,6 @@ export function TerminalViewer(props: {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log("Exec WebSocket message:", data);
 
           if (data.type === 'connected') {
             setIsConnected(true);
