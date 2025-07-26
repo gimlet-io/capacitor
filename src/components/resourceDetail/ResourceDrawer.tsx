@@ -350,11 +350,11 @@ export function ResourceDrawer(props: {
             </Show>
             
             <Show when={activeTab() === "logs"}>
-              <LogsViewer resource={props.resource} isOpen={activeTab() === "logs"} />
+              <LogsViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "logs"} />
             </Show>
             
             <Show when={activeTab() === "exec"}>
-              <TerminalViewer resource={props.resource} isOpen={activeTab() === "exec"} />
+              <TerminalViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "exec"} />
             </Show>
           </div>
         </div>
