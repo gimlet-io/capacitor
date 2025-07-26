@@ -255,43 +255,6 @@ export class K8sWebSocketClient {
     this.reconnectAttempts++;
     return delay;
   }
-  
-  /**
-   * Sends a message to the server for a specific path
-   * @param path The path to send the message to
-   * @param data The data to send
-   */
-  sendMessage(path: string, data: any): void {
-    if (!this.ws) {
-      console.error("[sendMessage] WebSocket is null, cannot send message for path:", path);
-      return;
-    }
-    
-    const readyState = this.ws.readyState;
-    if (readyState !== WebSocket.OPEN) {
-      console.error(`[sendMessage] WebSocket not open, skipping message for path:`, path);
-      return;
-    }
-
-    if (!this.serverReady) {
-      console.error(`[sendMessage] Server not ready, skipping message for path:`, path);
-      return;
-    }
-
-    try {
-      const requestId = Math.random().toString(36).substring(2, 15);
-      const message = JSON.stringify({
-        id: requestId,
-        action: 'message',
-        path,
-        data
-      });
-      
-      this.ws.send(message);
-    } catch (error) {
-      console.error(`[sendMessage] Error sending message for path ${path}:`, error);
-    }
-  }
 
   /**
    * Closes the WebSocket connection
