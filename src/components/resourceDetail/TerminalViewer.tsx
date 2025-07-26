@@ -29,7 +29,6 @@ export function TerminalViewer(props: {
         foreground: '#ffffff',
         cursor: '#ffffff',
         cursorAccent: '#000000',
-        selectionBackground: '#ffffff40',
         black: '#000000',
         red: '#cd3131',
         green: '#0dbc79',

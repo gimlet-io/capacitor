@@ -2700,6 +2700,18 @@ select.pod-select[size]:not([size="1"]) {
   height: 100% !important;
 }
 
+/* Fix terminal text selection visibility */
+.terminal-container .xterm .xterm-selection {
+  background-color: #3297FD !important;
+  opacity: 0.4 !important;
+}
+
+.terminal-container .xterm .xterm-selection div {
+  background-color: #3297FD !important;
+  opacity: 0.4 !important;
+  color: inherit !important;
+}
+
 .xterm .xterm-viewport {
   background-color: #1e1e1e !important;
   width: 100% !important;
