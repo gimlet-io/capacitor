@@ -2665,102 +2665,6 @@ select.pod-select[size]:not([size="1"]) {
   gap: 12px;
 }
 
-.terminal-connection-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.terminal-pod-info {
-  font-size: 14px;
-  color: var(--linear-text-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-.terminal-status {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.terminal-status.connected {
-  color: var(--linear-green);
-}
-
-.terminal-status.disconnected {
-  color: var(--linear-text-secondary);
-}
-
-.terminal-status.error {
-  color: var(--linear-red);
-}
-
-.terminal-shell-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.terminal-shell-controls label {
-  font-size: 14px;
-  color: var(--linear-text-secondary);
-  font-weight: 500;
-  margin-right: 4px;
-}
-
-.terminal-shell-controls select {
-  padding: 6px 8px;
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  background-color: var(--linear-bg);
-  color: var(--linear-text-primary);
-  font-size: 14px;
-  min-width: 80px;
-}
-
-.terminal-shell-controls select:focus {
-  outline: none;
-  border-color: var(--linear-blue);
-  box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.1);
-}
-
-.terminal-connect-btn,
-.terminal-disconnect-btn,
-.terminal-retry-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.terminal-connect-btn,
-.terminal-retry-btn {
-  background-color: var(--linear-blue);
-  color: white;
-  border-color: var(--linear-blue);
-}
-
-.terminal-connect-btn:hover,
-.terminal-retry-btn:hover {
-  background-color: #0052cc;
-  border-color: #0052cc;
-}
-
-.terminal-disconnect-btn {
-  background-color: var(--linear-red);
-  color: white;
-  border-color: var(--linear-red);
-}
-
-.terminal-disconnect-btn:hover {
-  background-color: #cc0000;
-  border-color: #cc0000;
-}
-
 .terminal-error {
   background-color: var(--linear-red-light);
   border: 1px solid var(--linear-red);
@@ -2871,6 +2775,10 @@ select.pod-select[size]:not([size="1"]) {
   top: -9999px !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+.xterm .xterm-helpers {
+  position: absolute
 }
 
 /* Make sure any textareas in terminal container are hidden */
