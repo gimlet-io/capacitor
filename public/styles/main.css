@@ -2647,6 +2647,181 @@ select.pod-select[size]:not([size="1"]) {
   }
 }
 
+/* Terminal Viewer Styles */
+.terminal-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.terminal-error {
+  background-color: var(--linear-red-light);
+  border: 1px solid var(--linear-red);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: var(--linear-red);
+  text-align: center;
+}
+
+.terminal-retry-message {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 5px;
+}
+
+.terminal-error p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.terminal-container {
+  flex: 1;
+  min-height: 400px;
+  height: calc(100vh - 320px);
+  width: 100%;
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  background-color: #1e1e1e;
+  overflow: hidden;
+  position: relative;
+  display: block;
+}
+
+/* Import xterm.js default styles */
+@import url('https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css');
+
+/* Override xterm.js styles to match our theme */
+.xterm {
+  font-family: Monaco, Menlo, "Ubuntu Mono", monospace !important;
+  font-size: 14px;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Fix terminal text selection visibility */
+.terminal-container .xterm .xterm-selection {
+  background-color: #3297FD !important;
+  opacity: 0.4 !important;
+}
+
+.terminal-container .xterm .xterm-selection div {
+  background-color: #3297FD !important;
+  opacity: 0.4 !important;
+  color: inherit !important;
+}
+
+.xterm .xterm-viewport {
+  background-color: #1e1e1e !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.xterm .xterm-screen {
+  background-color: #1e1e1e !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+.xterm .xterm-cursor {
+  background-color: #ffffff !important;
+}
+
+/* Ensure xterm layers are properly stacked */
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-decoration-container,
+.xterm .xterm-cursor-layer,
+.xterm .xterm-selection-container {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Make sure text content is visible */
+.xterm .xterm-rows {
+  color: #ffffff !important;
+}
+
+.xterm .xterm-rows .xterm-row {
+  color: #ffffff !important;
+}
+
+.xterm .xterm-rows .xterm-row span {
+  color: #ffffff !important;
+}
+
+/* Ensure the character layer is visible */
+.xterm .xterm-char-measure-element {
+  visibility: hidden !important;
+}
+
+.xterm .xterm-decoration-container .xterm-decoration {
+  position: absolute !important;
+}
+
+/* Fix any potential z-index issues */
+.xterm .xterm-screen canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 1 !important;
+}
+
+/* Hide the internal textarea that xterm.js uses for input */
+.xterm .xterm-helper-textarea {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.xterm .xterm-helpers {
+  position: absolute
+}
+
+/* Make sure any textareas in terminal container are hidden */
+.terminal-container textarea {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Responsive terminal */
+@media (max-width: 768px) {
+  .terminal-controls {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+  
+  .terminal-connection-info {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .terminal-shell-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .terminal-shell-controls select,
+  .terminal-connect-btn,
+  .terminal-disconnect-btn,
+  .terminal-retry-btn {
+    width: 100%;
+  }
+  
+  .terminal-container {
+    min-height: 300px;
+    height: calc(100vh - 280px);
+  }
+}
+
 /* Resource Type Visibility Dropdown */
 .resource-type-visibility-dropdown {
   position: relative;

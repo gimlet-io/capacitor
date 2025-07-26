@@ -255,7 +255,7 @@ export class K8sWebSocketClient {
     this.reconnectAttempts++;
     return delay;
   }
-  
+
   /**
    * Closes the WebSocket connection
    */

@@ -234,6 +234,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "l", description: "Logs", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
+      {
+        shortcut: { key: "x", description: "Exec", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
       ...builtInCommands, 
     ],
     defaultSortColumn: "NAME",

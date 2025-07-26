@@ -2,11 +2,12 @@
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";
 import { LogsViewer } from "./LogsViewer.tsx";
+import { TerminalViewer } from "./TerminalViewer.tsx";
 import type { Event } from "../../types/k8s.ts";
 import { stringify } from "@std/yaml";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 
-type DrawerTab = "describe" | "yaml" | "events" | "logs";
+type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec";
 
 export function ResourceDrawer(props: {
   resource: any;
@@ -234,6 +235,12 @@ export function ResourceDrawer(props: {
         e.preventDefault();
         setActiveTab("logs");
       }
+    } else if (e.key === "5" || e.key === "x") {
+      // x shortcut for exec tab (only available for Pods)
+      if (props.resource?.kind === "Pod") {
+        e.preventDefault();
+        setActiveTab("exec");
+      }
     }
   };
 
@@ -280,26 +287,34 @@ export function ResourceDrawer(props: {
               class={`drawer-tab ${activeTab() === "describe" ? "active" : ""}`}
               onClick={() => setActiveTab("describe")}
             >
-              Describe
+              Describe <span class="shortcut-key">d</span>
             </button>
             <button 
               class={`drawer-tab ${activeTab() === "yaml" ? "active" : ""}`}
               onClick={() => setActiveTab("yaml")}
             >
-              YAML
+              YAML <span class="shortcut-key">y</span>
             </button>
             <button 
               class={`drawer-tab ${activeTab() === "events" ? "active" : ""}`}
               onClick={() => setActiveTab("events")}
             >
-              Events
+              Events <span class="shortcut-key">e</span>
             </button>
             <Show when={["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)}>
               <button 
                 class={`drawer-tab ${activeTab() === "logs" ? "active" : ""}`}
                 onClick={() => setActiveTab("logs")}
               >
-                Logs
+                Logs <span class="shortcut-key">l</span>
+              </button>
+            </Show>
+            <Show when={props.resource?.kind === "Pod"}>
+              <button 
+                class={`drawer-tab ${activeTab() === "exec" ? "active" : ""}`}
+                onClick={() => setActiveTab("exec")}
+              >
+                Exec <span class="shortcut-key">x</span>
               </button>
             </Show>
           </div>
@@ -335,7 +350,11 @@ export function ResourceDrawer(props: {
             </Show>
             
             <Show when={activeTab() === "logs"}>
-              <LogsViewer resource={props.resource} isOpen={activeTab() === "logs"} />
+              <LogsViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "logs"} />
+            </Show>
+            
+            <Show when={activeTab() === "exec"}>
+              <TerminalViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "exec"} />
             </Show>
           </div>
         </div>
