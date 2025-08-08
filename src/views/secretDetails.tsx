@@ -16,6 +16,10 @@ export function SecretDetails() {
   
   // State for decrypted values
   const [decryptedData, setDecryptedData] = createSignal<Record<string, string>>({});
+  // Track per-key deletion state
+  const [deletingKeys, setDeletingKeys] = createSignal<Set<string>>(new Set());
+  // Toggle to show/hide delete buttons
+  const [deletionUnlocked, setDeletionUnlocked] = createSignal(false);
 
   // New key add form state
   const [newKeyName, setNewKeyName] = createSignal("");
@@ -207,6 +211,80 @@ export function SecretDetails() {
     }
   };
 
+  const deleteSecretKey = async (key: string) => {
+    const currentSecret = secret();
+    if (!currentSecret) return;
+
+    // Browser confirmation modal
+    const confirmed = globalThis.confirm?.(`Are you sure you want to delete key "${key}"?`)
+      ?? false;
+    if (!confirmed) return;
+
+    // Mark this key as deleting
+    setDeletingKeys(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+
+    try {
+      const url = `/k8s/api/v1/namespaces/${currentSecret.metadata.namespace}/secrets/${currentSecret.metadata.name}`;
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/merge-patch+json",
+        },
+        // Use JSON Merge Patch semantics: setting a map key to null deletes it
+        body: JSON.stringify({
+          data: { [key]: null },
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Failed to delete key (HTTP ${response.status})`);
+      }
+
+      // Optimistically update local secret state
+      setSecret(prev => {
+        if (!prev) return prev;
+        const nextData = { ...(prev.data || {}) } as Record<string, string>;
+        const nextStringData = { ...(prev.stringData || {}) } as Record<string, string>;
+        delete nextData[key];
+        delete nextStringData[key];
+        return { ...prev, data: nextData, stringData: nextStringData } as Secret;
+      });
+
+      // Remove decrypted cache if present
+      setDecryptedData(prev => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+
+      // Try to refresh from cluster
+      try {
+        const refreshResp = await fetch(url);
+        if (refreshResp.ok) {
+          const fresh = await refreshResp.json();
+          setSecret(fresh);
+        }
+      } catch (_) {
+        // Ignore refresh errors; watch should reconcile
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      // Clear deleting state
+      setDeletingKeys(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
   return (
     <div class="secret-details">
       <Show when={secret()} fallback={<div class="loading">Loading...</div>}>
@@ -257,14 +335,23 @@ export function SecretDetails() {
                         <th style="width: 70%;">
                           <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px;">
                             <span>Value</span>
-                            <button
-                              type="button"
-                              class="action-button"
-                              disabled={addingRow() || savingNewKey()}
-                              onClick={() => { setAddingRow(true); setSaveError(null); }}
-                            >
-                              Add key
-                            </button>
+                            <div style="display:flex; align-items:center; gap: 8px;">
+                              <button
+                                type="button"
+                                class="action-button"
+                                onClick={() => setDeletionUnlocked(v => !v)}
+                              >
+                                {deletionUnlocked() ? "Lock deletion" : "Unlock for deletion"}
+                              </button>
+                              <button
+                                type="button"
+                                class="action-button"
+                                disabled={addingRow() || savingNewKey()}
+                                onClick={() => { setAddingRow(true); setSaveError(null); }}
+                              >
+                                Add key
+                              </button>
+                            </div>
                           </div>
                         </th>
                       </tr>
@@ -352,6 +439,16 @@ export function SecretDetails() {
                                           onClick={() => toggleDecryption(key, value)}
                                         >
                                           {isDecrypted(key) ? "Encrypt" : "Decrypt"}
+                                        </button>
+                                      </Show>
+                                      <Show when={deletionUnlocked()}>
+                                        <button
+                                          type="button"
+                                          class="action-button"
+                                          disabled={deletingKeys().has(key)}
+                                          onClick={() => deleteSecretKey(key)}
+                                        >
+                                          {deletingKeys().has(key) ? "Deleting..." : "Delete"}
                                         </button>
                                       </Show>
                                       <button
