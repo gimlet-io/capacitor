@@ -17,6 +17,9 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/server"
 )
 
+// version is set at build time via -ldflags "-X main.version=<value>"
+var version = "dev"
+
 // openBrowser opens the default browser with the provided URL
 func openBrowser(url string) error {
 	var cmd *exec.Cmd
@@ -36,6 +39,12 @@ func openBrowser(url string) error {
 }
 
 func main() {
+	// Handle subcommands
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Println(version)
+		return
+	}
+
 	// Load configuration
 	cfg := config.New()
 	cfg.Parse()

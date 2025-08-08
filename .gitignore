@@ -11,3 +11,4 @@ cli/cmd/__debug*
 cli/next-*
 cli/next
 cli/pkg/server/public/
+dist/
