@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { Show, For } from "solid-js";
 import type { Secret } from "../types/k8s.ts";
@@ -16,6 +16,13 @@ export function SecretDetails() {
   
   // State for decrypted values
   const [decryptedData, setDecryptedData] = createSignal<Record<string, string>>({});
+
+  // New key add form state
+  const [newKeyName, setNewKeyName] = createSignal("");
+  const [newKeyValue, setNewKeyValue] = createSignal("");
+  const [savingNewKey, setSavingNewKey] = createSignal(false);
+  const [saveError, setSaveError] = createSignal<string | null>(null);
+  const [addingRow, setAddingRow] = createSignal(false);
 
   // Set up watches when component mounts or params change
   createEffect(() => {
@@ -131,13 +138,82 @@ export function SecretDetails() {
     }
   };
 
+  const addNewSecretKey = async () => {
+    const currentSecret = secret();
+    if (!currentSecret) return;
+
+    const key = newKeyName().trim();
+    if (!key) {
+      setSaveError("Key name is required");
+      return;
+    }
+
+    // Prevent duplicate keys
+    const existingData = { ...(currentSecret.data || {}), ...(currentSecret.stringData || {}) } as Record<string, string>;
+    if (Object.prototype.hasOwnProperty.call(existingData, key)) {
+      setSaveError("Key already exists");
+      return;
+    }
+
+    setSavingNewKey(true);
+    setSaveError(null);
+    try {
+      const url = `/k8s/api/v1/namespaces/${currentSecret.metadata.namespace}/secrets/${currentSecret.metadata.name}`;
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/merge-patch+json",
+        },
+        body: JSON.stringify({
+          stringData: { [key]: newKeyValue() },
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Failed to add key (HTTP ${response.status})`);
+      }
+
+      // Clear inputs and set UI state
+      const value = newKeyValue();
+      setNewKeyName("");
+      setNewKeyValue("");
+      setAddingRow(false);
+      // Optimistically update using a new object to ensure Solid reactivity
+      setSecret(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          stringData: { ...(prev.stringData || {}), [key]: value },
+          // Also reflect in data for immediate display, encoding as base64
+          data: { ...(prev.data || {}), [key]: btoa(value) }
+        };
+      });
+
+      // Explicitly refresh the secret from the cluster to ensure UI reflects the latest state immediately
+      try {
+        const refreshResp = await fetch(url);
+        if (refreshResp.ok) {
+          const fresh = await refreshResp.json();
+          setSecret(fresh);
+        }
+      } catch (_) {
+        // Ignore refresh errors; the watch should eventually update the UI
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingNewKey(false);
+    }
+  };
+
   return (
     <div class="secret-details">
       <Show when={secret()} fallback={<div class="loading">Loading...</div>}>
         {(s) => {
-          const secretData = s().data || {};
-          const secretStringData = s().stringData || {};
-          const allData = { ...secretData, ...secretStringData };
+          const secretData = createMemo(() => s().data || {});
+          const secretStringData = createMemo(() => s().stringData || {});
+          const allData = createMemo<Record<string, string>>(() => ({ ...secretData(), ...secretStringData() }));
           
           return (
             <>
@@ -178,18 +254,81 @@ export function SecretDetails() {
                     <thead>
                       <tr>
                         <th style="width: 30%;">Key</th>
-                        <th style="width: 70%;">Value</th>
+                        <th style="width: 70%;">
+                          <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px;">
+                            <span>Value</span>
+                            <button
+                              type="button"
+                              class="action-button"
+                              disabled={addingRow() || savingNewKey()}
+                              onClick={() => { setAddingRow(true); setSaveError(null); }}
+                            >
+                              Add key
+                            </button>
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      <Show when={Object.keys(allData).length > 0} fallback={
+                      <Show when={addingRow()}>
+                        <tr class="new-key-row">
+                          <td class="key-cell">
+                            <input
+                              id="new-key-name-inline"
+                              class="form-input"
+                              type="text"
+                              placeholder="Key name"
+                              value={newKeyName()}
+                              onInput={(e) => setNewKeyName((e.currentTarget as HTMLInputElement).value)}
+                              autofocus
+                            />
+                            <div class="key-type">(string)</div>
+                          </td>
+                          <td class="value-cell">
+                            <div class="value-content" style="display:flex; flex-direction:column; gap:8px;">
+                              <textarea
+                                id="new-key-value-inline"
+                                class="form-textarea secret-value"
+                                rows={4}
+                                placeholder="Value"
+                                value={newKeyValue()}
+                                onInput={(e) => setNewKeyValue((e.currentTarget as HTMLTextAreaElement).value)}
+                                style="width: 100%; box-sizing: border-box; background-color: white;"
+                              />
+                              <div class="value-actions">
+                                <button
+                                  type="button"
+                                  class="action-button"
+                                  disabled={savingNewKey() || !newKeyName().trim()}
+                                  onClick={addNewSecretKey}
+                                >
+                                  {savingNewKey() ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="action-button"
+                                  onClick={() => { setAddingRow(false); setNewKeyName(""); setNewKeyValue(""); setSaveError(null); }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              <Show when={saveError()}>
+                                {(err) => (
+                                  <div class="form-error">{err()}</div>
+                                )}
+                              </Show>
+                            </div>
+                          </td>
+                        </tr>
+                      </Show>
+                      <Show when={Object.keys(allData()).length > 0 || addingRow()} fallback={
                         <tr>
                           <td colspan="2" class="no-data">No data found in this secret</td>
                         </tr>
                       }>
-                        <For each={Object.entries(allData)}>
+                        <For each={Object.entries(allData())}>
                           {([key, value]) => {
-                            const isFromStringData = key in secretStringData;
+                            const isFromStringData = key in secretStringData();
                             const isBase64Encoded = !isFromStringData;
                             
                             return (
