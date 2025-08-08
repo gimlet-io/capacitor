@@ -93,8 +93,8 @@ body {
   -webkit-font-smoothing: antialiased;
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  height: 100vh;
+  overflow-y: auto;   /* allow page to scroll */
+  overflow-x: hidden; /* avoid horizontal scroll */
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -2920,4 +2920,158 @@ select.pod-select[size]:not([size="1"]) {
   color: var(--linear-text-secondary);
   min-width: 40px;
   text-align: center;
+}
+
+/* Secret Details styles */
+.secret-details {
+  padding: 20px;
+  background: var(--linear-bg);
+}
+
+.secret-header {
+  background: var(--linear-bg-secondary);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--linear-border);
+}
+
+.secret-type {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.secret-data-wrapper {
+  background: var(--linear-bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--linear-border);
+  overflow: hidden;
+}
+
+.secret-data-table-container {
+  overflow-x: auto;
+}
+
+.secret-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--linear-bg-secondary);
+}
+
+.secret-data-table th {
+  background: var(--linear-bg-tertiary);
+  color: var(--linear-text-primary);
+  text-align: left;
+  padding: 12px;
+  border-bottom: 2px solid var(--linear-border);
+  font-weight: 600;
+}
+
+.secret-data-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--linear-border);
+  vertical-align: top;
+}
+
+.key-cell {
+  min-width: 200px;
+}
+
+.key-name {
+  font-weight: 600;
+  color: var(--linear-text-primary);
+  margin-bottom: 4px;
+}
+
+.key-type {
+  font-size: 12px;
+  color: var(--linear-text-secondary);
+  font-style: italic;
+}
+
+.value-cell {
+  max-width: 400px;
+  position: relative;            /* allow absolutely positioned actions */
+  padding-right: 160px;          /* reserve space for action buttons */
+}
+
+.value-content {
+  max-height: none;    /* let inner pre control height */
+  overflow: visible;   /* avoid creating a second scroll area */
+}
+
+.secret-value {
+  background: var(--linear-bg-primary);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: var(--linear-text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* Value field action buttons aligned to the right over the value */
+/* Position relative moved to .value-cell so actions are outside scroll area */
+/* (no additional properties for .value-content) */
+
+.value-actions {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+/* Shared neutral action button style */
+.action-button {
+  background: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  color: var(--linear-text-primary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.action-button:hover:not(:disabled) {
+  background: var(--linear-bg-secondary);
+  border-color: var(--linear-text-tertiary);
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Copy state color only when copied */
+.copy-button.copied {
+  background: var(--linear-green-light);
+  border-color: var(--linear-green);
+  color: var(--linear-green);
+}
+
+/* Copied indicator */
+.copy-indicator {
+  align-self: center;
+  font-size: 11px;
+  color: var(--linear-green);
+  background: var(--linear-green-light);
+  border: 1px solid var(--linear-green);
+  border-radius: 10px;
+  padding: 2px 6px;
+}
+
+.no-data {
+  text-align: center;
+  color: var(--linear-text-secondary);
+  font-style: italic;
+  padding: 40px;
 }

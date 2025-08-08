@@ -3,7 +3,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, showPodsInNamespace } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -156,6 +156,13 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => {
             handlers.navigate!(`/application/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === navigateToSecret && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/secret/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
       } else if (cmd === showPodsInNamespace && handlers.updateFilters) {
