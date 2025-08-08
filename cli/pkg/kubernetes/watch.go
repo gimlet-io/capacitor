@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"k8s.io/client-go/rest"
@@ -99,18 +98,8 @@ func (w *ResourceWatcher) createWatchRequest(path string) (*http.Request, error)
 		}
 	}
 
-	// Get the base URL from the client config
-	baseURL := w.client.Config.Host
-
-	// Remove any path component from the host, as we'll use our path instead
-	if parsedURL, err := url.Parse(baseURL); err == nil {
-		// Build a new base URL without the path
-		parsedURL.Path = ""
-		baseURL = parsedURL.String()
-	}
-
 	// Combine the base URL with the path
-	fullURL := baseURL + path
+	fullURL := w.client.Config.Host + path
 	log.Printf("Watch URL: %s", fullURL)
 
 	// Create request
