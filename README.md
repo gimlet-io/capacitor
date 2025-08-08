@@ -29,7 +29,11 @@ With
 **Download**
 
 ```
-curl -L "https://github.com/gimlet-io/capacitor/releases/download/capacitor-next/next-$(uname)-$(uname -m)" -o next
+LATEST_TAG=$(curl -s https://api.github.com/repos/gimlet-io/capacitor/releases/latest \
+  | grep tag_name \
+  | cut -d '"' -f4)
+
+curl -L "https://github.com/gimlet-io/capacitor/releases/download/$LATEST_TAG/next-$(uname)-$(uname -m)" -o next
 chmod +x next
 ```
 
