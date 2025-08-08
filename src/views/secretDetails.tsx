@@ -341,7 +341,7 @@ export function SecretDetails() {
                                 class="action-button"
                                 onClick={() => setDeletionUnlocked(v => !v)}
                               >
-                                {deletionUnlocked() ? "Lock deletion" : "Unlock for deletion"}
+                                {deletionUnlocked() ? "Lock deletion" : "Unlock deletion"}
                               </button>
                               <button
                                 type="button"
