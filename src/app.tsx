@@ -7,12 +7,14 @@ import { Dashboard } from "./views/dashboard.tsx";
 import { FilterProvider } from "./store/filterStore.tsx";
 import { ApiResourceProvider } from "./store/apiResourceStore.tsx";
 import { ErrorProvider } from "./store/errorStore.tsx";
+import { UpdateNotice } from "./components/UpdateNotice.tsx";
 
 function App() {
   return (
     <ErrorProvider>
       <ApiResourceProvider>
         <FilterProvider>
+          <UpdateNotice />
           <HashRouter>
             <Route path="/" component={Dashboard} />
             <Route path="/kustomization/:namespace/:name" component={KustomizationDetails} />

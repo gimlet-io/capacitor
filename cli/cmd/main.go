@@ -68,7 +68,7 @@ func main() {
 
 	// Create server
 	log.Println("Creating proxy server...")
-	srv, err := server.New(cfg, k8sClient)
+	srv, err := server.New(cfg, k8sClient, version)
 	if err != nil {
 		log.Fatalf("Error creating server: %v", err)
 	}

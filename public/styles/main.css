@@ -1,3 +1,6 @@
+/* Import xterm.js default styles */
+@import url('https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css');
+
 /* http://meyerweb.com/eric/tools/css/reset/ 
    v2.0 | 20110126
    License: none (public domain)
@@ -2689,9 +2692,6 @@ select.pod-select[size]:not([size="1"]) {
   display: block;
 }
 
-/* Import xterm.js default styles */
-@import url('https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css');
-
 /* Override xterm.js styles to match our theme */
 .xterm {
   font-family: Monaco, Menlo, "Ubuntu Mono", monospace !important;
@@ -3074,4 +3074,45 @@ select.pod-select[size]:not([size="1"]) {
   color: var(--linear-text-secondary);
   font-style: italic;
   padding: 40px;
+}
+
+/* Update Notice */
+.update-notice {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  background: #1f1f1f;
+  color: #e8e8e8;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  padding: 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 2147483647; /* ensure on top */
+}
+
+.update-notice__actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.update-notice__btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.update-notice__btn--ghost {
+  background: transparent;
+  color: #bdbdbd;
+}
+
+.update-notice__btn--primary {
+  background: #6b8cff;
+  color: #0b0b0b;
 }
