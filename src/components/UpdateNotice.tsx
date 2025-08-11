@@ -1,5 +1,4 @@
 import { createSignal, onMount, Show } from "solid-js";
-// no-op import removed
 
 type GithubRelease = {
   tag_name: string;
@@ -18,7 +17,6 @@ function parseSemver(v: string): [number, number, number] {
     v = v.split("next-")[1];
   }
   const core = normalizeVersion(v).split("-")[0];
-  console.log("core", core);
   const parts = core.split(".").map((s) => parseInt(s, 10));
   const major = Number.isFinite(parts[0]) ? parts[0] : 0;
   const minor = Number.isFinite(parts[1]) ? parts[1] : 0;
