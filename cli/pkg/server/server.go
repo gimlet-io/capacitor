@@ -56,10 +56,11 @@ type Server struct {
 	wsHandler  *WebSocketHandler
 	k8sProxy   *KubernetesProxy
 	embedFS    fs.FS // embedded file system for static files
+	version    string
 }
 
 // New creates a new server instance
-func New(cfg *config.Config, k8sClient *kubernetes.Client) (*Server, error) {
+func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Server, error) {
 	// Create the echo instance
 	e := echo.New()
 
@@ -85,6 +86,7 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client) (*Server, error) {
 		helmClient: helmClient,
 		wsHandler:  wsHandler,
 		k8sProxy:   k8sProxy,
+		version:    version,
 	}, nil
 }
 
@@ -114,6 +116,13 @@ func (s *Server) Setup() {
 	// WebSocket endpoint
 	s.echo.GET("/ws", func(c echo.Context) error {
 		return s.wsHandler.HandleWebSocket(c)
+	})
+
+	// Version endpoint
+	s.echo.GET("/api/version", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
+			"version": s.version,
+		})
 	})
 
 	// Add endpoint for getting kubeconfig contexts
