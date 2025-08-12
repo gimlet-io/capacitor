@@ -50,19 +50,24 @@ OS_NAME=$(uname)
 ARCH_NAME=$(uname -m)
 info "Detected platform: ${BOLD}${OS_NAME} ${ARCH_NAME}${RESET}"
 
-LATEST_TAG=$(wget -qO- https://api.github.com/repos/gimlet-io/capacitor/releases/latest \
-  | grep tag_name \
-  | cut -d '"' -f4 || true)
-
-if [[ -z "${LATEST_TAG}" ]]; then
-  error "Could not determine latest release tag from GitHub API"
-  exit 1
+RELEASE_TAG=""
+if [[ $# -gt 0 ]]; then
+  RELEASE_TAG="$1"
+  info "Using requested tag: ${BOLD}${RELEASE_TAG}${RESET}"
+else
+  RELEASE_TAG=$(wget -qO- https://api.github.com/repos/gimlet-io/capacitor/releases/latest \
+    | grep tag_name \
+    | cut -d '"' -f4 || true)
+  if [[ -z "${RELEASE_TAG}" ]]; then
+    error "Could not determine latest release tag from GitHub API"
+    exit 1
+  fi
 fi
 
 ASSET_NAME="next-${OS_NAME}-${ARCH_NAME}"
-DOWNLOAD_URL="https://github.com/gimlet-io/capacitor/releases/download/${LATEST_TAG}/${ASSET_NAME}"
+DOWNLOAD_URL="https://github.com/gimlet-io/capacitor/releases/download/${RELEASE_TAG}/${ASSET_NAME}"
 
-info "Latest release: ${BOLD}${LATEST_TAG}${RESET}"
+info "Release tag: ${BOLD}${RELEASE_TAG}${RESET}"
 info "Downloading: ${BOLD}${DOWNLOAD_URL}${RESET}"
 
 TMP_DIR=$(mktemp -d)
