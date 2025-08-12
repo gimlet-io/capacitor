@@ -40,46 +40,6 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
-INSTALL_DIR=""
-USE_SUDO="auto"
-DOWNLOAD_ONLY="false"
-FORCE="false"
-
-usage() {
-  cat <<EOF
-${BOLD}Usage:${RESET} $(basename "$0") [options]
-
-Options:
-  --to <dir>        Install destination directory (default: auto-detect)
-  --no-sudo         Do not use sudo even if required
-  --download-only   Only download the binary into current directory
-  --force           Overwrite existing binary if present
-  -h, --help        Show this help
-
-The installer downloads the latest release asset:
-  https://github.com/gimlet-io/capacitor/releases/latest
-and installs the binary named:
-  next-\$(uname)-\$(uname -m)
-EOF
-}
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --to)
-      INSTALL_DIR="$2"; shift 2 ;;
-    --no-sudo)
-      USE_SUDO="never"; shift ;;
-    --download-only)
-      DOWNLOAD_ONLY="true"; shift ;;
-    --force)
-      FORCE="true"; shift ;;
-    -h|--help)
-      usage; exit 0 ;;
-    *)
-      error "Unknown option: $1"; echo; usage; exit 1 ;;
-  esac
-done
-
 print_header
 
 if ! command_exists curl; then
@@ -117,63 +77,42 @@ fi
 chmod +x "${TMP_FILE}"
 success "Downloaded binary"
 
-if [[ "${DOWNLOAD_ONLY}" == "true" ]]; then
-  TARGET_FILE="$(pwd)/next"
-  if [[ -e "${TARGET_FILE}" && "${FORCE}" != "true" ]]; then
-    error "${TARGET_FILE} already exists. Use --force to overwrite."
-    exit 1
-  fi
-  mv -f "${TMP_FILE}" "${TARGET_FILE}"
-  success "Saved to ${BOLD}${TARGET_FILE}${RESET}"
+# Decide install directory automatically
+if [[ -w "/usr/local/bin" ]]; then
+  INSTALL_DIR="/usr/local/bin"
+elif [[ -d "/opt/homebrew/bin" && -w "/opt/homebrew/bin" ]]; then
+  INSTALL_DIR="/opt/homebrew/bin"
+elif [[ -d "${HOME}/.local/bin" || -w "${HOME}" ]]; then
+  INSTALL_DIR="${HOME}/.local/bin"
+  mkdir -p "${INSTALL_DIR}"
 else
-  if [[ -z "${INSTALL_DIR}" ]]; then
-    if [[ -w "/usr/local/bin" ]]; then
-      INSTALL_DIR="/usr/local/bin"
-    elif [[ -d "/opt/homebrew/bin" && -w "/opt/homebrew/bin" ]]; then
-      INSTALL_DIR="/opt/homebrew/bin"
-    elif [[ -d "${HOME}/.local/bin" || -w "${HOME}" ]]; then
-      INSTALL_DIR="${HOME}/.local/bin"
-      mkdir -p "${INSTALL_DIR}"
-    else
-      INSTALL_DIR="${HOME}/bin"
-      mkdir -p "${INSTALL_DIR}"
-    fi
-  else
-    mkdir -p "${INSTALL_DIR}"
-  fi
+  INSTALL_DIR="${HOME}/bin"
+  mkdir -p "${INSTALL_DIR}"
+fi
 
-  TARGET_FILE="${INSTALL_DIR}/next"
+TARGET_FILE="${INSTALL_DIR}/next"
 
-  NEED_SUDO="false"
-  if [[ ! -w "${INSTALL_DIR}" ]]; then
-    NEED_SUDO="true"
-  fi
+if [[ -e "${TARGET_FILE}" ]]; then
+  warn "Overwriting existing ${TARGET_FILE}"
+fi
 
-  if [[ "${NEED_SUDO}" == "true" && "${USE_SUDO}" != "never" ]]; then
-    if command_exists sudo; then
-      info "Installing to ${BOLD}${INSTALL_DIR}${RESET} (with sudo)"
-      if [[ -e "${TARGET_FILE}" && "${FORCE}" != "true" ]]; then
-        warn "${TARGET_FILE} exists; using --force to overwrite"
-      fi
-      sudo mv -f "${TMP_FILE}" "${TARGET_FILE}"
-    else
-      error "Installation directory not writable and sudo not available. Use --to <dir> or --download-only."
-      exit 1
-    fi
-  else
-    info "Installing to ${BOLD}${INSTALL_DIR}${RESET}"
-    if [[ -e "${TARGET_FILE}" && "${FORCE}" != "true" ]]; then
-      warn "${TARGET_FILE} exists; using --force to overwrite"
-    fi
-    mv -f "${TMP_FILE}" "${TARGET_FILE}"
-  fi
+if [[ -w "${INSTALL_DIR}" ]]; then
+  info "Installing to ${BOLD}${INSTALL_DIR}${RESET}"
+  mv -f "${TMP_FILE}" "${TARGET_FILE}"
+elif command_exists sudo; then
+  info "Installing to ${BOLD}${INSTALL_DIR}${RESET} (with sudo)"
+  sudo mv -f "${TMP_FILE}" "${TARGET_FILE}"
+else
+  warn "${INSTALL_DIR} is not writable and sudo is unavailable. Saving to current directory instead."
+  TARGET_FILE="$(pwd)/next"
+  mv -f "${TMP_FILE}" "${TARGET_FILE}"
+fi
 
-  success "Installed ${BOLD}${TARGET_FILE}${RESET}"
+success "Installed ${BOLD}${TARGET_FILE}${RESET}"
 
-  if ! echo ":$PATH:" | grep -q ":${INSTALL_DIR}:"; then
-    warn "${INSTALL_DIR} is not on your PATH"
-    echo -e "Add to PATH, for example:\n  ${DIM}export PATH=\"${INSTALL_DIR}:\$PATH\"${RESET}"
-  fi
+if ! echo ":$PATH:" | grep -q ":$(dirname "${TARGET_FILE}"):"; then
+  warn "$(dirname "${TARGET_FILE}") is not on your PATH"
+  echo -e "Add to PATH, for example:\n  ${DIM}export PATH=\"$(dirname "${TARGET_FILE}"):\$PATH\"${RESET}"
 fi
 
 echo
