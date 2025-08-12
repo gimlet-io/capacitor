@@ -13,42 +13,11 @@ if [[ -t 1 ]]; then
   MAGENTA="\033[35m"
   CYAN="\033[36m"
   RESET="\033[0m"
-  # Faded CMYK-like colors (using closest 256-color codes)
-  FADED_TEAL="\033[38;5;73m"      # a muted teal/blue-green
-  DUSTY_BLUE="\033[38;5;110m"     # soft dusty blue
-  PALE_OLIVE="\033[38;5;149m"     # faded olive green
-  WARM_GRAY="\033[38;5;244m"      # warm gray
-
-  # Mustard yellows (earthy yellows)
-  GOLDEN_MUSTARD="\033[38;5;136m" # golden mustard
-  RETRO_OCHRE="\033[38;5;130m"    # ochre yellow-brown
-  MUTED_MUSTARD="\033[38;5;142m"  # muted mustard yellow
-
-  # Muted reds (soft reds, not bright)
-  BRICK_RED="\033[38;5;131m"      # brick red
-  DUSTY_ROSE="\033[38;5;168m"     # dusty rose
-  TERRACOTTA="\033[38;5;131m"     # terracotta (same as brick red here)
-  RESET="\033[0m"                 # reset colors
 else
   BOLD=""; DIM=""; RED=""; GREEN=""; YELLOW=""; BLUE=""; MAGENTA=""; CYAN=""; RESET=""
 fi
-
-ASCII_ART="${CYAN}
- ██████  █████  ██████   █████   ██████ ██ ████████  ██████  ██████  
-██      ██   ██ ██   ██ ██   ██ ██      ██    ██    ██    ██ ██   ██ 
-██      ███████ ██████  ███████ ██      ██    ██    ██    ██ ██████  
-██      ██   ██ ██      ██   ██ ██      ██    ██    ██    ██ ██   ██ 
- ██████ ██   ██ ██      ██   ██  ██████ ██    ██     ██████  ██   ██ ${RESET}\n"
-
-ASCII_ART="${CYAN}
- ██████╗ █████╗ ██████╗  █████╗  ██████╗██╗████████╗ ██████╗ ██████╗ 
-██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔════╝██║╚══██╔══╝██╔═══██╗██╔══██╗
-██║     ███████║██████╔╝███████║██║     ██║   ██║   ██║   ██║██████╔╝
-██║     ██╔══██║██╔═══╝ ██╔══██║██║     ██║   ██║   ██║   ██║██╔══██╗
-╚██████╗██║  ██║██║     ██║  ██║╚██████╗██║   ██║   ╚██████╔╝██║  ██║
- ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝ ${RESET}\n"
-                                                                     
-ASCII_ART="${GOLDEN_MUSTARD}
+                                                                
+ASCII_ART="${DIM}
  ██████╗ █████╗ ██████╗  █████╗  ██████╗██╗████████╗ ██████╗ ██████╗     ███╗   ██╗███████╗██╗  ██╗████████╗
 ██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔════╝██║╚══██╔══╝██╔═══██╗██╔══██╗    ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝
 ██║     ███████║██████╔╝███████║██║     ██║   ██║   ██║   ██║██████╔╝    ██╔██╗ ██║█████╗   ╚███╔╝    ██║   
