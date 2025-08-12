@@ -23,14 +23,6 @@ wget -qO- https://gimlet.io/install-capacitor | bash
 - Flux resource tree
 - Flux Kustomization diffing between cluster and git state
 
-**Resource tree**
-
-<img width="1512" alt="Screenshot 2025-07-05 at 8 40 17" src="https://github.com/user-attachments/assets/a2e63aea-f0dc-4bad-8b2b-7ac5bdeb4e3b" />
-
-**Flux Kustomization diffing between cluster and git state**
-
-<img width="1512" alt="Screenshot 2025-07-05 at 8 46 38" src="https://github.com/user-attachments/assets/5c7166f5-ecf4-424b-9140-5b4e92d962af" />
-
 ## Why
 
 FluxCD is an amazing backend for all things gitops.
