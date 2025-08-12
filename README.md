@@ -7,7 +7,14 @@ Capacitor Next is a client-side Kubernetes client that uses your kubeconfig to a
 - Like k9s, but in the browser.
 - Like the ArgoCD UI, just lighter.
 
-With
+## Quickstart
+
+```
+wget -qO- https://gimlet.io/install-capacitor | bash
+```
+
+## Features
+
 - Kubernetes resource discovery
 - Keyboard navigation
 - Built-in and custom views
@@ -23,32 +30,6 @@ With
 **Flux Kustomization diffing between cluster and git state**
 
 <img width="1512" alt="Screenshot 2025-07-05 at 8 46 38" src="https://github.com/user-attachments/assets/5c7166f5-ecf4-424b-9140-5b4e92d962af" />
-
-## Quickstart
-
-**Download**
-
-```
-LATEST_TAG=$(curl -s https://api.github.com/repos/gimlet-io/capacitor/releases/latest \
-  | grep tag_name \
-  | cut -d '"' -f4)
-
-curl -L "https://github.com/gimlet-io/capacitor/releases/download/$LATEST_TAG/next-$(uname)-$(uname -m)" -o next
-chmod +x next
-```
-
-**Then run**
-
-```
-$ ./next --port 3333
-
-2025/07/05 08:29:30 Creating Kubernetes client...
-2025/07/05 08:29:30 Using kubeconfig context: k3d-test
-2025/07/05 08:29:30 Cluster: k3d-test, Namespace: kube-system, User: admin@k3d-test
-2025/07/05 08:29:30 Using embedded certificate authority data from kubeconfig
-2025/07/05 08:29:30 Default namespace from context: kube-system
-...
-```
 
 ## Why
 
