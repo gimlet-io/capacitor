@@ -42,15 +42,15 @@ command_exists() {
 
 print_header
 
-if ! command_exists curl; then
-  error "curl is required"; exit 1
+if ! command_exists wget; then
+  error "wget is required. Install it (e.g., macOS: 'brew install wget') and re-run."; exit 1
 fi
 
 OS_NAME=$(uname)
 ARCH_NAME=$(uname -m)
 info "Detected platform: ${BOLD}${OS_NAME} ${ARCH_NAME}${RESET}"
 
-LATEST_TAG=$(curl -fsSL https://api.github.com/repos/gimlet-io/capacitor/releases/latest \
+LATEST_TAG=$(wget -qO- https://api.github.com/repos/gimlet-io/capacitor/releases/latest \
   | grep tag_name \
   | cut -d '"' -f4 || true)
 
@@ -69,7 +69,7 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 TMP_FILE="${TMP_DIR}/next"
 
-if ! curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${TMP_FILE}"; then
+if ! wget -q --show-progress -O "${TMP_FILE}" "${DOWNLOAD_URL}"; then
   error "Download failed. Check your connectivity and that the asset exists."
   exit 1
 fi
