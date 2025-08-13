@@ -58,6 +58,7 @@
         setActive(id);
         content.innerHTML = '<p class="dim">Loading…</p>';
         const url = 'markdown/' + resolveDocUrl(id);
+        console.log('Loading doc:', url);
         const res = await fetch(url, { cache: 'no-cache' });
         if (!res.ok) throw new Error('Failed to load ' + id);
         const md = await res.text();
