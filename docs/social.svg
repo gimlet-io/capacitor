@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1112" />
+      <stop offset="1" stop-color="#141619" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#g)"/>
+
+  <!-- Icon motif, C-shaped arc like the favicon, with the dot at arc end -->
+  <path d="M570 165 A200 200 0 1 0 570 465" fill="none" stroke="#6aa9bd" stroke-width="36" stroke-linecap="round" />
+  <circle cx="570" cy="465" r="36" fill="#c06ba6"/>
+
+  <!-- Title and subtitle -->
+  <g fill="#e7e7e7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+    <text x="600" y="290" font-size="86" font-weight="800">Capacitor Next</text>
+    <text x="600" y="350" font-size="34" fill="#8aa1b6">FluxCD-focused Kubernetes UI</text>
+  </g>
+</svg>
