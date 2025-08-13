@@ -80,7 +80,13 @@
       const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
       const formatInline = (s) => {
         const safe = esc(s);
-        const withLinks = safe.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
+        // Images first so they are not picked up by link regex
+        const withImages = safe.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
+          const urlEsc = String(url).replace(/"/g, '&quot;');
+          const altEsc = String(alt);
+          return '<img src="' + urlEsc + '" alt="' + altEsc + '" />';
+        });
+        const withLinks = withImages.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
           const urlEsc = String(url).replace(/"/g, '&quot;');
           return '<a class="dim" href="' + urlEsc + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
         });
