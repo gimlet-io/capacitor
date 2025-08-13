@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capacitor Next — Think k9s, but in the browser.</title>
+  <link rel="stylesheet" href="product.css">
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <main class="container">
+    <header class="hero">
+      <div class="logo" aria-hidden="true"></div>
+      <h1 class="glitch" data-text="Capacitor Next">Capacitor Next</h1>
+      <p class="tagline">Think k9s, but in the browser. Or ArgoCD UI, just lighter. With heavy FluxCD focus.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/capacitor/docs">Docs</a>
+        <a class="btn btn-ghost" href="https://github.com/gimlet-io/capacitor" target="_blank">✨ Github</a>
+      </div>
+      <div class="terminal">
+        <code><span class="prompt">$ </span>wget -qO- https://gimlet.io/install-capacitor | bash</code>
+        <button id="copyCmd" class="copy" aria-label="Copy install command">Copy</button>
+      </div>
+    </header>
+    <section id="features" class="features">
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⟳</div>
+        <h3>FluxCD</h3>
+        <p>Tree view, diffing cluster vs git state.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⎈</div>
+        <h3>Helm</h3>
+        <p>History, rollback, diffing.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">◇</div>
+        <h3>Secrets</h3>
+        <p>View, edit.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⌘</div>
+        <h3>Keyboard Navigation</h3>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⚖</div>
+        <h3>Respects RBAC</h3>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⧉</div>
+        <h3>Multi-cluster</h3>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">⬚</div>
+        <h3>Your feature</h3>
+        <p>Request a feature on <a href="https://github.com/gimlet-io/capacitor/issues" target="_blank" class="dim">Github</a></p>
+      </div>
+    </section>
+
+    <section id="buy" class="pricing">
+      <div class="card">
+        <h2>Self-host for your team<br /> - beta testers wanted</h2>
+        <!-- <p class="price"><span class="currency">$</span>29<span class="term">/mo</span></p> -->
+        <ul class="list">
+          <li>OIDC-based authentication (or fixed roles)</li>
+          <li>Multi-cluster support</li>
+          <li>Self-hosting</li>
+          <li>Backstage/IDP integration</li>
+        </ul>
+        <a class="btn btn-primary wide" href="mailto:laszlo@gimlet.io">Message laszlo at gimlet.io</a>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p><span class="mono">Github: </span> <a href="https://github.com/gimlet-io/capacitor" target="_blank" class="dim">https://github.com/gimlet-io/capacitor</a></p>
+      <p><span class="mono">X: </span> <a href="https://x.com/laszlocph" target="_blank" class="dim">@laszlocph</a></p>
+    </footer>
+  </main>
+
+  <script src="product.js"></script>
+</body>
+</html>
+

@@ -7,7 +7,7 @@ Capacitor Next is a client-side Kubernetes client that uses your kubeconfig to a
 - Like k9s, but in the browser.
 - Like the ArgoCD UI, just lighter.
 
-(you can also [run it on a URL](#Capacitor-Next-on-a-URL) for your team)
+(you can also [run it on a URL](#Self-host-for-yourteam-beta-testers-wanted) for your team)
 
 ## Quickstart
 
@@ -35,14 +35,14 @@ It is a shame that ArgoCD gained so much traction mostly because developers appr
 
 Capacitor's goal is to level the field: providing a UI option for Flux users that matches or exceeds the level of ArgoCD.
 
-## Capacitor Next on a URL
+## Self-host for your team - beta testers wanted
 
 Capacitor Next is a tool you can run on your laptop.
 
 - Are you looking to host it for your team on a URL?
 - Or integrate with Backstage?
 
-Reach out to laszlo at gimlet.io. We are looking for design partners.
+Reach out to laszlo at gimlet.io. We are looking for beta testers.
 
 ## Star History
 
