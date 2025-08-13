@@ -206,11 +206,27 @@ body {
   border: 1px solid var(--cyan);
   border-radius: 6px;
   padding: 12px;
-  overflow: auto;
+  overflow: hidden;
+  max-width: 100%;
+}
+.content pre code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: block;
 }
 .content code {
   color: #cfe9f3;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+.content :not(pre) > code {
+  white-space: break-spaces;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.content p, .content li, .content a, .content h1, .content h2, .content h3 {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .content img {
   display: block;
