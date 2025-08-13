@@ -7,7 +7,7 @@ Capacitor Next is a client-side Kubernetes client that uses your kubeconfig to a
 - Like k9s, but in the browser.
 - Like the ArgoCD UI, just lighter.
 
-(you can also [run it on a URL](#Self-host-for-yourteam-beta-testers-wanted) for your team)
+(you can also [run it on a URL](#self-host-for-your-team---beta-testers-wanted) for your team)
 
 ## Quickstart
 
