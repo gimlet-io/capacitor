@@ -1,7 +1,3 @@
-Welcome to the Capacitor Next docs.
-
-Capacitor Next is the everything client for Kubernetes.
-
 ## Install
 
 ```bash
