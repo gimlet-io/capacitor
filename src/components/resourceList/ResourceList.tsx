@@ -84,6 +84,49 @@ export const handleDeleteResource = async (resource: any) => {
   }
 };
 
+// Build a kubectl port-forward command for supported resource kinds
+function buildPortForwardCommand(resource: any): string {
+  if (!resource || !resource.metadata) return '';
+  const namespace = resource.metadata.namespace || '';
+  const name = resource.metadata.name;
+  let type = '';
+  let remotePort: number | string | undefined;
+
+  switch (resource.kind) {
+    case 'Pod':
+      type = 'pod';
+      remotePort = resource?.spec?.containers?.find((c: any) => Array.isArray(c?.ports) && c.ports.length > 0)?.ports?.[0]?.containerPort;
+      break;
+    case 'Service':
+      type = 'service';
+      remotePort = resource?.spec?.ports?.[0]?.port;
+      break;
+    case 'Deployment':
+      type = 'deployment';
+      remotePort = resource?.spec?.template?.spec?.containers?.find((c: any) => Array.isArray(c?.ports) && c.ports.length > 0)?.ports?.[0]?.containerPort;
+      break;
+    case 'ReplicaSet':
+      type = 'replicaset';
+      remotePort = resource?.spec?.template?.spec?.containers?.find((c: any) => Array.isArray(c?.ports) && c.ports.length > 0)?.ports?.[0]?.containerPort;
+      break;
+    case 'StatefulSet':
+      type = 'statefulset';
+      remotePort = resource?.spec?.template?.spec?.containers?.find((c: any) => Array.isArray(c?.ports) && c.ports.length > 0)?.ports?.[0]?.containerPort;
+      break;
+    default:
+      type = String(resource.kind || '').toLowerCase();
+  }
+
+  if (!remotePort) remotePort = 80;
+  let localPort: number | string = remotePort as number | string;
+  const numericRemote = typeof remotePort === 'string' ? parseInt(remotePort, 10) : remotePort;
+  if (typeof numericRemote === 'number' && !Number.isNaN(numericRemote) && numericRemote < 1024) {
+    localPort = 10000 + numericRemote;
+  }
+  const nsArg = namespace ? `-n ${namespace} ` : '';
+  return `kubectl port-forward ${nsArg}${type}/${name} ${localPort}:${remotePort}`.trim();
+}
+
 // Shared function to replace command handlers with actual implementations
 export const replaceHandlers = (
   commands: ResourceCommand[],
@@ -177,6 +220,20 @@ export const replaceHandlers = (
             ];
             
             handlers.updateFilters!(newFilters);
+          }
+        };
+      } else if (cmd.shortcut.key === 'Ctrl+p' && cmd.shortcut.description === 'Copy port-forward') {
+        commands[i] = {
+          ...cmd,
+          handler: async (resource) => {
+            try {
+              const command = buildPortForwardCommand(resource);
+              if (command) {
+                await navigator.clipboard.writeText(command);
+              }
+            } catch (error) {
+              console.error('Failed to copy port-forward command:', error);
+            }
           }
         };
       }
