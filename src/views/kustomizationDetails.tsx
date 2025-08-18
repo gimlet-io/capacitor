@@ -814,7 +814,7 @@ export function KustomizationDetails() {
 
     const g = new graphlib.Graph({ directed: true });
     g.setGraph({
-      rankdir: "LR",
+      rankdir: "TB",
       nodesep: 100,
       ranksep: 80,
       marginx: 20,
@@ -823,26 +823,29 @@ export function KustomizationDetails() {
     });
     g.setDefaultEdgeLabel(() => ({}));
 
-    const visited = new Set<string>();
+    const visitedUp = new Set<string>();
+    const visitedDown = new Set<string>();
 
-    const statusColorsFor = (k: Kustomization | undefined) => {
-      const readyTrue = k?.status?.conditions?.some((c: any) => c.type === 'Ready' && c.status === 'True');
-      return readyTrue
-        ? { fill: "#e6f4ea", stroke: "#137333", strokeWidth: "1" }
-        : { fill: "#fce8e6", stroke: "#c5221f", strokeWidth: "1" };
-    };
+    // Neutral colors for all nodes in Dependencies graph; current will be highlighted
+    const neutralColors = { fill: "#f3f4f4", stroke: "#dee2e6", strokeWidth: "1" } as const;
 
     const makeId = (k: Kustomization) => `kustomization-${k.metadata.namespace}-${k.metadata.name}`;
+    const makeKey = (k: Kustomization) => `${k.metadata.namespace}/${k.metadata.name}`;
 
     const ensureNode = (k: Kustomization) => {
       const id = makeId(k);
       if (!g.hasNode(id)) {
+        // Highlight only the currently viewed kustomization (not all ancestors/descendants)
+        const isCurrent = k.metadata.name === root.metadata.name && k.metadata.namespace === root.metadata.namespace;
+        const finalColors = isCurrent 
+          ? { ...neutralColors, fill: "#fff3cd" } // soft yellow
+          : neutralColors;
         createNodeWithCardRenderer(
           g,
           id,
           k,
           "kustomize.toolkit.fluxcd.io/Kustomization",
-          statusColorsFor(k)
+          finalColors
         );
       }
       return id;
@@ -860,10 +863,22 @@ export function KustomizationDetails() {
       } as Kustomization;
     };
 
-    const walk = (current: Kustomization) => {
-      const key = `${current.metadata.namespace}/${current.metadata.name}`;
-      if (visited.has(key)) return;
-      visited.add(key);
+    // Build a reverse index: key => list of dependents
+    const dependentsIndex: Record<string, Kustomization[]> = {};
+    allKnown.forEach(k => {
+      const deps: Array<{ name: string; namespace?: string }> = (k as any).spec?.dependsOn || [];
+      deps.forEach(dep => {
+        const depNs = dep.namespace || k.metadata.namespace;
+        const key = `${depNs}/${dep.name}`;
+        if (!dependentsIndex[key]) dependentsIndex[key] = [];
+        dependentsIndex[key].push(k);
+      });
+    });
+
+    const walkUp = (current: Kustomization) => {
+      const key = makeKey(current);
+      if (visitedUp.has(key)) return;
+      visitedUp.add(key);
 
       const currentId = ensureNode(current);
       const dependsOn: Array<{ name: string; namespace?: string }> = (current as any).spec?.dependsOn || [];
@@ -871,17 +886,30 @@ export function KustomizationDetails() {
         const depNs = dep.namespace || current.metadata.namespace;
         const depK = findOrStub(dep.name, depNs);
         const depId = ensureNode(depK);
-        // Edge from dependency to dependent
         g.setEdge(depId, currentId);
-
-        // Only walk further if we have the full object (exists in list)
         if (allKnown.find(k => k.metadata.name === depK.metadata.name && k.metadata.namespace === depK.metadata.namespace)) {
-          walk(depK);
+          walkUp(depK);
         }
       });
     };
 
-    walk(root);
+    const walkDown = (current: Kustomization) => {
+      const key = makeKey(current);
+      if (visitedDown.has(key)) return;
+      visitedDown.add(key);
+
+      const currentId = ensureNode(current);
+      const children = dependentsIndex[key] || [];
+      children.forEach(child => {
+        const childId = ensureNode(child);
+        g.setEdge(currentId, childId);
+        walkDown(child);
+      });
+    };
+
+    ensureNode(root);
+    walkUp(root);
+    walkDown(root);
 
     return g;
   };

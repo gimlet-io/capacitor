@@ -543,6 +543,10 @@ export function ResourceTree(props: ResourceTreeProps) {
     maxX = 0;
     maxY = 0;
 
+    // Determine orientation
+    const graphAttrsForNodes = (g.graph() as any) || {};
+    const rankdirForNodes = (graphAttrsForNodes.rankdir as string) || "LR";
+
     // Render nodes
     g.nodes().forEach((v: string) => {
       const node = g.node(v) as NodeData;
@@ -593,11 +597,28 @@ export function ResourceTree(props: ResourceTreeProps) {
         div.style.width = "100%";
         div.style.height = "100%";
         div.style.boxSizing = "border-box";
+        // If a node-specific fill is provided, pass it down to the card via CSS var (only for TB graphs)
+        if ((rankdirForNodes === "TB") && (node as any).fill) {
+          try {
+            (div.style as any).setProperty('--card-bg-color', (node as any).fill);
+          } catch (_) {
+            // noop
+          }
+        }
+        // Node coloring is applied to the outer rect; no extra border styling here
         
         // Render the JSX content
         const solidRoot = document.createElement("div");
         foreignObject.appendChild(div);
         div.appendChild(solidRoot);
+        // Ensure CSS var propagates to the rendered card (only for TB graphs)
+        if ((rankdirForNodes === "TB") && (node as any).fill) {
+          try {
+            (solidRoot.style as any).setProperty('--card-bg-color', (node as any).fill);
+          } catch (_) {
+            // noop
+          }
+        }
         if (selectedNodeId() === v) {
           div.classList.add("selected-resource");
         }
@@ -612,43 +633,50 @@ export function ResourceTree(props: ResourceTreeProps) {
       gRef?.appendChild(group);
     });
 
-    // Render edges
+    // Render edges with orientation-aware elbow paths
+    const graphAttrs = (g.graph() as any) || {};
+    const rankdir = (graphAttrs.rankdir as string) || "LR";
+
     g.edges().forEach((e: graphlib.Edge) => {
       const edge = g.edge(e) as EdgeData;
-      const path = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "path",
-      );
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
-      // Get source and target nodes
       const sourceNode = g.node(e.v) as NodeData;
       const targetNode = g.node(e.w) as NodeData;
 
-      // Calculate connection points - source at right side, target at left side
-      const sourceX = sourceNode.x! + sourceNode.width / 2;
-      const sourceY = sourceNode.y!;
-      const targetX = targetNode.x! - targetNode.width / 2;
-      const targetY = targetNode.y!;
+      let pathData = "";
 
-      // Calculate path with square corners
-      let pathData = `M ${sourceX} ${sourceY}`;
-      
-      // Determine the midpoint between nodes
-      const midX = sourceX + (targetX - sourceX) / 2;
-      
-      // Create square path with right angles
-      // First go horizontally to midpoint
-      pathData += ` L ${midX} ${sourceY}`;
-      // Then go vertically to target's y-coordinate
-      pathData += ` L ${midX} ${targetY}`;
-      // Finally go horizontally to target
-      pathData += ` L ${targetX} ${targetY}`;
+      if (rankdir === "TB" || rankdir === "BT") {
+        // Vertical orientation: connect bottom of source to top of target via horizontal elbow
+        const sourceX = sourceNode.x!;
+        const sourceY = sourceNode.y! + sourceNode.height / 2;
+        const targetX = targetNode.x!;
+        const targetY = targetNode.y! - targetNode.height / 2;
+
+        const midY = sourceY + (targetY - sourceY) / 2;
+        pathData = `M ${sourceX} ${sourceY}`;
+        pathData += ` L ${sourceX} ${midY}`; // go down to midpoint
+        pathData += ` L ${targetX} ${midY}`; // go horizontally to target column
+        pathData += ` L ${targetX} ${targetY}`; // go down to target top
+      } else {
+        // Horizontal orientation: connect right of source to left of target via vertical elbow
+        const sourceX = sourceNode.x! + sourceNode.width / 2;
+        const sourceY = sourceNode.y!;
+        const targetX = targetNode.x! - targetNode.width / 2;
+        const targetY = targetNode.y!;
+
+        const midX = sourceX + (targetX - sourceX) / 2;
+        pathData = `M ${sourceX} ${sourceY}`;
+        pathData += ` L ${midX} ${sourceY}`; // horizontally to midpoint
+        pathData += ` L ${midX} ${targetY}`; // vertically to target row
+        pathData += ` L ${targetX} ${targetY}`; // horizontally to target
+      }
 
       path.setAttribute("d", pathData);
       path.setAttribute("fill", "none");
-      path.setAttribute("stroke", "#999"); // Lighter gray
+      path.setAttribute("stroke", "#999");
       path.setAttribute("stroke-width", "1");
-      path.setAttribute("stroke-dasharray", "5,2"); // Dashed line
+      path.setAttribute("stroke-dasharray", "5,2");
       gRef?.appendChild(path);
     });
 
