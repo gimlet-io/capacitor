@@ -243,6 +243,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "x", description: "Exec", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
+      {
+        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
       ...builtInCommands, 
     ],
     defaultSortColumn: "NAME",
@@ -257,6 +261,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: null as any  // Will be implemented in ResourceList
       },
       ...builtInCommands,
+      {
+        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
       {
         shortcut: { key: "Ctrl+s", description: "Scale deployment", isContextual: true },
         handler: handleScale
@@ -287,6 +295,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands,
       {
+        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+      {
         shortcut: { key: "Ctrl+s", description: "Scale statefulset", isContextual: true },
         handler: handleScale
       },
@@ -303,6 +315,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'core/Service': {
     columns: serviceColumns,
+    commands: [
+      ...builtInCommands,
+      {
+        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
+    ],
     defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
     abbreviations: ['svc']
@@ -385,7 +404,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "l", description: "Logs", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
-      ...builtInCommands
+      ...builtInCommands,
+      {
+        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      }
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
