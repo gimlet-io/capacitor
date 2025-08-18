@@ -955,6 +955,11 @@ td.message-cell {
   background-color: var(--linear-bg-secondary);
 }
 
+.context-menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .context-menu-item.active {
   background-color: var(--linear-blue-light);
 }
@@ -2160,6 +2165,14 @@ td.message-cell {
 
 .shortcut-description {
   color: var(--linear-text-primary);
+}
+
+/* Disabled shortcut styling */
+.keyboard-shortcut.disabled .shortcut-description,
+.shortcut-description.disabled,
+.shortcut-key.disabled {
+  color: var(--linear-text-tertiary);
+  opacity: 0.6;
 }
 
 .describe-content,
