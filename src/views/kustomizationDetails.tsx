@@ -235,6 +235,13 @@ export function KustomizationDetails() {
   const [visibleResourceTypes, setVisibleResourceTypes] = createSignal<Set<string>>(new Set());
 
   const [graph, setGraph] = createSignal<graphlib.Graph>();
+  const [dependenciesGraph, setDependenciesGraph] = createSignal<graphlib.Graph>();
+  // Tab state for main content
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "dependencies">("resource");
+
+  // Keep a list of all kustomizations across namespaces (for dependency graph)
+  const [allKustomizations, setAllKustomizations] = createSignal<Kustomization[]>([]);
+
 
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<
@@ -369,10 +376,12 @@ export function KustomizationDetails() {
 
     // Clear existing resources
     setDynamicResources({});
+    // Reset all kustomizations cache for dependency graph
+    setAllKustomizations([]);
 
     const watches = [];
 
-    // Always watch for the kustomization itself
+    // Always watch for the kustomization itself (namespaced)
     watches.push({
       path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/${ns}/kustomizations?watch=true`,
       callback: (event: { type: string; object: Kustomization }) => {
@@ -394,6 +403,23 @@ export function KustomizationDetails() {
         }
       },
     }); 
+
+    // Cluster-wide watch to maintain a full list of Kustomizations for dependency graph
+    watches.push({
+      path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/kustomizations?watch=true`,
+      callback: (event: { type: string; object: Kustomization }) => {
+        if (event.type === 'ADDED') {
+          setAllKustomizations(prev => {
+            const exists = prev.find(r => r.metadata.name === event.object.metadata.name && r.metadata.namespace === event.object.metadata.namespace);
+            return exists ? prev.map(r => (r.metadata.name === event.object.metadata.name && r.metadata.namespace === event.object.metadata.namespace) ? event.object : r) : [...prev, event.object];
+          });
+        } else if (event.type === 'MODIFIED') {
+          setAllKustomizations(prev => prev.map(r => (r.metadata.name === event.object.metadata.name && r.metadata.namespace === event.object.metadata.namespace) ? event.object : r));
+        } else if (event.type === 'DELETED') {
+          setAllKustomizations(prev => prev.filter(r => !(r.metadata.name === event.object.metadata.name && r.metadata.namespace === event.object.metadata.namespace)));
+        }
+      }
+    });
 
     const extraResources: Record<string, any[]> = {};
     const extraWatchesForResource = resourceTypeConfigs['kustomize.toolkit.fluxcd.io/Kustomization']?.extraWatches || [];
@@ -681,6 +707,11 @@ export function KustomizationDetails() {
     setGraph(createGraph(kustomization()));
   });
 
+  // Recompute dependency graph when root kustomization or namespace list changes
+  createEffect(() => {
+    setDependenciesGraph(createDependenciesGraph(kustomization(), allKustomizations()));
+  });
+
   const createGraph = (kustomization: Kustomization | null) => {
     if (!kustomization) return;
     
@@ -773,6 +804,84 @@ export function KustomizationDetails() {
         });
       }
     });
+
+    return g;
+  };
+
+  // Build dependency graph of Kustomizations using spec.dependsOn
+  const createDependenciesGraph = (root: Kustomization | null, allKnown: Kustomization[]) => {
+    if (!root) return;
+
+    const g = new graphlib.Graph({ directed: true });
+    g.setGraph({
+      rankdir: "LR",
+      nodesep: 100,
+      ranksep: 80,
+      marginx: 20,
+      marginy: 20,
+      align: "UL",
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    const visited = new Set<string>();
+
+    const statusColorsFor = (k: Kustomization | undefined) => {
+      const readyTrue = k?.status?.conditions?.some((c: any) => c.type === 'Ready' && c.status === 'True');
+      return readyTrue
+        ? { fill: "#e6f4ea", stroke: "#137333", strokeWidth: "1" }
+        : { fill: "#fce8e6", stroke: "#c5221f", strokeWidth: "1" };
+    };
+
+    const makeId = (k: Kustomization) => `kustomization-${k.metadata.namespace}-${k.metadata.name}`;
+
+    const ensureNode = (k: Kustomization) => {
+      const id = makeId(k);
+      if (!g.hasNode(id)) {
+        createNodeWithCardRenderer(
+          g,
+          id,
+          k,
+          "kustomize.toolkit.fluxcd.io/Kustomization",
+          statusColorsFor(k)
+        );
+      }
+      return id;
+    };
+
+    const findOrStub = (name: string, namespace: string): Kustomization => {
+      const found = allKnown.find(k => k.metadata.name === name && k.metadata.namespace === namespace);
+      if (found) return found;
+      // Create a minimal stub so it can render
+      return {
+        apiVersion: root.apiVersion,
+        kind: root.kind,
+        metadata: { name, namespace },
+        spec: {} as any,
+      } as Kustomization;
+    };
+
+    const walk = (current: Kustomization) => {
+      const key = `${current.metadata.namespace}/${current.metadata.name}`;
+      if (visited.has(key)) return;
+      visited.add(key);
+
+      const currentId = ensureNode(current);
+      const dependsOn: Array<{ name: string; namespace?: string }> = (current as any).spec?.dependsOn || [];
+      dependsOn.forEach(dep => {
+        const depNs = dep.namespace || current.metadata.namespace;
+        const depK = findOrStub(dep.name, depNs);
+        const depId = ensureNode(depK);
+        // Edge from dependency to dependent
+        g.setEdge(depId, currentId);
+
+        // Only walk further if we have the full object (exists in list)
+        if (allKnown.find(k => k.metadata.name === depK.metadata.name && k.metadata.namespace === depK.metadata.namespace)) {
+          walk(depK);
+        }
+      });
+    };
+
+    walk(root);
 
     return g;
   };
@@ -1048,17 +1157,45 @@ export function KustomizationDetails() {
                   </div>
                 </div>
               </header>
-              <div class="resource-tree-wrapper">
-                <ResourceTree
-                  g={graph}
-                  resourceTypeVisibilityDropdown={<ResourceTypeVisibilityDropdown 
-                      resourceTypes={allResourceTypes()}
-                      visibleResourceTypes={visibleResourceTypes}
-                      toggleResourceTypeVisibility={toggleResourceTypeVisibility}
-                      setAllResourceTypesVisibility={setAllResourceTypesVisibility}
-                    />}
-                />
+              {/* Tabs for main graphs */}
+              <div class="main-tabs" style={{ "margin-top": "12px" }}>
+                <button 
+                  class={`tab-button ${activeMainTab() === 'resource' ? 'active' : ''}`}
+                  onClick={() => setActiveMainTab('resource')}
+                  style={{ "margin-right": "8px" }}
+                >
+                  Resource Tree
+                </button>
+                <button 
+                  class={`tab-button ${activeMainTab() === 'dependencies' ? 'active' : ''}`}
+                  onClick={() => setActiveMainTab('dependencies')}
+                >
+                  Dependencies
+                </button>
               </div>
+
+              <Show when={activeMainTab() === 'resource'}>
+                <div class="resource-tree-wrapper">
+                  <ResourceTree
+                    g={graph}
+                    resourceTypeVisibilityDropdown={<ResourceTypeVisibilityDropdown 
+                        resourceTypes={allResourceTypes()}
+                        visibleResourceTypes={visibleResourceTypes}
+                        toggleResourceTypeVisibility={toggleResourceTypeVisibility}
+                        setAllResourceTypesVisibility={setAllResourceTypesVisibility}
+                      />}
+                  />
+                </div>
+              </Show>
+
+              <Show when={activeMainTab() === 'dependencies'}>
+                <div class="resource-tree-wrapper">
+                  <ResourceTree
+                    g={dependenciesGraph}
+                    resourceTypeVisibilityDropdown={<div></div>}
+                  />
+                </div>
+              </Show>
             </>
           );
         }}
