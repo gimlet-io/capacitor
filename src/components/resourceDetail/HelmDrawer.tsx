@@ -11,6 +11,8 @@ import {
 import type { HelmRelease } from "../resourceList/HelmReleaseList.tsx";
 import { stringify, parse as parseYAML } from "@std/yaml";
 import { getWebSocketClient } from "../../k8sWebSocketClient.ts";
+import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import {
   type DiffItem,
   type DiffHunk,
@@ -48,6 +50,21 @@ export function HelmDrawer(props: {
   let contentRef: HTMLDivElement | undefined;
   let tableRef: HTMLTableElement | undefined;
   let unsubscribeHistory: (() => void) | null = null;
+  const apiResourceStore = useApiResourceStore();
+  const [canRollback, setCanRollback] = createSignal<boolean | undefined>(undefined);
+
+  createEffect(() => {
+    const hr = props.resource as any;
+    if (!hr) {
+      setCanRollback(undefined);
+      return;
+    }
+    const res: MinimalK8sResource = { apiVersion: hr.apiVersion, kind: hr.kind, metadata: { name: hr.metadata.name, namespace: hr.metadata.namespace } };
+    (async () => {
+      const ok = await checkPermissionSSAR(res, { verb: 'patch' }, apiResourceStore.apiResources as any);
+      setCanRollback(ok);
+    })();
+  });
 
   // Watch for changes to initialTab prop
   createEffect(() => {
@@ -815,11 +832,12 @@ export function HelmDrawer(props: {
     const namespace = props.resource.metadata.namespace || "";
 
     // Confirm rollback
-    if (
-      !window.confirm(
-        `Are you sure you want to rollback ${name} to revision ${revisionNumber}?`,
-      )
-    ) {
+    if (canRollback() === false) {
+      return;
+    }
+    if (!window.confirm(
+      `Are you sure you want to rollback ${name} to revision ${revisionNumber}?`,
+    )) {
       return;
     }
 
@@ -1128,8 +1146,8 @@ export function HelmDrawer(props: {
                   style="display: flex; justify-content: flex-end; margin-bottom: 8px;"
                 >
                   <div class="keyboard-shortcut">
-                    <span class="shortcut-key">Ctrl+r</span>
-                    <span class="shortcut-description">
+                    <span class={`shortcut-key ${canRollback() === false ? 'disabled' : ''}`}>Ctrl+r</span>
+                    <span class={`shortcut-description ${canRollback() === false ? 'disabled' : ''}`}>
                       Rollback to selected revision
                     </span>
                   </div>

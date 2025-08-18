@@ -7,6 +7,7 @@ import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, nav
 import { helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
@@ -197,6 +198,7 @@ export function ResourceList<T>(props: {
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
   const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
+  const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
   // Use filterStore for sorting state
   const sortColumn = () => filterStore.sortColumn;
   const sortAscending = () => filterStore.sortAscending;
@@ -280,6 +282,128 @@ export function ResourceList<T>(props: {
     setHelmDrawerOpen(false);
   };
 
+  // Resolve plural resource name using the API resource list
+  const apiResourceStore = useApiResourceStore();
+  type MinimalK8sResource = { apiVersion?: string; kind: string; metadata: { name: string; namespace?: string } };
+  const getPluralForResource = (resource: MinimalK8sResource): string => {
+    try {
+      const apiVersion: string = resource.apiVersion || "v1";
+      const group = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
+      const version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
+      const kind = resource.kind;
+      const apiResources = apiResourceStore.apiResources || [];
+      const match = apiResources.find(r => r.kind === kind && r.group === group && r.version === version);
+      if (match?.name) return match.name;
+    } catch (_) {
+      // ignore and fall back to naive plural
+    }
+    return `${String(resource.kind || '').toLowerCase()}s`;
+  };
+
+  // Generic permission check via SelfSubjectAccessReview
+  const checkPermission = async (
+    resource: MinimalK8sResource,
+    opts: { verb: string; subresource?: string; resourceOverride?: string; groupOverride?: string; nameOverride?: string | null }
+  ): Promise<boolean> => {
+    if (!resource || !resource.metadata) return false;
+    try {
+      const apiVersion: string = resource.apiVersion || "v1";
+      const group = opts.groupOverride !== undefined ? opts.groupOverride : (apiVersion.includes('/') ? apiVersion.split('/')[0] : '');
+      const resourceName = opts.resourceOverride || getPluralForResource(resource);
+      const body: any = {
+        apiVersion: "authorization.k8s.io/v1",
+        kind: "SelfSubjectAccessReview",
+        spec: {
+          resourceAttributes: {
+            group,
+            resource: resourceName,
+            namespace: resource.metadata.namespace,
+            verb: opts.verb,
+          }
+        }
+      };
+      const name = opts.nameOverride === undefined ? resource.metadata.name : opts.nameOverride;
+      if (name) body.spec.resourceAttributes.name = name;
+      if (opts.subresource) body.spec.resourceAttributes.subresource = opts.subresource;
+
+      const resp = await fetch('/k8s/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) return true; // be permissive on SSAR failure
+      const data = await resp.json();
+      return !!data?.status?.allowed;
+    } catch (_) {
+      return true; // permissive on error
+    }
+  };
+
+  // Unique id for a command
+  const commandId = (cmd: ResourceCommand) => `${cmd.shortcut.key}::${cmd.shortcut.description}`;
+
+  // Derive which permission a command needs
+  const derivePermission = async (cmd: ResourceCommand, resource: MinimalK8sResource): Promise<boolean | undefined> => {
+    const desc = cmd.shortcut.description.toLowerCase();
+    const key = cmd.shortcut.key.toLowerCase();
+    // Read-only commands
+    if (desc === 'describe' || desc === 'yaml' || desc === 'events' || desc === 'manifest' || desc === 'values' || desc === 'release history') {
+      return undefined;
+    }
+    // Delete
+    if (key === 'ctrl+d' && desc.includes('delete')) {
+      return checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
+    }
+    // Logs
+    if (key === 'l' && desc.includes('logs')) {
+      return checkPermission(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+    }
+    // Exec
+    if (key === 'x' && desc.includes('exec')) {
+      return checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+    }
+    // Scale
+    if (key === 'ctrl+s' && desc.includes('scale')) {
+      return checkPermission(resource, { verb: 'update', subresource: 'scale' });
+    }
+    // Rollout restart
+    if (key === 'ctrl+r' && desc.includes('rollout restart')) {
+      return checkPermission(resource, { verb: 'patch' });
+    }
+    // Flux reconcile
+    if (desc.startsWith('reconcile')) {
+      const mainAllowed = await checkPermission(resource, { verb: 'patch' });
+      if (!mainAllowed) return false;
+      if (desc.includes('with sources')) {
+        const src: any = (resource as any)?.spec?.sourceRef;
+        if (src?.kind && src?.name) {
+          const srcGroup = typeof src?.apiVersion === 'string' && src.apiVersion.includes('/') ? src.apiVersion.split('/')[0] : undefined;
+          const tempResource = { ...resource, kind: src.kind, apiVersion: src.apiVersion || '', metadata: { name: src.name, namespace: src.namespace || resource.metadata.namespace } } as MinimalK8sResource;
+          const srcAllowed = await checkPermission(tempResource, { verb: 'patch', groupOverride: srcGroup });
+          if (!srcAllowed) return false;
+        }
+      }
+      return true;
+    }
+    return undefined;
+  };
+
+  // Recompute all command permissions on selection change
+  createEffect(() => {
+    const res = selectedResource() as unknown as MinimalK8sResource | null;
+    if (!res) {
+      setCommandPermissions({});
+      return;
+    }
+    const cmds = getAllCommands();
+    (async () => {
+      const entries = await Promise.all(cmds.map(async (c) => [commandId(c), await derivePermission(c, res)] as const));
+      const map: Record<string, boolean | undefined> = {};
+      for (const [id, allowed] of entries) map[id] = allowed;
+      setCommandPermissions(map);
+    })();
+  });
+
   const handleColumnHeaderClick = (columnHeader: string) => {
     const columns = visibleColumns();
     const column = columns.find(col => col.header === columnHeader);
@@ -330,6 +454,9 @@ export function ResourceList<T>(props: {
     
     try {
       const resource = sortedResources()[index];
+      const id = commandId(command);
+      const allowed = commandPermissions()[id];
+      if (allowed === false) return;
       await command.handler(resource);
     } catch (error) {
       console.error(`Error executing command ${command.shortcut.description}:`, error);
@@ -422,6 +549,14 @@ export function ResourceList<T>(props: {
     }
   });
 
+  // Keep selectedResource in sync with selectedIndex for accurate permission checks
+  createEffect(() => {
+    const index = selectedIndex();
+    if (index >= 0 && index < sortedResources().length) {
+      setSelectedResource(() => sortedResources()[index]);
+    }
+  });
+
   // Scroll selected item into view whenever selectedIndex changes
   createEffect(() => {
     const index = selectedIndex();
@@ -468,7 +603,11 @@ export function ResourceList<T>(props: {
       const hasManifestCommand = allCommands.some(cmd => cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest');
       
       // If they don't already exist in the commands, add them
-      const shortcuts = allCommands.map(cmd => cmd.shortcut);
+      const shortcuts = allCommands.map(cmd => {
+        const id = commandId(cmd);
+        const allowed = commandPermissions()[id];
+        return { ...cmd.shortcut, disabled: allowed === false } as KeyboardShortcut;
+      });
       
       if (!hasHistoryCommand) {
         shortcuts.push({ key: "h", description: "Release History", isContextual: true });
@@ -485,15 +624,19 @@ export function ResourceList<T>(props: {
       return shortcuts;
     }
     
-    return allCommands.map(cmd => cmd.shortcut);
+    return allCommands.map(cmd => {
+      const id = commandId(cmd);
+      const allowed = commandPermissions()[id];
+      return { ...cmd.shortcut, disabled: allowed === false } as KeyboardShortcut;
+    });
   };
 
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
+    globalThis.addEventListener('keydown', handleKeyDown);
   });
 
   onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown);
+    globalThis.removeEventListener('keydown', handleKeyDown);
   });
 
   return (

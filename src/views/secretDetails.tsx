@@ -4,6 +4,7 @@ import { Show, For } from "solid-js";
 import type { Secret } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
+import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 
 export function SecretDetails() {
   const params = useParams();
@@ -27,6 +28,7 @@ export function SecretDetails() {
   const [savingNewKey, setSavingNewKey] = createSignal(false);
   const [saveError, setSaveError] = createSignal<string | null>(null);
   const [addingRow, setAddingRow] = createSignal(false);
+  const [canPatchSecret, setCanPatchSecret] = createSignal<boolean | undefined>(undefined);
 
   // Set up watches when component mounts or params change
   createEffect(() => {
@@ -56,6 +58,11 @@ export function SecretDetails() {
         if (event.type === "ADDED" || event.type === "MODIFIED") {
           if (event.object.metadata.name === name) {
             setSecret(event.object);
+            const res: MinimalK8sResource = { apiVersion: (event.object as any).apiVersion, kind: (event.object as any).kind, metadata: { name: event.object.metadata.name, namespace: event.object.metadata.namespace } };
+            (async () => {
+              const ok = await checkPermissionSSAR(res, { verb: 'patch' });
+              setCanPatchSecret(ok);
+            })();
           }
         } else if (event.type === "DELETED") {
           if (event.object.metadata.name === name) {
@@ -346,8 +353,9 @@ export function SecretDetails() {
                               <button
                                 type="button"
                                 class="action-button"
-                                disabled={addingRow() || savingNewKey()}
-                                onClick={() => { setAddingRow(true); setSaveError(null); }}
+                                disabled={addingRow() || savingNewKey() || canPatchSecret() === false}
+                                onClick={() => { if (canPatchSecret() === false) return; setAddingRow(true); setSaveError(null); }}
+                                title={canPatchSecret() === false ? "Not permitted" : undefined}
                               >
                                 Add key
                               </button>
@@ -445,8 +453,9 @@ export function SecretDetails() {
                                         <button
                                           type="button"
                                           class="action-button"
-                                          disabled={deletingKeys().has(key)}
-                                          onClick={() => deleteSecretKey(key)}
+                                          disabled={deletingKeys().has(key) || canPatchSecret() === false}
+                                          onClick={() => { if (canPatchSecret() === false) return; deleteSecretKey(key); }}
+                                          title={canPatchSecret() === false ? "Not permitted" : undefined}
                                         >
                                           {deletingKeys().has(key) ? "Deleting..." : "Delete"}
                                         </button>
