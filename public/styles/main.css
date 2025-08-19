@@ -182,7 +182,7 @@ h1 {
 }
 
 .shortcut-key {
-  display: inline;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   background-color: var(--linear-bg-secondary);
