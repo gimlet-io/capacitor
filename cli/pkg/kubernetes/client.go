@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 
 	"k8s.io/client-go/kubernetes"
