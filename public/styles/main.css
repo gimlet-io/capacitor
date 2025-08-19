@@ -2051,15 +2051,16 @@ td.message-cell {
 
 /* Conditions YAML section */
 .conditions-yaml {
-  background-color: #f8f9fa;
+  background-color: var(--linear-bg);
   border-radius: 4px;
   padding: 12px;
   margin: 8px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.9rem;
+  color: var(--linear-text-primary);
   white-space: pre-wrap;
   overflow-x: auto;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--linear-border);
   max-height: 300px;
 }
 
