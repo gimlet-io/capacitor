@@ -14,6 +14,7 @@ import { getWebSocketClient } from "../../k8sWebSocketClient.ts";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { Tabs } from "../Tabs.tsx";
+import { HelmValues } from "./HelmValues.tsx";
 import {
   type DiffItem,
   type DiffHunk,
@@ -33,13 +34,11 @@ export function HelmDrawer(props: {
   initialTab?: "history" | "values" | "manifest";
 }) {
   const [historyData, setHistoryData] = createSignal<any[]>([]);
-  const [valuesData, setValuesData] = createSignal<any>(null);
   const [manifestData, setManifestData] = createSignal<string>("");
   const [activeTab, setActiveTab] = createSignal<
     "history" | "values" | "manifest"
   >(props.initialTab || "history");
   const [loading, setLoading] = createSignal<boolean>(true);
-  const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
   const [expandedDiffs, setExpandedDiffs] = createSignal<{ [key: string]: { expanded: boolean; diffType: "values" | "manifest" } }>({});
   const [diffData, setDiffData] = createSignal<{ [key: string]: any }>({});
   const [selectedRevisionIndex, setSelectedRevisionIndex] = createSignal<
@@ -123,37 +122,7 @@ export function HelmDrawer(props: {
     });
   };
 
-  // Fetch the Helm release values when the drawer opens and tab is values
-  const fetchReleaseValues = async () => {
-    if (!props.resource) return;
-
-    setLoading(true);
-    try {
-      const name = props.resource.metadata.name;
-      const namespace = props.resource.metadata.namespace || "";
-
-      // Call the backend API for Helm release values data
-      const url =
-        `/api/helm/values/${namespace}/${name}?allValues=${showAllValues()}`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch Helm release values: ${response.statusText}`,
-        );
-      }
-
-      const data = await response.json();
-      setValuesData(data.values || {});
-    } catch (error) {
-      console.error("Error fetching Helm release values:", error);
-      setValuesData({});
-    } finally {
-      setLoading(false);
-      // Focus the content after loading
-      setTimeout(() => contentRef?.focus(), 50);
-    }
-  };
+  // Values fetching moved to HelmValues component
 
   // Fetch the diff between two releases
   const fetchReleaseValuesDiff = async (
@@ -870,8 +839,6 @@ export function HelmDrawer(props: {
     const currentTab = activeTab();
     if (currentTab === "history") {
       setupHistoryWatcher();
-    } else if (currentTab === "values") {
-      fetchReleaseValues();
     } else if (currentTab === "manifest") {
       fetchReleaseManifest();
     }
@@ -882,8 +849,6 @@ export function HelmDrawer(props: {
     if (props.isOpen) {
       if (activeTab() === "history") {
         setupHistoryWatcher();
-      } else if (activeTab() === "values") {
-        fetchReleaseValues();
       } else if (activeTab() === "manifest") {
         fetchReleaseManifest();
       }
@@ -896,12 +861,7 @@ export function HelmDrawer(props: {
     }
   });
 
-  // Reload values when showAllValues changes
-  createEffect(() => {
-    if (props.isOpen && activeTab() === "values") {
-      fetchReleaseValues();
-    }
-  });
+  // Values tab fetch handled inside HelmValues component
 
   // Fetch manifest when selected revision changes
   createEffect(() => {
@@ -1088,10 +1048,7 @@ export function HelmDrawer(props: {
     }
   };
 
-  // Toggle function for showing all values
-  const toggleShowAllValues = () => {
-    setShowAllValues((prev) => !prev);
-  };
+  // Values tab controlled inside HelmValues component
 
   return (
     <Show when={props.isOpen}>
@@ -1304,27 +1261,8 @@ export function HelmDrawer(props: {
               </Show>
             </Show>
 
-            <Show when={!loading() && activeTab() === "values"}>
-              <div class="logs-controls">
-                <div class="logs-options-row">
-                  <div class="logs-follow-controls">
-                    <label title="Show all values including defaults">
-                      <input
-                        type="checkbox"
-                        checked={showAllValues()}
-                        onChange={toggleShowAllValues}
-                      />
-                      Show all values (including defaults)
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <Show
-                when={valuesData()}
-                fallback={<div class="no-values">No values found</div>}
-              >
-                <pre class="yaml-content">{valuesData() ? stringify(valuesData()) : ""}</pre>
-              </Show>
+            <Show when={activeTab() === "values"}>
+              <HelmValues namespace={props.resource?.metadata.namespace || ""} name={props.resource?.metadata.name || ""} />
             </Show>
 
             <Show when={!loading() && activeTab() === "manifest"}>

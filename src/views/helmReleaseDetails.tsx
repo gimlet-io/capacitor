@@ -11,6 +11,7 @@ import { useFilterStore } from "../store/filterStore.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { stringify as stringifyYAML, parse as parseYAML } from "@std/yaml";
+import { HelmValues } from "../components/resourceDetail/HelmValues.tsx";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { createNodeWithCardRenderer, createNode, ResourceTree, createPaginationNode } from "../components/ResourceTree.tsx";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
@@ -43,7 +44,7 @@ export function HelmReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values">("resource");
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -56,6 +57,8 @@ export function HelmReleaseDetails() {
   const setAllResourceTypesVisibility = (isVisible: boolean): void => {
     if (isVisible) setVisibleResourceTypes(new Set<string>(allResourceTypes())); else setVisibleResourceTypes(new Set<string>());
   };
+
+  // Values tab content handled by HelmValues component
 
   const DEFAULT_HIDDEN_RESOURCE_TYPES = [
     'apps/ReplicaSet',
@@ -658,9 +661,9 @@ export function HelmReleaseDetails() {
 
       <div style="padding: 16px">
         <Tabs
-            tabs={[{ key: "resource", label: "Resource Tree" }]}
+            tabs={[{ key: "resource", label: "Resource Tree" }, { key: "values", label: "Values" }]}
             activeKey={activeMainTab()}
-            onChange={(k) => setActiveMainTab(k as "resource")}
+            onChange={(k) => setActiveMainTab(k as "resource" | "values")}
             class=""
             style={{ "margin-top": "12px" }}
         />
@@ -680,6 +683,11 @@ export function HelmReleaseDetails() {
             }
           />
         </div>
+      </Show>
+
+      {/* Values Tab */}
+      <Show when={activeMainTab() === "values" && !!helmRelease()}>
+        <HelmValues namespace={helmRelease()!.metadata.namespace} name={helmRelease()!.metadata.name} />
       </Show>
       </div>
     </div>
