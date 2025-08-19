@@ -138,12 +138,12 @@ export function createPaginationNode(
   totalResources: number,
 ) {
   return (
-    <div class="resource-card" style="--card-bg-color:rgb(209, 209, 209);">
+    <div class="resource-card">
       <div class="resource-card-header">
         <div class="resource-type">{resourceType.split('/')[1]}s</div>
       </div>
       <div class="resource-name pagination-buttons">
-        <button 
+        <button type="button"
           onClick={() => {
             if (currentPage > 0) {
               setPaginationState(prev => ({
@@ -158,7 +158,7 @@ export function createPaginationNode(
           ‹
         </button>
         <span class="page-indicator">{startIndex + 1}-{endIndex} of {totalResources}</span>
-        <button 
+        <button type="button"
           onClick={() => {
             if (currentPage < totalPages - 1) {
               setPaginationState(prev => ({
@@ -295,6 +295,13 @@ export function ResourceTree(props: ResourceTreeProps) {
     document.body.style.overflow = 'hidden';
   };
 
+  // Wrapper to satisfy command handler signature that may include an 'exec' tab.
+  const openDrawerWithExec = (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: any) => {
+    // Map 'exec' to 'logs' drawer for now
+    const mappedTab = (tab === 'exec' ? 'logs' : tab) as "describe" | "yaml" | "events" | "logs";
+    openDrawer(mappedTab, resource);
+  };
+
   const closeDrawer = () => {
     setDrawerOpen(false);
     // Restore page scrolling when drawer is closed
@@ -320,7 +327,7 @@ export function ResourceTree(props: ResourceTreeProps) {
     const config = selectedResourceConfig();    
     const commands = [...(config?.commands || builtInCommands)];
     replaceHandlers(commands, {
-      openDrawer,
+      openDrawer: openDrawerWithExec,
       openHelmDrawer,
       navigate
     });
@@ -580,6 +587,9 @@ export function ResourceTree(props: ResourceTreeProps) {
       rect.setAttribute("height", node.height.toString());
       rect.setAttribute("rx", "4");
       rect.setAttribute("ry", "4");
+      // Apply theme-aware colors
+      rect.setAttribute("fill", "var(--linear-bg-secondary)");
+      rect.setAttribute("stroke", "var(--linear-border)");
 
       group.appendChild(rect);
 
@@ -597,10 +607,14 @@ export function ResourceTree(props: ResourceTreeProps) {
         div.style.width = "100%";
         div.style.height = "100%";
         div.style.boxSizing = "border-box";
+        // Ensure solid background and text color inside foreignObject
+        ;(div.style as any).backgroundColor = "var(--linear-bg-secondary)";
+        ;(div.style as any).color = "var(--linear-text-primary)";
         // If a node-specific fill is provided, pass it down to the card via CSS var (only for TB graphs)
         if ((rankdirForNodes === "TB") && (node as any).fill) {
           try {
             (div.style as any).setProperty('--card-bg-color', (node as any).fill);
+            (div.style as any).setProperty('--card-accent-color', (node as any).fill);
           } catch (_) {
             // noop
           }
@@ -615,6 +629,7 @@ export function ResourceTree(props: ResourceTreeProps) {
         if ((rankdirForNodes === "TB") && (node as any).fill) {
           try {
             (solidRoot.style as any).setProperty('--card-bg-color', (node as any).fill);
+            (solidRoot.style as any).setProperty('--card-accent-color', (node as any).fill);
           } catch (_) {
             // noop
           }
@@ -674,8 +689,7 @@ export function ResourceTree(props: ResourceTreeProps) {
 
       path.setAttribute("d", pathData);
       path.setAttribute("fill", "none");
-      path.setAttribute("stroke", "#999");
-      path.setAttribute("stroke-width", "1");
+      path.setAttribute("class", "edge");
       path.setAttribute("stroke-dasharray", "5,2");
       gRef?.appendChild(path);
     });
@@ -695,7 +709,7 @@ export function ResourceTree(props: ResourceTreeProps) {
   });
 
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
+    globalThis.addEventListener('keydown', handleKeyDown);
     if (svgRef) {
       svgRef.addEventListener('click', handleSvgClick);
       svgRef.addEventListener('wheel', handleWheel, { passive: false });
@@ -709,7 +723,7 @@ export function ResourceTree(props: ResourceTreeProps) {
   });
 
   onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown);
+    globalThis.removeEventListener('keydown', handleKeyDown);
     if (svgRef) {
       svgRef.removeEventListener('click', handleSvgClick);
       svgRef.removeEventListener('wheel', handleWheel);
@@ -747,13 +761,13 @@ export function ResourceTree(props: ResourceTreeProps) {
 
       {/* Zoom controls */}
       <div class="zoom-controls">
-        <button class="zoom-button" onClick={zoomIn} title="Zoom In">
+        <button type="button" class="zoom-button" onClick={zoomIn} title="Zoom In">
           <span>+</span>
         </button>
-        <button class="zoom-button" onClick={resetZoom} title="Reset Zoom">
+        <button type="button" class="zoom-button" onClick={resetZoom} title="Reset Zoom">
           <span>⟳</span>
         </button>
-        <button class="zoom-button" onClick={zoomOut} title="Zoom Out">
+        <button type="button" class="zoom-button" onClick={zoomOut} title="Zoom Out">
           <span>−</span>
         </button>
       </div>

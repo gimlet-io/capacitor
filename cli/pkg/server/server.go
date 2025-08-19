@@ -125,6 +125,13 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// App configuration endpoint (exposes UI options like theme)
+	s.echo.GET("/api/config", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"theme": s.config.Theme,
+		})
+	})
+
 	// Add endpoint for getting kubeconfig contexts
 	s.echo.GET("/api/contexts", func(c echo.Context) error {
 		contexts := s.k8sClient.GetContexts()

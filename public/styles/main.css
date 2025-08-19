@@ -10,6 +10,7 @@ html {
   height: 100%;
   margin: 0;
   padding: 0;
+  background-color: var(--linear-bg);
 }
 
 body {
@@ -20,6 +21,7 @@ body {
   margin: 0;
   padding: 0;
   height: 100vh;
+  background-color: var(--linear-bg);
 }
 
 div, span, applet, object, iframe,
@@ -86,6 +88,50 @@ table {
   --linear-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   --linear-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
   --linear-orange: #FFA500; /* Example orange color */
+  --pill-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* Theme presets override variables via [data-theme] on <html> or <body> */
+[data-theme="dark"] {
+  --linear-bg: #0f1115;
+  --linear-bg-secondary: #151922;
+  --linear-bg-tertiary: #1c2230;
+  --linear-border: #2a2f3a;
+  --linear-text-primary: #e6e8ea;
+  --linear-text-secondary: #b3b7bd;
+  --linear-text-tertiary: #8a8f98;
+  --linear-blue: #5b8cff;
+  --linear-blue-light: rgba(91, 140, 255, 0.18);
+  --linear-green: #35c46b;
+  --linear-green-light: rgba(53, 196, 107, 0.18);
+  --linear-red: #ff5d5d;
+  --linear-red-light: rgba(255, 93, 93, 0.18);
+  --linear-yellow: #ffcc66;
+  --linear-yellow-light: rgba(255, 204, 102, 0.18);
+  --linear-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --linear-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.55);
+  --pill-bg: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="mallow"] {
+  /* Mallow brownish: warm, muted browns with subtle purple undertone */
+  --linear-bg: #f7f3ef;
+  --linear-bg-secondary: #efe8e0;
+  --linear-bg-tertiary: #e4d9cf;
+  --linear-border: #d6c8ba;
+  --linear-text-primary: #3d2f2a;
+  --linear-text-secondary: #5a4b44;
+  --linear-text-tertiary: #8b7a70;
+  --linear-blue: #7a6af5; /* keep accent cool for contrast */
+  --linear-blue-light: #ebe9ff;
+  --linear-green: #4da674;
+  --linear-green-light: #e6f4ec;
+  --linear-red: #cc5c5c;
+  --linear-red-light: #ffecec;
+  --linear-yellow: #c59a42;
+  --linear-yellow-light: #f8f1dd;
+  --linear-shadow: 0 1px 2px rgba(119, 95, 76, 0.12);
+  --linear-shadow-hover: 0 6px 18px rgba(119, 95, 76, 0.16);
 }
 
 /* Typography */
@@ -177,7 +223,7 @@ h1 {
   padding: 0.75rem;
   margin-bottom: 0.5rem;
   border-radius: 4px;
-  background-color: white;
+  background-color: var(--linear-bg);
   border-left: 4px solid #6c757d;
 }
 
@@ -557,7 +603,12 @@ h1 {
   background-color: var(--card-bg-color, var(--linear-bg-secondary));
   border-radius: 3.5px;
   border: 1px solid var(--linear-border);
-  border-color: gray;
+}
+
+/* In dark theme, avoid tinted card backgrounds – use neutral surface and accent the border */
+[data-theme="dark"] .resource-card {
+  background-color: var(--linear-bg-secondary) !important;
+  border-color: var(--card-accent-color, var(--linear-border));
 }
 
 .selected-resource .resource-card {
@@ -574,15 +625,17 @@ h1 {
 }
 
 .resource-card-pill {
-  background: rgba(0,0,0,0.1);
+  background: var(--pill-bg);
   padding: 1px 4px;
   border-radius: 6px;
   font-size: 12px;
+  color: var(--linear-text-secondary);
 }
 
 .resource-card-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
 .resource-type {
@@ -636,7 +689,7 @@ h1 {
   position: fixed;
   bottom: 20px;
   left: 20px;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: var(--linear-bg);
   border: 1px solid var(--linear-border);
   border-radius: 4px;
   box-shadow: var(--linear-shadow);
@@ -658,12 +711,12 @@ h1 {
 }
 
 .zoom-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--linear-bg-secondary);
   color: var(--linear-text-primary);
 }
 
 .zoom-button:active {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--linear-bg-tertiary);
 }
 
 .zoom-button span {
@@ -677,7 +730,7 @@ h1 {
 /* Tree keyboard shortcuts positioned in top right */
 .tree-keyboard-shortcuts {
   z-index: 10;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: var(--linear-bg);
   border: 1px solid var(--linear-border);
   border-radius: 6px;
   padding: 8px;
@@ -1574,7 +1627,7 @@ td.message-cell {
   border: 1px solid var(--linear-border);
   border-radius: 4px;
   overflow: hidden;
-  background-color: white;
+  background-color: var(--linear-bg);
 }
 
 .diff-file-header {
@@ -2144,6 +2197,16 @@ td.message-cell {
   justify-content: flex-end;
   gap: 14px;
   flex-shrink: 0; /* Don't shrink */
+}
+
+/* Theme selector */
+.theme-selector select {
+  background-color: var(--linear-bg);
+  color: var(--linear-text-primary);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  height: 30px;
 }
 
 /* Keyboard Shortcuts Container Styles */

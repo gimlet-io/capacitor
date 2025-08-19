@@ -15,6 +15,9 @@ type Config struct {
 	Port                 int
 	StaticFilesDirectory string
 
+	// UI settings
+	Theme string
+
 	// Kubernetes settings
 	KubeConfigPath        string
 	InCluster             bool
@@ -30,6 +33,7 @@ func New() *Config {
 		KubeConfigPath:        defaultKubeConfigPath(),
 		InCluster:             false,
 		InsecureSkipTLSVerify: false,
+		Theme:                 "light",
 	}
 }
 
@@ -42,6 +46,7 @@ func (c *Config) Parse() {
 	pflag.StringVar(&c.KubeConfigPath, "kubeconfig", c.KubeConfigPath, "Path to kubeconfig file")
 	pflag.BoolVar(&c.InCluster, "in-cluster", c.InCluster, "Use in-cluster configuration")
 	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development)")
+	pflag.StringVar(&c.Theme, "theme", c.Theme, "UI theme preset (light|dark|mallow)")
 
 	pflag.Parse()
 
@@ -65,6 +70,9 @@ func (c *Config) Parse() {
 	}
 	if env := os.Getenv("K8S_PROXY_INSECURE_SKIP_TLS_VERIFY"); env == "true" {
 		c.InsecureSkipTLSVerify = true
+	}
+	if env := os.Getenv("K8S_PROXY_THEME"); env != "" {
+		c.Theme = env
 	}
 }
 
