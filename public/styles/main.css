@@ -669,7 +669,6 @@ h1 {
 .graph-svg {
   display: block;
   min-width: 100%;
-  border: 1px solid var(--linear-border);
   background-color: var(--linear-bg);
 }
 

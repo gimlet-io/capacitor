@@ -15,6 +15,7 @@ import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { createNodeWithCardRenderer, createNode, ResourceTree, createPaginationNode } from "../components/ResourceTree.tsx";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 import * as graphlib from "graphlib";
+import { Tabs } from "../components/Tabs.tsx";
 
 export function HelmReleaseDetails() {
   const params = useParams();
@@ -42,6 +43,7 @@ export function HelmReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource">("resource");
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -654,8 +656,17 @@ export function HelmReleaseDetails() {
         />
       </Show>
 
+      <div style="padding: 16px">
+        <Tabs
+            tabs={[{ key: "resource", label: "Resource Tree" }]}
+            activeKey={activeMainTab()}
+            onChange={(k) => setActiveMainTab(k as "resource")}
+            class=""
+            style={{ "margin-top": "12px" }}
+        />
+
       {/* Resource Tree */}
-      <Show when={graph()}>
+        <Show when={activeMainTab() === "resource" && !!graph()}>
         <div class="resource-tree-wrapper">
           <ResourceTree
             g={graph}
@@ -670,6 +681,7 @@ export function HelmReleaseDetails() {
           />
         </div>
       </Show>
+      </div>
     </div>
   );
 }

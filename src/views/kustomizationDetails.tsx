@@ -19,6 +19,7 @@ import { stringify as stringifyYAML } from "@std/yaml";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 import { ExtraWatchConfig, resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
+import { Tabs } from "../components/Tabs.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -1186,23 +1187,18 @@ export function KustomizationDetails() {
                 </div>
               </header>
               {/* Tabs for main graphs */}
-              <div class="main-tabs" style={{ "margin-top": "12px" }}>
-                <button 
-                  class={`tab-button ${activeMainTab() === 'resource' ? 'active' : ''}`}
-                  onClick={() => setActiveMainTab('resource')}
-                  style={{ "margin-right": "8px" }}
-                >
-                  Resource Tree
-                </button>
-                <button 
-                  class={`tab-button ${activeMainTab() === 'dependencies' ? 'active' : ''}`}
-                  onClick={() => setActiveMainTab('dependencies')}
-                >
-                  Dependencies
-                </button>
-              </div>
+              <div style="padding: 16px">
+                <Tabs
+                  tabs={[
+                    { key: 'resource', label: 'Resource Tree' },
+                    { key: 'dependencies', label: 'Dependencies' }
+                  ]}
+                  activeKey={activeMainTab()}
+                  onChange={(k) => setActiveMainTab(k as 'resource' | 'dependencies')}
+                  style={{ "margin-top": "12px" }}
+                />
 
-              <Show when={activeMainTab() === 'resource'}>
+                <Show when={activeMainTab() === 'resource'}>
                 <div class="resource-tree-wrapper">
                   <ResourceTree
                     g={graph}
@@ -1215,8 +1211,7 @@ export function KustomizationDetails() {
                   />
                 </div>
               </Show>
-
-              <Show when={activeMainTab() === 'dependencies'}>
+                <Show when={activeMainTab() === 'dependencies'}>
                 <div class="resource-tree-wrapper">
                   <ResourceTree
                     g={dependenciesGraph}
@@ -1224,6 +1219,7 @@ export function KustomizationDetails() {
                   />
                 </div>
               </Show>
+              </div>
             </>
           );
         }}
