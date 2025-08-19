@@ -18,6 +18,7 @@ import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibi
 import * as graphlib from "graphlib";
 import { Tabs } from "../components/Tabs.tsx";
 import { HelmManifest } from "../components/resourceDetail/HelmManifest.tsx";
+import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
 
 export function HelmReleaseDetails() {
   const params = useParams();
@@ -45,7 +46,7 @@ export function HelmReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history">("resource");
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -662,9 +663,9 @@ export function HelmReleaseDetails() {
 
       <div style="padding: 16px">
         <Tabs
-            tabs={[{ key: "resource", label: "Resource Tree" }, { key: "values", label: "Values" }, { key: "manifest", label: "Manifest" }]}
+            tabs={[{ key: "resource", label: "Resource Tree" }, { key: "values", label: "Values" }, { key: "manifest", label: "Manifest" }, { key: "history", label: "Release History" }]}
             activeKey={activeMainTab()}
-            onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest")}
+            onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history")}
             class=""
             style={{ "margin-top": "12px" }}
         />
@@ -694,6 +695,16 @@ export function HelmReleaseDetails() {
       {/* Manifest Tab */}
       <Show when={activeMainTab() === "manifest" && !!helmRelease()}>
         <HelmManifest namespace={helmRelease()!.metadata.namespace} name={helmRelease()!.metadata.name} />
+      </Show>
+
+      {/* Release History Tab */}
+      <Show when={activeMainTab() === "history" && !!helmRelease()}>
+        <HelmHistory
+          namespace={helmRelease()!.metadata.namespace}
+          name={helmRelease()!.metadata.name}
+          apiVersion={helmRelease()!.apiVersion}
+          kind={helmRelease()!.kind}
+        />
       </Show>
       </div>
     </div>

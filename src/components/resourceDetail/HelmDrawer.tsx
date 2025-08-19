@@ -16,6 +16,7 @@ import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { Tabs } from "../Tabs.tsx";
 import { HelmValues } from "./HelmValues.tsx";
 import { HelmManifest } from "./HelmManifest.tsx";
+import { HelmHistory } from "./HelmHistory.tsx";
 import {
   type DiffItem,
   type DiffHunk,
@@ -1028,181 +1029,18 @@ export function HelmDrawer(props: {
               <div class="drawer-loading">Loading...</div>
             </Show>
 
-            <Show when={!loading() && activeTab() === "history"}>
-              <Show
-                when={historyData().length > 0}
-                fallback={
-                  <div class="no-history">No release history found</div>
-                }
-              >
-                <div
-                  class="keyboard-shortcut-container"
-                  style="display: flex; justify-content: flex-end; margin-bottom: 8px;"
-                >
-                  <div class="keyboard-shortcut">
-                    <span class={`shortcut-key ${canRollback() === false ? 'disabled' : ''}`}>Ctrl+r</span>
-                    <span class={`shortcut-description ${canRollback() === false ? 'disabled' : ''}`}>
-                      Rollback to selected revision
-                    </span>
-                  </div>
-                </div>
-                <table class="helm-history-table" ref={tableRef}>
-                  <thead>
-                    <tr>
-                      <th>Revision</th>
-                      <th>Updated</th>
-                      <th>Status</th>
-                      <th>Chart</th>
-                      <th>App Version</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={historyData()}>
-                      {(release, index) => (
-                        <>
-                          <tr
-                            class={selectedRevisionIndex() === index()
-                              ? "selected-revision"
-                              : ""}
-                            onClick={() => setSelectedRevisionIndex(index())}
-                          >
-                            <td>{release.revision}</td>
-                            <td>{release.updated}</td>
-                            <td>
-                              <span
-                                style={{
-                                  color: getStatusColor(release.status),
-                                }}
-                              >
-                                {release.status}
-                              </span>
-                            </td>
-                            <td>{release.chart}</td>
-                            <td>{release.app_version}</td>
-                            <td>{release.description}</td>
-                          </tr>
-
-                          {/* Add diff row between releases, except after the last one */}
-                          <Show when={index() < historyData().length - 1}>
-                            {(() => {
-                              const nextRelease = historyData()[index() + 1];
-                              const diffKey =
-                                `${release.revision}-${nextRelease.revision}`;
-                              const diffState = expandedDiffs()[diffKey] ||
-                                { expanded: false, diffType: "values" };
-                              const isExpanded = diffState.expanded;
-                              const diffType = diffState.diffType;
-
-                              return (
-                                <>
-                                  <tr class="diff-divider-row">
-                                    <td colSpan={6} class="diff-divider-cell">
-                                      <div class="diff-button-container">
-                                        <div class="diff-button-group">
-                                          <button
-                                            class={`diff-button ${
-                                              diffType === "values" &&
-                                                isExpanded
-                                                ? "active"
-                                                : ""
-                                            }`}
-                                            onClick={() =>
-                                              toggleDiff(
-                                                nextRelease.revision,
-                                                release.revision,
-                                                "values",
-                                              )}
-                                            title={`${
-                                              isExpanded &&
-                                                diffType === "values"
-                                                ? "Hide"
-                                                : "Show"
-                                            } values diff between revision ${release.revision} and ${nextRelease.revision}`}
-                                          >
-                                            Diff Values
-                                          </button>
-                                          <button
-                                            class={`diff-button ${
-                                              diffType === "manifest" &&
-                                                isExpanded
-                                                ? "active"
-                                                : ""
-                                            }`}
-                                            onClick={() =>
-                                              toggleDiff(
-                                                nextRelease.revision,
-                                                release.revision,
-                                                "manifest",
-                                              )}
-                                            title={`${
-                                              isExpanded &&
-                                                diffType === "manifest"
-                                                ? "Hide"
-                                                : "Show"
-                                            } manifest diff between revision ${release.revision} and ${nextRelease.revision}`}
-                                          >
-                                            Manifest
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </td>
-                                  </tr>
-
-                                  <Show when={isExpanded}>
-                                    <tr class="diff-content-row">
-                                      <td colSpan={6} class="diff-content-cell">
-                                        <Show
-                                          when={diffType === "values"
-                                            ? diffData()[diffKey]
-                                            : diffData()[`${diffKey}-manifest`]}
-                                          fallback={
-                                            <div class="drawer-loading">
-                                              <div class="loading-spinner">
-                                              </div>
-                                              <div>
-                                                Loading diff between revisions
-                                                {" "}
-                                                {nextRelease.revision} and{" "}
-                                                {release.revision}...
-                                              </div>
-                                            </div>
-                                          }
-                                        >
-                                          {(() => {
-                                            if (diffType === "values") {
-                                              const diff = diffData()[diffKey];
-                                              return generateDiffView(
-                                                diff.fromValues,
-                                                diff.toValues,
-                                                diffKey
-                                              );
-                                            } else {
-                                              const diff =
-                                                diffData()[
-                                                  `${diffKey}-manifest`
-                                                ];
-                                              return generateManifestDiffView(
-                                                diff.fromManifest,
-                                                diff.toManifest,
-                                                `${diffKey}-manifest`
-                                              );
-                                            }
-                                          })()}
-                                        </Show>
-                                      </td>
-                                    </tr>
-                                  </Show>
-                                </>
-                              );
-                            })()}
-                          </Show>
-                        </>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </Show>
+            <Show when={activeTab() === "history"}>
+              <HelmHistory
+                namespace={props.resource?.metadata.namespace || ""}
+                name={props.resource?.metadata.name || ""}
+                apiVersion={(props.resource as unknown as { apiVersion?: string }).apiVersion || ""}
+                kind={(props.resource as unknown as { kind?: string }).kind || ""}
+                onSelectedRevisionChange={(rev) => {
+                  // Keep selected revision in sync for manifest component
+                  const idx = historyData().findIndex((r) => r.revision === rev);
+                  if (idx !== -1) setSelectedRevisionIndex(idx);
+                }}
+              />
             </Show>
 
             <Show when={activeTab() === "values"}>
