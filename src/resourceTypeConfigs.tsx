@@ -691,6 +691,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+w", description: "Reconcile HelmRelease with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
+      },
+      {
+        shortcut: { key: "Enter", description: "View Helm release details", isContextual: true },
+        handler: null as any // Implemented in ResourceList navigate handler
       }
     ],
     filter: [fluxReadyFilter],

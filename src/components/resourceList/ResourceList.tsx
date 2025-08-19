@@ -209,6 +209,13 @@ export const replaceHandlers = (
             handlers.navigate!(`/secret/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
+      } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('helm release') && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/helmrelease/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
       } else if (cmd === showPodsInNamespace && handlers.updateFilters) {
         commands[i] = {
           ...cmd,
