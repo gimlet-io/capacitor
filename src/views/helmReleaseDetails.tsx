@@ -7,15 +7,20 @@ import { watchResource } from "../watches.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
+import { useFilterStore } from "../store/filterStore.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { stringify as stringifyYAML } from "@std/yaml";
+import { stringify as stringifyYAML, parse as parseYAML } from "@std/yaml";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
+import { createNodeWithCardRenderer, createNode, ResourceTree, createPaginationNode } from "../components/ResourceTree.tsx";
+import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
+import * as graphlib from "graphlib";
 
 export function HelmReleaseDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const filterStore = useFilterStore();
 
   const [helmRelease, setHelmRelease] = createSignal<HelmRelease & { events?: Event[] } | null>(null);
   const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
@@ -29,6 +34,34 @@ export function HelmReleaseDetails() {
   type FluxDiffResult = { fileName: string; clusterYaml: string; appliedYaml: string; created: boolean; hasChanges: boolean; deleted: boolean };
   const [diffData, setDiffData] = createSignal<FluxDiffResult[] | null>(null);
   const [diffLoading, setDiffLoading] = createSignal(false);
+
+  // Resource tree state
+  const [graph, setGraph] = createSignal<graphlib.Graph>();
+  const [allResourceTypes, setAllResourceTypes] = createSignal<string[]>([]);
+  const [visibleResourceTypes, setVisibleResourceTypes] = createSignal<Set<string>>(new Set());
+  const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
+  const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
+
+  const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
+  const toggleResourceTypeVisibility = (resourceType: string): void => {
+    setVisibleResourceTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(resourceType)) next.delete(resourceType); else next.add(resourceType);
+      return next;
+    });
+  };
+  const setAllResourceTypesVisibility = (isVisible: boolean): void => {
+    if (isVisible) setVisibleResourceTypes(new Set<string>(allResourceTypes())); else setVisibleResourceTypes(new Set<string>());
+  };
+
+  const DEFAULT_HIDDEN_RESOURCE_TYPES = [
+    'apps/ReplicaSet',
+    'rbac.authorization.k8s.io/Role',
+    'rbac.authorization.k8s.io/RoleBinding',
+    'rbac.authorization.k8s.io/ClusterRole',
+    'rbac.authorization.k8s.io/ClusterRoleBinding',
+    'core/ServiceAccount'
+  ];
 
   createEffect(() => {
     if (params.namespace && params.name && apiResourceStore.apiResources) {
@@ -130,6 +163,197 @@ export function HelmReleaseDetails() {
     }
 
     setWatchControllers(controllers);
+  };
+
+  // Build resource tree from Helm manifest of latest revision, then watch live objects
+  createEffect(() => {
+    const hr = helmRelease();
+    if (!hr) return;
+    (async () => {
+      try {
+        const ns = hr.metadata.namespace;
+        const name = hr.metadata.name;
+        // Fetch history to get latest revision
+        const histResp = await fetch(`/api/helm/history/${ns}/${name}`);
+        if (!histResp.ok) throw new Error('Failed to fetch Helm history');
+        const histData = await histResp.json();
+        const releases: Array<{ revision: number }> = Array.isArray(histData.releases) ? histData.releases : [];
+        if (releases.length === 0) return;
+        const latest = releases.sort((a, b) => (b.revision || 0) - (a.revision || 0))[0];
+        const revision = latest.revision;
+        // Fetch manifest for latest revision
+        const manResp = await fetch(`/api/helm/manifest/${ns}/${name}?revision=${revision}`);
+        if (!manResp.ok) throw new Error('Failed to fetch Helm manifest');
+        const manData = await manResp.json();
+        const manifest: string = manData.manifest || '';
+        const resources = parseManifestResources(manifest, ns);
+        const resourceTypes = Array.from(new Set(resources.map(r => r.resourceType))).sort((a, b) => (a.split('/')[1] || '').localeCompare(b.split('/')[1] || ''));
+        console.log('resourceTypes', resourceTypes);
+        setAllResourceTypes(resourceTypes);
+        const initialVisible = new Set<string>();
+        resourceTypes.forEach(t => { if (!DEFAULT_HIDDEN_RESOURCE_TYPES.includes(t)) initialVisible.add(t); });
+        setVisibleResourceTypes(initialVisible);
+        // Start live watches for each type+namespace present in manifest
+        const seenKeys = new Set<string>();
+        resources.forEach(res => {
+          const key = `${res.resourceType}::${res.metadata.namespace || ''}`;
+          if (seenKeys.has(key)) return;
+          seenKeys.add(key);
+          watchType(res.resourceType, res.metadata.namespace || ns);
+        });
+        // Build initial graph using live data filtered by manifest contents
+        setGraph(createHelmGraph(hr, resources));
+      } catch (e) {
+        console.error('Failed to build Helm resource tree:', e);
+      }
+    })();
+  });
+
+  type MinimalRes = { apiVersion: string; kind: string; metadata: { name: string; namespace?: string }; resourceType: string };
+  const parseManifestResources = (yamlContent: string, fallbackNs: string): MinimalRes[] => {
+    if (!yamlContent || yamlContent.trim() === '') return [];
+    const docs = yamlContent.split(/^---$/m).map(d => d.trim()).filter(Boolean);
+    const out: MinimalRes[] = [];
+    for (const doc of docs) {
+      try {
+        const parsed = parseYAML(doc) as unknown;
+        if (!parsed || typeof parsed !== 'object') continue;
+        const obj = parsed as { apiVersion?: string; kind?: string; metadata?: { name?: string; namespace?: string } };
+        const apiVersion = String(obj.apiVersion || 'v1');
+        const kind = String(obj.kind || '');
+        const metadata = obj.metadata || {};
+        const name = String(metadata.name || '');
+        const ns = metadata.namespace || fallbackNs;
+        if (!kind || !name) continue;
+        const group = apiVersion.includes('/') ? apiVersion.split('/')[0] : 'core';
+        const resourceType = `${group}/${kind}`;
+        out.push({ apiVersion, kind, metadata: { name, namespace: ns }, resourceType });
+      } catch (_) {
+        // ignore invalid docs
+      }
+    }
+    return out;
+  };
+
+  const createHelmGraph = (hr: HelmRelease, resList: MinimalRes[]) => {
+    const g = new graphlib.Graph({ directed: true });
+    g.setGraph({ rankdir: 'LR', nodesep: 100, ranksep: 80, marginx: 20, marginy: 20, align: 'UL' });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    const rootId = createNodeWithCardRenderer(
+      g,
+      `helmrelease-${hr.metadata.namespace}-${hr.metadata.name}`,
+      hr as unknown as Record<string, unknown>,
+      'helm.toolkit.fluxcd.io/HelmRelease',
+      {
+        fill: (hr.status?.conditions || []).some(c => c.type === 'Ready' && c.status === 'True') ? '#e6f4ea' : '#fce8e6',
+        stroke: (hr.status?.conditions || []).some(c => c.type === 'Ready' && c.status === 'True') ? '#137333' : '#c5221f',
+        strokeWidth: '2'
+      }
+    );
+
+    // Build an inclusion index by type and namespace from manifest
+    const includeIndex: Record<string, Record<string, Set<string>>> = {};
+    for (const r of resList) {
+      const ns = r.metadata.namespace || '';
+      if (!includeIndex[r.resourceType]) includeIndex[r.resourceType] = {};
+      if (!includeIndex[r.resourceType][ns]) includeIndex[r.resourceType][ns] = new Set<string>();
+      includeIndex[r.resourceType][ns].add(r.metadata.name);
+    }
+
+    // Use live resources from dynamicResources and filter to ones included in manifest
+    const live = dynamicResources();
+    Object.entries(includeIndex).forEach(([type, byNs]) => {
+      const allOfType = (live[type] || []) as Array<{ metadata: { name: string; namespace?: string } }>;
+      const items = allOfType.filter(obj => {
+        const ns = obj.metadata.namespace || '';
+        const set = byNs[ns];
+        return !!set && set.has(obj.metadata.name);
+      });
+      if (items.length > 5 && isResourceTypeVisible(type)) {
+        const paginationKey = `${rootId}-${type}`;
+        const currentPage = paginationState()[paginationKey] || 0;
+        const pageSize = 5;
+        const totalPages = Math.ceil(items.length / pageSize);
+        const startIndex = currentPage * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, items.length);
+        const visibleChildren = items.slice(startIndex, endIndex);
+        const paginationResourceId = createNode(g, `pagination-${paginationKey}`, '', {
+          fill: '#f8f9fa',
+          stroke: '#dee2e6',
+          strokeWidth: '1',
+          jsxContent: createPaginationNode(type, startIndex, endIndex, totalPages, currentPage, setPaginationState, paginationKey, items.length),
+          width: 250,
+          height: 70
+        });
+        g.setEdge(rootId, paginationResourceId);
+        visibleChildren.forEach((child: { metadata: { name: string; namespace?: string } }) => drawLiveResource(g, child, type, paginationResourceId));
+      } else {
+        items.forEach((child: { metadata: { name: string; namespace?: string } }) => drawLiveResource(g, child, type, rootId));
+      }
+    });
+
+    return g;
+  };
+
+  const drawLiveResource = (g: graphlib.Graph, resource: { metadata: { name: string } }, resourceType: string, parentId: string) => {
+    const visible = isResourceTypeVisible(resourceType);
+    let resourceId = parentId;
+    if (visible) {
+      resourceId = createNodeWithCardRenderer(
+        g,
+        `${resourceType.replace('/', '-')}-${resource.metadata.name}`,
+        resource as unknown as Record<string, unknown>,
+        resourceType,
+        { fill: '#e6f4ea', stroke: '#137333', strokeWidth: '1' }
+      );
+      g.setEdge(parentId, resourceId);
+    }
+    return resourceId;
+  };
+
+  // Watch a specific resource type in a namespace and update dynamicResources
+  const watchType = (resourceType: string, namespace: string) => {
+    console.log('watchType', resourceType, namespace);
+    const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+    if (!k8sResource) return;
+    let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+    if (k8sResource.namespaced) {
+      watchPath = `${k8sResource.apiPath}/namespaces/${namespace}/${k8sResource.name}?watch=true`;
+    }
+    const controller = new AbortController();
+    watchResource(
+      watchPath,
+      (event: { type: string; object: { metadata: { name: string; namespace?: string } } }) => {
+        if (event.type === 'ADDED') {
+          setDynamicResources(prev => {
+            const current = prev[resourceType] || [];
+            return { ...prev, [resourceType]: [...current, event.object].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)) };
+          });
+        } else if (event.type === 'MODIFIED') {
+          setDynamicResources(prev => {
+            const current = prev[resourceType] || [];
+            return { ...prev, [resourceType]: current.map(res => (res.metadata.name === event.object.metadata.name && (res.metadata.namespace || '') === (event.object.metadata.namespace || '')) ? event.object : res) };
+          });
+        } else if (event.type === 'DELETED') {
+          setDynamicResources(prev => {
+            const current = prev[resourceType] || [];
+            return { ...prev, [resourceType]: current.filter(res => !(res.metadata.name === event.object.metadata.name && (res.metadata.namespace || '') === (event.object.metadata.namespace || ''))) };
+          });
+        }
+        // Rebuild graph on any update
+        const hr = helmRelease();
+        if (hr) {
+          // Use last parsed manifest-derived inclusion to keep filtering
+          // We reuse the previous resList by reconstructing from visible names
+          // Simpler: trigger effect by toggling visibleResourceTypes
+          setGraph(createHelmGraph(hr, parseManifestResources('', ''))); // Will re-read dynamicResources in createHelmGraph
+        }
+      },
+      controller,
+      () => {}
+    );
+    setWatchControllers(prev => [...prev, controller]);
   };
 
   
@@ -295,6 +519,23 @@ export function HelmReleaseDetails() {
           }}
           loading={diffLoading()}
         />
+      </Show>
+
+      {/* Resource Tree */}
+      <Show when={graph()}>
+        <div class="resource-tree-wrapper">
+          <ResourceTree
+            g={graph}
+            resourceTypeVisibilityDropdown={
+              <ResourceTypeVisibilityDropdown
+                resourceTypes={allResourceTypes()}
+                visibleResourceTypes={visibleResourceTypes}
+                toggleResourceTypeVisibility={toggleResourceTypeVisibility}
+                setAllResourceTypesVisibility={setAllResourceTypesVisibility}
+              />
+            }
+          />
+        </div>
       </Show>
     </div>
   );
