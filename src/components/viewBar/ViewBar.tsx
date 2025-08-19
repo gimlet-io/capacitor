@@ -1,5 +1,6 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, For, createEffect, untrack, onMount, onCleanup } from "solid-js";
+import { applyTheme } from "../../utils/theme.ts";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
@@ -180,11 +181,11 @@ export function ViewBar(props: ViewBarProps) {
   };
 
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
+    globalThis.addEventListener('keydown', handleKeyDown);
   });
 
   onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown);
+    globalThis.removeEventListener('keydown', handleKeyDown);
   });
 
   // Unselect view when filters are manually changed and don't match the selected view
@@ -256,7 +257,7 @@ export function ViewBar(props: ViewBarProps) {
       <div class="views">
         <div class="view-buttons">
           <For each={views()}>
-            {(view, index) => (
+            {(view, _index) => (
               <div class="view-pill-container">
                 <button
                   class={`view-pill ${filterStore.selectedView === view.id ? 'selected' : ''}`}
@@ -296,10 +297,21 @@ export function ViewBar(props: ViewBarProps) {
         </div>
         
         <div class="view-right-section">
+          <div class="theme-selector">
+            <select
+              title="Theme"
+              onChange={(e) => applyTheme(e.currentTarget.value as "light" | "dark" | "mallow")}
+              value={typeof globalThis !== 'undefined' ? (globalThis.localStorage?.getItem('ui.theme') ?? 'light') : 'light'}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="mallow">Mallow</option>
+            </select>
+          </div>
           <div class="keyboard-shortcut-container">
             <KeyboardShortcuts 
               shortcuts={[{ key: `Ctrl+1,2,3...`, description: 'Switch view' }]}
-              resourceSelected={true}
+              resourceSelected
             />
           </div>
         </div>
