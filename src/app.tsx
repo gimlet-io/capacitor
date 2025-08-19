@@ -2,6 +2,7 @@ import { render } from "solid-js/web";
 import { HashRouter, Route } from "@solidjs/router";
 import { KustomizationDetails } from "./views/kustomizationDetails.tsx";
 import { HelmReleaseDetails } from "./views/helmReleaseDetails.tsx";
+import { HelmClassicReleaseDetails } from "./views/helmClassicReleaseDetails.tsx";
 import { ApplicationDetails } from "./views/applicationDetails.tsx";
 import { SecretDetails } from "./views/secretDetails.tsx";
 import { Dashboard } from "./views/dashboard.tsx";
@@ -37,6 +38,7 @@ function App() {
             <Route path="/" component={Dashboard} />
             <Route path="/kustomization/:namespace/:name" component={KustomizationDetails} />
             <Route path="/helmrelease/:namespace/:name" component={HelmReleaseDetails} />
+            <Route path="/helmclassic/:namespace/:name" component={HelmClassicReleaseDetails} />
             <Route path="/application/:namespace/:name" component={ApplicationDetails} />
             <Route path="/secret/:namespace/:name" component={SecretDetails} />
           </HashRouter>

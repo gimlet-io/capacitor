@@ -46,7 +46,7 @@ export function HelmReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history">("history");
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -663,7 +663,12 @@ export function HelmReleaseDetails() {
 
       <div style="padding: 16px">
         <Tabs
-            tabs={[{ key: "resource", label: "Resource Tree" }, { key: "values", label: "Values" }, { key: "manifest", label: "Manifest" }, { key: "history", label: "Release History" }]}
+            tabs={[
+              { key: "history", label: "Release History" },
+              { key: "values", label: "Values" },
+              { key: "manifest", label: "Manifest" },
+              { key: "resource", label: "Resource Tree" },
+            ]}
             activeKey={activeMainTab()}
             onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history")}
             class=""
