@@ -64,6 +64,55 @@ export function HelmReleaseDetails() {
     'core/ServiceAccount'
   ];
 
+  // Extra watches to build parent->children relationships (similar to Kustomization)
+  const extraWatches: Record<string, Array<{
+    resourceType: string;
+    isParent: (child: Record<string, any>, parent: Record<string, any>) => boolean;
+  }>> = {
+    'apps/Deployment': [
+      {
+        resourceType: 'apps/ReplicaSet',
+        isParent: (child, parent) => child.metadata.ownerReferences?.some((o: any) => o.kind === 'Deployment' && o.name === parent.metadata.name)
+      }
+    ],
+    'apps/ReplicaSet': [
+      {
+        resourceType: 'core/Pod',
+        isParent: (child, parent) => child.metadata.ownerReferences?.some((o: any) => o.kind === 'ReplicaSet' && o.name === parent.metadata.name)
+      }
+    ],
+    'core/PersistentVolumeClaim': [
+      {
+        resourceType: 'core/PersistentVolume',
+        isParent: (child, parent) => child.spec?.claimRef?.name === parent.metadata.name
+      }
+    ],
+    'batch/CronJob': [
+      {
+        resourceType: 'batch/Job',
+        isParent: (child, parent) => child.metadata.ownerReferences?.some((o: any) => o.kind === 'CronJob' && o.name === parent.metadata.name)
+      }
+    ],
+    'bitnami.com/SealedSecret': [
+      {
+        resourceType: 'core/Secret',
+        isParent: (child, parent) => child.metadata.name === parent.metadata.name && child.metadata.namespace === parent.metadata.namespace
+      }
+    ],
+    'keda.sh/ScaledJob': [
+      {
+        resourceType: 'batch/Job',
+        isParent: (child, parent) => child.metadata.ownerReferences?.some((o: any) => o.kind === 'ScaledJob' && o.name === parent.metadata.name)
+      }
+    ],
+    'keda.sh/ScaledObject': [
+      {
+        resourceType: 'apps/Deployment',
+        isParent: (child, parent) => parent.spec?.scaleTargetRef?.name === child.metadata.name && parent.spec?.scaleTargetRef?.kind === 'Deployment'
+      }
+    ]
+  };
+
   createEffect(() => {
     if (params.namespace && params.name && apiResourceStore.apiResources) {
       setupWatches(params.namespace, params.name);
@@ -190,10 +239,18 @@ export function HelmReleaseDetails() {
         const manifest: string = manData.manifest || '';
         const resources = parseManifestResources(manifest, ns);
         setManifestResources(resources);
-        const resourceTypes = Array.from(new Set(resources.map(r => r.resourceType))).sort((a, b) => (a.split('/')[1] || '').localeCompare(b.split('/')[1] || ''));
-        setAllResourceTypes(resourceTypes);
+        // Base resource types from manifest
+        const manifestTypes = Array.from(new Set(resources.map(r => r.resourceType)));
+        // Collect extra watch types (e.g., ReplicaSet, Pod) so we can render runtime children
+        const extraWatchTypes = new Set<string>();
+        Object.values(extraWatches).forEach(configs => configs.forEach(cfg => extraWatchTypes.add(cfg.resourceType)));
+        // Union
+        const allTypesSet = new Set<string>(manifestTypes);
+        extraWatchTypes.forEach(t => allTypesSet.add(t));
+        const allTypes = Array.from(allTypesSet).sort((a, b) => (a.split('/')[1] || '').localeCompare(b.split('/')[1] || ''));
+        setAllResourceTypes(allTypes);
         const initialVisible = new Set<string>();
-        resourceTypes.forEach(t => { if (!DEFAULT_HIDDEN_RESOURCE_TYPES.includes(t)) initialVisible.add(t); });
+        allTypes.forEach(t => { if (!DEFAULT_HIDDEN_RESOURCE_TYPES.includes(t)) initialVisible.add(t); });
         setVisibleResourceTypes(initialVisible);
         // Start live watches for each type+namespace present in manifest
         const seenKeys = new Set<string>();
@@ -202,6 +259,18 @@ export function HelmReleaseDetails() {
           if (seenKeys.has(key)) return;
           seenKeys.add(key);
           watchType(res.resourceType, res.metadata.namespace || ns);
+        });
+        // Also watch extra types that may not be included in manifest (e.g., Pods, ReplicaSets)
+        // Ensure we watch them in namespaces actually referenced by parents
+        const nsSet = new Set<string>(resources.map(r => r.metadata.namespace || ns));
+        extraWatchTypes.forEach(type => {
+          for (const n of nsSet) {
+            const key = `${type}::${n}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              watchType(type, n);
+            }
+          }
         });
         // Build initial graph using live data filtered by manifest contents
         setGraph(createHelmGraph(hr, resources));
@@ -276,11 +345,11 @@ export function HelmReleaseDetails() {
     // Use live resources from dynamicResources and filter to ones included in manifest
     const live = dynamicResources();
     Object.entries(includeIndex).forEach(([type, byNs]) => {
-      const allOfType = (live[type] || []) as Array<{ metadata: { name: string; namespace?: string } }>;
+      const allOfType = (live[type] || []) as Array<Record<string, any>>;
       const items = allOfType.filter(obj => {
-        const ns = obj.metadata.namespace || '';
+        const ns = obj.metadata?.namespace || '';
         const set = byNs[ns];
-        return !!set && set.has(obj.metadata.name);
+        return !!set && set.has(obj.metadata?.name);
       });
       if (items.length > 5 && isResourceTypeVisible(type)) {
         const paginationKey = `${rootId}-${type}`;
@@ -299,16 +368,19 @@ export function HelmReleaseDetails() {
           height: 70
         });
         g.setEdge(rootId, paginationResourceId);
-        visibleChildren.forEach((child: { metadata: { name: string; namespace?: string } }) => drawLiveResource(g, child, type, paginationResourceId));
+        // Attach children recursively based on extraWatches
+        const enriched = visibleChildren.map(item => enrichWithChildren(type, item, live));
+        enriched.forEach(child => drawLiveResource(g, child, type, paginationResourceId));
       } else {
-        items.forEach((child: { metadata: { name: string; namespace?: string } }) => drawLiveResource(g, child, type, rootId));
+        const enriched = items.map(item => enrichWithChildren(type, item, live));
+        enriched.forEach(child => drawLiveResource(g, child, type, rootId));
       }
     });
 
     return g;
   };
 
-  const drawLiveResource = (g: graphlib.Graph, resource: { metadata: { name: string } }, resourceType: string, parentId: string) => {
+  const drawLiveResource = (g: graphlib.Graph, resource: Record<string, any>, resourceType: string, parentId: string) => {
     const visible = isResourceTypeVisible(resourceType);
     let resourceId = parentId;
     if (visible) {
@@ -321,7 +393,60 @@ export function HelmReleaseDetails() {
       );
       g.setEdge(parentId, resourceId);
     }
+    // Recursively draw children if present
+    const children = resource && Array.isArray(resource.children) ? resource.children as Array<Record<string, any>> : [];
+    if (children.length > 0) {
+      const childrenByType: Record<string, Array<Record<string, any>>> = {};
+      for (const child of children) {
+        const apiVersion = String(child.apiVersion || 'v1');
+        const kind = String(child.kind || child.metadata?.ownerReferences?.[0]?.kind || '');
+        if (!kind) continue;
+        const group = apiVersion.includes('/') ? apiVersion.split('/')[0] : 'core';
+        const childType = `${group}/${kind}`;
+        if (!childrenByType[childType]) childrenByType[childType] = [];
+        childrenByType[childType].push(child);
+      }
+      Object.entries(childrenByType).forEach(([childType, items]) => {
+        if (items.length > 5 && isResourceTypeVisible(childType)) {
+          const paginationKey = `${resourceId}-${childType}`;
+          const currentPage = paginationState()[paginationKey] || 0;
+          const pageSize = 5;
+          const totalPages = Math.ceil(items.length / pageSize);
+          const startIndex = currentPage * pageSize;
+          const endIndex = Math.min(startIndex + pageSize, items.length);
+          const visibleChildren = items.slice(startIndex, endIndex);
+          const paginationResourceId = createNode(g, `pagination-${paginationKey}`, '', {
+            fill: '#f8f9fa', stroke: '#dee2e6', strokeWidth: '1',
+            jsxContent: createPaginationNode(childType, startIndex, endIndex, totalPages, currentPage, setPaginationState, paginationKey, items.length),
+            width: 250, height: 70
+          });
+          g.setEdge(resourceId, paginationResourceId);
+          visibleChildren.forEach(child => drawLiveResource(g, child, childType, paginationResourceId));
+        } else {
+          items.forEach(child => drawLiveResource(g, child, childType, resourceId));
+        }
+      });
+    }
     return resourceId;
+  };
+
+  // Recursively attach children using extraWatches mapping
+  const enrichWithChildren = (parentType: string, parent: Record<string, any>, live: Record<string, Array<Record<string, any>>>): Record<string, any> => {
+    const configs = extraWatches[parentType] || [];
+    if (configs.length === 0) return parent;
+    const allChildren: Array<Record<string, any>> = [];
+    for (const cfg of configs) {
+      const pool = live[cfg.resourceType] || [];
+      for (const child of pool) {
+        if (cfg.isParent(child, parent)) {
+          // Recurse for grandchildren
+          const enrichedChild = enrichWithChildren(cfg.resourceType, child, live);
+          allChildren.push(enrichedChild);
+        }
+      }
+    }
+    if (allChildren.length === 0) return parent;
+    return { ...parent, children: allChildren };
   };
 
   // Watch a specific resource type in a namespace and update dynamicResources
