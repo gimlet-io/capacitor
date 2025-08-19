@@ -15,6 +15,7 @@ import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permis
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { Tabs } from "../Tabs.tsx";
 import { HelmValues } from "./HelmValues.tsx";
+import { HelmManifest } from "./HelmManifest.tsx";
 import {
   type DiffItem,
   type DiffHunk,
@@ -34,7 +35,6 @@ export function HelmDrawer(props: {
   initialTab?: "history" | "values" | "manifest";
 }) {
   const [historyData, setHistoryData] = createSignal<any[]>([]);
-  const [manifestData, setManifestData] = createSignal<string>("");
   const [activeTab, setActiveTab] = createSignal<
     "history" | "values" | "manifest"
   >(props.initialTab || "history");
@@ -839,8 +839,6 @@ export function HelmDrawer(props: {
     const currentTab = activeTab();
     if (currentTab === "history") {
       setupHistoryWatcher();
-    } else if (currentTab === "manifest") {
-      fetchReleaseManifest();
     }
   };
 
@@ -849,8 +847,6 @@ export function HelmDrawer(props: {
     if (props.isOpen) {
       if (activeTab() === "history") {
         setupHistoryWatcher();
-      } else if (activeTab() === "manifest") {
-        fetchReleaseManifest();
       }
     } else {
       // Clean up the subscription when drawer closes
@@ -863,59 +859,7 @@ export function HelmDrawer(props: {
 
   // Values tab fetch handled inside HelmValues component
 
-  // Fetch manifest when selected revision changes
-  createEffect(() => {
-    if (
-      props.isOpen && activeTab() === "manifest" &&
-      selectedRevisionIndex() !== -1
-    ) {
-      fetchReleaseManifest();
-    }
-  });
-
-  // Fetch the Helm release manifest for the selected revision
-  const fetchReleaseManifest = async () => {
-    if (!props.resource) return;
-
-    setLoading(true);
-    try {
-      const name = props.resource.metadata.name;
-      const namespace = props.resource.metadata.namespace || "";
-
-      // Get the revision number of the selected revision
-      const index = selectedRevisionIndex();
-      if (index === -1 || index >= historyData().length) {
-        setManifestData("");
-        return;
-      }
-
-      const revision = historyData()[index].revision;
-
-      // Call the backend API for Helm release manifest
-      const url =
-        `/api/helm/manifest/${namespace}/${name}?revision=${revision}`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch Helm release manifest: ${response.statusText}`,
-        );
-      }
-
-      const data = await response.json();
-      setManifestData(data.manifest || "");
-    } catch (error) {
-      console.error("Error fetching Helm release manifest:", error);
-      setManifestData(
-        "Error fetching manifest: " +
-          (error instanceof Error ? error.message : String(error)),
-      );
-    } finally {
-      setLoading(false);
-      // Focus the content after loading
-      setTimeout(() => contentRef?.focus(), 50);
-    }
-  };
+  // Manifest fetching handled by HelmManifest component
 
   // Handle keyboard navigation in the history table
   const handleTableKeyDown = (e: KeyboardEvent) => {
@@ -1265,13 +1209,8 @@ export function HelmDrawer(props: {
               <HelmValues namespace={props.resource?.metadata.namespace || ""} name={props.resource?.metadata.name || ""} />
             </Show>
 
-            <Show when={!loading() && activeTab() === "manifest"}>
-              <Show
-                when={manifestData()}
-                fallback={<div class="no-manifest">No manifest found</div>}
-              >
-                <pre class="yaml-content">{manifestData()}</pre>
-              </Show>
+            <Show when={activeTab() === "manifest"}>
+              <HelmManifest namespace={props.resource?.metadata.namespace || ""} name={props.resource?.metadata.name || ""} revision={(() => { const i = selectedRevisionIndex(); return i >= 0 && i < historyData().length ? historyData()[i].revision : undefined; })()} />
             </Show>
           </div>
         </div>
