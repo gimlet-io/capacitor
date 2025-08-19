@@ -41,6 +41,7 @@ export function HelmReleaseDetails() {
   const [visibleResourceTypes, setVisibleResourceTypes] = createSignal<Set<string>>(new Set());
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
+  const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -168,7 +169,8 @@ export function HelmReleaseDetails() {
   // Build resource tree from Helm manifest of latest revision, then watch live objects
   createEffect(() => {
     const hr = helmRelease();
-    if (!hr) return;
+    // Require k8s resource catalog to be loaded for watches
+    if (!hr || !filterStore.k8sResources || filterStore.k8sResources.length === 0) return;
     (async () => {
       try {
         const ns = hr.metadata.namespace;
@@ -187,8 +189,8 @@ export function HelmReleaseDetails() {
         const manData = await manResp.json();
         const manifest: string = manData.manifest || '';
         const resources = parseManifestResources(manifest, ns);
+        setManifestResources(resources);
         const resourceTypes = Array.from(new Set(resources.map(r => r.resourceType))).sort((a, b) => (a.split('/')[1] || '').localeCompare(b.split('/')[1] || ''));
-        console.log('resourceTypes', resourceTypes);
         setAllResourceTypes(resourceTypes);
         const initialVisible = new Set<string>();
         resourceTypes.forEach(t => { if (!DEFAULT_HIDDEN_RESOURCE_TYPES.includes(t)) initialVisible.add(t); });
@@ -207,6 +209,16 @@ export function HelmReleaseDetails() {
         console.error('Failed to build Helm resource tree:', e);
       }
     })();
+  });
+
+  // Rebuild graph when dynamic resources update
+  createEffect(() => {
+    // create dependency on dynamicResources
+    const _ = Object.keys(dynamicResources()).length;
+    const hr = helmRelease();
+    if (hr && manifestResources().length > 0) {
+      setGraph(createHelmGraph(hr, manifestResources()));
+    }
   });
 
   type MinimalRes = { apiVersion: string; kind: string; metadata: { name: string; namespace?: string }; resourceType: string };
@@ -314,7 +326,6 @@ export function HelmReleaseDetails() {
 
   // Watch a specific resource type in a namespace and update dynamicResources
   const watchType = (resourceType: string, namespace: string) => {
-    console.log('watchType', resourceType, namespace);
     const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
     if (!k8sResource) return;
     let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
@@ -343,11 +354,8 @@ export function HelmReleaseDetails() {
         }
         // Rebuild graph on any update
         const hr = helmRelease();
-        if (hr) {
-          // Use last parsed manifest-derived inclusion to keep filtering
-          // We reuse the previous resList by reconstructing from visible names
-          // Simpler: trigger effect by toggling visibleResourceTypes
-          setGraph(createHelmGraph(hr, parseManifestResources('', ''))); // Will re-read dynamicResources in createHelmGraph
+        if (hr && manifestResources().length > 0) {
+          setGraph(createHelmGraph(hr, manifestResources()));
         }
       },
       controller,
