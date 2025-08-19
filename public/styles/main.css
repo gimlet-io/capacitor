@@ -182,13 +182,13 @@ h1 {
 }
 
 .shortcut-key {
-  display: inline-flex;
+  display: inline;
   align-items: center;
   justify-content: center;
   background-color: var(--linear-bg-secondary);
   color: var(--linear-text-secondary);
   font-size: 12px;
-  padding: 2px 6px;
+  padding: 0px 6px;
   border-radius: 4px;
   border: 1px solid var(--linear-border);
   white-space: nowrap;

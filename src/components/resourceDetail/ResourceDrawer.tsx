@@ -6,6 +6,7 @@ import { TerminalViewer } from "./TerminalViewer.tsx";
 import type { Event } from "../../types/k8s.ts";
 import { stringify } from "@std/yaml";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
+import { Tabs } from "../Tabs.tsx";
 
 type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec";
 
@@ -282,42 +283,24 @@ export function ResourceDrawer(props: {
             <button class="drawer-close" onClick={props.onClose}>×</button>
           </div>
           
-          <div class="drawer-tabs">
-            <button 
-              class={`drawer-tab ${activeTab() === "describe" ? "active" : ""}`}
-              onClick={() => setActiveTab("describe")}
-            >
-              Describe <span class="shortcut-key">d</span>
-            </button>
-            <button 
-              class={`drawer-tab ${activeTab() === "yaml" ? "active" : ""}`}
-              onClick={() => setActiveTab("yaml")}
-            >
-              YAML <span class="shortcut-key">y</span>
-            </button>
-            <button 
-              class={`drawer-tab ${activeTab() === "events" ? "active" : ""}`}
-              onClick={() => setActiveTab("events")}
-            >
-              Events <span class="shortcut-key">e</span>
-            </button>
-            <Show when={["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)}>
-              <button 
-                class={`drawer-tab ${activeTab() === "logs" ? "active" : ""}`}
-                onClick={() => setActiveTab("logs")}
-              >
-                Logs <span class="shortcut-key">l</span>
-              </button>
-            </Show>
-            <Show when={props.resource?.kind === "Pod"}>
-              <button 
-                class={`drawer-tab ${activeTab() === "exec" ? "active" : ""}`}
-                onClick={() => setActiveTab("exec")}
-              >
-                Exec <span class="shortcut-key">x</span>
-              </button>
-            </Show>
-          </div>
+          <Tabs
+            class="drawer-tabs"
+            tabs={[
+              { key: "describe", label: <span>Describe <span class="shortcut-key">d</span></span> },
+              { key: "yaml", label: <span>YAML <span class="shortcut-key">y</span></span> },
+              { key: "events", label: <span>Events <span class="shortcut-key">e</span></span> },
+              ...( ["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)
+                ? [{ key: "logs", label: <span>Logs <span class="shortcut-key">l</span></span> }]
+                : []),
+              ...( props.resource?.kind === "Pod"
+                ? [{ key: "exec", label: <span>Exec <span class="shortcut-key">x</span></span> }]
+                : []),
+            ]}
+            activeKey={activeTab()}
+            onChange={(k) => setActiveTab(k as DrawerTab)}
+            buttonClass="drawer-tab"
+            activeClass="active"
+          />
           
           <div class="drawer-content">
             <Show when={activeTab() === "describe"}>

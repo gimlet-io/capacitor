@@ -13,6 +13,7 @@ import { stringify, parse as parseYAML } from "@std/yaml";
 import { getWebSocketClient } from "../../k8sWebSocketClient.ts";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
+import { Tabs } from "../Tabs.tsx";
 import {
   type DiffItem,
   type DiffHunk,
@@ -1103,26 +1104,18 @@ export function HelmDrawer(props: {
             <button class="drawer-close" onClick={props.onClose}>×</button>
           </div>
 
-          <div class="drawer-tabs">
-            <button
-              class={`drawer-tab ${activeTab() === "history" ? "active" : ""}`}
-              onClick={() => setActiveTab("history")}
-            >
-              Release History
-            </button>
-            <button
-              class={`drawer-tab ${activeTab() === "values" ? "active" : ""}`}
-              onClick={() => setActiveTab("values")}
-            >
-              Values
-            </button>
-            <button
-              class={`drawer-tab ${activeTab() === "manifest" ? "active" : ""}`}
-              onClick={() => setActiveTab("manifest")}
-            >
-              Manifest
-            </button>
-          </div>
+          <Tabs
+            class="drawer-tabs"
+            tabs={[
+              { key: "history", label: "Release History" },
+              { key: "values", label: "Values" },
+              { key: "manifest", label: "Manifest" },
+            ]}
+            activeKey={activeTab()}
+            onChange={(k) => setActiveTab(k as "history" | "values" | "manifest")}
+            buttonClass="drawer-tab"
+            activeClass="active"
+          />
 
           <div
             class="drawer-content"

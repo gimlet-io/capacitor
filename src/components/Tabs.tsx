@@ -11,16 +11,20 @@ type TabsProps = {
   onChange: (key: string) => void;
   class?: string;
   style?: JSX.CSSProperties;
+  buttonClass?: string;
+  activeClass?: string;
 };
 
 export function Tabs(props: TabsProps) {
+  const buttonCls = props.buttonClass || "tab-button";
+  const activeCls = props.activeClass || "active";
   return (
     <div class={`main-tabs ${props.class || ""}`.trim()} style={props.style}>
       <For each={props.tabs}>
         {(tab, index) => (
           <button
             type="button"
-            class={`tab-button ${props.activeKey === tab.key ? "active" : ""}`}
+            class={`${buttonCls} ${props.activeKey === tab.key ? activeCls : ""}`.trim()}
             onClick={() => props.onChange(tab.key)}
             style={{ "margin-right": index() < (props.tabs.length - 1) ? "8px" : undefined }}
           >
