@@ -167,7 +167,7 @@ func (c *Client) GetContexts() []ContextInfo {
 }
 
 // SwitchContext switches to a different Kubernetes context
-func (c *Client) SwitchContext(contextName string) error {
+func (c *Client) SwitchContext(contextName, kubeConfigPath string) error {
 	// Check if the context exists
 	ctx, exists := c.AvailableContexts[contextName]
 	if !exists {
@@ -179,23 +179,13 @@ func (c *Client) SwitchContext(contextName string) error {
 		return fmt.Errorf("cannot switch context when running in-cluster")
 	}
 
-	// Find kubeconfig path
-	kubeconfig := ""
-	if os.Getenv("KUBECONFIG") != "" {
-		kubeconfig = os.Getenv("KUBECONFIG")
-	} else if home := homedir.HomeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	} else {
-		return fmt.Errorf("kubeconfig not found")
-	}
-
 	// Create config with new context
 	configOverrides := &clientcmd.ConfigOverrides{
 		CurrentContext: contextName,
 	}
 
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfigPath},
 		configOverrides,
 	)
 

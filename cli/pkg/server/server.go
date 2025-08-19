@@ -169,7 +169,7 @@ func (s *Server) Setup() {
 		}
 
 		// Switch context
-		err := s.k8sClient.SwitchContext(req.Context)
+		err := s.k8sClient.SwitchContext(req.Context, s.Config.KubeConfigPath)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to switch context: %v", err),
