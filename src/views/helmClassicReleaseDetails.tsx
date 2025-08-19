@@ -10,6 +10,7 @@ import { ResourceTree, createNodeWithCardRenderer, createNode, createPaginationN
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 import { HelmValues } from "../components/resourceDetail/HelmValues.tsx";
 import { HelmManifest } from "../components/resourceDetail/HelmManifest.tsx";
+import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.tsx";
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
 import { parse as parseYAML } from "@std/yaml";
 import * as graphlib from "graphlib";
@@ -37,7 +38,7 @@ export function HelmClassicReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history">("history");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff">("history");
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -474,9 +475,10 @@ export function HelmClassicReleaseDetails() {
             { key: "values", label: "Values" },
             { key: "manifest", label: "Manifest" },
             { key: "resource", label: "Resource Tree" },
+            { key: "diff", label: "Diff Helm Manifest with Cluster State" },
           ]}
           activeKey={activeMainTab()}
-          onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history")}
+          onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history" | "diff")}
           class=""
           style={{ "margin-top": "12px" }}
         />
@@ -515,6 +517,14 @@ export function HelmClassicReleaseDetails() {
             name={helmRelease()!.metadata.name}
             apiVersion={helmRelease()!.apiVersion || 'helm.sh/v3'}
             kind={helmRelease()!.kind || 'Release'}
+          />
+        </Show>
+
+        {/* Live vs Manifest Diff Tab */}
+        <Show when={activeMainTab() === "diff" && !!helmRelease()}>
+          <HelmManifestDiff
+            namespace={helmRelease()!.metadata.namespace}
+            name={helmRelease()!.metadata.name}
           />
         </Show>
       </div>
