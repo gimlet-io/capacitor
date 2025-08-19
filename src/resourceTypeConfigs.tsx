@@ -95,6 +95,11 @@ export const navigateToKustomization: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+export const navigateToHelmClassicReleaseDetails: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View Helm release details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
 export const navigateToApplication: ResourceCommand = {
   shortcut: { key: "Enter", description: "View application details", isContextual: true },
   handler: null as any // Will be implemented in ResourceList
@@ -525,18 +530,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: helmReleaseColumns,
     filter: [helmReleaseStatusFilter, helmReleaseChartFilter],
     commands: [
-      {
-        shortcut: { key: "h", description: "Release History", isContextual: true },
-        handler: null as any  // Will be implemented in ResourceList
-      },
-      {
-        shortcut: { key: "v", description: "Values", isContextual: true },
-        handler: null as any  // Will be implemented in ResourceList
-      },
-      {
-        shortcut: { key: "m", description: "Manifest", isContextual: true },
-        handler: null as any  // Will be implemented in ResourceList
-      },
+      ...builtInCommands,
+      navigateToHelmClassicReleaseDetails,
     ]
   },
   
@@ -691,6 +686,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Ctrl+w", description: "Reconcile HelmRelease with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
+      },
+      {
+        shortcut: { key: "Enter", description: "View Helm release details", isContextual: true },
+        handler: null as any // Implemented in ResourceList navigate handler
       }
     ],
     filter: [fluxReadyFilter],

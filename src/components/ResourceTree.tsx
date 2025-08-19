@@ -3,7 +3,6 @@ import { render } from "solid-js/web";
 import * as dagre from "dagre";
 import * as graphlib from "graphlib";
 import { ResourceDrawer } from "./resourceDetail/ResourceDrawer.tsx";
-import { HelmDrawer } from "./resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "./keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
 import { resourceTypeConfigs, ResourceCommand, ResourceTypeConfig, ResourceCardRenderer } from "../resourceTypeConfigs.tsx";
@@ -244,8 +243,6 @@ export function ResourceTree(props: ResourceTreeProps) {
   const [selectedResource, setSelectedResource] = createSignal<any | null>(null);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
-  const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
-  const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
 
   // Add state for zoom and pan
   const [scale, setScale] = createSignal(1);
@@ -308,27 +305,12 @@ export function ResourceTree(props: ResourceTreeProps) {
     document.body.style.overflow = '';
   };
 
-  const openHelmDrawer = (resource: any, tab: "history" | "values" | "manifest" = "history") => {
-    setSelectedResource(resource);
-    setHelmActiveTab(tab);
-    setHelmDrawerOpen(true);
-    // Prevent page scrolling when drawer is open
-    document.body.style.overflow = 'hidden';
-  };
-
-  const closeHelmDrawer = () => {
-    setHelmDrawerOpen(false);
-    // Restore page scrolling when drawer is closed
-    document.body.style.overflow = '';
-  };
-
   // Generate a list of all commands including built-in ones
   const getAllCommands = (): ResourceCommand[] => {
     const config = selectedResourceConfig();    
     const commands = [...(config?.commands || builtInCommands)];
     replaceHandlers(commands, {
       openDrawer: openDrawerWithExec,
-      openHelmDrawer,
       navigate
     });
     return commands;
@@ -780,13 +762,6 @@ export function ResourceTree(props: ResourceTreeProps) {
         initialTab={activeTab()}
       />
 
-      {/* Helm drawer */}
-      <HelmDrawer
-        resource={selectedResource()}
-        isOpen={helmDrawerOpen()}
-        onClose={closeHelmDrawer}
-        initialTab={helmActiveTab()}
-      />
     </div>
   );
 }

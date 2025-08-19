@@ -1,9 +1,8 @@
 import { For, createSignal, onMount, onCleanup, createEffect, createMemo } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
-import { HelmDrawer } from "../resourceDetail/HelmDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -132,7 +131,6 @@ export const replaceHandlers = (
   commands: ResourceCommand[],
   handlers: {
     openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: any) => void;
-    openHelmDrawer: (resource: any, tab: "history" | "values" | "manifest") => void;
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
   }
@@ -173,26 +171,18 @@ export const replaceHandlers = (
           ...cmd,
           handler: handleDeleteResource
         };
-      } else if (cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History') {
-        commands[i] = {
-          ...cmd,
-          handler: (resource) => handlers.openHelmDrawer(resource, "history")
-        };
-      } else if (cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values') {
-        commands[i] = {
-          ...cmd,
-          handler: (resource) => handlers.openHelmDrawer(resource, "values")
-        };
-      } else if (cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest') {
-        commands[i] = {
-          ...cmd,
-          handler: (resource) => handlers.openHelmDrawer(resource, "manifest")
-        };
       } else if (cmd === navigateToKustomization && handlers.navigate) {
         commands[i] = {
           ...cmd,
           handler: (resource) => {
             handlers.navigate!(`/kustomization/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === navigateToHelmClassicReleaseDetails && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/helmclassic/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
       } else if (cmd === navigateToApplication && handlers.navigate) {
@@ -207,6 +197,20 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => {
             handlers.navigate!(`/secret/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('classic') && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/helmclassic/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('helm release') && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/helmrelease/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
       } else if (cmd === showPodsInNamespace && handlers.updateFilters) {
@@ -253,8 +257,6 @@ export function ResourceList<T>(props: {
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
-  const [helmDrawerOpen, setHelmDrawerOpen] = createSignal(false);
-  const [helmActiveTab, setHelmActiveTab] = createSignal<"history" | "values" | "manifest">("history");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
   // Use filterStore for sorting state
   const sortColumn = () => filterStore.sortColumn;
@@ -327,16 +329,6 @@ export function ResourceList<T>(props: {
 
   const closeDrawer = () => {
     setDrawerOpen(false);
-  };
-
-  const openHelmDrawer = (resource: T, tab: "history" | "values" | "manifest" = "history") => {
-    setSelectedResource(() => resource);
-    setHelmActiveTab(tab);
-    setHelmDrawerOpen(true);
-  };
-
-  const closeHelmDrawer = () => {
-    setHelmDrawerOpen(false);
   };
 
   // Resolve plural resource name using the API resource list
@@ -483,7 +475,6 @@ export function ResourceList<T>(props: {
     const commands = [...(props.resourceTypeConfig.commands || builtInCommands)];
     replaceHandlers(commands, {
       openDrawer,
-      openHelmDrawer,
       navigate: navigate,
       updateFilters: (filters) => filterStore.setActiveFilters(filters)
     });
@@ -651,36 +642,7 @@ export function ResourceList<T>(props: {
   // Get all available shortcuts including custom commands
   const getAvailableShortcuts = () => {
     const allCommands = getAllCommands();
-    
-    // For Helm releases, add the specific shortcuts
-    if (props.resourceTypeConfig.columns === helmReleaseColumns) {
-      // Check if commands already include 'h' and 'v' shortcuts
-      const hasHistoryCommand = allCommands.some(cmd => cmd.shortcut.key === 'h' && cmd.shortcut.description === 'Release History');
-      const hasValuesCommand = allCommands.some(cmd => cmd.shortcut.key === 'v' && cmd.shortcut.description === 'Values');
-      const hasManifestCommand = allCommands.some(cmd => cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Manifest');
-      
-      // If they don't already exist in the commands, add them
-      const shortcuts = allCommands.map(cmd => {
-        const id = commandId(cmd);
-        const allowed = commandPermissions()[id];
-        return { ...cmd.shortcut, disabled: allowed === false } as KeyboardShortcut;
-      });
-      
-      if (!hasHistoryCommand) {
-        shortcuts.push({ key: "h", description: "Release History", isContextual: true });
-      }
-      
-      if (!hasValuesCommand) {
-        shortcuts.push({ key: "v", description: "Values", isContextual: true });
-      }
-      
-      if (!hasManifestCommand) {
-        shortcuts.push({ key: "m", description: "Manifest", isContextual: true });
-      }
-      
-      return shortcuts;
-    }
-    
+
     return allCommands.map(cmd => {
       const id = commandId(cmd);
       const allowed = commandPermissions()[id];
@@ -777,13 +739,6 @@ export function ResourceList<T>(props: {
         isOpen={drawerOpen()}
         onClose={closeDrawer}
         initialTab={activeTab()}
-      />
-
-      <HelmDrawer
-        resource={selectedResource() as any}
-        isOpen={helmDrawerOpen()}
-        onClose={closeHelmDrawer}
-        initialTab={helmActiveTab()}
       />
     </div>
   );

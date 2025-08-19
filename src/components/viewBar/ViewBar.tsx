@@ -38,12 +38,20 @@ const SYSTEM_VIEWS: View[] = [
       { name: 'Namespace', value: 'all-namespaces' }]
   },
   { 
-    id: 'fluxcd',
-    label: 'FluxCD',
+    id: 'fluxcd/kustomizations',
+    label: 'FluxCD/Kustomizations',
     isSystem: true,
     filters: [
       { name: 'ResourceType', value: 'kustomize.toolkit.fluxcd.io/Kustomization' },
-      { name: 'Namespace', value: 'flux-system' }]
+      { name: 'Namespace', value: 'all-namespaces' }]
+  },
+  { 
+    id: 'fluxcd/helmreleases',
+    label: 'FluxCD/HelmReleases',
+    isSystem: true,
+    filters: [
+      { name: 'ResourceType', value: 'helm.toolkit.fluxcd.io/HelmRelease' },
+      { name: 'Namespace', value: 'all-namespaces' }]
   },
   { 
     id: 'argocd',
