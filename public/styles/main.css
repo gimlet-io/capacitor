@@ -210,7 +210,7 @@ h1 {
 
 .events-list {
   margin-top: 2rem;
-  background-color: #f8f9fa;
+  background-color: var(--linear-bg-secondary);
   border-radius: 4px;
 }
 
@@ -253,34 +253,34 @@ h1 {
 }
 
 .event-reason {
-  color: #495057;
+  color: var(--linear-text-primary);
   font-size: 0.9rem;
 }
 
 .event-count {
-  color: #6c757d;
+  color: var(--linear-text-secondary);
   font-size: 0.8rem;
 }
 
 .event-object {
-  color: #495057;
+  color: var(--linear-text-primary);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }
 
 .event-message {
-  color: #212529;
+  color: var(--linear-text-tertiary);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }
 
 .event-timestamp {
-  color: #6c757d;
+  color: var(--linear-text-secondary);
   font-size: 0.8rem;
 }
 
 .events-truncated {
-  color: #6c757d;
+  color: var(--linear-text-secondary);
   font-size: 0.8rem;
   text-align: center;
   padding: 0.5rem;
@@ -2050,15 +2050,16 @@ td.message-cell {
 
 /* Conditions YAML section */
 .conditions-yaml {
-  background-color: #f8f9fa;
+  background-color: var(--linear-bg);
   border-radius: 4px;
   padding: 12px;
   margin: 8px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.9rem;
+  color: var(--linear-text-primary);
   white-space: pre-wrap;
   overflow-x: auto;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--linear-border);
   max-height: 300px;
 }
 
