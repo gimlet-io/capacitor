@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+  labels:
+    app: capacitor-next
+spec:
+  selector:
+    app: capacitor-next
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+

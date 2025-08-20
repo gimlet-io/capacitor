@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+  labels:
+    app: capacitor-next
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: capacitor-next
+  template:
+    metadata:
+      labels:
+        app: capacitor-next
+    spec:
+      containers:
+        - name: capacitor-next
+          image: ghcr.io/gimlet-io/capacitor-next:v0.4.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          envFrom:
+            - configMapRef:
+                name: capacitor-next
+            - secretRef:
+                name: capacitor-next
+          volumeMounts:
+            - name: registry
+              mountPath: /app/backend/registry.yaml
+              subPath: registry.yaml
+      volumes:
+        - name: registry
+          configMap:
+            name: capacitor-next
+            items:
+              - key: registry.yaml
+                path: registry.yaml
