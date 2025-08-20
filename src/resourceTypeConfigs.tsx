@@ -530,7 +530,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: helmReleaseColumns,
     filter: [helmReleaseStatusFilter, helmReleaseChartFilter],
     commands: [
-      ...builtInCommands,
       navigateToHelmClassicReleaseDetails,
     ]
   },
