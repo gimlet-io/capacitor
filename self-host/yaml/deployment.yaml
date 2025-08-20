@@ -15,6 +15,7 @@ spec:
       labels:
         app: capacitor-next
     spec:
+      serviceAccountName: capacitor-next
       containers:
         - name: capacitor-next
           image: ghcr.io/gimlet-io/capacitor-next:v0.4.0
