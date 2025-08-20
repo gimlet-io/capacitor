@@ -50,7 +50,7 @@ spec:
               subPath: registry.yaml
       volumes:
         - name: registry
-          configMap:
+          secret:
             name: capacitor-next
             items:
               - key: registry.yaml
