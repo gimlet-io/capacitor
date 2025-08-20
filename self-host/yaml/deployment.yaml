@@ -51,7 +51,7 @@ spec:
       volumes:
         - name: registry
           secret:
-            name: capacitor-next
+            secretName: capacitor-next
             items:
               - key: registry.yaml
                 path: registry.yaml
