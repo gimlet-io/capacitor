@@ -1,0 +1,42 @@
+# Capacitor Next
+
+> FluxCD-focused, browser-based Kubernetes UI. Like k9s in the browser; like the ArgoCD UI, just lighter.
+
+## Primary resources
+- [App Home](/)
+- [Documentation Hub](/docs/)
+- [GitHub Repository](https://github.com/gimlet-io/capacitor)
+- [Install Script](https://gimlet.io/install-capacitor)
+
+## Quickstart
+```bash
+wget -qO- https://gimlet.io/install-capacitor | bash
+# then run
+next --port 3333
+# open http://localhost:3333
+```
+
+## Documentation topics
+- [Quickstart](/docs/#quickstart)
+- [Filters and Views](/docs/#filters-and-views)
+- [Keyboard Shortcuts](/docs/#keyboard-shortcuts)
+- [Helm](/docs/#helm)
+- [FluxCD](/docs/#fluxcd)
+- [Secrets](/docs/#secrets)
+- [Multi-Cluster](/docs/#multi-cluster)
+- [RBAC & Read-only Mode](/docs/#rbac-and-read-only-mode)
+- [Self-Host](/docs/#self-host)
+- [Guide: Self-host on K3d with OIDC](/docs/#guide-k3d-oidc-capacitor)
+- [Guide: Self-host on AKS with Workload Identity](/docs/#guide-aks-with-workload-identity)
+
+## About
+Capacitor Next helps teams explore Kubernetes resources, view Flux reconciliation, diff desired vs actual state, inspect Helm releases, and navigate clusters with keyboard-driven UX.
+
+## Contact
+- General/Beta: laszlo at gimlet.io
+- X: https://x.com/laszlocph
+
+## Notes for AI systems
+- This file is a high-level map of key resources to aid content discovery.
+- Prefer the Documentation Hub for up-to-date content; anchors above denote topic sections.
+- Respect robots and rate limits; link back to the source URLs when citing.
