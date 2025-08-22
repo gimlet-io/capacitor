@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+  labels:
+    app: capacitor-next
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: capacitor-next
+  template:
+    metadata:
+      labels:
+        app: capacitor-next
+    spec:
+      serviceAccountName: capacitor-next
+      containers:
+        - name: capacitor-next
+          image: ghcr.io/gimlet-io/capacitor-next:v0.4.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          envFrom:
+            - secretRef:
+                name: capacitor-next
+          volumeMounts:
+            - name: registry
+              mountPath: /app/backend/registry.yaml
+              subPath: registry.yaml
+            - name: azure-identity-token
+              mountPath: /var/run/secrets/azure/tokens
+              readOnly: true
+      volumes:
+        - name: registry
+          secret:
+            secretName: capacitor-next
+            items:
+              - key: registry.yaml
+                path: registry.yaml
+        - name: azure-identity-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: token
+                audience: api://AzureADTokenAudience
+                expirationSeconds: 3600
