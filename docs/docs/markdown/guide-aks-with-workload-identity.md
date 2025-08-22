@@ -13,6 +13,14 @@ az ad app create --display-name capacitor-next
 
 The Application Id will be the Client ID in later settings.
 
+Set redirect URI: 
+
+```
+az ad app update \
+  --id <Application ID from above)> \
+  --set 'web={"redirectUris":["http://localhost:10081/auth/callback"]}' 
+```
+
 You can find the cluster OIDC issuer URL with
 
 ```
@@ -27,12 +35,12 @@ Now create a federated credential for the app registration.
 
 ```
 az ad app federated-credential create \
-  --id 99a6f24e-f925-4d6f-88cd-5767ccae392b \
+  --id <Application ID from above)> \
   --parameters '{
       "name": "capacitor-next-cred",
       "issuer": "https://<cluster>.oidc.azure.net/<tenant-id>",
       "subject": "system:serviceaccount:flux-system:capacitor-next",
-      "audiences": ["api://AzureADTokenExchange"]
+      "audiences": ["api://AzureADTokenAudience"]
   }'
 ```
 
@@ -67,7 +75,7 @@ stringData:
   LICENSE_KEY: "contact laszlo at gimlet.io"
   OIDC_ISSUER: "https://login.microsoftonline.com/<tenant ID>/v2.0"
   OIDC_CLIENT_ID: "<Application ID from 1)>"
-  OIDC_REDIRECT_URL: "http://localhost:8080/auth/callback" # replace this with your ingress URL if you not run capacitor next on a port forward
+  OIDC_REDIRECT_URL: "http://localhost:10081/auth/callback" # replace this with your ingress URL if you not run capacitor next on a port forward
   SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
   SESSION_BLOCK_KEY: "base64:< same value as the line before>"
   ENTRA_ID_FEDEREATED_TOKEN_AUTH: "true"
@@ -111,3 +119,65 @@ spec:
   targetNamespace: flux-system
 ```
 
+### Visit the app
+
+```
+kubectl port-forward -n flux-system svc/capacitor-next 10081:80
+```
+
+[http://localhost:10081](http://localhost:10081)
+
+### Adjust end-user RBAC if needed
+
+[A minimal end-user RBAC for Capacitor Next to work](#rbac-and-read-only-mode)
+
+Check browser console log to see any RBAC related issue.
+
+## Multi-cluster
+
+Editing the secret from step 2) to configure multiple clusters.
+
+```
+apiVersion: v1
+kind: Secret
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+stringData:
+...
+  registry.yaml: |
+    clusters:
+      - id: in-cluster
+        name: In-cluster
+        apiServerURL: https://kubernetes.default.svc
+        certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        serviceAccount:
+          tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      - id: remote-cluster
+        name: remote-cluster
+        apiServerURL: https://xxx.hcp.eastus.azmk8s.io:443
+        certificateAuthorityData: |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+        serviceAccount:
+        token: "<bearer-token>"
+```
+
+Where
+- you get apiServerURL and from your kube context
+```
+CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name == "'$(kubectl config current-context)'")].context.cluster}')
+kubectl config view --raw -o jsonpath="{.clusters[?(@.name == \"${CLUSTER_NAME}\" )].cluster.server}"
+```
+- certificateAuthorityData from kube context also, but base64 decode it first
+```
+CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name == "'$(kubectl config current-context)'")].context.cluster}')
+kubectl config view --raw -o jsonpath="{.clusters[?(@.name == \"${CLUSTER_NAME}\" )].cluster.certificate-authority-data}" | base64 -d
+```
+- you can generate a service account token with
+```
+kubectl -n default create token capacitor-next --duration=4320h # for 6 months
+```
+
+Using workload identity to access a remote cluster is not explored at this point.
