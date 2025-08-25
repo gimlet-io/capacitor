@@ -123,6 +123,9 @@ function buildPortForwardCommand(resource: any): string {
   if (typeof numericRemote === 'number' && !Number.isNaN(numericRemote) && numericRemote < 1024) {
     localPort = 10000 + numericRemote;
   }
+  if (localPort === 10080) {
+    localPort = 10081;
+  }
   const nsArg = namespace ? `-n ${namespace} ` : '';
   return `kubectl port-forward ${nsArg}${type}/${name} ${localPort}:${remotePort}`.trim();
 }

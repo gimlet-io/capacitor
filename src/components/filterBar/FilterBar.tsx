@@ -58,7 +58,6 @@ export function FilterBar(props: {
   onFilterChange: (filters: ActiveFilter[]) => void;
 }) {
   const filterStore = useFilterStore();
-  // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal inside shortcuts.ts
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
