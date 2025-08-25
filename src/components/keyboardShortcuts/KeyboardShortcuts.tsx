@@ -1,4 +1,5 @@
 import { Show } from "solid-js";
+import { formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 
 export interface KeyboardShortcut {
   key: string;
@@ -16,7 +17,7 @@ export function KeyboardShortcuts(props: {
       {props.shortcuts.map(shortcut => (
         <Show when={!shortcut.isContextual || props.resourceSelected}>
           <div class={`keyboard-shortcut ${shortcut.disabled ? 'disabled' : ''}`} title={shortcut.disabled ? 'Not permitted' : undefined}>
-            <span class={`shortcut-key ${shortcut.disabled ? 'disabled' : ''}`}>{shortcut.key}</span>
+            <span class={`shortcut-key ${shortcut.disabled ? 'disabled' : ''}`}>{formatShortcutForDisplay(shortcut.key)}</span>
             <span class={`shortcut-description ${shortcut.disabled ? 'disabled' : ''}`}>{shortcut.description}</span>
           </div>
         </Show>

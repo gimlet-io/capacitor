@@ -231,6 +231,8 @@ interface ResourceTreeProps {
   resourceTypeVisibilityDropdown: JSX.Element
 }
 
+import { doesEventMatchShortcut } from "../utils/shortcuts.ts";
+
 export function ResourceTree(props: ResourceTreeProps) {
   const { g } = props;
   const navigate = useNavigate();
@@ -317,16 +319,16 @@ export function ResourceTree(props: ResourceTreeProps) {
   };
 
   // Find a command by its shortcut key
-  const findCommand = (key: string, ctrlKey: boolean): ResourceCommand | undefined => {
+  const findCommand = (e: KeyboardEvent): ResourceCommand | undefined => {
     const allCommands = getAllCommands();
     
     return allCommands.find(cmd => {
       const shortcutKey = cmd.shortcut.key;
-      // Handle both formats: "Ctrl+X" and direct ctrl key checks
-      const hasCtrl = shortcutKey.toLowerCase().includes('ctrl+');
-      const actualKey = hasCtrl ? shortcutKey.split('+')[1].toLowerCase() : shortcutKey.toLowerCase();
-      
-      return actualKey === key.toLowerCase() && (ctrlKey === hasCtrl);
+      // Handle generic Mod+ and plain keys similarly to ResourceList
+      if (shortcutKey.toLowerCase().includes('+')) {
+        return doesEventMatchShortcut(e, shortcutKey);
+      }
+      return shortcutKey.toLowerCase() === (e.key || '').toLowerCase() && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey;
     });
   };
 
@@ -394,7 +396,7 @@ export function ResourceTree(props: ResourceTreeProps) {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       // Find the Enter command
-      const enterCommand = findCommand('Enter', false);
+      const enterCommand = getAllCommands().find(c => c.shortcut.key.toLowerCase() === 'enter');
       if (enterCommand) {
         executeCommand(enterCommand);
       }
@@ -405,7 +407,7 @@ export function ResourceTree(props: ResourceTreeProps) {
     if (!selectedNodeId()) return;
 
     // Find and execute the command
-    const command = findCommand(e.key, e.ctrlKey);
+    const command = findCommand(e);
     if (command) {
       e.preventDefault();
       executeCommand(command);

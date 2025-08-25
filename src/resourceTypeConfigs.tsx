@@ -249,7 +249,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: null as any  // Will be implemented in ResourceList
       },
       {
-        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
       ...builtInCommands, 
@@ -267,15 +267,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
       {
-        shortcut: { key: "Ctrl+s", description: "Scale deployment", isContextual: true },
+        shortcut: { key: "Mod+s", description: "Scale deployment", isContextual: true },
         handler: handleScale
       },
       {
-        shortcut: { key: "Ctrl+r", description: "Rollout restart", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
       }
     ],
@@ -300,15 +300,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
       {
-        shortcut: { key: "Ctrl+s", description: "Scale statefulset", isContextual: true },
+        shortcut: { key: "Mod+s", description: "Scale statefulset", isContextual: true },
         handler: handleScale
       },
       {
-        shortcut: { key: "Ctrl+r", description: "Rollout restart", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
       }
     ],
@@ -323,7 +323,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
     ],
@@ -392,7 +392,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Rollout restart", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
       }
     ],
@@ -411,7 +411,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       },
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+p", description: "Copy port-forward", isContextual: true },
+        shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       }
     ],
@@ -542,11 +542,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       },
       navigateToKustomization
@@ -584,11 +584,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile GitRepository", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile GitRepository", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile GitRepository with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile GitRepository with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       }
     ],
@@ -603,11 +603,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile HelmRepository", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile HelmRepository", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile HelmRepository with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile HelmRepository with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       }
     ],
@@ -622,11 +622,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile HelmChart", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile HelmChart", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile HelmChart with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile HelmChart with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       }
     ],
@@ -641,11 +641,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile OCIRepository", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile OCIRepository", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile OCIRepository with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile OCIRepository with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       }
     ],
@@ -660,11 +660,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile Bucket", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile Bucket", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile Bucket with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile Bucket with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       }
     ],
@@ -679,11 +679,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands,
       {
-        shortcut: { key: "Ctrl+r", description: "Reconcile HelmRelease", isContextual: true },
+        shortcut: { key: "Mod+r", description: "Reconcile HelmRelease", isContextual: true },
         handler: handleFluxReconcile
       },
       {
-        shortcut: { key: "Ctrl+w", description: "Reconcile HelmRelease with sources", isContextual: true },
+        shortcut: { key: "Mod+w", description: "Reconcile HelmRelease with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
       },
       {

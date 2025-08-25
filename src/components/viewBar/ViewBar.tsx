@@ -1,9 +1,11 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, For, createEffect, untrack, onMount, onCleanup } from "solid-js";
-import { applyTheme } from "../../utils/theme.ts";
+import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show } from "solid-js";
+import { applyTheme, loadInitialTheme, type ThemeName } from "../../utils/theme.ts";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
+import { SettingsModal } from "../settings/SettingsModal.tsx";
+import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, subscribeShortcutPrefix } from "../../utils/shortcuts.ts";
 
 export interface View {
   id: string;
@@ -73,8 +75,30 @@ export function ViewBar(props: ViewBarProps) {
   const [newViewName, setNewViewName] = createSignal("");
   const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
   const [views, setViews] = createSignal<View[]>([]);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
   let newViewNameInput: HTMLInputElement | undefined;
   const filterStore = useFilterStore();
+  
+  const [viewShortcutModifier, setViewShortcutModifier] = createSignal<ShortcutPrefix>(
+    typeof globalThis !== 'undefined'
+      ? (getShortcutPrefix())
+      : getDefaultShortcutPrefix()
+  );
+
+  createEffect(() => {
+    setShortcutPrefix(viewShortcutModifier());
+  });
+
+  const [theme, setTheme] = createSignal<ThemeName>(loadInitialTheme());
+  createEffect(() => {
+    applyTheme(theme());
+  });
+  // force rerender of labels when prefix changes
+  const [__, setTick] = createSignal(0);
+  onMount(() => {
+    const unsub = subscribeShortcutPrefix(() => setTick(t => t + 1));
+    onCleanup(unsub);
+  });
   
   onMount(() => {
     loadViews();
@@ -178,13 +202,31 @@ export function ViewBar(props: ViewBarProps) {
 
   // Handle view keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Check for Ctrl + number to switch views
-    if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-      const num = parseInt(e.key);
-      if (!isNaN(num) && num >= 1 && num <= 9) {
-        e.preventDefault();
-        selectViewByIndex(num - 1);
-      }
+    if (!doesEventMatchShortcut(e, 'mod+1') &&
+        !doesEventMatchShortcut(e, 'mod+2') &&
+        !doesEventMatchShortcut(e, 'mod+3') &&
+        !doesEventMatchShortcut(e, 'mod+4') &&
+        !doesEventMatchShortcut(e, 'mod+5') &&
+        !doesEventMatchShortcut(e, 'mod+6') &&
+        !doesEventMatchShortcut(e, 'mod+7') &&
+        !doesEventMatchShortcut(e, 'mod+8') &&
+        !doesEventMatchShortcut(e, 'mod+9')) {
+      return;
+    }
+
+    const code = e.code || '';
+    let num: number | undefined;
+    if (code.startsWith('Digit')) {
+      num = parseInt(code.replace('Digit', ''));
+    } else if (code.startsWith('Numpad')) {
+      num = parseInt(code.replace('Numpad', ''));
+    } else {
+      const parsed = parseInt(e.key);
+      num = isNaN(parsed) ? undefined : parsed;
+    }
+    if (num && num >= 1 && num <= 9) {
+      e.preventDefault();
+      selectViewByIndex(num - 1);
     }
   };
 
@@ -263,6 +305,7 @@ export function ViewBar(props: ViewBarProps) {
   return (
     <>
       <div class="views">
+        <span style="display:none" aria-hidden="true">{__()}</span>
         <div class="view-buttons">
           <For each={views()}>
             {(view, _index) => (
@@ -305,25 +348,26 @@ export function ViewBar(props: ViewBarProps) {
         </div>
         
         <div class="view-right-section">
-          <div class="theme-selector">
-            <select
-              title="Theme"
-              onChange={(e) => applyTheme(e.currentTarget.value as "light" | "dark" | "mallow")}
-              value={typeof globalThis !== 'undefined' ? (globalThis.localStorage?.getItem('ui.theme') ?? 'light') : 'light'}
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="mallow">Mallow</option>
-            </select>
-          </div>
+          <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
           <div class="keyboard-shortcut-container">
             <KeyboardShortcuts 
-              shortcuts={[{ key: `Ctrl+1,2,3...`, description: 'Switch view' }]}
+              shortcuts={[{ key: `Mod+1..9`, description: 'Switch view' }]}
               resourceSelected
             />
           </div>
         </div>
       </div>
+
+      <Show when={settingsOpen()}>
+        <SettingsModal
+          open
+          onClose={() => setSettingsOpen(false)}
+          theme={theme()}
+          onChangeTheme={(t) => setTheme(t)}
+          viewShortcutModifier={viewShortcutModifier()}
+          onChangeViewShortcutModifier={(m) => setViewShortcutModifier(m)}
+        />
+      </Show>
       
       {showNewViewForm() && (
         <div class="new-view-form">

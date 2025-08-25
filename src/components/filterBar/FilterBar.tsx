@@ -3,6 +3,7 @@ import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount }
 import { untrack } from "solid-js";
 import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
+import { doesEventMatchShortcut, formatShortcutForDisplay, subscribeShortcutPrefix } from "../../utils/shortcuts.ts";
 
 export type FilterOption = {
   label: string;
@@ -57,6 +58,11 @@ export function FilterBar(props: {
   onFilterChange: (filters: ActiveFilter[]) => void;
 }) {
   const filterStore = useFilterStore();
+  const [_, setRerenderTick] = createSignal(0);
+  onMount(() => {
+    const unsub = subscribeShortcutPrefix(() => setRerenderTick(t => t + 1));
+    onCleanup(unsub);
+  });
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
@@ -258,10 +264,10 @@ export function FilterBar(props: {
     } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       openFilter("ResourceType");
-    } else if (e.key === "ArrowLeft" && e.ctrlKey && !e.altKey && !e.metaKey) {
+    } else if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
       e.preventDefault();
       filterStore.goBack();
-    } else if (e.key === "ArrowRight" && e.ctrlKey && !e.altKey && !e.metaKey) {
+    } else if (doesEventMatchShortcut(e, 'mod+arrowright')) {
       e.preventDefault();
       filterStore.goForward();
     }
@@ -524,6 +530,7 @@ export function FilterBar(props: {
 
   return (
     <div class="filter-bar">
+      <span style="display:none" aria-hidden="true">{_()}</span>
       <div class="filter-groups">
         <For each={props.filters}>
           {(filter) => {
@@ -688,7 +695,7 @@ export function FilterBar(props: {
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="shortcut-key">Ctrl+←</span>
+            <span class="shortcut-key">{formatShortcutForDisplay('Mod+←')}</span>
           </button>
         </div>
         <div class="filter-group">
@@ -702,7 +709,7 @@ export function FilterBar(props: {
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="shortcut-key">ctrl+→</span>
+            <span class="shortcut-key">{formatShortcutForDisplay('Mod+→')}</span>
           </button>
         </div>
       </div>
