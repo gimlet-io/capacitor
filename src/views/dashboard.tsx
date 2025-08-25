@@ -36,6 +36,8 @@ export function Dashboard() {
     }
     
     try {
+      // Clear any existing error before attempting context switch
+      errorStore.clearError();
       await apiResourceStore.switchContext(contextName);
       setContextMenuOpen(false);
     } catch (error) {
@@ -44,19 +46,7 @@ export function Dashboard() {
       // Show error to user when context switch fails
       const errorMessage = error instanceof Error ? error.message : 'Failed to switch context';
       console.log('Processing context switch error:', errorMessage);
-      
-      if (errorMessage.includes('Failed to fetch') || 
-          errorMessage.includes('NetworkError') || 
-          errorMessage.includes('TypeError') ||
-          errorMessage.includes('ERR_CONNECTION_REFUSED') ||
-          errorMessage.includes('fetch')) {
-        console.log('Setting server error for context switch');
-        errorStore.setServerError('Cannot connect to server. Please check if the server is running.');
-      } else {
-        console.log('Setting API error for context switch');
-        errorStore.setApiError(`Context switch failed: ${errorMessage}`);
-      }
-      
+      errorStore.setApiError(`Context switch failed: ${errorMessage}`);
       setContextMenuOpen(false);
     }
   };
@@ -88,15 +78,8 @@ export function Dashboard() {
       } catch (error) {
         console.error('Error setting up watches:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to set up watches';
-        if (errorMessage.includes('Cannot connect to server') || 
-            errorMessage.includes('server may be down') ||
-            errorMessage.includes('server may be unreachable')) {
-          console.log('[Dashboard] Setting server error due to watch setup failure');
-          errorStore.setServerError('Cannot connect to server. Please check if the server is running.');
-        } else {
-          console.log('[Dashboard] Setting watch error due to watch setup failure');
-          errorStore.setWatchError(`Failed to watch resources: ${errorMessage}`);
-        }
+        console.log('[Dashboard] Setting watch error due to watch setup failure');
+        errorStore.setWatchError(`Failed to watch resources: ${errorMessage}`);
       }
     };
     
@@ -132,12 +115,7 @@ export function Dashboard() {
       console.log('Setting connection lost due to error:', lastError);
       // Mark connection as lost to ensure we detect reconnection
       setConnectionLost(true);
-      
-      if (lastError.includes('connection refused') || lastError.includes('Failed to fetch')) {
-        errorStore.setServerError('Cannot connect to Kubernetes cluster. Please check your connection and ensure the server can reach the Kubernetes API.');
-      } else {
-        errorStore.setApiError(lastError);
-      }
+      errorStore.setApiError(lastError);
       
       // Set up retry timer if not already set
       if (retryTimer() === null) {
@@ -184,17 +162,7 @@ export function Dashboard() {
   // Error handler for watch failures
   const handleWatchError = (message: string, path: string) => {
     console.log('Watch error:', { message, path });
-    
-    // Check if this is a server connection error
-    if (message.includes('WebSocket connection closed') || 
-        message.includes('Failed to connect') ||
-        message.includes('Connection failed') ||
-        message.includes('Unable to connect to server') ||
-        message.includes('connection refused')) {
-      errorStore.setServerError('Cannot connect to server. Please check if the server is running.');
-    } else {
-      errorStore.setWatchError(message, path);
-    }
+    errorStore.setWatchError(message, path);
   };
 
   /**
