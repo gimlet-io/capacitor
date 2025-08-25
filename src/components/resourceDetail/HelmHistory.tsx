@@ -460,7 +460,7 @@ export function HelmHistory(props: {
       <Show when={historyData().length > 0} fallback={<div class="no-history">No release history found</div>}>
         <div class="keyboard-shortcut-container" style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
           <div class="keyboard-shortcut">
-            <span class={`shortcut-key ${canRollback() === false ? 'disabled' : ''}`}>Ctrl+r</span>
+            <span class={`shortcut-key ${canRollback() === false ? 'disabled' : ''}`}>Mod+r</span>
             <span class={`shortcut-description ${canRollback() === false ? 'disabled' : ''}`}>Rollback to selected revision</span>
           </div>
         </div>

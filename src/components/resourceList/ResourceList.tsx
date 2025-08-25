@@ -1,9 +1,10 @@
 import { For, createSignal, onMount, onCleanup, createEffect, createMemo } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
+import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails } from "../../resourceTypeConfigs.tsx";
-import { helmReleaseColumns } from "./HelmReleaseList.tsx";
+import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
@@ -27,7 +28,7 @@ export const builtInCommands = [
     handler: null as any  // Will be implemented in ResourceList
   },
   {
-    shortcut: { key: "Ctrl+d", description: "Delete resource", isContextual: true },
+    shortcut: { key: "Mod+d", description: "Delete resource", isContextual: true },
     handler: null as any  // Will be implemented in ResourceList
   },
 ]
@@ -40,7 +41,7 @@ export const handleDeleteResource = async (resource: any) => {
   const resourceKind = resource.kind;
   
   // Show browser's native confirmation dialog
-  const confirmed = window.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
+  const confirmed = globalThis.confirm(`Are you sure you want to delete ${resourceKind} "${resourceName}"?`);
   
   if (!confirmed) return;
   
@@ -166,7 +167,7 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => handlers.openDrawer("exec", resource)
         };
-      } else if (cmd.shortcut.key === 'Ctrl+d' && cmd.shortcut.description === 'Delete resource') {
+      } else if (cmd.shortcut.description === 'Delete resource') {
         commands[i] = {
           ...cmd,
           handler: handleDeleteResource
@@ -226,7 +227,7 @@ export const replaceHandlers = (
             handlers.updateFilters!(newFilters);
           }
         };
-      } else if (cmd.shortcut.key === 'Ctrl+p' && cmd.shortcut.description === 'Copy port-forward') {
+      } else if (cmd.shortcut.description === 'Copy port-forward') {
         commands[i] = {
           ...cmd,
           handler: async (resource) => {
@@ -400,7 +401,7 @@ export function ResourceList<T>(props: {
       return undefined;
     }
     // Delete
-    if (key === 'ctrl+d' && desc.includes('delete')) {
+    if (desc.includes('delete') && (key.includes('+d'))) {
       return checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
     }
     // Logs
@@ -412,11 +413,11 @@ export function ResourceList<T>(props: {
       return checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
     }
     // Scale
-    if (key === 'ctrl+s' && desc.includes('scale')) {
+    if (desc.includes('scale') && key.includes('+s')) {
       return checkPermission(resource, { verb: 'update', subresource: 'scale' });
     }
     // Rollout restart
-    if (key === 'ctrl+r' && desc.includes('rollout restart')) {
+    if (desc.includes('rollout restart') && key.includes('+r')) {
       return checkPermission(resource, { verb: 'patch' });
     }
     // Flux reconcile
@@ -482,16 +483,15 @@ export function ResourceList<T>(props: {
   };
 
   // Find a command by its shortcut key
-  const findCommand = (key: string, ctrlKey: boolean): ResourceCommand | undefined => {
+  const findCommand = (e: KeyboardEvent): ResourceCommand | undefined => {
     const allCommands = getAllCommands();
     
     return allCommands.find(cmd => {
-      const shortcutKey = cmd.shortcut.key;
-      // Handle both formats: "Ctrl+X" and direct ctrl key checks
-      const hasCtrl = shortcutKey.toLowerCase().includes('ctrl+');
-      const actualKey = hasCtrl ? shortcutKey.split('+')[1].toLowerCase() : shortcutKey.toLowerCase();
-      
-      return actualKey === key.toLowerCase() && (ctrlKey === hasCtrl);
+      const sk = cmd.shortcut.key;
+      if (sk.toLowerCase().includes('+')) {
+        return doesEventMatchShortcut(e, sk);
+      }
+      return sk.toLowerCase() === (e.key || '').toLowerCase() && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey;
     });
   };
 
@@ -570,7 +570,7 @@ export function ResourceList<T>(props: {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       // Find the Enter command
-      const enterCommand = findCommand('Enter', false);
+      const enterCommand = getAllCommands().find(c => c.shortcut.key.toLowerCase() === 'enter');
       if (enterCommand) {
         executeCommand(enterCommand);
       }
@@ -581,7 +581,7 @@ export function ResourceList<T>(props: {
     if (selectedIndex() === -1) return;
 
     // Find and execute the command
-    const command = findCommand(e.key, e.ctrlKey);
+    const command = findCommand(e);
     if (command) {
       e.preventDefault();
       executeCommand(command);

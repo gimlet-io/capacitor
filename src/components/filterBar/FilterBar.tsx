@@ -3,6 +3,7 @@ import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount }
 import { untrack } from "solid-js";
 import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
+import { doesEventMatchShortcut, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 
 export type FilterOption = {
   label: string;
@@ -57,6 +58,7 @@ export function FilterBar(props: {
   onFilterChange: (filters: ActiveFilter[]) => void;
 }) {
   const filterStore = useFilterStore();
+  // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal inside shortcuts.ts
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
@@ -246,7 +248,19 @@ export function FilterBar(props: {
 
   // Global keyboard shortcuts handler
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Only handle key shortcuts when user is not typing in inputs
+    // Always allow history navigation regardless of focused element
+    if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
+      e.preventDefault();
+      filterStore.goBack();
+      return;
+    }
+    if (doesEventMatchShortcut(e, 'mod+arrowright')) {
+      e.preventDefault();
+      filterStore.goForward();
+      return;
+    }
+
+    // Only handle other shortcuts when user is not typing in inputs
     if (e.target instanceof HTMLInputElement || 
         e.target instanceof HTMLTextAreaElement) {
       return;
@@ -258,12 +272,6 @@ export function FilterBar(props: {
     } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       openFilter("ResourceType");
-    } else if (e.key === "ArrowLeft" && e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      filterStore.goBack();
-    } else if (e.key === "ArrowRight" && e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      filterStore.goForward();
     }
   };
 
@@ -376,6 +384,18 @@ export function FilterBar(props: {
   const handleFilterInputKeyDown = (event: KeyboardEvent, filter: Filter) => {
     // Stop event propagation to prevent triggering global shortcuts
     event.stopPropagation();
+
+    // Ensure history navigation works even when typing in inputs
+    if (doesEventMatchShortcut(event, 'mod+arrowleft')) {
+      event.preventDefault();
+      filterStore.goBack();
+      return;
+    }
+    if (doesEventMatchShortcut(event, 'mod+arrowright')) {
+      event.preventDefault();
+      filterStore.goForward();
+      return;
+    }
     
     if (event.key === "Enter") {
       // For text filters, apply the pending text input value
@@ -688,7 +708,7 @@ export function FilterBar(props: {
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="shortcut-key">Ctrl+←</span>
+            <span class="shortcut-key">{formatShortcutForDisplay('Mod+←')}</span>
           </button>
         </div>
         <div class="filter-group">
@@ -702,7 +722,7 @@ export function FilterBar(props: {
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="shortcut-key">ctrl+→</span>
+            <span class="shortcut-key">{formatShortcutForDisplay('Mod+→')}</span>
           </button>
         </div>
       </div>

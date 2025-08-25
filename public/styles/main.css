@@ -2199,6 +2199,126 @@ td.message-cell {
   flex-shrink: 0; /* Don't shrink */
 }
 
+.settings-button {
+  background: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--linear-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-button:hover {
+  background: var(--linear-bg-secondary);
+  border-color: var(--linear-text-tertiary);
+  color: var(--linear-text-primary);
+}
+
+/* Settings Modal (VS Code-like)
+   A simple two-column table with key and value */
+.settings-modal-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.settings-modal {
+  width: 720px;
+  max-width: 95vw;
+  max-height: 85vh;
+  background: var(--linear-bg);
+  border: 1px solid var(--linear-border);
+  border-radius: 8px;
+  box-shadow: var(--linear-shadow-hover);
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--linear-border);
+}
+
+.settings-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--linear-text-primary);
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: var(--linear-text-tertiary);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.settings-close:hover {
+  background: var(--linear-bg-secondary);
+  color: var(--linear-text-primary);
+}
+
+.settings-content {
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.settings-table thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--linear-text-secondary);
+  font-size: 12px;
+  border-bottom: 1px solid var(--linear-border);
+  padding: 8px;
+}
+
+.settings-table tbody td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--linear-border);
+  vertical-align: middle;
+}
+
+.settings-key {
+  width: 45%;
+  color: var(--linear-text-primary);
+  font-weight: 500;
+}
+
+.settings-value {
+  width: 55%;
+}
+
+.settings-value select,
+.settings-value input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--linear-bg);
+  color: var(--linear-text-primary);
+  border: 1px solid var(--linear-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
 /* Theme selector */
 .theme-selector select {
   background-color: var(--linear-bg);
