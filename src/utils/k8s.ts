@@ -10,6 +10,8 @@ import type { Pod,
   GitRepository, 
   OCIRepository, 
   Bucket,
+  Job,
+  JobWithResources,
 } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
@@ -68,6 +70,21 @@ export const getReplicaSetMatchingPods = (replicaSet: ReplicaSet, allPods: Pod[]
       pod.metadata.labels?.[key] === value
     )
   );
+};
+
+export const getJobMatchingPods = (job: Job, allPods: Pod[]) => {
+  const selectorLabels = job.spec?.selector?.matchLabels || job.spec?.template?.metadata?.labels;
+  if (!selectorLabels) return [];
+  return allPods.filter(pod => 
+    Object.entries(selectorLabels).every(([key, value]) => pod.metadata.labels?.[key] === value)
+  );
+};
+
+export const updateJobMatchingResources = (job: Job, allPods: Pod[]): JobWithResources => {
+  return {
+    ...job,
+    pods: getJobMatchingPods(job, allPods)
+  };
 };
 
 export const updateKustomizationMatchingEvents = (kustomization: ExtendedKustomization, allEvents: Event[]): ExtendedKustomization => {

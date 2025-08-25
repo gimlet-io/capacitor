@@ -988,6 +988,10 @@ export interface JobList {
   items: Job[];
 }
 
+export interface JobWithResources extends Job {
+  pods: Pod[];
+}
+
 // CronJob
 export interface CronJobSpec {
   schedule: string;

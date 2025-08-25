@@ -1,5 +1,5 @@
-import { JSX } from "solid-js";
-import type { Job } from "../../types/k8s.ts";
+import { JSX, createSignal } from "solid-js";
+import type { Job, JobWithResources } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
@@ -43,7 +43,7 @@ export const jobColumns = [
     accessor: (job: Job) => <>{job.metadata.name}</>,
     title: (job: Job) => job.metadata.name,
     sortable: true,
-    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
+    sortFunction: (items: Job[], ascending: boolean) => sortByName(items, ascending),
   },
   {
     header: "COMPLETIONS",
@@ -94,12 +94,31 @@ export const jobColumns = [
     title: (job: Job) => getJobCompletionComponent(job).title,
   },
   {
+    header: "NODE",
+    width: "10%",
+    accessor: (job: JobWithResources | Job) => {
+      const nodes = ((job as JobWithResources).pods || [])
+        .map(p => p.spec?.nodeName)
+        .filter(n => n) as string[];
+      const unique = [...new Set(nodes)];
+      const display = unique.length > 0 ? unique.join(", ") : "N/A";
+      return (
+        <span
+          style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" 
+          title={display}
+        >
+          {display}
+        </span>
+      );
+    },
+  },
+  {
     header: "AGE",
     width: "15%",
     accessor: (job: Job) => 
       useCalculateAge(job.metadata.creationTimestamp || "")(),
     sortable: true,
-    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
+    sortFunction: (items: Job[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
 
@@ -136,3 +155,25 @@ export const jobStatusFilter: Filter = {
     return status === value;
   },
 }; 
+
+// Node options for Job node filter
+const [jobNodeOptions, setJobNodeOptions] = createSignal<{ value: string; label: string }[]>([]);
+export { setJobNodeOptions };
+
+// Filter for Job by the node where its pod template is scheduled (dropdown like podsNodeFilter)
+export const jobNodeFilter: Filter = {
+  name: "jobNode",
+  label: "Node",
+  type: "select",
+  get options() {
+    return jobNodeOptions();
+  },
+  multiSelect: true,
+  searchable: true,
+  filterFunction: (job: JobWithResources | Job, value: string) => {
+    const nodes = ((job as JobWithResources).pods || [])
+      .map(p => p.spec?.nodeName)
+      .filter(n => n) as string[];
+    return nodes.includes(value);
+  },
+};
