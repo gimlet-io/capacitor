@@ -157,15 +157,7 @@ export class K8sWebSocketClient {
       // Enhanced error message for connection failures
       if (err instanceof Error) {
         if (err.message.includes('Maximum reconnection attempts reached')) {
-          throw new Error('Unable to connect to server. Please check if the server is running and accessible.');
-        }
-        // Check for various connection failure types
-        if (err.message.includes('WebSocket connection timeout') ||
-            err.message.includes('Connection refused') ||
-            err.message.includes('ECONNREFUSED') ||
-            err.message.includes('server may be down') ||
-            err.message.includes('server may be unreachable')) {
-          throw new Error('Cannot connect to server. Please check if the server is running.');
+          throw new Error(`Maximum reconnection attempts reached. Connection failed: ${err.message}`);
         }
         throw new Error(`Connection failed: ${err.message}`);
       }
