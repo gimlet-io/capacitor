@@ -26,7 +26,7 @@ import { secretColumns, secretTypeFilter } from "./components/resourceList/Secre
 import { pvcColumns, pvcStatusFilter, pvcStorageClassFilter } from "./components/resourceList/PersistentVolumeClaimList.tsx";
 import { daemonSetColumns, daemonSetReadinessFilter } from "./components/resourceList/DaemonSetList.tsx";
 import { namespaceColumns, namespaceStatusFilter } from "./components/resourceList/NamespaceList.tsx";
-import { jobColumns, jobStatusFilter } from "./components/resourceList/JobList.tsx";
+import { jobColumns, jobStatusFilter, jobNodeFilter } from "./components/resourceList/JobList.tsx";
 import { cronJobColumns, cronJobSuspendedFilter } from "./components/resourceList/CronJobList.tsx";
 import { hpaColumns, hpaStatusFilter } from "./components/resourceList/HorizontalPodAutoscalerList.tsx";
 import { pvColumns, pvPhaseFilter, pvReclaimPolicyFilter } from "./components/resourceList/PersistentVolumeList.tsx";
@@ -47,6 +47,7 @@ import {
   updateKustomizationMatchingBuckets,
   updateKustomizationMatchingOCIRepositories
 } from "./utils/k8s.ts";
+import { updateJobMatchingResources } from "./utils/k8s.ts";
 
 export interface Column<T> {
   header: string;
@@ -441,7 +442,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'batch/Job': {
     columns: jobColumns,
-    filter: [jobStatusFilter],
+    filter: [jobStatusFilter, jobNodeFilter],
     commands: [
       {
         shortcut: { key: "l", description: "Logs", isContextual: true },
@@ -450,7 +451,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: jobCardRenderer
+    treeCardRenderer: jobCardRenderer,
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (job, pods) => updateJobMatchingResources(job, pods),
+        isParent: (_resource: any, _obj: any) => {return false}
+      }
+    ]
   },
   
   'batch/CronJob': {
