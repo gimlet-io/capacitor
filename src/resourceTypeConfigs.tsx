@@ -34,6 +34,7 @@ import { roleColumns, roleVerbFilter } from "./components/resourceList/RoleList.
 import { roleBindingColumns, roleBindingSubjectKindFilter, roleBindingRoleKindFilter } from "./components/resourceList/RoleBindingList.tsx";
 import { serviceAccountColumns, serviceAccountAutomountFilter } from "./components/resourceList/ServiceAccountList.tsx";
 import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
+import { podDisruptionBudgetColumns } from "./components/resourceList/PodDisruptionBudgetList.tsx";
 import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources } from "./utils/fluxUtils.tsx";
 import { scaledJobColumns, scaledJobTriggerFilter, scaledJobStrategyFilter } from "./components/resourceList/ScaledJobList.tsx";
@@ -515,6 +516,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     abbreviations: ['netpol']
+  },
+  
+  'policy/PodDisruptionBudget': {
+    columns: podDisruptionBudgetColumns,
+    commands: [
+      ...builtInCommands
+    ],
+    defaultSortColumn: "NAME",
+    abbreviations: ['pdb']
   },
   
   'keda.sh/ScaledJob': {

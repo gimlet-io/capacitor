@@ -1351,3 +1351,50 @@ export interface NetworkPolicyList {
   metadata: ListMeta;
   items: NetworkPolicy[];
 } 
+
+// PodDisruptionBudget
+export interface PodDisruptionBudgetSpec {
+  minAvailable?: number | string;
+  maxUnavailable?: number | string;
+  selector?: {
+    matchLabels?: { [key: string]: string };
+    matchExpressions?: Array<{
+      key: string;
+      operator: string;
+      values?: string[];
+    }>;
+  };
+  unhealthyPodEvictionPolicy?: string;
+}
+
+export interface PodDisruptionBudgetStatus {
+  observedGeneration?: number;
+  disruptedPods?: { [podName: string]: string };
+  disruptionsAllowed?: number;
+  currentHealthy?: number;
+  desiredHealthy?: number;
+  expectedPods?: number;
+  conditions?: Array<{
+    type: string;
+    status: string;
+    reason?: string;
+    message?: string;
+    lastTransitionTime?: string;
+    lastUpdateTime?: string;
+  }>;
+}
+
+export interface PodDisruptionBudget {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: PodDisruptionBudgetSpec;
+  status?: PodDisruptionBudgetStatus;
+}
+
+export interface PodDisruptionBudgetList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: PodDisruptionBudget[];
+}
