@@ -36,6 +36,8 @@ export function Dashboard() {
     }
     
     try {
+      // Clear any existing error before attempting context switch
+      errorStore.clearError();
       await apiResourceStore.switchContext(contextName);
       setContextMenuOpen(false);
     } catch (error) {
