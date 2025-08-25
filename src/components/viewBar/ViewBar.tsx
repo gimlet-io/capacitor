@@ -5,7 +5,7 @@ import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { SettingsModal } from "../settings/SettingsModal.tsx";
-import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, subscribeShortcutPrefix } from "../../utils/shortcuts.ts";
+import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix } from "../../utils/shortcuts.ts";
 
 export interface View {
   id: string;
@@ -93,12 +93,7 @@ export function ViewBar(props: ViewBarProps) {
   createEffect(() => {
     applyTheme(theme());
   });
-  // force rerender of labels when prefix changes
-  const [__, setTick] = createSignal(0);
-  onMount(() => {
-    const unsub = subscribeShortcutPrefix(() => setTick(t => t + 1));
-    onCleanup(unsub);
-  });
+  // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal in shortcuts.ts
   
   onMount(() => {
     loadViews();
@@ -305,7 +300,6 @@ export function ViewBar(props: ViewBarProps) {
   return (
     <>
       <div class="views">
-        <span style="display:none" aria-hidden="true">{__()}</span>
         <div class="view-buttons">
           <For each={views()}>
             {(view, _index) => (

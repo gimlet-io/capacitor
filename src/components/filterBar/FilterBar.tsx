@@ -3,7 +3,7 @@ import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount }
 import { untrack } from "solid-js";
 import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
-import { doesEventMatchShortcut, formatShortcutForDisplay, subscribeShortcutPrefix } from "../../utils/shortcuts.ts";
+import { doesEventMatchShortcut, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 
 export type FilterOption = {
   label: string;
@@ -58,11 +58,7 @@ export function FilterBar(props: {
   onFilterChange: (filters: ActiveFilter[]) => void;
 }) {
   const filterStore = useFilterStore();
-  const [_, setRerenderTick] = createSignal(0);
-  onMount(() => {
-    const unsub = subscribeShortcutPrefix(() => setRerenderTick(t => t + 1));
-    onCleanup(unsub);
-  });
+  // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal inside shortcuts.ts
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
@@ -252,7 +248,19 @@ export function FilterBar(props: {
 
   // Global keyboard shortcuts handler
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Only handle key shortcuts when user is not typing in inputs
+    // Always allow history navigation regardless of focused element
+    if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
+      e.preventDefault();
+      filterStore.goBack();
+      return;
+    }
+    if (doesEventMatchShortcut(e, 'mod+arrowright')) {
+      e.preventDefault();
+      filterStore.goForward();
+      return;
+    }
+
+    // Only handle other shortcuts when user is not typing in inputs
     if (e.target instanceof HTMLInputElement || 
         e.target instanceof HTMLTextAreaElement) {
       return;
@@ -264,12 +272,6 @@ export function FilterBar(props: {
     } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       openFilter("ResourceType");
-    } else if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
-      e.preventDefault();
-      filterStore.goBack();
-    } else if (doesEventMatchShortcut(e, 'mod+arrowright')) {
-      e.preventDefault();
-      filterStore.goForward();
     }
   };
 
@@ -382,6 +384,18 @@ export function FilterBar(props: {
   const handleFilterInputKeyDown = (event: KeyboardEvent, filter: Filter) => {
     // Stop event propagation to prevent triggering global shortcuts
     event.stopPropagation();
+
+    // Ensure history navigation works even when typing in inputs
+    if (doesEventMatchShortcut(event, 'mod+arrowleft')) {
+      event.preventDefault();
+      filterStore.goBack();
+      return;
+    }
+    if (doesEventMatchShortcut(event, 'mod+arrowright')) {
+      event.preventDefault();
+      filterStore.goForward();
+      return;
+    }
     
     if (event.key === "Enter") {
       // For text filters, apply the pending text input value
@@ -530,7 +544,6 @@ export function FilterBar(props: {
 
   return (
     <div class="filter-bar">
-      <span style="display:none" aria-hidden="true">{_()}</span>
       <div class="filter-groups">
         <For each={props.filters}>
           {(filter) => {

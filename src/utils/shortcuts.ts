@@ -1,3 +1,5 @@
+import { createSignal } from "solid-js";
+
 export type ShortcutPrefix = string; // e.g., "Ctrl", "Alt", "Meta", "Ctrl+Alt", "Meta+Shift"
 
 const STORAGE_KEY_PREFIX = 'ui.shortcut.prefix';
@@ -12,7 +14,7 @@ export function isMacPlatform(): boolean {
 }
 
 export function getDefaultShortcutPrefix(): ShortcutPrefix {
-  return isMacPlatform() ? 'Alt' : 'Ctrl';
+  return isMacPlatform() ? 'Ctrl+Shift' : 'Ctrl';
 }
 
 function normalizeToken(token: string): 'Ctrl' | 'Alt' | 'Meta' | 'Shift' | null {
@@ -48,9 +50,22 @@ export function getShortcutPrefix(): ShortcutPrefix {
   return getDefaultShortcutPrefix();
 }
 
+// SolidJS reactive signal for the current shortcut prefix
+const [shortcutPrefixSignal, setShortcutPrefixSignal] = createSignal<ShortcutPrefix>(getShortcutPrefix());
+
+export function shortcutPrefix(): ShortcutPrefix {
+  return shortcutPrefixSignal();
+}
+
 export function setShortcutPrefix(prefix: ShortcutPrefix) {
   try {
     globalThis.localStorage?.setItem(STORAGE_KEY_PREFIX, normalizePrefixString(prefix));
+  } catch {
+    // ignore
+  }
+  // update reactive signal
+  try {
+    setShortcutPrefixSignal(normalizePrefixString(prefix));
   } catch {
     // ignore
   }
@@ -86,7 +101,12 @@ export function doesEventMatchShortcut(e: KeyboardEvent, shortcutKey: string): b
   const keyPart = keyPartRaw;
   let modifierOk = false;
   if (prefix === 'mod') {
-    modifierOk = eventMatchesPrefix(e, getShortcutPrefix());
+    // Try the configured prefix first, then allow common platform variants
+    const configured = getShortcutPrefix();
+    const candidates: ShortcutPrefix[] = [configured];
+    if (!candidates.includes('Meta')) candidates.push('Meta');
+    if (!candidates.includes('Ctrl')) candidates.push('Ctrl');
+    modifierOk = candidates.some(c => eventMatchesPrefix(e, c));
   } else {
     const explicit = normalizePrefixString(prefix);
     modifierOk = eventMatchesPrefix(e, explicit);
@@ -121,7 +141,7 @@ export function formatShortcutForDisplay(shortcutKey: string): string {
   if (idx > 0) {
     const prefix = normalized.slice(0, idx);
     const rest = normalized.slice(idx + 1);
-    const actualPrefix = prefix.toLowerCase() === 'mod' ? getShortcutPrefix() : prefix;
+    const actualPrefix = prefix.toLowerCase() === 'mod' ? shortcutPrefixSignal() : prefix;
     return `${iconsForPrefix(actualPrefix)}+${rest}`;
   }
   // No modifier: return as-is
