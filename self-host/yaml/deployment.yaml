@@ -14,6 +14,7 @@ spec:
     metadata:
       labels:
         app: capacitor-next
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: capacitor-next
       containers:
@@ -49,9 +50,6 @@ spec:
             - name: registry
               mountPath: /app/backend/registry.yaml
               subPath: registry.yaml
-            - name: azure-identity-token
-              mountPath: /var/run/secrets/azure/tokens
-              readOnly: true
       volumes:
         - name: registry
           secret:
@@ -59,10 +57,3 @@ spec:
             items:
               - key: registry.yaml
                 path: registry.yaml
-        - name: azure-identity-token
-          projected:
-            sources:
-            - serviceAccountToken:
-                path: token
-                audience: api://AzureADTokenAudience
-                expirationSeconds: 3600
