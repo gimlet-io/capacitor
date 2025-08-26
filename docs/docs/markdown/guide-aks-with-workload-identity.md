@@ -5,7 +5,7 @@
 - Using Azure Workload Identity to have a no-secrets
 - Try multi-cluster access
 
-## 1) Create an Entra ID App Registration with a federated credential
+## 1) Create an Entra ID App Registration
 
 ```
 az ad app create --display-name capacitor-next
@@ -21,7 +21,23 @@ az ad app update \
   --set 'web={"redirectUris":["http://localhost:10081/auth/callback"]}' 
 ```
 
-You can find the cluster OIDC issuer URL with
+## 2) Create a Managed Identity
+
+```
+az identity create \                     
+    --name "capacitor-next" \
+    --resource-group "<resource-group>" \
+    --location "<cluster-location>" \
+    --subscription "<subscription id>"
+```
+
+## 3) Created a Federated Credential on the App Registration
+
+The workload will assume the Managed Identity created in step 2).
+
+The Managed Identity token is issued by your cluster issuer, but the App Registration knows nothing about that issuer. Let's create a Federated Credential on the App Registration so it knows about the tokens the cluster issuer issues.
+
+You can find the cluster issuer URL with
 
 ```
 az aks show \
@@ -31,20 +47,20 @@ az aks show \
   -o tsv
 ```
 
-Now create a federated credential for the app registration.
+Now create a federated credential on the app registration.
 
 ```
 az ad app federated-credential create \
-  --id <Application ID from above)> \
+  --id <Application ID 1)> \
   --parameters '{
-      "name": "capacitor-next-cred",
+      "name": "capacitor-next",
       "issuer": "https://<cluster>.oidc.azure.net/<tenant-id>",
       "subject": "system:serviceaccount:flux-system:capacitor-next",
-      "audiences": ["api://AzureADTokenAudience"]
+      "audiences": ["api://AzureADTokenExchange"]
   }'
 ```
 
-## 2) Deploy Capacitor Next
+## 4) Deploy Capacitor Next
 
 ### Service Account
 
@@ -56,7 +72,6 @@ metadata:
   name: capacitor-next
   namespace: flux-system
   annotations:
-    azure.workload.identity/use: "true"
     azure.workload.identity/client-id: "<Application ID from 1)>"
 ```
 
