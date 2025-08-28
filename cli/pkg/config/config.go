@@ -73,6 +73,9 @@ func (c *Config) Parse() {
 
 // defaultKubeConfigPath returns the default path to the kubeconfig file
 func defaultKubeConfigPath() string {
+	if env := os.Getenv("KUBECONFIG"); env != "" {
+		return env
+	}
 	if home := homeDir(); home != "" {
 		return filepath.Join(home, ".kube", "config")
 	}
