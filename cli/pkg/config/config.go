@@ -20,7 +20,6 @@ type Config struct {
 
 	// Kubernetes settings
 	KubeConfigPath        string
-	InCluster             bool
 	InsecureSkipTLSVerify bool
 }
 
@@ -31,7 +30,6 @@ func New() *Config {
 		Port:                  8080,
 		StaticFilesDirectory:  "./web/static",
 		KubeConfigPath:        defaultKubeConfigPath(),
-		InCluster:             false,
 		InsecureSkipTLSVerify: false,
 		Theme:                 "light",
 	}
@@ -44,35 +42,32 @@ func (c *Config) Parse() {
 	pflag.IntVar(&c.Port, "port", c.Port, "Port to listen on")
 	pflag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve")
 	pflag.StringVar(&c.KubeConfigPath, "kubeconfig", c.KubeConfigPath, "Path to kubeconfig file")
-	pflag.BoolVar(&c.InCluster, "in-cluster", c.InCluster, "Use in-cluster configuration")
 	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development)")
 	pflag.StringVar(&c.Theme, "theme", c.Theme, "UI theme preset (light|dark|mallow)")
 
 	pflag.Parse()
 
 	// Environment variables override command line flags
-	if env := os.Getenv("K8S_PROXY_ADDRESS"); env != "" {
+	if env := os.Getenv("CAPACITOR_NEXT_ADDRESS"); env != "" {
 		c.Address = env
 	}
-	if env := os.Getenv("K8S_PROXY_PORT"); env != "" {
+	if env := os.Getenv("CAPACITOR_NEXT_PORT"); env != "" {
 		if port, err := strconv.Atoi(env); err == nil {
 			c.Port = port
 		}
 	}
-	if env := os.Getenv("K8S_PROXY_STATIC_DIR"); env != "" {
+	if env := os.Getenv("CAPACITOR_NEXT_THEME"); env != "" {
+		c.Theme = env
+	}
+	if env := os.Getenv("CAPACITOR_NEXT_STATIC_DIR"); env != "" {
 		c.StaticFilesDirectory = env
 	}
-	if env := os.Getenv("K8S_PROXY_KUBECONFIG"); env != "" {
+
+	if env := os.Getenv("KUBECONFIG"); env != "" {
 		c.KubeConfigPath = env
 	}
-	if env := os.Getenv("K8S_PROXY_IN_CLUSTER"); env == "true" {
-		c.InCluster = true
-	}
-	if env := os.Getenv("K8S_PROXY_INSECURE_SKIP_TLS_VERIFY"); env == "true" {
+	if env := os.Getenv("KUBECONFIG_INSECURE_SKIP_TLS_VERIFY"); env == "true" {
 		c.InsecureSkipTLSVerify = true
-	}
-	if env := os.Getenv("K8S_PROXY_THEME"); env != "" {
-		c.Theme = env
 	}
 }
 

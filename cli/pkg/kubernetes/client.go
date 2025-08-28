@@ -22,95 +22,78 @@ type Client struct {
 }
 
 // NewClient creates a new Kubernetes client
-func NewClient(kubeconfig string, inCluster bool, insecureSkipTLSVerify bool) (*Client, error) {
+func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
 	var config *rest.Config
 	var err error
 	var currentContext string
 	var contextConfig *api.Context
 	var availableContexts map[string]*api.Context
 
-	if inCluster {
-		// In-cluster configuration
-		config, err = rest.InClusterConfig()
-		if err != nil {
-			return nil, fmt.Errorf("error creating in-cluster config: %w", err)
-		}
-		currentContext = "in-cluster"
-		availableContexts = map[string]*api.Context{"in-cluster": nil}
-	} else {
-		// Out-of-cluster configuration
-		if kubeconfig == "" {
-			if home := homedir.HomeDir(); home != "" {
-				kubeconfig = filepath.Join(home, ".kube", "config")
-			} else {
-				return nil, fmt.Errorf("kubeconfig not provided and home directory not found")
-			}
-		}
-
-		// Load the kubeconfig file directly to access context information
-		apiConfig, err := clientcmd.LoadFromFile(kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("error loading kubeconfig file: %w", err)
-		}
-
-		// Get current context
-		currentContext = apiConfig.CurrentContext
-		contextConfig = apiConfig.Contexts[currentContext]
-		// Get available contexts
-		availableContexts = apiConfig.Contexts
-
-		// Log details about the current context
-		log.Printf("Using kubeconfig context: %s", currentContext)
-		log.Printf("Cluster: %s, Namespace: %s, User: %s",
-			contextConfig.Cluster,
-			contextConfig.Namespace,
-			contextConfig.AuthInfo)
-
-		// Get the cluster config to check if there's a certificate authority
-		clusterConfig := apiConfig.Clusters[contextConfig.Cluster]
-		if clusterConfig != nil {
-			if clusterConfig.CertificateAuthority != "" {
-				log.Printf("Using certificate authority file: %s", clusterConfig.CertificateAuthority)
-			} else if len(clusterConfig.CertificateAuthorityData) > 0 {
-				log.Printf("Using embedded certificate authority data from kubeconfig")
-			}
-		}
-
-		// Create config with existing context and optional TLS settings
-		configOverrides := &clientcmd.ConfigOverrides{
-			CurrentContext: currentContext,
-		}
-
-		// Only override TLS verification if explicitly requested
-		if insecureSkipTLSVerify {
-			configOverrides.ClusterInfo.InsecureSkipTLSVerify = true
-		}
-
-		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
-			configOverrides,
-		)
-
-		// Get namespace from current context
-		namespace, _, err := clientConfig.Namespace()
-		if err != nil {
-			log.Printf("Warning: could not determine namespace from context: %v", err)
+	// Out-of-cluster configuration
+	if kubeconfig == "" {
+		if home := homedir.HomeDir(); home != "" {
+			kubeconfig = filepath.Join(home, ".kube", "config")
 		} else {
-			log.Printf("Default namespace from context: %s", namespace)
-		}
-
-		// Build REST config
-		config, err = clientConfig.ClientConfig()
-		if err != nil {
-			return nil, fmt.Errorf("error building config from kubeconfig: %w", err)
+			return nil, fmt.Errorf("kubeconfig not provided and home directory not found")
 		}
 	}
 
-	// If in-cluster but we still want to skip TLS verification
-	if inCluster && insecureSkipTLSVerify {
-		config.TLSClientConfig.Insecure = true
-		config.TLSClientConfig.CAData = nil
-		config.TLSClientConfig.CAFile = ""
+	// Load the kubeconfig file directly to access context information
+	apiConfig, err := clientcmd.LoadFromFile(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("error loading kubeconfig file: %w", err)
+	}
+
+	// Get current context
+	currentContext = apiConfig.CurrentContext
+	contextConfig = apiConfig.Contexts[currentContext]
+	// Get available contexts
+	availableContexts = apiConfig.Contexts
+
+	// Log details about the current context
+	log.Printf("Using kubeconfig context: %s", currentContext)
+	log.Printf("Cluster: %s, Namespace: %s, User: %s",
+		contextConfig.Cluster,
+		contextConfig.Namespace,
+		contextConfig.AuthInfo)
+
+	// Get the cluster config to check if there's a certificate authority
+	clusterConfig := apiConfig.Clusters[contextConfig.Cluster]
+	if clusterConfig != nil {
+		if clusterConfig.CertificateAuthority != "" {
+			log.Printf("Using certificate authority file: %s", clusterConfig.CertificateAuthority)
+		} else if len(clusterConfig.CertificateAuthorityData) > 0 {
+			log.Printf("Using embedded certificate authority data from kubeconfig")
+		}
+	}
+
+	// Create config with existing context and optional TLS settings
+	configOverrides := &clientcmd.ConfigOverrides{
+		CurrentContext: currentContext,
+	}
+
+	// Only override TLS verification if explicitly requested
+	if insecureSkipTLSVerify {
+		configOverrides.ClusterInfo.InsecureSkipTLSVerify = true
+	}
+
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+		configOverrides,
+	)
+
+	// Get namespace from current context
+	namespace, _, err := clientConfig.Namespace()
+	if err != nil {
+		log.Printf("Warning: could not determine namespace from context: %v", err)
+	} else {
+		log.Printf("Default namespace from context: %s", namespace)
+	}
+
+	// Build REST config
+	config, err = clientConfig.ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("error building config from kubeconfig: %w", err)
 	}
 
 	// Log TLS settings
