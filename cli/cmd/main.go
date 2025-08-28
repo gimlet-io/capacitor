@@ -51,7 +51,7 @@ func main() {
 
 	// Create Kubernetes client
 	log.Println("Creating Kubernetes client...")
-	k8sClient, err := kubernetes.NewClient(cfg.KubeConfigPath, cfg.InCluster, cfg.InsecureSkipTLSVerify)
+	k8sClient, err := kubernetes.NewClient(cfg.KubeConfigPath, cfg.InsecureSkipTLSVerify)
 	if err != nil {
 		log.Fatalf("Error creating Kubernetes client: %v", err)
 	}
