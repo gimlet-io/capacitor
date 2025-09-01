@@ -33,35 +33,27 @@ const RoleRulesTable = (props: { rules: Array<{ apiGroups?: string[]; resources?
   return (
     <td colSpan={props.columnCount}>
       <div class="second-row" style="display: flex; gap: 24px;">
-        <div style="">
-          <table class="resource-detail-table">
-            <colgroup>
-              <col style="" />
-              <col style="" />
-              <col style="" />
-              <col style="" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Resources</th>
-                <th>Non-Resource URLs</th>
-                <th>Resource Names</th>§  
-                <th>Verbs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible().map(row => (
-                <tr>
-                  <td>{row.resources.join(', ')}</td>
-                  <td>{`[${row.nonResourceURLs.join(' ')}]`}</td>
-                  <td>{`[${row.resourceNames.join(' ')}]`}</td>
-                  <td>{`[${row.verbs.join(' ')}]`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style="width: 70%;">
+          <div style="display: flex; flex-direction: column; gap: 8px; border-spacing: 20px 0;">
+            {/* Header row */}
+            <div style="display: flex; gap: 20px; font-weight: bold; padding-bottom: 8px;">
+              <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">Resources</div>
+              <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">Non-Resource URLs</div>
+              <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">Resource Names</div>
+              <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">Verbs</div>
+            </div>
+            {/* Data rows */}
+            {visible().map(row => (
+              <div style="display: flex; gap: 20px; padding: 4px 0;">
+                <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">{row.resources.join(', ')}</div>
+                <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">{`[${row.nonResourceURLs.join(' ')}]`}</div>
+                <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">{`[${row.resourceNames.join(' ')}]`}</div>
+                <div style="flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word;">{`[${row.verbs.join(' ')}]`}</div>
+              </div>
+            ))}
+          </div>
           {rows().length > 3 && (
-            <button class="outline" onClick={() => setExpanded(!expanded())}>
+            <button class="outline" onClick={() => setExpanded(!expanded())} style="margin-top: 8px;">
               {expanded() ? 'Show less' : `Show all ${rows().length}`}
             </button>
           )}
