@@ -140,6 +140,7 @@ export OIDC_CLIENT_ID=onurl
 export OIDC_CLIENT_SECRET=onurl-secret
 export OIDC_REDIRECT_URL=http://127.0.0.1:8181/auth/callback
 export OIDC_INSECURE_SKIP_TLS_VERIFY=true
+export AUTHORIZED_EMAILS=*@example.com
 export SESSION_HASH_KEY=base64:$(openssl rand -base64 32)
 export SESSION_BLOCK_KEY=base64:$(openssl rand -base64 32)
 export CLUSTER_REGISTRY_PATH=./registry.yaml
