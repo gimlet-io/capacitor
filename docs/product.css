@@ -200,7 +200,10 @@ body {
   font-size: 18px;
 }
 
-.content h1, .content h2, .content h3 { margin-top: 18px; }
+.content h1 { font-size: 32px; line-height: 1.25; margin-block-start: 30px; }
+.content h2 { font-size: 24px; line-height: 1.30; margin-block-start: 24px; }
+.content h3 { font-size: 20px; line-height: 1.35; margin-block-start: 18px; }
+
 .content pre {
   background: #0d1012;
   border: 1px solid var(--cyan);
@@ -208,6 +211,7 @@ body {
   padding: 12px;
   overflow: hidden;
   max-width: 100%;
+  font-size: 14px;
 }
 .content pre code {
   white-space: pre-wrap;
