@@ -1,56 +1,86 @@
-import type { Role } from "../../types/k8s.ts";
+import type { Role, ClusterRole } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
+import { createMemo, createSignal } from "solid-js";
 
-// Simplify the rules into a human-readable summary
-function getRulesString(role: Role): string {
-  const rules = role.rules || [];
-  if (rules.length === 0) {
-    return "No rules defined";
-  }
-  
-  // This is a simplified version - a full implementation would be more detailed
-  // and would categorize rules better
-  const resourcesByVerb: Record<string, string[]> = {};
-  
-  for (const rule of rules) {
-    const verbs = rule.verbs || [];
-    const resources = rule.resources || [];
-    const apiGroups = rule.apiGroups || [""];
-    
-    for (const verb of verbs) {
-      if (!resourcesByVerb[verb]) {
-        resourcesByVerb[verb] = [];
+type RuleRow = {
+  resources: string[];
+  nonResourceURLs: string[];
+  resourceNames: string[];
+  verbs: string[];
+};
+
+const RoleRulesTable = (props: { rules: Array<{ apiGroups?: string[]; resources?: string[]; resourceNames?: string[]; verbs: string[]; nonResourceURLs?: string[] }>; columnCount: number }) => {
+  const [expanded, setExpanded] = createSignal(false);
+  const rows = createMemo<RuleRow[]>(() => {
+    return (props.rules || []).map(rule => {
+      const apiGroups = (rule.apiGroups && rule.apiGroups.length > 0 ? rule.apiGroups : [""]).map(g => g || "core");
+      const resources = rule.resources && rule.resources.length > 0 ? rule.resources : ["*"];
+      const combos: string[] = [];
+      for (const g of apiGroups) {
+        for (const r of resources) combos.push(`${g}/${r}`);
       }
-      
-      for (const resource of resources) {
-        for (const apiGroup of apiGroups) {
-          const resourceWithGroup = apiGroup 
-            ? `${resource}.${apiGroup}` 
-            : resource;
-          
-          if (!resourcesByVerb[verb].includes(resourceWithGroup)) {
-            resourcesByVerb[verb].push(resourceWithGroup);
-          }
-        }
-      }
-    }
-  }
-  
-  // Format as "verb: resource1, resource2; verb2: resource3, resource4"
-  const parts = Object.entries(resourcesByVerb).map(([verb, resources]) => {
-    return `${verb}: ${resources.join(", ")}`;
+      return {
+        resources: combos,
+        nonResourceURLs: rule.nonResourceURLs || [],
+        resourceNames: rule.resourceNames || [],
+        verbs: rule.verbs || [],
+      } as RuleRow;
+    });
   });
-  
-  return parts.join("; ");
-}
+  const visible = createMemo(() => expanded() ? rows() : rows().slice(0, 3));
+  return (
+    <td colSpan={props.columnCount}>
+      <div class="second-row" style="display: flex; gap: 24px;">
+        <div style="">
+          <table class="resource-detail-table">
+            <colgroup>
+              <col style="" />
+              <col style="" />
+              <col style="" />
+              <col style="" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Resources</th>
+                <th>Non-Resource URLs</th>
+                <th>Resource Names</th>§  
+                <th>Verbs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible().map(row => (
+                <tr>
+                  <td>{row.resources.join(', ')}</td>
+                  <td>{`[${row.nonResourceURLs.join(' ')}]`}</td>
+                  <td>{`[${row.resourceNames.join(' ')}]`}</td>
+                  <td>{`[${row.verbs.join(' ')}]`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows().length > 3 && (
+            <button class="outline" onClick={() => setExpanded(!expanded())}>
+              {expanded() ? 'Show less' : `Show all ${rows().length}`}
+            </button>
+          )}
+        </div>
+      </div>
+    </td>
+  );
+};
+
+export const renderRoleDetails = (item: { rules?: Array<{ apiGroups?: string[]; resources?: string[]; resourceNames?: string[]; verbs: string[]; nonResourceURLs?: string[] }> }, columnCount = 3) => {
+  const rules = item.rules || [];
+  return <RoleRulesTable rules={rules} columnCount={columnCount} />;
+};
 
 // Define the columns for the Role resource list
 export const roleColumns = [
   {
     header: "NAME",
-    width: "25%",
+    width: "40%",
     accessor: (role: Role) => <>{role.metadata.name}</>,
     title: (role: Role) => role.metadata.name,
     sortable: true,
@@ -58,18 +88,41 @@ export const roleColumns = [
   },
   {
     header: "RULES",
-    width: "45%",
-    accessor: (role: Role) => {
-      const ruleCount = role.rules?.length || 0;
-      return <>{ruleCount} rule{ruleCount !== 1 ? "s" : ""}</>;
-    },
-    title: (role: Role) => getRulesString(role),
+    width: "15%",
+    accessor: (role: Role) => <>{role.rules?.length || 0}</>,
+    title: (role: Role) => `${role.rules?.length || 0} rules`,
   },
   {
     header: "AGE",
     width: "15%",
     accessor: (role: Role) => 
       useCalculateAge(role.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
+  },
+];
+
+// Define the columns for the ClusterRole resource list (kubectl: NAME, AGE)
+export const clusterRoleColumns = [
+  {
+    header: "NAME",
+    width: "40%",
+    accessor: (cr: ClusterRole) => <>{cr.metadata.name}</>,
+    title: (cr: ClusterRole) => cr.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
+  },
+  {
+    header: "RULES",
+    width: "15%",
+    accessor: (cr: ClusterRole) => <>{cr.rules?.length || 0}</>,
+    title: (cr: ClusterRole) => `${cr.rules?.length || 0} rules`,
+  },
+  {
+    header: "AGE",
+    width: "15%",
+    accessor: (cr: ClusterRole) => 
+      useCalculateAge(cr.metadata.creationTimestamp || "")(),
     sortable: true,
     sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
