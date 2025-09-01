@@ -1,6 +1,10 @@
-# Guide: Self-host on k3d without authentication
+# Guide: Self-host with Google OIDC
 
-## Deploy Capacitor Next
+## 1) Register a Google OAuth App
+
+Create a Google CLIENT ID and secret on https://console.cloud.google.com/apis/credentials
+
+## 2) Deploy Capacitor Next
 
 ### Service Account
 
@@ -24,8 +28,10 @@ metadata:
 type: Opaque
 stringData:
   LICENSE_KEY: "contact laszlo at gimlet.io"
-  AUTH=noauth
-  IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-builtin-editor
+  OIDC_ISSUER: "https://accounts.google.com"
+  OIDC_CLIENT_ID: "xxx.apps.googleusercontent.com" # from step 1)
+  OIDC_CLIENT_SECRET: "..." from step 1)
+  OIDC_REDIRECT_URL: "http://localhost:10081/auth/callback"
   SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
   SESSION_BLOCK_KEY: "base64:< same value as the line before>"
   registry.yaml: |
@@ -77,5 +83,15 @@ kubectl port-forward -n flux-system svc/capacitor-next 10081:80
 [http://localhost:10081](http://localhost:10081)
 
 ### Adjust RBAC if needed
+
+Your Google IDP identity is assumed by Capacitor Next. If RBAC roles are not directly associated with your user email address in Kubernetes, you can map your identity to any service account in the cluster with `IMPERSONATE_SA_RULES`.
+
+```
+  OIDC_ISSUER: "https://accounts.google.com"
+  OIDC_CLIENT_ID: "xxx.apps.googleusercontent.com" # from step 1)
+  OIDC_CLIENT_SECRET: "..." from step 1)
+  OIDC_REDIRECT_URL: "http://localhost:10081/auth/callback"
+  IMPERSONATE_SA_RULES: you@company.com=flux-system:capacitor-next-builtin-editor
+```
 
 You inherit the RBAC roles from the `flux-system:capacitor-next-builtin-editor` service account. Adjust the RBAC on it if needed.
