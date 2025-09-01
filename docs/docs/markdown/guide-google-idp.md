@@ -94,4 +94,4 @@ Your Google IDP identity is assumed by Capacitor Next. If RBAC roles are not dir
   IMPERSONATE_SA_RULES: you@company.com=flux-system:capacitor-next-builtin-editor
 ```
 
-You inherit the RBAC roles from the `flux-system:capacitor-next-builtin-editor` service account. Adjust the RBAC on it if needed.
+You inherit the RBAC roles from the `flux-system:capacitor-next-builtin-editor` service account. Adjust the RBAC on it if needed. ([Source](https://github.com/gimlet-io/capacitor/blob/main/self-host/yaml/role-builtin-editor.yaml))

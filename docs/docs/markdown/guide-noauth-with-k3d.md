@@ -78,4 +78,4 @@ kubectl port-forward -n flux-system svc/capacitor-next 10081:80
 
 ### Adjust RBAC if needed
 
-You inherit the RBAC roles from the `flux-system:capacitor-next-builtin-editor` service account. Adjust the RBAC on it if needed.
+You inherit the RBAC roles from the `flux-system:capacitor-next-builtin-editor` service account. Adjust the RBAC on it if needed. ([Source](https://github.com/gimlet-io/capacitor/blob/main/self-host/yaml/role-builtin-editor.yaml))
