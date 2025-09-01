@@ -1250,6 +1250,37 @@ export interface RoleBindingList {
   items: RoleBinding[];
 }
 
+// ClusterRole
+export interface ClusterRole {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  rules?: PolicyRule[];
+}
+
+export interface ClusterRoleList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: ClusterRole[];
+}
+
+// ClusterRoleBinding
+export interface ClusterRoleBinding {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  subjects?: Subject[];
+  roleRef: RoleRef;
+}
+
+export interface ClusterRoleBindingList {
+  apiVersion: string;
+  kind: string;
+  metadata: ListMeta;
+  items: ClusterRoleBinding[];
+}
+
 // ServiceAccount
 export interface ServiceAccount {
   apiVersion: string;

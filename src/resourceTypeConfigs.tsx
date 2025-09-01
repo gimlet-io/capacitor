@@ -30,8 +30,8 @@ import { jobColumns, jobStatusFilter, jobNodeFilter } from "./components/resourc
 import { cronJobColumns, cronJobSuspendedFilter } from "./components/resourceList/CronJobList.tsx";
 import { hpaColumns, hpaStatusFilter } from "./components/resourceList/HorizontalPodAutoscalerList.tsx";
 import { pvColumns, pvPhaseFilter, pvReclaimPolicyFilter } from "./components/resourceList/PersistentVolumeList.tsx";
-import { roleColumns, roleVerbFilter } from "./components/resourceList/RoleList.tsx";
-import { roleBindingColumns, roleBindingSubjectKindFilter, roleBindingRoleKindFilter } from "./components/resourceList/RoleBindingList.tsx";
+import { roleColumns, roleVerbFilter, clusterRoleColumns, renderRoleDetails } from "./components/resourceList/RoleList.tsx";
+import { roleBindingColumns, roleBindingSubjectKindFilter, roleBindingRoleKindFilter, clusterRoleBindingColumns, renderRoleBindingDetails } from "./components/resourceList/RoleBindingList.tsx";
 import { serviceAccountColumns, serviceAccountAutomountFilter } from "./components/resourceList/ServiceAccountList.tsx";
 import { networkPolicyColumns, networkPolicyTypeFilter } from "./components/resourceList/NetworkPolicyList.tsx";
 import { podDisruptionBudgetColumns } from "./components/resourceList/PodDisruptionBudgetList.tsx";
@@ -493,19 +493,39 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'rbac.authorization.k8s.io/Role': {
     columns: roleColumns,
+    detailRowRenderer: renderRoleDetails,
     filter: [roleVerbFilter],
     commands: [
       ...builtInCommands
     ]
   },
   
+  'rbac.authorization.k8s.io/ClusterRole': {
+    columns: clusterRoleColumns,
+    detailRowRenderer: renderRoleDetails,
+    commands: [
+      ...builtInCommands
+    ],
+    abbreviations: ['cr']
+  },
+  
   'rbac.authorization.k8s.io/RoleBinding': {
     columns: roleBindingColumns,
+    detailRowRenderer: renderRoleBindingDetails,
     filter: [roleBindingSubjectKindFilter, roleBindingRoleKindFilter],
     commands: [
       ...builtInCommands
     ],
     abbreviations: ['rb']
+  },
+  
+  'rbac.authorization.k8s.io/ClusterRoleBinding': {
+    columns: clusterRoleBindingColumns,
+    detailRowRenderer: renderRoleBindingDetails,
+    commands: [
+      ...builtInCommands
+    ],
+    abbreviations: ['crb']
   },
   
   'core/ServiceAccount': {

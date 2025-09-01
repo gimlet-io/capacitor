@@ -1,28 +1,20 @@
-import type { RoleBinding } from "../../types/k8s.ts";
+import type { RoleBinding, ClusterRoleBinding } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
-// Format the subjects into a user-friendly string
-function getSubjectsString(roleBinding: RoleBinding): string {
-  const subjects = roleBinding.subjects || [];
-  if (subjects.length === 0) {
-    return "No subjects";
-  }
-  
-  return subjects.map(subject => {
-    const kind = subject.kind;
-    const name = subject.name;
-    const namespace = subject.namespace ? `(${subject.namespace})` : "";
-    return `${kind}/${name}${namespace}`;
-  }).join(", ");
+// Format the subjects into a concise summary string
+function getSubjectsString(item: { subjects?: Array<{ kind: string; name: string; namespace?: string }> }): string {
+  const subjects = item.subjects || [];
+  if (subjects.length === 0) return "No subjects";
+  return subjects.map(s => `${s.kind}/${s.name}${s.namespace ? `(${s.namespace})` : ''}`).join(", ");
 }
 
 // Define the columns for the RoleBinding resource list
 export const roleBindingColumns = [
   {
     header: "NAME",
-    width: "25%",
+    width: "30%",
     accessor: (roleBinding: RoleBinding) => <>{roleBinding.metadata.name}</>,
     title: (roleBinding: RoleBinding) => roleBinding.metadata.name,
     sortable: true,
@@ -39,7 +31,7 @@ export const roleBindingColumns = [
   },
   {
     header: "SUBJECTS",
-    width: "20%",
+    width: "25%",
     accessor: (roleBinding: RoleBinding) => {
       const subjectCount = roleBinding.subjects?.length || 0;
       return <>{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</>;
@@ -55,6 +47,66 @@ export const roleBindingColumns = [
     sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
+
+// Define the columns for the ClusterRoleBinding resource list (kubectl: NAME, ROLE, AGE)
+export const clusterRoleBindingColumns = [
+  {
+    header: "NAME",
+    width: "30%",
+    accessor: (crb: ClusterRoleBinding) => <>{crb.metadata.name}</>,
+    title: (crb: ClusterRoleBinding) => crb.metadata.name,
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
+  },
+  {
+    header: "ROLE",
+    width: "30%",
+    accessor: (crb: ClusterRoleBinding) => {
+      const kind = crb.roleRef.kind;
+      const name = crb.roleRef.name;
+      return <>{kind}/{name}</>;
+    },
+  },
+  {
+    header: "SUBJECTS",
+    width: "25%",
+    accessor: (crb: ClusterRoleBinding) => {
+      const subjectCount = crb.subjects?.length || 0;
+      return <>{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</>;
+    },
+    title: (crb: ClusterRoleBinding) => getSubjectsString(crb),
+  },
+  {
+    header: "AGE",
+    width: "15%",
+    accessor: (crb: ClusterRoleBinding) => 
+      useCalculateAge(crb.metadata.creationTimestamp || "")(),
+    sortable: true,
+    sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
+  },
+];
+
+// Detail renderer for showing full subjects list for RoleBinding/ClusterRoleBinding
+export const renderRoleBindingDetails = (item: { subjects?: Array<{ kind: string; name: string; namespace?: string }> }, columnCount = 4) => {
+  const subjects = item.subjects || [];
+  return (
+    <td colSpan={columnCount}>
+      <div class="second-row" style="display: flex; gap: 24px;">
+        <div style="flex: 1;">
+          {subjects.length === 0 ? (
+            <div>None</div>
+          ) : (
+            <ul>
+              {subjects.map(s => (
+                <li>{s.kind}/{s.name}{s.namespace ? ` (${s.namespace})` : ''}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </td>
+  );
+};
 
 // Filter for RoleBindings by subject kind
 export const roleBindingSubjectKindFilter: Filter = {

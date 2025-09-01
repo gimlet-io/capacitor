@@ -881,6 +881,29 @@ h1 {
   box-sizing: border-box;
 }
 
+.resource-detail-table {
+  border-collapse: separate; /* required */
+  border-spacing: 20px 0;    /* horizontal vertical */
+}
+
+/* Detail tables inside selected rows should remain readable */
+.resource-table tr.selected td .resource-detail-table th,
+.resource-table tr.selected td .resource-detail-table td {
+  color: #ffffff;
+}
+
+/* Enable wrapping for detail tables */
+.resource-detail-table {
+  table-layout: fixed;
+}
+
+.resource-detail-table th,
+.resource-detail-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .resource-list-container {
   width: 100%;
   height: calc(100vh - 175px); /* subtract header/nav height */
