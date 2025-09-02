@@ -38,17 +38,17 @@ func New() *Config {
 // Parse processes command line arguments and environment variables
 func (c *Config) Parse() {
 	// Command line arguments
-	pflag.StringVar(&c.Address, "address", c.Address, "Address to listen on")
-	pflag.IntVar(&c.Port, "port", c.Port, "Port to listen on")
-	pflag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve")
-	pflag.StringVar(&c.KubeConfigPath, "kubeconfig", c.KubeConfigPath, "Path to kubeconfig file")
-	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development)")
-	pflag.StringVar(&c.Theme, "theme", c.Theme, "UI theme preset (light|dark|mallow)")
+	pflag.StringVarP(&c.Address, "host", "h", c.Address, "Host to listen on (CAPACITOR_NEXT_HOST)")
+	pflag.IntVarP(&c.Port, "port", "p", c.Port, "Port to listen on (CAPACITOR_NEXT_PORT)")
+	pflag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve (dev purposes only)")
+	pflag.StringVar(&c.KubeConfigPath, "kubeconfig", c.KubeConfigPath, "Path to kubeconfig file (KUBECONFIG)")
+	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development) (KUBECONFIG_INSECURE_SKIP_TLS_VERIFY)")
+	pflag.StringVarP(&c.Theme, "theme", "t", c.Theme, "UI theme preset (light|dark|mallow) (CAPACITOR_NEXT_THEME)")
 
 	pflag.Parse()
 
 	// Environment variables override command line flags
-	if env := os.Getenv("CAPACITOR_NEXT_ADDRESS"); env != "" {
+	if env := os.Getenv("CAPACITOR_NEXT_HOST"); env != "" {
 		c.Address = env
 	}
 	if env := os.Getenv("CAPACITOR_NEXT_PORT"); env != "" {
