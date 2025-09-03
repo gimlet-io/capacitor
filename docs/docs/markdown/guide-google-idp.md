@@ -34,6 +34,7 @@ stringData:
   OIDC_REDIRECT_URL: "http://localhost:10081/auth/callback"
   SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
   SESSION_BLOCK_KEY: "base64:< same value as the line before>"
+  AUTHORIZED_EMAILS: "youremail@company.com[,*@company.com]"
   registry.yaml: |
     clusters:
       - id: in-cluster

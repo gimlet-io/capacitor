@@ -26,7 +26,7 @@ AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
 
 ```
 AUTH=noauth
-IMPERSONATE_SA_RULES=noauth=default:capacitor-next-builtin-editor
+IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-builtin-editor
 ```
 
 Capacitor default authenticates you as a user called `noauth` what you can then map to a service account. And define RBAC for that service account.
@@ -59,7 +59,7 @@ With OIDC, the user identity is returned by the OIDC server and Capacitor Next i
 
 ```
 AUTH=noauth
-IMPERSONATE_SA_RULES=noauth=default:capacitor-next-builtin-editor
+IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-builtin-editor
 ```
 
 Every user will assume the RBAC roles defined for the mapped service account (SA). In the example case: capacitor-next-builtin-editor in the default namespace.
@@ -69,7 +69,7 @@ Every user will assume the RBAC roles defined for the mapped service account (SA
 ```
 AUTH=static
 USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG[,anotheruser:password]"
-IMPERSONATE_SA_RULES=laszlo@gimlet.io=default:capacitor-next-builtin-editor
+IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-builtin-editor
 ```
 
 This case laszlo@gimlet.io has a static password, and my user is impersonating a service account. If my user has RBAC on the cluster the IMPERSONATE_SA_RULES is not needed.

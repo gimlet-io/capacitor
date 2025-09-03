@@ -24,8 +24,8 @@ metadata:
 type: Opaque
 stringData:
   LICENSE_KEY: "contact laszlo at gimlet.io"
-  AUTH=noauth
-  IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-builtin-editor
+  AUTH: noauth
+  IMPERSONATE_SA_RULES: noauth=flux-system:capacitor-next-builtin-editor
   SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
   SESSION_BLOCK_KEY: "base64:< same value as the line before>"
   registry.yaml: |
