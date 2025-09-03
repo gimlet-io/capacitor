@@ -206,12 +206,12 @@ export function Dashboard() {
           handleWatchError(event.error || 'Unknown watch error', event.path || watchPath);
           return;
         }
-        
+
         // Clear any existing errors when we receive data successfully
-        if (errorStore.currentError?.type === 'watch') {
+        if (errorStore.currentError) {
           errorStore.clearError();
         }
-        
+
         if (event.type === 'ADDED') {
           setDynamicResources(prev => {
             const current = prev[k8sResource.id] || [];
@@ -296,6 +296,12 @@ export function Dashboard() {
               handleWatchError(event.error || 'Unknown watch error', event.path || extraWatchPath);
               return;
             }
+            
+            // Clear any existing errors when we receive data successfully
+            if (errorStore.currentError) {
+              errorStore.clearError();
+            }
+            
             // Update cache based on event type
             if (event.type === 'ADDED') {
               extraResources[extraResourceType] = [
