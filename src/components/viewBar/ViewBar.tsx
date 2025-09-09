@@ -115,8 +115,10 @@ export function ViewBar(props: ViewBarProps) {
       // Maintain the current selection if possible or select the first view
       const currentViewId = filterStore.selectedView;
       const viewExists = allViews.some(v => v.id === currentViewId);
-      
-      if (!viewExists && allViews.length > 0) {
+      // If filters are already active (e.g., loaded from URL), don't override them
+      const hasActiveFilters = Array.isArray(filterStore.activeFilters) && filterStore.activeFilters.length > 0;
+
+      if (!viewExists && allViews.length > 0 && !hasActiveFilters) {
         selectView(allViews[0].id);
       }
     } catch (error) {
