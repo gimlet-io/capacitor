@@ -47,7 +47,7 @@ import {
   updateKustomizationMatchingBuckets,
   updateKustomizationMatchingOCIRepositories
 } from "./utils/k8s.ts";
-import { updateJobMatchingResources } from "./utils/k8s.ts";
+import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources } from "./utils/k8s.ts";
 
 export interface Column<T> {
   header: string;
@@ -317,7 +317,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
-    abbreviations: ['sts']
+    abbreviations: ['sts'],
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (statefulSet, pods) => updateStatefulSetMatchingResources(statefulSet, pods),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ]
   },
   
   'core/Service': {
@@ -400,7 +407,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
-    abbreviations: ['ds']
+    abbreviations: ['ds'],
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (daemonSet, pods) => updateDaemonSetMatchingResources(daemonSet, pods),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ]
   },
 
   'apps/ReplicaSet': {

@@ -1,5 +1,5 @@
 import { JSX } from "solid-js";
-import type { DaemonSet } from "../../types/k8s.ts";
+import type { DaemonSet, DaemonSetWithResources } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
@@ -24,6 +24,19 @@ function getReadinessComponent(daemonSet: DaemonSet): { element: JSX.Element, ti
     title: `Ready: ${numberReady}/${desiredScheduled}, Available: ${numberAvailable}, Unavailable: ${numberUnavailable}`
   };
 }
+
+const getPodColor = (status: string) => {
+  switch (status) {
+    case "Running":
+      return "var(--linear-green)";
+    case "Pending":
+      return "var(--linear-yellow)";
+    case "Failed":
+      return "var(--linear-red)";
+    default:
+      return "var(--linear-gray)";
+  }
+};
 
 // Define the columns for the DaemonSet resource list
 export const daemonSetColumns = [
@@ -50,6 +63,28 @@ export const daemonSetColumns = [
     width: "10%",
     accessor: (daemonSet: DaemonSet) => getReadinessComponent(daemonSet).element,
     title: (daemonSet: DaemonSet) => getReadinessComponent(daemonSet).title,
+  },
+  {
+    header: "PODS",
+    width: "10%",
+    accessor: (daemonSet: DaemonSetWithResources) => (
+      <>
+        {daemonSet.pods?.map((pod) => (
+          <span
+            title={pod.metadata.name}
+            style={{
+              "display": "inline-block",
+              "width": "10px",
+              "height": "10px",
+              "border-radius": "5%",
+              "background-color": getPodColor(pod.status.phase),
+              "margin": "0 2px",
+            } as any}
+          >
+          </span>
+        ))}
+      </>
+    ),
   },
   {
     header: "UP-TO-DATE",
