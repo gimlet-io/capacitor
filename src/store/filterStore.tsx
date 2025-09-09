@@ -111,6 +111,69 @@ export function FilterProvider(props: { children: JSX.Element }) {
     }
   };
 
+  // Parse a simple label selector string like:
+  // key=value, key!=value, key (existence)
+  const parseLabelSelector = (value: string): Array<{ key: string; op: 'eq' | 'neq' | 'exists'; val?: string }> => {
+    return value
+      .split(/[,\s]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .map(token => {
+        const neqIndex = token.indexOf('!=');
+        if (neqIndex > -1) {
+          const key = token.slice(0, neqIndex).trim();
+          const val = token.slice(neqIndex + 2).trim();
+          return { key, op: 'neq' as const, val };
+        }
+        const eqIndex = token.indexOf('=');
+        if (eqIndex > -1) {
+          const key = token.slice(0, eqIndex).trim();
+          const val = token.slice(eqIndex + 1).trim();
+          return { key, op: 'eq' as const, val };
+        }
+        return { key: token.trim(), op: 'exists' as const };
+      });
+  };
+
+  const getLabelMapForResource = (resource: any): Record<string, string> => {
+    if (!resource) return {};
+    // Services use spec.selector to select pods
+    if (resource?.kind === 'Service') {
+      const selector = resource?.spec?.selector || {};
+      return selector || {};
+    }
+    // Default to metadata.labels
+    return (resource?.metadata?.labels || {}) as Record<string, string>;
+  };
+
+  const labelSelectorFilter: Filter = {
+    name: "LabelSelector",
+    label: "Label",
+    type: "text" as FilterType,
+    placeholder: "app=web,tier=frontend or key!=val or key",
+    filterFunction: (resource: any, value: string) => {
+      const constraints = parseLabelSelector(value);
+      if (constraints.length === 0) return true;
+      const labels = getLabelMapForResource(resource);
+      for (const c of constraints) {
+        const current = labels[c.key];
+        if (c.op === 'exists') {
+          if (current === undefined) return false;
+          continue;
+        }
+        if (c.op === 'eq') {
+          if (current !== c.val) return false;
+          continue;
+        }
+        if (c.op === 'neq') {
+          if (current === c.val) return false;
+          continue;
+        }
+      }
+      return true;
+    }
+  };
+
   const getResourceType = () => {
    return activeFilters().find(f => f.name === "ResourceType")?.value;
   };
@@ -264,6 +327,10 @@ export function FilterProvider(props: { children: JSX.Element }) {
           resourceFilters.push(namespaceFilter());
         }
         resourceFilters.push(nameFilter);
+        // Add label selector filter to Pods and Services
+        if (resource.kind === 'Pod' || resource.kind === 'Service') {
+          resourceFilters.push(labelSelectorFilter);
+        }
         
         resourceFilters.push(...(resourceTypeConfigs[resourceId]?.filter || []));
 

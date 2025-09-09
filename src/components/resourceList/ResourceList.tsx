@@ -3,7 +3,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -228,6 +228,33 @@ export const replaceHandlers = (
             ];
             
             handlers.updateFilters!(newFilters);
+          }
+        };
+      } else if (cmd === showRelatedPods && handlers.updateFilters) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            try {
+              const namespace = resource?.metadata?.namespace;
+              // Prefer spec.selector.matchLabels (workloads), fallback to metadata.labels
+              const labelMap = resource?.spec?.selector?.matchLabels || resource?.spec?.selector || resource?.metadata?.labels || {};
+              const parts: string[] = [];
+              for (const key in labelMap) {
+                if (Object.prototype.hasOwnProperty.call(labelMap, key)) {
+                  const val = String(labelMap[key]);
+                  if (key && val) parts.push(`${key}=${val}`);
+                }
+              }
+              const selector = parts.join(',');
+              const newFilters: any[] = [
+                { name: 'ResourceType', value: 'core/Pod' },
+              ];
+              if (namespace) newFilters.push({ name: 'Namespace', value: namespace });
+              if (selector) newFilters.push({ name: 'LabelSelector', value: selector });
+              handlers.updateFilters!(newFilters);
+            } catch (err) {
+              console.error('Failed to build related pods filter:', err);
+            }
           }
         };
       } else if (cmd.shortcut.description === 'Copy port-forward') {

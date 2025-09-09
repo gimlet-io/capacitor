@@ -118,6 +118,12 @@ export const showPodsInNamespace: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+// Define a command to view pods related to a resource (workloads/services)
+export const showRelatedPods: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View related pods", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
 // Helper function to create card renderers that reuse column accessors
 const createCardRenderer = (
   columns: Column<any>[],
@@ -279,7 +285,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
-      }
+      },
+      showRelatedPods
     ],
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
@@ -312,7 +319,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
-      }
+      },
+      showRelatedPods
     ],
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
@@ -335,6 +343,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
+      showRelatedPods,
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
@@ -403,7 +412,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
-      }
+      },
+      showRelatedPods
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
