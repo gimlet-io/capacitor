@@ -262,6 +262,10 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
+  // Virtualization state
+  const rowHeight = 36;
+  const [scrollTop, setScrollTop] = createSignal(0);
+  const [viewportHeight, setViewportHeight] = createSignal(600);
   // Use filterStore for sorting state
   const sortColumn = () => filterStore.sortColumn;
   const sortAscending = () => filterStore.sortAscending;
@@ -295,11 +299,12 @@ export function ResourceList<T>(props: {
       
       if (isNamespaced) {
         // Create a new array with namespace column inserted as the second column
-        return [
+        const result = [
           resourceColumns[0],
           namespaceColumn,
           ...resourceColumns.slice(1)
         ];
+        return result;
       }
       
       return resourceColumns;
@@ -325,6 +330,30 @@ export function ResourceList<T>(props: {
     return resources;
   });
 
+  // Virtualization helpers (disabled when detail rows are present)
+  const canVirtualize = createMemo(() => !props.resourceTypeConfig.detailRowRenderer);
+  const totalCount = createMemo(() => sortedResources().length);
+  const bufferRows = 10;
+  const startIndex = createMemo(() => {
+    if (!canVirtualize()) return 0;
+    return Math.max(0, Math.floor(scrollTop() / rowHeight));
+  });
+  const visibleCount = createMemo(() => {
+    if (!canVirtualize()) return totalCount();
+    return Math.min(totalCount(), Math.ceil(viewportHeight() / rowHeight) + bufferRows);
+  });
+  const endIndex = createMemo(() => {
+    if (!canVirtualize()) return totalCount();
+    return Math.min(totalCount(), startIndex() + visibleCount());
+  });
+  const topSpacerHeight = createMemo(() => (canVirtualize() ? startIndex() * rowHeight : 0));
+  const bottomSpacerHeight = createMemo(() => (canVirtualize() ? Math.max(0, (totalCount() - endIndex()) * rowHeight) : 0));
+  const visibleSlice = createMemo(() => {
+    if (!canVirtualize()) return sortedResources();
+    const slice = sortedResources().slice(startIndex(), endIndex());
+    return slice;
+  });
+
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: T) => {
     setSelectedResource(() => resource);
     setActiveTab(tab);
@@ -338,6 +367,19 @@ export function ResourceList<T>(props: {
   // Resolve plural resource name using the API resource list
   const apiResourceStore = useApiResourceStore();
   type MinimalK8sResource = { apiVersion?: string; kind: string; metadata: { name: string; namespace?: string } };
+  // Cache for permission checks to reduce SSAR calls during rapid selection changes
+  const permissionCache = new Map<string, boolean | undefined>();
+  const makeResourceKey = (resource: MinimalK8sResource): string => {
+    try {
+      const apiVersion: string = resource.apiVersion || "v1";
+      const group = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
+      const version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
+      const ns = resource.metadata?.namespace || '';
+      return `${group}/${version}|${resource.kind}|${ns}|${resource.metadata?.name}`;
+    } catch (_) {
+      return `${resource.kind}|${resource.metadata?.namespace || ''}|${resource.metadata?.name}`;
+    }
+  };
   const getPluralForResource = (resource: MinimalK8sResource): string => {
     try {
       const apiVersion: string = resource.apiVersion || "v1";
@@ -399,29 +441,42 @@ export function ResourceList<T>(props: {
   const derivePermission = async (cmd: ResourceCommand, resource: MinimalK8sResource): Promise<boolean | undefined> => {
     const desc = cmd.shortcut.description.toLowerCase();
     const key = cmd.shortcut.key.toLowerCase();
+    const cacheKey = `${commandId(cmd)}::${makeResourceKey(resource)}`;
+    if (permissionCache.has(cacheKey)) return permissionCache.get(cacheKey);
     // Read-only commands
     if (desc === 'describe' || desc === 'yaml' || desc === 'events' || desc === 'manifest' || desc === 'values' || desc === 'release history') {
+      permissionCache.set(cacheKey, undefined);
       return undefined;
     }
     // Delete
     if (desc.includes('delete') && (key.includes('+d'))) {
-      return checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
+      const allowed = await checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
+      permissionCache.set(cacheKey, allowed);
+      return allowed;
     }
     // Logs
     if (key === 'l' && desc.includes('logs')) {
-      return checkPermission(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+      const allowed = await checkPermission(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+      permissionCache.set(cacheKey, allowed);
+      return allowed;
     }
     // Exec
     if (key === 'x' && desc.includes('exec')) {
-      return checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+      const allowed = await checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+      permissionCache.set(cacheKey, allowed);
+      return allowed;
     }
     // Scale
     if (desc.includes('scale') && key.includes('+s')) {
-      return checkPermission(resource, { verb: 'update', subresource: 'scale' });
+      const allowed = await checkPermission(resource, { verb: 'update', subresource: 'scale' });
+      permissionCache.set(cacheKey, allowed);
+      return allowed;
     }
     // Rollout restart
     if (desc.includes('rollout restart') && key.includes('+r')) {
-      return checkPermission(resource, { verb: 'patch' });
+      const allowed = await checkPermission(resource, { verb: 'patch' });
+      permissionCache.set(cacheKey, allowed);
+      return allowed;
     }
     // Flux reconcile
     if (desc.startsWith('reconcile')) {
@@ -436,6 +491,7 @@ export function ResourceList<T>(props: {
           if (!srcAllowed) return false;
         }
       }
+      permissionCache.set(cacheKey, true);
       return true;
     }
     return undefined;
@@ -655,10 +711,27 @@ export function ResourceList<T>(props: {
 
   onMount(() => {
     globalThis.addEventListener('keydown', handleKeyDown);
+    const container = listContainer();
+    if (container) {
+      const onScroll = () => {
+        setScrollTop(container.scrollTop);
+        setViewportHeight(container.clientHeight || 600);
+      };
+      container.addEventListener('scroll', onScroll);
+      // initialize measurements
+      onScroll();
+      // Save cleanup on element
+      (container as any).__onScroll = onScroll;
+    }
   });
 
   onCleanup(() => {
     globalThis.removeEventListener('keydown', handleKeyDown);
+    const container = listContainer();
+    if (container && (container as any).__onScroll) {
+      container.removeEventListener('scroll', (container as any).__onScroll);
+      delete (container as any).__onScroll;
+    }
   });
 
   return (
@@ -697,7 +770,12 @@ export function ResourceList<T>(props: {
             </tr>
           </thead>
           <tbody>
-            <For each={sortedResources()} fallback={
+            {canVirtualize() && totalCount() > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={visibleColumns().length} style={`height: ${topSpacerHeight()}px; padding: 0; border: 0;`}></td>
+              </tr>
+            )}
+            <For each={canVirtualize() ? visibleSlice() : sortedResources()} fallback={
               <tr>
                 <td colSpan={visibleColumns().length} class="no-results">
                   {props.resources.length === 0 ? 'No resources found' : 'No resources match the current filters'}
@@ -705,15 +783,16 @@ export function ResourceList<T>(props: {
               </tr>
             }>
               {(resource, index) => {
+                const globalIndex = () => canVirtualize() ? startIndex() + index() : index();
                 const handleClick = () => {
-                  setSelectedIndex(index());
+                  setSelectedIndex(globalIndex());
                   setSelectedResource(() => resource);
                 };
                 
                 return (
                   <>
                     <tr 
-                      class={selectedIndex() === index() ? 'selected' : ''} 
+                      class={selectedIndex() === globalIndex() ? 'selected' : ''} 
                       onClick={handleClick}
                     >
                       {visibleColumns().map(column => (
@@ -723,7 +802,7 @@ export function ResourceList<T>(props: {
                       ))}
                     </tr>
                     {props.resourceTypeConfig.detailRowRenderer && (
-                      <tr class={selectedIndex() === index() ? 'selected' : ''}
+                      <tr class={selectedIndex() === globalIndex() ? 'selected' : ''}
                         onClick={handleClick}
                       >
                         {props.resourceTypeConfig.detailRowRenderer(resource, visibleColumns().length)}
@@ -733,6 +812,11 @@ export function ResourceList<T>(props: {
                 );
               }}
             </For>
+            {canVirtualize() && totalCount() > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={visibleColumns().length} style={`height: ${bottomSpacerHeight()}px; padding: 0; border: 0;`}></td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

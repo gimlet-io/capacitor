@@ -160,6 +160,77 @@ export function Dashboard() {
   // Maintain resources for each extra watch
   const extraResources: Record<string, any[]> = {};
 
+  // Batch queues and timers per resource type id
+  const batchQueues: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
+  const batchTimers: Record<string, number | undefined> = {};
+
+  const scheduleFlush = (resourceTypeId: string, extraWatchesForResource?: ExtraWatchConfig[]) => {
+    if (batchTimers[resourceTypeId] !== undefined) return;
+    batchTimers[resourceTypeId] = setTimeout(() => {
+      const changes = batchQueues[resourceTypeId] || [];
+      batchQueues[resourceTypeId] = [];
+      batchTimers[resourceTypeId] = undefined;
+      if (changes.length === 0 && (!extraWatchesForResource || extraWatchesForResource.length === 0)) return;
+
+      setDynamicResources(prev => {
+        const current = prev[resourceTypeId] || [];
+        // Build index by name for efficient updates
+        const nameToIndex = new Map<string, number>();
+        for (let i = 0; i < current.length; i++) {
+          nameToIndex.set(current[i]?.metadata?.name, i);
+        }
+        let next = current.slice();
+
+        // Apply queued changes
+        for (const evt of changes) {
+          const name = evt.object?.metadata?.name;
+          if (!name) continue;
+          if (evt.type === 'DELETED') {
+            const idx = nameToIndex.get(name);
+            if (idx !== undefined) {
+              next.splice(idx, 1);
+              // rebuild map lazily
+              nameToIndex.delete(name);
+            }
+          } else {
+            // Enhance via extra watchers if provided
+            let enhanced = evt.object;
+            if (extraWatchesForResource && extraWatchesForResource.length > 0) {
+              for (const cfg of extraWatchesForResource) {
+                const related = extraResources[cfg.resourceType] || [];
+                enhanced = cfg.updater(enhanced, related);
+              }
+            }
+            const idx = nameToIndex.get(name);
+            if (idx === undefined) {
+              nameToIndex.set(name, next.length);
+              next.push(enhanced);
+            } else {
+              next[idx] = enhanced;
+            }
+          }
+        }
+
+        // If extra resources changed since last flush, re-apply updaters across the list
+        if (extraWatchesForResource && extraWatchesForResource.length > 0) {
+          next = next.map(item => {
+            let updated = item;
+            for (const cfg of extraWatchesForResource) {
+              const related = extraResources[cfg.resourceType] || [];
+              updated = cfg.updater(updated, related);
+            }
+            return updated;
+          });
+        }
+
+        // Sort once per flush by name (stable display)
+        next.sort((a, b) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+
+        return { ...prev, [resourceTypeId]: next };
+      });
+    }, 16) as unknown as number;
+  };
+
   // Error handler for watch failures
   const handleWatchError = (message: string, path: string) => {
     console.log('Watch error:', { message, path });
@@ -198,6 +269,7 @@ export function Dashboard() {
       watchPath = `${k8sResource.apiPath}/namespaces/${ns}/${k8sResource.name}?watch=true`;
     }
     
+    const mainExtraWatches = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
     watches.push({
       path: watchPath,
       callback: (event: { type: string; object: any; error?: string; path?: string }) => {
@@ -212,68 +284,14 @@ export function Dashboard() {
           errorStore.clearError();
         }
 
-        if (event.type === 'ADDED') {
-          setDynamicResources(prev => {
-            const current = prev[k8sResource.id] || [];
-            
-            // Check if we need to apply extra resource updates
-            const extraWatchesForResource = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
-            let enhancedResource = event.object;
-            
-            if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-              // Apply all updaters to the new resource
-              extraWatchesForResource.forEach(config => {
-                const relatedResources = extraResources[config.resourceType] || [];
-                enhancedResource = config.updater(enhancedResource, relatedResources);
-              });
-            }
-            
-            // Add new resource and sort alphabetically by name
-            const updatedResources = [...current, enhancedResource].sort((a, b) => 
-              a.metadata.name.localeCompare(b.metadata.name)
-            );
-            
-            return { ...prev, [k8sResource.id]: updatedResources };
-          });
-        } else if (event.type === 'MODIFIED') {
-          setDynamicResources(prev => {
-            const current = prev[k8sResource.id] || [];
-            
-            // Check if we need to apply extra resource updates
-            const extraWatchesForResource = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
-            let enhancedResource = event.object;
-            
-            if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-              // Apply all updaters to the modified resource
-              extraWatchesForResource.forEach(config => {
-                const relatedResources = extraResources[config.resourceType] || [];
-                enhancedResource = config.updater(enhancedResource, relatedResources);
-              });
-            }
-            
-            return { 
-              ...prev, 
-              [k8sResource.id]: current.map((res: any) => 
-                res.metadata.name === event.object.metadata.name ? enhancedResource : res
-              )
-            };
-          });
-        } else if (event.type === 'DELETED') {
-          setDynamicResources(prev => {
-            const current = prev[k8sResource.id] || [];
-            return { 
-              ...prev, 
-              [k8sResource.id]: current.filter((res: any) => 
-                res.metadata.name !== event.object.metadata.name
-              )
-            };
-          });
-        }
+        // Queue event and schedule a flush for this resource type
+        (batchQueues[k8sResource.id] ||= []).push({ type: event.type as any, object: event.object });
+        scheduleFlush(k8sResource.id, mainExtraWatches);
       }
     });
 
     // Set up extra watches if configured for this resource type
-    const extraWatchesForResource = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
+    const extraWatchesForResource = mainExtraWatches;
     if (extraWatchesForResource && extraWatchesForResource.length > 0) {
       // For each extra watch configuration
       extraWatchesForResource.forEach((config: ExtraWatchConfig) => {
@@ -316,44 +334,8 @@ export function Dashboard() {
                 .filter(item => item.metadata.name !== event.object.metadata.name);
             }
             
-            // Update dynamic resources state
-            setDynamicResources(prev => {
-              // Update the extra resource collection and sort alphabetically
-              const sortedExtraResources = [...extraResources[extraResourceType]].sort((a, b) => 
-                a.metadata.name.localeCompare(b.metadata.name)
-              );
-              
-              const newState = { 
-                ...prev,
-                [extraResourceType]: sortedExtraResources
-              };
-              
-              // Update the main resources using the updater function
-              const mainResources = prev[resourceType] || [];
-              if (mainResources.length > 0) {
-                // Apply this updater to each main resource
-                let updatedResources = mainResources.map(resource => 
-                  config.updater(resource, extraResources[extraResourceType] || [])
-                );
-                
-                // For resources with multiple watches, we need to make sure all updaters are applied
-                const otherExtraWatches = extraWatchesForResource.filter((w: ExtraWatchConfig) => w !== config);
-                if (otherExtraWatches.length > 0) {
-                  otherExtraWatches.forEach((otherConfig: ExtraWatchConfig) => {
-                    // Get the cache for this other watch type
-                    const otherResources = extraResources[otherConfig.resourceType] || [];
-                    // Apply the other updater to each resource
-                    updatedResources = updatedResources.map(resource => 
-                      otherConfig.updater(resource, otherResources)
-                    );
-                  });
-                }
-
-                (newState as Record<string, any[]>)[resourceType] = updatedResources;
-              }
-              
-              return newState;
-            });
+            // Schedule a flush for the main resource type so updaters re-apply once per frame
+            scheduleFlush(resourceType, extraWatchesForResource);
           }
         });
       });

@@ -18,7 +18,7 @@ function globToRegex(pattern: string): RegExp {
         // Match any single character
         regex += '.';
         break;
-      case '[':
+      case '[': {
         // Character class - find the closing bracket
         let j = i + 1;
         let negated = false;
@@ -43,6 +43,7 @@ function globToRegex(pattern: string): RegExp {
           regex += '\\[';
         }
         break;
+      }
       case '\\':
         // Escape next character
         if (i + 1 < pattern.length) {
@@ -79,12 +80,12 @@ function hasWildcards(pattern: string): boolean {
 }
 
 /**
- * Ensures a glob pattern has wildcards by appending * if needed
+ * Ensures a glob pattern has wildcards by wrapping with * on both sides if needed
  * @param pattern The glob pattern to check
- * @returns The pattern with wildcards (original if it already had wildcards, or with * appended)
+ * @returns The pattern with wildcards (original if it already had wildcards, or with *prefix/suffix*)
  */
 export function ensureWildcard(pattern: string): string {
-  return hasWildcards(pattern) ? pattern : pattern + '*';
+  return hasWildcards(pattern) ? pattern : `*${pattern}*`;
 }
 
 /**
