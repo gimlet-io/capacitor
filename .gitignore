@@ -1,6 +1,7 @@
 build/embedded.ts
 dist/
 public/js/*
+bundle/
 flux-source/
 fixtures/
 .env
