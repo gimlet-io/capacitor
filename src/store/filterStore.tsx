@@ -295,15 +295,15 @@ export function FilterProvider(props: { children: JSX.Element }) {
     const selectedResource = k8sResources().find(res => res.id === currentResourceType);
     if (!selectedResource) return;
     
-    // Create a completely new array of filters
+    // Only keep filters that are supported by the newly selected resource type
+    const allowedFilterNames = new Set<string>([
+      ...selectedResource.filters.map(f => f.name),
+    ]);
+
+    // Create a new filter set: ResourceType + applicable filters only
     const newFilters = [
-      // Add the ResourceType filter first
-      { 
-        name: resourceTypeFilter().name, 
-        value: currentResourceType 
-      },
-      // Include all other non-ResourceType filters
-      ...activeFilters().filter(f => f.name !== "ResourceType")
+      { name: resourceTypeFilter().name, value: currentResourceType },
+      ...activeFilters().filter(f => f.name !== "ResourceType" && allowedFilterNames.has(f.name))
     ];
     
     // Only update if needed to avoid infinite loops
