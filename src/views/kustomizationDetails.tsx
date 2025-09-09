@@ -1187,7 +1187,7 @@ export function KustomizationDetails() {
                 </div>
               </header>
               {/* Tabs for main graphs */}
-              <div style="padding: 16px">
+              <div style="padding: 0rem 1rem 1rem 1rem">
                 <Tabs
                   tabs={[
                     { key: 'resource', label: 'Resource Tree' },

@@ -418,7 +418,7 @@ h1 {
 
 .kustomization-header {
   flex-shrink: 0;
-  padding: 1rem;
+  padding: 1rem 1rem 0rem 1rem;
 }
 
 .resource-tree-wrapper {
