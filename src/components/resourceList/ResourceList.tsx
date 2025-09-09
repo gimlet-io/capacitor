@@ -8,6 +8,7 @@ import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
+import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
@@ -393,73 +394,6 @@ export function ResourceList<T>(props: {
 
   // Resolve plural resource name using the API resource list
   const apiResourceStore = useApiResourceStore();
-  type MinimalK8sResource = { apiVersion?: string; kind: string; metadata: { name: string; namespace?: string } };
-  // Cache for permission checks to reduce SSAR calls during rapid selection changes
-  const permissionCache = new Map<string, boolean | undefined>();
-  const makeResourceKey = (resource: MinimalK8sResource): string => {
-    try {
-      const apiVersion: string = resource.apiVersion || "v1";
-      const group = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
-      const version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
-      const ns = resource.metadata?.namespace || '';
-      return `${group}/${version}|${resource.kind}|${ns}|${resource.metadata?.name}`;
-    } catch (_) {
-      return `${resource.kind}|${resource.metadata?.namespace || ''}|${resource.metadata?.name}`;
-    }
-  };
-  const getPluralForResource = (resource: MinimalK8sResource): string => {
-    try {
-      const apiVersion: string = resource.apiVersion || "v1";
-      const group = apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
-      const version = apiVersion.includes('/') ? apiVersion.split('/')[1] : apiVersion;
-      const kind = resource.kind;
-      const apiResources = apiResourceStore.apiResources || [];
-      const match = apiResources.find(r => r.kind === kind && r.group === group && r.version === version);
-      if (match?.name) return match.name;
-    } catch (_) {
-      // ignore and fall back to naive plural
-    }
-    return `${String(resource.kind || '').toLowerCase()}s`;
-  };
-
-  // Generic permission check via SelfSubjectAccessReview
-  const checkPermission = async (
-    resource: MinimalK8sResource,
-    opts: { verb: string; subresource?: string; resourceOverride?: string; groupOverride?: string; nameOverride?: string | null }
-  ): Promise<boolean> => {
-    if (!resource || !resource.metadata) return false;
-    try {
-      const apiVersion: string = resource.apiVersion || "v1";
-      const group = opts.groupOverride !== undefined ? opts.groupOverride : (apiVersion.includes('/') ? apiVersion.split('/')[0] : '');
-      const resourceName = opts.resourceOverride || getPluralForResource(resource);
-      const body: any = {
-        apiVersion: "authorization.k8s.io/v1",
-        kind: "SelfSubjectAccessReview",
-        spec: {
-          resourceAttributes: {
-            group,
-            resource: resourceName,
-            namespace: resource.metadata.namespace,
-            verb: opts.verb,
-          }
-        }
-      };
-      const name = opts.nameOverride === undefined ? resource.metadata.name : opts.nameOverride;
-      if (name) body.spec.resourceAttributes.name = name;
-      if (opts.subresource) body.spec.resourceAttributes.subresource = opts.subresource;
-
-      const resp = await fetch('/k8s/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (!resp.ok) return true; // be permissive on SSAR failure
-      const data = await resp.json();
-      return !!data?.status?.allowed;
-    } catch (_) {
-      return true; // permissive on error
-    }
-  };
 
   // Unique id for a command
   const commandId = (cmd: ResourceCommand) => `${cmd.shortcut.key}::${cmd.shortcut.description}`;
@@ -468,57 +402,48 @@ export function ResourceList<T>(props: {
   const derivePermission = async (cmd: ResourceCommand, resource: MinimalK8sResource): Promise<boolean | undefined> => {
     const desc = cmd.shortcut.description.toLowerCase();
     const key = cmd.shortcut.key.toLowerCase();
-    const cacheKey = `${commandId(cmd)}::${makeResourceKey(resource)}`;
-    if (permissionCache.has(cacheKey)) return permissionCache.get(cacheKey);
     // Read-only commands
     if (desc === 'describe' || desc === 'yaml' || desc === 'events' || desc === 'manifest' || desc === 'values' || desc === 'release history') {
-      permissionCache.set(cacheKey, undefined);
       return undefined;
     }
     // Delete
     if (desc.includes('delete') && (key.includes('+d'))) {
-      const allowed = await checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
-      permissionCache.set(cacheKey, allowed);
+      const allowed = await checkPermissionSSAR(resource, { verb: 'delete', nameOverride: resource.metadata.name }, apiResourceStore.apiResources as any);
       return allowed;
     }
     // Logs
     if (key === 'l' && desc.includes('logs')) {
-      const allowed = await checkPermission(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
-      permissionCache.set(cacheKey, allowed);
+      const allowed = await checkPermissionSSAR(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null }, apiResourceStore.apiResources as any);
       return allowed;
     }
     // Exec
     if (key === 'x' && desc.includes('exec')) {
-      const allowed = await checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
-      permissionCache.set(cacheKey, allowed);
+      const allowed = await checkPermissionSSAR(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null }, apiResourceStore.apiResources as any);
       return allowed;
     }
     // Scale
     if (desc.includes('scale') && key.includes('+s')) {
-      const allowed = await checkPermission(resource, { verb: 'update', subresource: 'scale' });
-      permissionCache.set(cacheKey, allowed);
+      const allowed = await checkPermissionSSAR(resource, { verb: 'update', subresource: 'scale' }, apiResourceStore.apiResources as any);
       return allowed;
     }
     // Rollout restart
     if (desc.includes('rollout restart') && key.includes('+r')) {
-      const allowed = await checkPermission(resource, { verb: 'patch' });
-      permissionCache.set(cacheKey, allowed);
+      const allowed = await checkPermissionSSAR(resource, { verb: 'patch' }, apiResourceStore.apiResources as any);
       return allowed;
     }
     // Flux reconcile
     if (desc.startsWith('reconcile')) {
-      const mainAllowed = await checkPermission(resource, { verb: 'patch' });
+      const mainAllowed = await checkPermissionSSAR(resource, { verb: 'patch' }, apiResourceStore.apiResources as any);
       if (!mainAllowed) return false;
       if (desc.includes('with sources')) {
         const src: any = (resource as any)?.spec?.sourceRef;
         if (src?.kind && src?.name) {
           const srcGroup = typeof src?.apiVersion === 'string' && src.apiVersion.includes('/') ? src.apiVersion.split('/')[0] : undefined;
           const tempResource = { ...resource, kind: src.kind, apiVersion: src.apiVersion || '', metadata: { name: src.name, namespace: src.namespace || resource.metadata.namespace } } as MinimalK8sResource;
-          const srcAllowed = await checkPermission(tempResource, { verb: 'patch', groupOverride: srcGroup });
+          const srcAllowed = await checkPermissionSSAR(tempResource, { verb: 'patch', groupOverride: srcGroup }, apiResourceStore.apiResources as any);
           if (!srcAllowed) return false;
         }
       }
-      permissionCache.set(cacheKey, true);
       return true;
     }
     return undefined;
