@@ -30,6 +30,37 @@ export type ActiveFilter = {
   value: string;
 };
 
+// Preferred/common Kubernetes kinds used for highlighting when searching Resource Types
+const preferredResourceKinds: string[] = [
+  "Pod",
+  "Deployment",
+  "Service",
+  "Ingress",
+  "ConfigMap",
+  "Secret",
+  "StatefulSet",
+  "DaemonSet",
+  "Job",
+  "CronJob",
+  "PersistentVolumeClaim",
+  "PersistentVolume",
+  "Namespace",
+  "Node",
+  "ReplicaSet",
+];
+
+// Determine preferred highlight index among options
+const getPreferredHighlightIndex = (filter: Filter, options: FilterOption[]): number => {
+  if (!options || options.length === 0) return -1;
+  if (filter.name === "ResourceType") {
+    const preferredSet = new Set(preferredResourceKinds.map(k => k.toLowerCase()));
+    const preferredIndex = options.findIndex(opt => preferredSet.has(opt.label.toLowerCase()));
+    if (preferredIndex >= 0) return preferredIndex;
+    return 0;
+  }
+  return 0;
+};
+
 // Helper function to check if a search term matches any abbreviations for a resource kind
 const matchesAbbreviation = (resourceKind: string, searchTerm: string): boolean => {
   // Find the resource config that matches this kind
@@ -230,6 +261,20 @@ export function FilterBar(props: {
             initialIndex = selectedOptionIndex;
           }
         }
+
+        // If nothing is selected, default highlight behavior
+        if (initialIndex < 0) {
+          if (!filter.multiSelect) {
+            // Default to first option for single-select filters
+            const options = getFilteredOptions(filter);
+            if (options.length > 0) {
+              initialIndex = 0;
+            }
+          } else {
+            // Keep "All" highlighted for multi-select
+            initialIndex = -1;
+          }
+        }
       }
       
       // Set initial highlighted index and schedule scrolling
@@ -363,17 +408,30 @@ export function FilterBar(props: {
     if (!filter || filter.type === "text" || !filter.options) return;
     
     const searchTerm = optionSearchInputs()[currentFilter]?.toLowerCase() || "";
-    if (!searchTerm) return;
+    if (!searchTerm) {
+      // No search: ensure default highlight is the first item for single-select
+      if (!filter.multiSelect) {
+        const options = getFilteredOptions(filter);
+        if (options.length > 0) {
+          setHighlightedOptionIndex(0);
+          setTimeout(() => scrollHighlightedOptionIntoView(currentFilter), 0);
+        } else {
+          setHighlightedOptionIndex(-1);
+        }
+      } else {
+        // Multi-select keeps the "All" option highlight by default
+        setHighlightedOptionIndex(-1);
+      }
+      return;
+    }
     
-    // Get filtered options based on search
-    const filteredOptions = filter.options.filter(option => 
-      option.label.toLowerCase().includes(searchTerm) || 
-      option.value.toLowerCase().includes(searchTerm)
-    );
+    // Get filtered options using the same logic as rendering (supports abbreviations)
+    const filteredOptions = getFilteredOptions(filter);
     
-    // If exactly one option remains, automatically highlight it
-    if (filteredOptions.length === 1) {
-      setHighlightedOptionIndex(0);
+    // Always highlight something when there is a search term
+    if (filteredOptions.length >= 1) {
+      const index = getPreferredHighlightIndex(filter, filteredOptions);
+      setHighlightedOptionIndex(index);
       setTimeout(() => scrollHighlightedOptionIntoView(currentFilter), 0);
     } else {
       setHighlightedOptionIndex(-1);
@@ -613,10 +671,7 @@ export function FilterBar(props: {
                               value={optionSearchInputs()[filter.name] || ""}
                               onInput={(e) => {
                                 setOptionSearchInputs(prev => ({ ...prev, [filter.name]: e.currentTarget.value }));
-                                // We'll let the effect handle highlighting if there's exactly one option
-                                if (e.currentTarget.value === "") {
-                                  setHighlightedOptionIndex(-1); // Reset highlight when search is cleared
-                                }
+                                // Reset highlight handled by effect to set sensible default
                               }}
                               ref={el => optionSearchInputRefs.set(filter.name, el)}
                               onKeyDown={(e) => handleFilterInputKeyDown(e, filter)}
