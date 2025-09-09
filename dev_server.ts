@@ -41,7 +41,7 @@ Deno.serve({ port: 8001 }, async (req: Request) => {
   
     // 🗂 Serve static files
     return serveDir(req, {
-      fsRoot: "public",
+      fsRoot: "bundle",
       urlRoot: "",
       showDirListing: true,
     });
