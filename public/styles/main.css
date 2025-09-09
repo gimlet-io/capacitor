@@ -413,7 +413,7 @@ h1 {
 .kustomization-details {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh; /* allow page to grow */
 }
 
 .kustomization-header {
@@ -422,8 +422,8 @@ h1 {
 }
 
 .resource-tree-wrapper {
-  flex: 1;
-  overflow: hidden;
+  flex: 1 0 auto;
+  overflow: visible; /* let content grow vertically */
   position: relative;
 }
 
@@ -587,8 +587,8 @@ h1 {
 .resource-tree-container {
   position: relative;
   width: 100%;
-  height: calc(100vh - 200px); /* Adjust height to fit the screen */
-  overflow: hidden;
+  height: auto; /* allow vertical growth */
+  overflow: visible;
 }
 
 /* Resource Card Styling */
@@ -657,8 +657,9 @@ h1 {
 .graph-container {
   position: relative;
   width: 100%;
-  height: 100%;
-  overflow: auto hidden; /* horizontal scroll only */
+  height: auto;
+  overflow-x: auto; /* horizontal scroll */
+  overflow-y: visible; /* let page scroll vertically */
   cursor: grab;
 }
 
@@ -669,6 +670,7 @@ h1 {
 .graph-svg {
   display: block;
   min-width: 100%;
+  height: auto; /* let height be defined by content */
   background-color: var(--linear-bg);
 }
 
@@ -681,50 +683,7 @@ h1 {
   right: 10px;
 }
 
-/* Zoom controls */
-.zoom-controls {
-  display: flex;
-  flex-direction: row;
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  background-color: var(--linear-bg);
-  border: 1px solid var(--linear-border);
-  border-radius: 4px;
-  box-shadow: var(--linear-shadow);
-  z-index: 10;
-}
-
-.zoom-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background-color: transparent;
-  cursor: pointer;
-  font-size: 18px;
-  color: var(--linear-text-secondary);
-  transition: background-color 0.2s ease;
-}
-
-.zoom-button:hover {
-  background-color: var(--linear-bg-secondary);
-  color: var(--linear-text-primary);
-}
-
-.zoom-button:active {
-  background-color: var(--linear-bg-tertiary);
-}
-
-.zoom-button span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
+/* Zoom controls removed */
 
 /* Tree keyboard shortcuts positioned in top right */
 .tree-keyboard-shortcuts {
