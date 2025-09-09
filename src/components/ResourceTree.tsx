@@ -246,11 +246,11 @@ export function ResourceTree(props: ResourceTreeProps) {
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs">("describe");
 
-  // Add state for zoom and pan
-  const [scale, setScale] = createSignal(1);
+  // Pan state (horizontal only)
   const [translate, setTranslate] = createSignal({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = createSignal(false);
   const [dragStart, setDragStart] = createSignal({ x: 0, y: 0 });
+  const [canPanHorizontally, setCanPanHorizontally] = createSignal(false);
 
   // Get all nodes with their resources
   const resourceNodes = createMemo(() => {
@@ -429,32 +429,11 @@ export function ResourceTree(props: ResourceTreeProps) {
     return allCommands.map(cmd => cmd.shortcut);
   };
 
-  // Zoom and pan handlers
-  const handleWheel = (e: WheelEvent) => {
-    e.preventDefault();
-    
-    if (!svgRef) return;
-    
-    // Calculate the point where the mouse is hovering (in SVG coordinates)
-    const svgRect = svgRef.getBoundingClientRect();
-    const mouseX = (e.clientX - svgRect.left) / scale() - translate().x;
-    const mouseY = (e.clientY - svgRect.top) / scale() - translate().y;
-    
-    // Calculate new scale
-    const delta = e.deltaY > 0 ? 0.9 : 1.1; // Zoom in or out
-    const newScale = Math.min(Math.max(scale() * delta, 0.1), 3); // Limit zoom between 0.1x and 3x
-    
-    // Calculate new translate to keep mouse position fixed
-    const newTranslateX = mouseX - (mouseX - translate().x) * (newScale / scale());
-    const newTranslateY = mouseY - (mouseY - translate().y) * (newScale / scale());
-    
-    setScale(newScale);
-    setTranslate({ x: newTranslateX, y: newTranslateY });
-  };
+  // Pan handlers (horizontal only)
 
   const handleMouseDown = (e: MouseEvent) => {
     // Only start dragging if it's a middle-click or left-click on the background
-    if ((e.button === 1) || (e.button === 0 && (e.target === svgRef || e.target === gRef))) {
+    if (((e.button === 1) || (e.button === 0 && (e.target === svgRef || e.target === gRef))) && canPanHorizontally()) {
       e.preventDefault();
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
@@ -463,12 +442,11 @@ export function ResourceTree(props: ResourceTreeProps) {
 
   const handleMouseMove = (e: MouseEvent) => {
     if (isDragging()) {
-      const dx = (e.clientX - dragStart().x) / scale();
-      const dy = (e.clientY - dragStart().y) / scale();
-      
+      const dx = (e.clientX - dragStart().x);
+      // vertical panning is disabled to allow normal page scroll
       setTranslate(prev => ({
         x: prev.x + dx,
-        y: prev.y + dy
+        y: 0
       }));
       
       setDragStart({ x: e.clientX, y: e.clientY });
@@ -479,44 +457,7 @@ export function ResourceTree(props: ResourceTreeProps) {
     setIsDragging(false);
   };
 
-  const handleTouchStart = (e: TouchEvent) => {
-    if (e.touches.length === 1) {
-      e.preventDefault();
-      setIsDragging(true);
-      setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    }
-  };
-
-  const handleTouchMove = (e: TouchEvent) => {
-    if (isDragging() && e.touches.length === 1) {
-      const dx = (e.touches[0].clientX - dragStart().x) / scale();
-      const dy = (e.touches[0].clientY - dragStart().y) / scale();
-      
-      setTranslate(prev => ({
-        x: prev.x + dx,
-        y: prev.y + dy
-      }));
-      
-      setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    }
-  };
-
-  const handleTouchEnd = () => {
-    setIsDragging(false);
-  };
-
-  const zoomIn = () => {
-    setScale(prev => Math.min(prev * 1.2, 3));
-  };
-
-  const zoomOut = () => {
-    setScale(prev => Math.max(prev / 1.2, 0.1));
-  };
-
-  const resetZoom = () => {
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
-  };
+  // Touch events are not used; allow native vertical scrolling on touch devices
   
   const renderGraph = (g: graphlib.Graph) => {
     if (!svgRef || !gRef || !g) return;
@@ -683,9 +624,11 @@ export function ResourceTree(props: ResourceTreeProps) {
     const minWidth = svgRef.parentElement?.clientWidth || 800;
     svgRef.setAttribute("width", `${Math.max(maxX + padding, minWidth)}px`);
     svgRef.setAttribute("height", `${maxY + padding}px`);
+    // Allow panning only when content width exceeds container width
+    setCanPanHorizontally((maxX + padding) > minWidth);
     
     // Apply transform to the group element for zoom and pan
-    gRef.setAttribute("transform", `translate(${translate().x}, ${translate().y}) scale(${scale()})`);
+    gRef.setAttribute("transform", `translate(${translate().x}, 0)`);
   };
 
   createEffect(() => {
@@ -696,13 +639,9 @@ export function ResourceTree(props: ResourceTreeProps) {
     globalThis.addEventListener('keydown', handleKeyDown);
     if (svgRef) {
       svgRef.addEventListener('click', handleSvgClick);
-      svgRef.addEventListener('wheel', handleWheel, { passive: false });
       svgRef.addEventListener('mousedown', handleMouseDown);
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      svgRef.addEventListener('touchstart', handleTouchStart, { passive: false });
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
     }
   });
 
@@ -710,13 +649,9 @@ export function ResourceTree(props: ResourceTreeProps) {
     globalThis.removeEventListener('keydown', handleKeyDown);
     if (svgRef) {
       svgRef.removeEventListener('click', handleSvgClick);
-      svgRef.removeEventListener('wheel', handleWheel);
       svgRef.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-      svgRef.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
     }
     // Make sure to restore scrolling in case component is unmounted while drawer is open
     document.body.style.overflow = '';
@@ -743,18 +678,7 @@ export function ResourceTree(props: ResourceTreeProps) {
         </Show>
       </div>
 
-      {/* Zoom controls */}
-      <div class="zoom-controls">
-        <button type="button" class="zoom-button" onClick={zoomIn} title="Zoom In">
-          <span>+</span>
-        </button>
-        <button type="button" class="zoom-button" onClick={resetZoom} title="Reset Zoom">
-          <span>⟳</span>
-        </button>
-        <button type="button" class="zoom-button" onClick={zoomOut} title="Zoom Out">
-          <span>−</span>
-        </button>
-      </div>
+      {/* Zoom controls removed */}
 
       {/* Resource drawer */}
       <ResourceDrawer
