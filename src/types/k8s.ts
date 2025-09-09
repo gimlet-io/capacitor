@@ -917,6 +917,10 @@ export interface DaemonSetList {
   items: DaemonSet[];
 }
 
+export interface DaemonSetWithResources extends DaemonSet {
+  pods: Pod[];
+}
+
 // Namespace
 export interface NamespaceSpec {
   finalizers?: string[];

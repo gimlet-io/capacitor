@@ -12,6 +12,9 @@ import type { Pod,
   Bucket,
   Job,
   JobWithResources,
+  StatefulSet,
+  StatefulSetWithResources,
+  DaemonSet,
 } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
@@ -85,6 +88,38 @@ export const updateJobMatchingResources = (job: Job, allPods: Pod[]): JobWithRes
     ...job,
     pods: getJobMatchingPods(job, allPods)
   };
+};
+
+// StatefulSet -> Pods
+export const getStatefulSetMatchingPods = (statefulSet: StatefulSet, allPods: Pod[]) => {
+  const selectorLabels = statefulSet.spec?.selector?.matchLabels || statefulSet.spec?.template?.metadata?.labels;
+  if (!selectorLabels) return [];
+  return allPods.filter(pod => 
+    Object.entries(selectorLabels).every(([key, value]) => pod.metadata.labels?.[key] === value)
+  );
+};
+
+export const updateStatefulSetMatchingResources = (statefulSet: StatefulSet, allPods: Pod[]): StatefulSetWithResources => {
+  return {
+    ...statefulSet,
+    pods: getStatefulSetMatchingPods(statefulSet, allPods)
+  };
+};
+
+// DaemonSet -> Pods
+export const getDaemonSetMatchingPods = (daemonSet: DaemonSet, allPods: Pod[]) => {
+  const selectorLabels = daemonSet.spec?.selector?.matchLabels || daemonSet.spec?.template?.metadata?.labels;
+  if (!selectorLabels) return [];
+  return allPods.filter(pod => 
+    Object.entries(selectorLabels).every(([key, value]) => pod.metadata.labels?.[key] === value)
+  );
+};
+
+export const updateDaemonSetMatchingResources = (daemonSet: DaemonSet, allPods: Pod[]) => {
+  return {
+    ...daemonSet,
+    pods: getDaemonSetMatchingPods(daemonSet, allPods)
+  } as DaemonSet & { pods: Pod[] };
 };
 
 export const updateKustomizationMatchingEvents = (kustomization: ExtendedKustomization, allEvents: Event[]): ExtendedKustomization => {

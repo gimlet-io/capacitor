@@ -47,7 +47,7 @@ import {
   updateKustomizationMatchingBuckets,
   updateKustomizationMatchingOCIRepositories
 } from "./utils/k8s.ts";
-import { updateJobMatchingResources } from "./utils/k8s.ts";
+import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources } from "./utils/k8s.ts";
 
 export interface Column<T> {
   header: string;
@@ -115,6 +115,12 @@ export const navigateToSecret: ResourceCommand = {
 // Define a command to switch to viewing pods in a namespace
 export const showPodsInNamespace: ResourceCommand = {
   shortcut: { key: "Enter", description: "View pods in this namespace", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
+// Define a command to view pods related to a resource (workloads/services)
+export const showRelatedPods: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View related pods", isContextual: true },
   handler: null as any // Will be implemented in ResourceList
 };
 
@@ -279,7 +285,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
-      }
+      },
+      showRelatedPods
     ],
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
@@ -312,12 +319,20 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
-      }
+      },
+      showRelatedPods
     ],
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
-    abbreviations: ['sts']
+    abbreviations: ['sts'],
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (statefulSet, pods) => updateStatefulSetMatchingResources(statefulSet, pods),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ]
   },
   
   'core/Service': {
@@ -328,6 +343,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "Mod+p", description: "Copy port-forward", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
+      showRelatedPods,
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
@@ -396,11 +412,19 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+r", description: "Rollout restart", isContextual: true },
         handler: handleRolloutRestart
-      }
+      },
+      showRelatedPods
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
-    abbreviations: ['ds']
+    abbreviations: ['ds'],
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (daemonSet, pods) => updateDaemonSetMatchingResources(daemonSet, pods),
+        isParent: (resource: any, obj: any) => {return false}
+      }
+    ]
   },
 
   'apps/ReplicaSet': {
