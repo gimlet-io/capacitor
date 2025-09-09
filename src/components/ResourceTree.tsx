@@ -285,6 +285,39 @@ export function ResourceTree(props: ResourceTreeProps) {
     return resourceTypeConfigs[lookupKey] || null;
   });
 
+  // Auto-select root resource node when graph loads or selection is invalid
+  createEffect(() => {
+    const graph = g();
+    if (!graph) return;
+
+    const allNodeIds = graph.nodes();
+    const current = selectedNodeId();
+    // If there is a current selection and it's still present, keep it
+    if (current && allNodeIds.includes(current)) return;
+
+    // Find a resource node with no predecessors (root); fallback to first resource node
+    let rootId: string | null = null;
+    for (const nodeId of allNodeIds) {
+      const node = graph.node(nodeId) as NodeData;
+      if (!node?.resource) continue;
+      const predecessors = graph.predecessors(nodeId) || [];
+      if (predecessors.length === 0) {
+        rootId = nodeId;
+        break;
+      }
+    }
+    if (!rootId) {
+      const firstResourceNodeId = allNodeIds.find(id => !!(graph.node(id) as NodeData)?.resource);
+      if (firstResourceNodeId) rootId = firstResourceNodeId;
+    }
+
+    if (rootId) {
+      setSelectedNodeId(rootId);
+      const node = graph.node(rootId) as NodeData;
+      setSelectedResource(node?.resource || null);
+    }
+  });
+
   // Import drawer-related functions from ResourceList component
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs", resource: any) => {
     setSelectedResource(resource);
