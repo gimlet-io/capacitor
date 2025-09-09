@@ -122,7 +122,7 @@ fi
 
 echo
 echo -e "${BOLD}Next steps${RESET}"
-echo -e "- Run:  ${GREEN}next --port 3333${RESET}"
+echo -e "- Run:  ${GREEN}next -p 3333${RESET}"
 echo -e "- Open: ${CYAN}http://localhost:3333${RESET} in your browser"
 echo -e "- Help: ${DIM}next --help${RESET}"
 echo
