@@ -257,6 +257,56 @@ export function KustomizationDetails() {
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
   
+  // Batch queues and timers per resource type id (to avoid flooding renders)
+  type K8sObjMinimal = { metadata?: { name?: string; namespace?: string } };
+  const batchQueues: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: K8sObjMinimal }>> = {};
+  const batchTimers: Record<string, number | undefined> = {};
+  
+  const scheduleFlush = (resourceTypeId: string) => {
+    if (batchTimers[resourceTypeId] !== undefined) return;
+    batchTimers[resourceTypeId] = setTimeout(() => {
+      const changes = batchQueues[resourceTypeId] || [];
+      batchQueues[resourceTypeId] = [];
+      batchTimers[resourceTypeId] = undefined;
+      if (changes.length === 0) return;
+
+      setDynamicResources(prev => {
+        const current = prev[resourceTypeId] || [];
+        // Build index by namespace/name for efficient updates
+        const keyOf = (obj: K8sObjMinimal) => `${obj?.metadata?.namespace || ''}/${obj?.metadata?.name || ''}`;
+        const keyToIndex = new Map<string, number>();
+        for (let i = 0; i < current.length; i++) {
+          keyToIndex.set(keyOf(current[i] as K8sObjMinimal), i);
+        }
+        const next = current.slice();
+
+        for (const evt of changes) {
+          const key = keyOf(evt.object);
+          if (!key) continue;
+          const idx = keyToIndex.get(key);
+          if (evt.type === 'DELETED') {
+            if (idx !== undefined) {
+              next.splice(idx, 1);
+              keyToIndex.delete(key);
+              // Rebuild remaining indexes lazily only when needed
+            }
+          } else {
+            if (idx === undefined) {
+              keyToIndex.set(key, next.length);
+              next.push(evt.object);
+            } else {
+              next[idx] = evt.object;
+            }
+          }
+        }
+
+        // Sort once per flush (stable display)
+        next.sort((a, b) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+        return { ...prev, [resourceTypeId]: next };
+      });
+    }, 16) as unknown as number;
+  };
+  
   // Resource visibility functions
   const isResourceTypeVisible = (resourceType: string): boolean => {
     return visibleResourceTypes().has(resourceType);
@@ -367,6 +417,13 @@ export function KustomizationDetails() {
     untrack(() => {
       watchControllers().forEach((controller) => controller.abort());
     });
+    // Clear any pending batch timers
+    Object.keys(batchTimers).forEach((k) => {
+      if (batchTimers[k] !== undefined) {
+        clearTimeout(batchTimers[k]!);
+        batchTimers[k] = undefined;
+      }
+    });
   });
 
   const setupWatches = (ns: string, name: string) => {
@@ -377,6 +434,14 @@ export function KustomizationDetails() {
 
     // Clear existing resources
     setDynamicResources({});
+    // Reset batch state
+    Object.keys(batchQueues).forEach((k) => (batchQueues[k] = []));
+    Object.keys(batchTimers).forEach((k) => {
+      if (batchTimers[k] !== undefined) {
+        clearTimeout(batchTimers[k]!);
+        batchTimers[k] = undefined;
+      }
+    });
     // Reset all kustomizations cache for dependency graph
     setAllKustomizations([]);
 
@@ -614,39 +679,11 @@ export function KustomizationDetails() {
     const controller = new AbortController();
     watchResource(
       watchPath,
-      (event: { type: string; object: any; }) => {
-        if (event.type === 'ADDED') {
-          setDynamicResources(prev => {
-            const current = prev[resourceType.resourceType] || [];
-            return {
-              ...prev,
-              [resourceType.resourceType]: [...current, event.object].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)
-              )
-            };
-          });
-        } else if (event.type === 'MODIFIED') {
-          setDynamicResources(prev => {
-            const current = prev[resourceType.resourceType] || [];
-            return {
-              ...prev,
-              [resourceType.resourceType]: current.map((res: any) => res.metadata.name === event.object.metadata.name &&
-                res.metadata.namespace === event.object.metadata.namespace
-                ? event.object
-                : res
-              )
-            };
-          });
-        } else if (event.type === 'DELETED') {
-          setDynamicResources(prev => {
-            const current = prev[resourceType.resourceType] || [];
-            return {
-              ...prev,
-              [resourceType.resourceType]: current.filter((res: any) => !(res.metadata.name === event.object.metadata.name &&
-                res.metadata.namespace === event.object.metadata.namespace)
-              )
-            };
-          });
-        }
+      (event: { type: string; object?: K8sObjMinimal; }) => {
+        if (event.type === 'ERROR' || !event.object) return;
+        // Queue event and schedule a flush for this resource type
+        (batchQueues[resourceType.resourceType] ||= []).push({ type: event.type as 'ADDED' | 'MODIFIED' | 'DELETED', object: event.object });
+        scheduleFlush(resourceType.resourceType);
       },
       controller,
       setWatchStatus
