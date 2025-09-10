@@ -10,6 +10,7 @@ import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
+import { Tabs } from "../components/Tabs.tsx";
 
 export function TerraformDetails() {
   const params = useParams();
@@ -32,6 +33,23 @@ export function TerraformDetails() {
 
   // Dropdown state for reconcile split button
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
+
+  // Tabs state
+  const [activeTab, setActiveTab] = createSignal<"plan" | "output">("plan");
+
+  // Plan / Output state
+  const [planConfigMap, setPlanConfigMap] = createSignal<{
+    data?: Record<string, string>;
+    binaryData?: Record<string, string>;
+  } | null>(null);
+  const [planSecret, setPlanSecret] = createSignal<{
+    data?: Record<string, string>;
+    stringData?: Record<string, string>;
+  } | null>(null);
+  const [outputsSecret, setOutputsSecret] = createSignal<{
+    data?: Record<string, string>;
+    stringData?: Record<string, string>;
+  } | null>(null);
 
   // Compute permissions
   createEffect(() => {
@@ -121,6 +139,59 @@ export function TerraformDetails() {
           const list = (prev.events || []).filter((e) => e.metadata.name !== obj.metadata.name);
           return { ...prev, events: [obj, ...list].slice(0, 50) } as Terraform & { events?: Event[] };
         });
+      };
+      const noopSetWatchStatus = (_: string) => {};
+      watchResource(path, callback, controller, noopSetWatchStatus);
+      controllers.push(controller);
+    }
+
+    // Watch ConfigMaps in namespace to capture plan ConfigMap (fallback if plan stored as ConfigMap)
+    {
+      const controller = new AbortController();
+      const path = `/k8s/api/v1/namespaces/${ns}/configmaps?watch=true`;
+      const callback = (event: { type: string; object: { metadata: { name: string; namespace: string }; data?: Record<string, string>; binaryData?: Record<string, string> } }) => {
+        const obj = event.object;
+        if (!obj || obj.metadata.namespace !== ns) return;
+        const tfCurrent = terraform();
+        const planRef = tfCurrent?.status?.plan?.lastApplied;
+        if (!planRef || obj.metadata.name !== planRef) return;
+        if (event.type === 'DELETED') {
+          setPlanConfigMap(null);
+        } else {
+          setPlanConfigMap({ data: obj.data, binaryData: obj.binaryData });
+        }
+      };
+      const noopSetWatchStatus = (_: string) => {};
+      watchResource(path, callback, controller, noopSetWatchStatus);
+      controllers.push(controller);
+    }
+
+    // Watch Secrets in namespace to capture plan Secret (status.plan.lastApplied) and outputs Secret from status.availableOutputs
+    {
+      const controller = new AbortController();
+      const path = `/k8s/api/v1/namespaces/${ns}/secrets?watch=true`;
+      const callback = (event: { type: string; object: { metadata: { name: string; namespace: string }; data?: Record<string, string>; stringData?: Record<string, string> } }) => {
+        const obj = event.object;
+        if (!obj || obj.metadata.namespace !== ns) return;
+        const tfCurrent = terraform();
+        const outputsSecretName = tfCurrent?.status?.availableOutputs;
+        const planSecretName = tfCurrent?.status?.plan?.lastApplied;
+
+        if (planSecretName && obj.metadata.name === planSecretName) {
+          if (event.type === 'DELETED') {
+            setPlanSecret(null);
+          } else {
+            setPlanSecret({ data: obj.data, stringData: obj.stringData });
+          }
+        }
+
+        if (outputsSecretName && obj.metadata.name === outputsSecretName) {
+          if (event.type === 'DELETED') {
+            setOutputsSecret(null);
+          } else {
+            setOutputsSecret({ data: obj.data, stringData: obj.stringData });
+          }
+        }
       };
       const noopSetWatchStatus = (_: string) => {};
       watchResource(path, callback, controller, noopSetWatchStatus);
@@ -256,10 +327,10 @@ export function TerraformDetails() {
                         <span class="value">{tf().spec.approvePlan}</span>
                       </div>
                     )}
-                    {tf().spec.writeOutputsToSecret?.name && (
+                    {tf().status?.availableOutputs && (
                       <div class="info-item">
                         <span class="label">Outputs Secret:</span>
-                        <span class="value">{tf().spec.writeOutputsToSecret?.name}</span>
+                        <span class="value">{tf().status?.availableOutputs}</span>
                       </div>
                     )}
                     <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
@@ -296,6 +367,116 @@ export function TerraformDetails() {
                   </div>
                 </div>
               </header>
+
+              {/* Tabs for Terraform plan and output */}
+              <div style="padding: 0rem 1rem 1rem 1rem">
+                <Tabs
+                  tabs={[
+                    { key: 'plan', label: (
+                      <span>
+                        Plan{(() => {
+                          const name = terraform()?.status?.plan?.lastApplied;
+                          if (!name) return '';
+                          const kind = planSecret() ? 'Secret' : (planConfigMap() ? 'ConfigMap' : '');
+                          return kind ? ` (${kind}: ${name})` : ` (${name})`;
+                        })()}
+                      </span>
+                    ) },
+                    { key: 'output', label: (
+                      <span>
+                        Output{(() => {
+                          const name = terraform()?.status?.availableOutputs;
+                          return name ? ` (Secret: ${name})` : '';
+                        })()}
+                      </span>
+                    ) }
+                  ]}
+                  activeKey={activeTab()}
+                  onChange={(k) => setActiveTab(k as 'plan' | 'output')}
+                  style={{ "margin-top": "12px" }}
+                />
+
+                <Show when={activeTab() === 'plan'}>
+                  <div class="resource-tree-wrapper">
+                    <div class="info-grid">
+                      <div class="info-item full-width">
+                        <pre class="conditions-yaml">
+{(() => {
+  const sec = planSecret();
+  if (sec) {
+    const decoded: Record<string, string> = {};
+    if (sec.stringData) {
+      Object.entries(sec.stringData).forEach(([k, v]) => { decoded[k] = v; });
+    }
+    if (sec.data) {
+      Object.entries(sec.data).forEach(([k, v]) => {
+        try { decoded[k] = atob(v); } catch (_e) { decoded[k] = '<binary data>'; }
+      });
+    }
+    const parts: string[] = [];
+    Object.entries(decoded).forEach(([k, v]) => { parts.push(`--- ${k} ---\n${v}`); });
+    return parts.length ? parts.join('\n\n') : 'No plan available';
+  }
+
+  const cm = planConfigMap();
+  if (cm) {
+    const sections: string[] = [];
+    const addSection = (key: string, value: string) => {
+      sections.push(`--- ${key} ---\n${value}`);
+    };
+    if (cm.data) {
+      Object.entries(cm.data).forEach(([k, v]) => addSection(k, v));
+    }
+    if (cm.binaryData) {
+      Object.entries(cm.binaryData).forEach(([k, v]) => {
+        try { addSection(k, atob(v)); } catch (_e) { addSection(k, '<binary data>'); }
+      });
+    }
+    return sections.length ? sections.join('\n\n') : 'No plan available';
+  }
+
+  return 'No plan available';
+})()}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={activeTab() === 'output'}>
+                  <div class="resource-tree-wrapper">
+                    <div class="info-grid">
+                      <div class="info-item full-width">
+                        <pre class="conditions-yaml">
+{(() => {
+  const sec = outputsSecret();
+  const secretName = tf().status?.availableOutputs;
+  if (!secretName) return 'No outputs secret configured';
+  if (!sec || (!sec.data && !sec.stringData)) return `Secret ${secretName} not found`;
+  const decoded: Record<string, string> = {};
+  if (sec.stringData) {
+    Object.entries(sec.stringData).forEach(([k, v]) => { decoded[k] = v; });
+  }
+  if (sec.data) {
+    Object.entries(sec.data).forEach(([k, v]) => {
+      try { decoded[k] = atob(v); } catch (_e) { decoded[k] = '<binary data>'; }
+    });
+  }
+  try {
+    // Try to pretty print JSON values if single key contains JSON
+    if (Object.keys(decoded).length === 1) {
+      const only = decoded[Object.keys(decoded)[0]];
+      try { return JSON.stringify(JSON.parse(only), null, 2); } catch (_e) { /* fallthrough */ }
+    }
+  } catch (_e) { /* ignore */ }
+  return stringifyYAML(decoded);
+})()}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+              </div>
 
               {/* Diff Drawer */}
               <Show when={diffDrawerOpen()}>

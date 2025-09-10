@@ -360,6 +360,13 @@ export interface Terraform {
     conditions?: Condition[];
     lastAppliedRevision?: string;
     lastAttemptedRevision?: string;
+    // Name of the Secret containing current outputs
+    availableOutputs?: string;
+    // Plan related info
+    plan?: {
+      // Name of the Secret/ConfigMap containing the last applied plan
+      lastApplied?: string;
+    };
   };
 }
 
