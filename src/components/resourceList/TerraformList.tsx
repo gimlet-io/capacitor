@@ -65,7 +65,7 @@ export const terraformColumns = [
           {readyCondition?.status === ConditionStatus.False && (
             <span class="status-badge not-ready">NotReady</span>
           )}
-          {reconcilingCondition?.status === ConditionStatus.True && (
+          {readyCondition?.status === ConditionStatus.Unknown && (
             <span class="status-badge reconciling">Reconciling</span>
           )}
           {terraform.spec.suspend && (
