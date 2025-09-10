@@ -125,6 +125,37 @@ export function TerraformDetails() {
     })();
   });
 
+  // Initial fetch of plan object to avoid relying solely on watch events
+  createEffect(() => {
+    const tf = terraform();
+    const ns = params.namespace;
+    (async () => {
+      if (!tf || !ns) return;
+      const mode = tf.spec?.storeReadablePlan;
+      if (!mode || mode === 'none') return;
+      const expected = expectedPlanObjectName(tf).name;
+      const preferred = tf.status?.plan?.lastApplied || expected;
+      if (!preferred) return;
+      if (mode === 'human') {
+        try {
+          const resp = await fetch(`/k8s/api/v1/namespaces/${ns}/configmaps/${preferred}`);
+          if (resp.ok) {
+            const cm = await resp.json();
+            setPlanConfigMap({ data: cm.data, binaryData: cm.binaryData });
+          }
+        } catch (_e) { /* ignore */ }
+      } else if (mode === 'json') {
+        try {
+          const resp = await fetch(`/k8s/api/v1/namespaces/${ns}/secrets/${preferred}`);
+          if (resp.ok) {
+            const sec = await resp.json();
+            setPlanSecret({ data: sec.data, stringData: sec.stringData });
+          }
+        } catch (_e) { /* ignore */ }
+      }
+    })();
+  });
+
   // Compute permissions
   createEffect(() => {
     const tf = terraform();
@@ -496,7 +527,7 @@ export function TerraformDetails() {
                   <div class="resource-tree-wrapper">
                     <div class="info-grid">
                       <div class="info-item full-width">
-                        <pre class="conditions-yaml">
+                        <pre class="conditions-yaml plan-text">
 {(() => {
   const tf = terraform();
   const conds = tf?.status?.conditions;
@@ -510,73 +541,69 @@ export function TerraformDetails() {
     return `no readable plan available\nplease set spec.storeReadablePlan to either 'human' or 'json'`;
   }
 
-  // If no pending plan message per tfctl
-  if (!tf?.status?.plan?.pending) {
-    return 'There is no plan pending.';
-  }
-
   // Render based on mode
   const mode = tf.spec.storeReadablePlan;
   if (mode === 'json') {
     const text = jsonPlanText();
     if (text) return text;
     const name = tf.status?.plan?.lastApplied || '<unknown>';
+    // If nothing loaded yet, fall through to messaging below
     return `Plan Secret ${name} not found or failed to decode`;
   }
 
-  // human mode -> use ConfigMap/Secret textual parts if present
+  // human mode -> prefer ConfigMap, but also accept Secret if present
   const sec = planSecret();
-  if (sec) {
-    const decoded: Record<string, string> = {};
-    if (sec.stringData) {
-      Object.entries(sec.stringData).forEach(([k, v]) => { decoded[k] = v; });
-    }
-    if (sec.data) {
-      Object.entries(sec.data).forEach(([k, v]) => {
-        try { decoded[k] = atob(v); } catch (_e) { decoded[k] = '<binary data>'; }
-      });
-    }
-    const parts: string[] = [];
-    Object.entries(decoded).forEach(([k, v]) => { parts.push(`--- ${k} ---\n${v}`); });
-    const base = parts.length ? parts.join('\n\n') : 'No plan available';
-    // Append ready condition guidance similar to tfctl
-    if (readyMsg) {
-      if (readyMsg === 'Plan generated: This object is in the plan only mode.') {
-        return `${base}\n${readyMsg}`;
-      }
-      const resName = `${tf.metadata.name}`;
-      return `${base}\n${readyMsg}\nTo set the field, you can also run:\n\n tfctl approve ${resName} -f filename.yaml \n`;
-    }
-    return base;
-  }
-
   const cm = planConfigMap();
-  if (cm) {
-    const sections: string[] = [];
-    const addSection = (key: string, value: string) => {
-      sections.push(`--- ${key} ---\n${value}`);
-    };
-    if (cm.data) {
-      Object.entries(cm.data).forEach(([k, v]) => addSection(k, v));
-    }
-    if (cm.binaryData) {
-      Object.entries(cm.binaryData).forEach(([k, v]) => {
-        try { addSection(k, atob(v)); } catch (_e) { addSection(k, '<binary data>'); }
-      });
-    }
-    const base = sections.length ? sections.join('\n\n') : 'No plan available';
-    if (readyMsg) {
-      if (readyMsg === 'Plan generated: This object is in the plan only mode.') {
-        return `${base}\n${readyMsg}`;
+  if (sec || cm) {
+    if (sec) {
+      const decoded: Record<string, string> = {};
+      if (sec.stringData) {
+        Object.entries(sec.stringData).forEach(([k, v]) => { decoded[k] = v; });
       }
-      const resName = `${tf.metadata.name}`;
-      return `${base}\n${readyMsg}\nTo set the field, you can also run:\n\n tfctl approve ${resName} -f filename.yaml \n`;
+      if (sec.data) {
+        Object.entries(sec.data).forEach(([k, v]) => {
+          try { decoded[k] = atob(v); } catch (_e) { decoded[k] = '<binary data>'; }
+        });
+      }
+      const parts: string[] = [];
+      Object.entries(decoded).forEach(([k, v]) => { parts.push(`--- ${k} ---\n${v}`); });
+      const base = parts.length ? parts.join('\n\n') : 'No plan available';
+      if (readyMsg) {
+        if (readyMsg === 'Plan generated: This object is in the plan only mode.') {
+          return `${base}\n${readyMsg}`;
+        }
+        const resName = `${tf.metadata.name}`;
+        return `${base}\n${readyMsg}\nTo set the field, you can also run:\n\n tfctl approve ${resName} -f filename.yaml \n`;
+      }
+      return base;
     }
-    return base;
+    if (cm) {
+      const sections: string[] = [];
+      const addSection = (key: string, value: string) => {
+        sections.push(`--- ${key} ---\n${value}`);
+      };
+      if (cm.data) {
+        Object.entries(cm.data).forEach(([k, v]) => addSection(k, v));
+      }
+      if (cm.binaryData) {
+        Object.entries(cm.binaryData).forEach(([k, v]) => {
+          try { addSection(k, atob(v)); } catch (_e) { addSection(k, '<binary data>'); }
+        });
+      }
+      const base = sections.length ? sections.join('\n\n') : 'No plan available';
+      if (readyMsg) {
+        if (readyMsg === 'Plan generated: This object is in the plan only mode.') {
+          return `${base}\n${readyMsg}`;
+        }
+        const resName = `${tf.metadata.name}`;
+        return `${base}\n${readyMsg}\nTo set the field, you can also run:\n\n tfctl approve ${resName} -f filename.yaml \n`;
+      }
+      return base;
+    }
   }
 
-  console.log("configmap");
-
+  // Nothing loaded
+  if (!tf?.status?.plan?.pending) return 'There is no plan pending.';
   return 'No plan available';
 })()}
                         </pre>

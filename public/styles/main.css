@@ -2050,6 +2050,12 @@ td.message-cell {
   max-height: 300px;
 }
 
+/* Allow plan text to grow vertically without scrolling */
+.conditions-yaml.plan-text {
+  max-height: none;
+  overflow: visible;
+}
+
 .info-item details summary {
   cursor: pointer;
   color: var(--linear-text-secondary);
