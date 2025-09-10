@@ -5,7 +5,7 @@ import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
-import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
+import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff, handleFluxApprove } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
@@ -386,6 +386,18 @@ export function TerraformDetails() {
                         </div>
                       </Show>
                     </div>
+                    <Show when={tf().status?.plan?.pending}>
+                      <button
+                        class="sync-button"
+                        disabled={canPatch() === false}
+                        title={canPatch() === false ? "Not permitted" : undefined}
+                        onClick={() => {
+                          handleFluxApprove(tf()).catch((e) => console.error("Failed to approve plan:", e));
+                        }}
+                      >
+                        <span style={{ "margin-right": "5px", "font-weight": "bold" }}>✔</span> Approve
+                      </button>
+                    </Show>
 
                     {tf().spec.suspend ? (
                       <button

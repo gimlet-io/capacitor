@@ -185,3 +185,35 @@ export async function handleFluxDiff(resource: any): Promise<any> {
     throw error;
   }
 } 
+
+export async function handleFluxApprove(resource: FluxResource) {
+  try {
+    const response = await fetch('/api/flux/approve', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: resource.kind,
+        name: resource.metadata.name,
+        namespace: resource.metadata.namespace,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorText = 'Failed to approve plan';
+      try {
+        const errorData = await response.json();
+        errorText = errorData.error || errorText;
+      } catch (_e) { /* ignore */ }
+      throw new Error(errorText);
+    }
+
+    const data = await response.json();
+    console.log(data.message);
+    return data;
+  } catch (error) {
+    console.error('Error approving plan:', error);
+    throw error;
+  }
+}
