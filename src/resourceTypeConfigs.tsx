@@ -9,6 +9,7 @@ import { helmRepositoryColumns, renderHelmRepositoryDetails } from "./components
 import { ociRepositoryColumns, renderOCIRepositoryDetails } from "./components/resourceList/OCIRepositoryList.tsx";
 import { helmChartColumns, renderHelmChartDetails } from "./components/resourceList/HelmChartList.tsx";
 import { helmReleaseFluxColumns, renderHelmReleaseFluxDetails } from "./components/resourceList/HelmReleaseFluxList.tsx";
+import { terraformColumns, renderTerraformDetails } from "./components/resourceList/TerraformList.tsx";
 import { bucketColumns, renderBucketDetails } from "./components/resourceList/BucketList.tsx";
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
@@ -755,6 +756,26 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     filter: [fluxReadyFilter],
     abbreviations: ['hr']
+  },
+  
+  'infra.contrib.fluxcd.io/Terraform': {
+    columns: terraformColumns,
+    detailRowRenderer: renderTerraformDetails,
+    noSelectClass: true,
+    rowKeyField: "name",
+    commands: [
+      ...builtInCommands,
+      {
+        shortcut: { key: "Mod+r", description: "Reconcile Terraform", isContextual: true },
+        handler: handleFluxReconcile
+      },
+      {
+        shortcut: { key: "Mod+w", description: "Reconcile Terraform with sources", isContextual: true },
+        handler: handleFluxReconcileWithSources
+      }
+    ],
+    filter: [fluxReadyFilter],
+    abbreviations: ['tf']
   },
   
   'core/Event': {

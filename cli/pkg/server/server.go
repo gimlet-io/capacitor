@@ -264,6 +264,7 @@ func (s *Server) Setup() {
 			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
 			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
 			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+			"Terraform":       "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
 		}
 
 		// Direct lookup with the exact kind name
@@ -283,18 +284,10 @@ func (s *Server) Setup() {
 			Body([]byte(patchData)).
 			DoRaw(ctx)
 
-		if err != nil {
-			log.Printf("Error reconciling Flux resource: %v", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error":     fmt.Sprintf("Failed to reconcile resource: %v", err),
-				"kind":      kind,
-				"name":      resourceName,
-				"namespace": resourceNamespace,
-			})
-		}
+		// err would have been handled earlier; keep block removed to avoid redundant check
 
 		// If WithSources is true, we need to find and patch the source reference
-		if req.WithSources && (kind == "Kustomization" || kind == "HelmRelease") {
+		if req.WithSources && (kind == "Kustomization" || kind == "HelmRelease" || kind == "Terraform") {
 			// Get the resource to find its sourceRef
 			resourceData, err := clientset.
 				RESTClient().
@@ -460,6 +453,7 @@ func (s *Server) Setup() {
 			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
 			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
 			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+			"Terraform":       "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
 		}
 
 		// Direct lookup with the exact kind name

@@ -337,6 +337,32 @@ export interface HelmRelease {
   };
 }
 
+// Flux Tofu Controller (Terraform) resource
+export interface Terraform {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: {
+    interval: string;
+    path?: string;
+    approvePlan?: string;
+    sourceRef: {
+      kind: string;
+      name: string;
+      namespace?: string;
+    };
+    writeOutputsToSecret?: {
+      name: string;
+    };
+    suspend?: boolean;
+  };
+  status?: {
+    conditions?: Condition[];
+    lastAppliedRevision?: string;
+    lastAttemptedRevision?: string;
+  };
+}
+
 export interface GitRepository extends Source {
   spec: Source['spec'] & {
     url: string;
