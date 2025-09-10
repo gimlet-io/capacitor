@@ -51,6 +51,80 @@ export function TerraformDetails() {
     stringData?: Record<string, string>;
   } | null>(null);
 
+  // Decoded JSON plan text (when storeReadablePlan == 'json')
+  const [jsonPlanText, setJsonPlanText] = createSignal<string | null>(null);
+
+  // Compute expected plan object name like tfctl: tfplan-<workspace>-<resource>[.json]
+  function expectedPlanObjectName(tf: Terraform | null | undefined): { name: string | null; isJson: boolean } {
+    if (!tf) return { name: null, isJson: false };
+    const mode = tf.spec?.storeReadablePlan;
+    if (!mode || mode === 'none') return { name: null, isJson: false };
+    // Best-effort workspace name: controller defaults to "default" when unspecified
+    const workspace = 'default';
+    const base = `tfplan-${workspace}-${tf.metadata.name}`;
+    if (mode === 'json') return { name: `${base}.json`, isJson: true };
+    return { name: base, isJson: false };
+  }
+
+  // Attempt to gunzip base64-encoded data in the browser if available
+  async function tryGunzipBase64ToString(b64: string): Promise<string | null> {
+    try {
+      const binaryString = atob(b64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      // Prefer Web DecompressionStream when available
+      // deno-lint-ignore no-explicit-any
+      const DecompressionStreamAny = (globalThis as any).DecompressionStream;
+      if (DecompressionStreamAny) {
+        const ds = new DecompressionStreamAny('gzip');
+        const stream = new Response(bytes).body as ReadableStream<Uint8Array>;
+        const decompressed = stream.pipeThrough(ds);
+        const buf = await new Response(decompressed).arrayBuffer();
+        return new TextDecoder().decode(buf);
+      }
+      // Fallback: cannot decompress
+      return null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  // Keep jsonPlanText in sync when secret or mode changes
+  createEffect(() => {
+    const tf = terraform();
+    const sec = planSecret();
+    (async () => {
+      if (!tf || tf.spec?.storeReadablePlan !== 'json' || !sec) {
+        setJsonPlanText(null);
+        return;
+      }
+      // Expect gzipped JSON in data['tfplan'] when using json mode
+      const rawString = sec.stringData?.['tfplan'];
+      const rawB64 = sec.data?.['tfplan'];
+      if (rawString) {
+        // If controller ever writes stringData (unlikely), use it directly
+        setJsonPlanText(rawString);
+        return;
+      }
+      if (rawB64) {
+        const gunzipped = await tryGunzipBase64ToString(rawB64);
+        if (gunzipped !== null) {
+          setJsonPlanText(gunzipped);
+          return;
+        }
+        // Fallback: try base64 decode without gunzip
+        try {
+          setJsonPlanText(atob(rawB64));
+          return;
+        } catch (_e) {
+          setJsonPlanText(null);
+          return;
+        }
+      }
+      setJsonPlanText(null);
+    })();
+  });
+
   // Compute permissions
   createEffect(() => {
     const tf = terraform();
@@ -145,7 +219,7 @@ export function TerraformDetails() {
       controllers.push(controller);
     }
 
-    // Watch ConfigMaps in namespace to capture plan ConfigMap (fallback if plan stored as ConfigMap)
+    // Watch ConfigMaps in namespace to capture plan ConfigMap per naming convention
     {
       const controller = new AbortController();
       const path = `/k8s/api/v1/namespaces/${ns}/configmaps?watch=true`;
@@ -154,7 +228,11 @@ export function TerraformDetails() {
         if (!obj || obj.metadata.namespace !== ns) return;
         const tfCurrent = terraform();
         const planRef = tfCurrent?.status?.plan?.lastApplied;
-        if (!planRef || obj.metadata.name !== planRef) return;
+        const expected = expectedPlanObjectName(tfCurrent);
+        const shouldMatch = (tfCurrent?.spec?.storeReadablePlan === 'human');
+        if (!shouldMatch) return;
+        const matchName = planRef || expected.name;
+        if (!matchName || obj.metadata.name !== matchName) return;
         if (event.type === 'DELETED') {
           setPlanConfigMap(null);
         } else {
@@ -166,7 +244,7 @@ export function TerraformDetails() {
       controllers.push(controller);
     }
 
-    // Watch Secrets in namespace to capture plan Secret (status.plan.lastApplied) and outputs Secret from status.availableOutputs
+    // Watch Secrets in namespace to capture plan Secret (json mode) and outputs Secret
     {
       const controller = new AbortController();
       const path = `/k8s/api/v1/namespaces/${ns}/secrets?watch=true`;
@@ -174,8 +252,8 @@ export function TerraformDetails() {
         const obj = event.object;
         if (!obj || obj.metadata.namespace !== ns) return;
         const tfCurrent = terraform();
-        const outputsSecretName = tfCurrent?.status?.availableOutputs;
-        const planSecretName = tfCurrent?.status?.plan?.lastApplied;
+        const outputsSecretName = tfCurrent?.spec?.writeOutputsToSecret?.name || tfCurrent?.status?.availableOutputs;
+        const planSecretName = tfCurrent?.status?.plan?.lastApplied || (expectedPlanObjectName(tfCurrent).isJson ? expectedPlanObjectName(tfCurrent).name || undefined : undefined);
 
         if (planSecretName && obj.metadata.name === planSecretName) {
           if (event.type === 'DELETED') {
@@ -327,10 +405,22 @@ export function TerraformDetails() {
                         <span class="value">{tf().spec.approvePlan}</span>
                       </div>
                     )}
-                    {tf().status?.availableOutputs && (
+                    {tf().spec.storeReadablePlan && (
+                      <div class="info-item">
+                        <span class="label">Store Readable Plan:</span>
+                        <span class="value">{tf().spec.storeReadablePlan}</span>
+                      </div>
+                    )}
+                    {tf().status?.plan?.pending && (
+                      <div class="info-item">
+                        <span class="label">Plan:</span>
+                        <span class="value">Pending</span>
+                      </div>
+                    )}
+                    {(tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs) && (
                       <div class="info-item">
                         <span class="label">Outputs Secret:</span>
-                        <span class="value">{tf().status?.availableOutputs}</span>
+                        <span class="value">{tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs}</span>
                       </div>
                     )}
                     <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
@@ -375,8 +465,13 @@ export function TerraformDetails() {
                     { key: 'plan', label: (
                       <span>
                         Plan{(() => {
-                          const name = terraform()?.status?.plan?.lastApplied;
+                          const tf = terraform();
+                          const expected = expectedPlanObjectName(tf).name;
+                          const name = tf?.status?.plan?.lastApplied || expected;
                           if (!name) return '';
+                          const mode = tf?.spec?.storeReadablePlan;
+                          if (mode === 'human') return ` (ConfigMap: ${name})`;
+                          if (mode === 'json') return ` (Secret: ${name})`;
                           const kind = planSecret() ? 'Secret' : (planConfigMap() ? 'ConfigMap' : '');
                           return kind ? ` (${kind}: ${name})` : ` (${name})`;
                         })()}
@@ -385,7 +480,8 @@ export function TerraformDetails() {
                     { key: 'output', label: (
                       <span>
                         Output{(() => {
-                          const name = terraform()?.status?.availableOutputs;
+                          const t = terraform();
+                          const name = t?.spec?.writeOutputsToSecret?.name || t?.status?.availableOutputs;
                           return name ? ` (Secret: ${name})` : '';
                         })()}
                       </span>
@@ -402,6 +498,33 @@ export function TerraformDetails() {
                       <div class="info-item full-width">
                         <pre class="conditions-yaml">
 {(() => {
+  const tf = terraform();
+  const conds = tf?.status?.conditions;
+  const readyMsg = (() => {
+    const c = (conds || []).find(c => c.type === 'Ready');
+    return c?.message || '';
+  })();
+
+  // If user has not enabled readable plan
+  if (!tf?.spec?.storeReadablePlan || tf.spec.storeReadablePlan === 'none') {
+    return `no readable plan available\nplease set spec.storeReadablePlan to either 'human' or 'json'`;
+  }
+
+  // If no pending plan message per tfctl
+  if (!tf?.status?.plan?.pending) {
+    return 'There is no plan pending.';
+  }
+
+  // Render based on mode
+  const mode = tf.spec.storeReadablePlan;
+  if (mode === 'json') {
+    const text = jsonPlanText();
+    if (text) return text;
+    const name = tf.status?.plan?.lastApplied || '<unknown>';
+    return `Plan Secret ${name} not found or failed to decode`;
+  }
+
+  // human mode -> use ConfigMap/Secret textual parts if present
   const sec = planSecret();
   if (sec) {
     const decoded: Record<string, string> = {};
@@ -415,7 +538,16 @@ export function TerraformDetails() {
     }
     const parts: string[] = [];
     Object.entries(decoded).forEach(([k, v]) => { parts.push(`--- ${k} ---\n${v}`); });
-    return parts.length ? parts.join('\n\n') : 'No plan available';
+    const base = parts.length ? parts.join('\n\n') : 'No plan available';
+    // Append ready condition guidance similar to tfctl
+    if (readyMsg) {
+      if (readyMsg === 'Plan generated: This object is in the plan only mode.') {
+        return `${base}\n${readyMsg}`;
+      }
+      const resName = `${tf.metadata.name}`;
+      return `${base}\n${readyMsg}\nTo set the field, you can also run:\n\n tfctl approve ${resName} -f filename.yaml \n`;
+    }
+    return base;
   }
 
   const cm = planConfigMap();
@@ -432,8 +564,18 @@ export function TerraformDetails() {
         try { addSection(k, atob(v)); } catch (_e) { addSection(k, '<binary data>'); }
       });
     }
-    return sections.length ? sections.join('\n\n') : 'No plan available';
+    const base = sections.length ? sections.join('\n\n') : 'No plan available';
+    if (readyMsg) {
+      if (readyMsg === 'Plan generated: This object is in the plan only mode.') {
+        return `${base}\n${readyMsg}`;
+      }
+      const resName = `${tf.metadata.name}`;
+      return `${base}\n${readyMsg}\nTo set the field, you can also run:\n\n tfctl approve ${resName} -f filename.yaml \n`;
+    }
+    return base;
   }
+
+  console.log("configmap");
 
   return 'No plan available';
 })()}
@@ -450,7 +592,7 @@ export function TerraformDetails() {
                         <pre class="conditions-yaml">
 {(() => {
   const sec = outputsSecret();
-  const secretName = tf().status?.availableOutputs;
+  const secretName = tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs;
   if (!secretName) return 'No outputs secret configured';
   if (!sec || (!sec.data && !sec.stringData)) return `Secret ${secretName} not found`;
   const decoded: Record<string, string> = {};

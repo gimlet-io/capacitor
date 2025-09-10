@@ -24,7 +24,8 @@ export const enum ConditionReason {
   DependencyNotReady = "DependencyNotReady",
   ArtifactFailed = "ArtifactFailed",
   BuildFailed = "BuildFailed",
-  PruneFailed = "PruneFailed"
+  PruneFailed = "PruneFailed",
+  TerraformPlannedWithChanges = "TerraformPlannedWithChanges"
 }
 
 export interface Condition {

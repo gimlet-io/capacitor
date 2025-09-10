@@ -346,6 +346,9 @@ export interface Terraform {
     interval: string;
     path?: string;
     approvePlan?: string;
+    // When set to 'human' or 'json', controller stores a readable plan
+    // 'human' -> ConfigMap text, 'json' -> Secret gzipped JSON
+    storeReadablePlan?: string;
     sourceRef: {
       kind: string;
       name: string;
@@ -366,6 +369,8 @@ export interface Terraform {
     plan?: {
       // Name of the Secret/ConfigMap containing the last applied plan
       lastApplied?: string;
+      // Non-empty when a plan is pending approval
+      pending?: string;
     };
   };
 }

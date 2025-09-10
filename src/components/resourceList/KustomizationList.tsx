@@ -84,7 +84,10 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
       {readyCondition?.status === ConditionStatus.False && (
         <span class="status-badge not-ready">NotReady</span>
       )}
-      {readyCondition?.status === ConditionStatus.Unknown && ( // The Terraform controller uses Unknown for reconciling
+      {(readyCondition?.status === ConditionStatus.Unknown) && (readyCondition?.reason === "TerraformPlannedWithChanges")  && ( // The Terraform controller uses Unknown for reconciling
+        <span class="status-badge approval-required">Approval Required</span>
+      )}
+      {(readyCondition?.status === ConditionStatus.Unknown) && (readyCondition?.reason !== "TerraformPlannedWithChanges")  && ( // The Terraform controller uses Unknown for reconciling
         <span class="status-badge reconciling">Reconciling</span>
       )}
       {reconcilingCondition?.status === ConditionStatus.True && (

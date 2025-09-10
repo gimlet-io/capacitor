@@ -335,6 +335,11 @@ h1 {
   color: #eff6ff;
 }
 
+.status-badge.approval-required {
+  background-color: var(--linear-orange);
+  color: #eff6ff;
+}
+
 .status-badge.stalled {
   background-color: var(--linear-yellow);
   color: #fffbeb;
