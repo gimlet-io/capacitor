@@ -113,6 +113,11 @@ export const navigateToSecret: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+export const navigateToTerraform: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View Terraform details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
 // Define a command to switch to viewing pods in a namespace
 export const showPodsInNamespace: ResourceCommand = {
   shortcut: { key: "Enter", description: "View pods in this namespace", isContextual: true },
@@ -772,7 +777,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+w", description: "Reconcile Terraform with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
-      }
+      },
+      navigateToTerraform
     ],
     filter: [fluxReadyFilter],
     abbreviations: ['tf']
