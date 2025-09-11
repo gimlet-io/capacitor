@@ -110,13 +110,41 @@ const getUniqueResourceTypesFromInventory = (inventory: Array<{ id: string; v: s
   return resourceTypes;
 };
 
+// Normalize a Git repo URL to HTTPS form (handles ssh/scp-like formats)
+const normalizeGitUrlToHttps = (repoUrl: string): string => {
+  const trimmed = (repoUrl || '').trim();
+
+  // Already HTTP(S)
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\.git\/?$/, '').replace(/\/$/, '');
+  }
+
+  // SCP-like: git@host:org/repo(.git)
+  const scpLike = trimmed.match(/^git@([^:\/]+):(.+)$/i);
+  if (scpLike) {
+    const host = scpLike[1];
+    const path = scpLike[2].replace(/\.git\/?$/, '').replace(/\/$/, '');
+    return `https://${host}/${path}`;
+  }
+
+  // ssh:// (optionally git+ssh://): ssh://user@host[:port]/org/repo(.git)
+  const sshLike = trimmed.match(/^(?:git\+)?ssh:\/\/(?:[^@]+@)?([^\/:]+)(?::\d+)?\/(.+)$/i);
+  if (sshLike) {
+    const host = sshLike[1];
+    const path = sshLike[2].replace(/\.git\/?$/, '').replace(/\/$/, '');
+    return `https://${host}/${path}`;
+  }
+
+  // Fallback: just remove .git and trailing slash
+  return trimmed.replace(/\.git\/?$/, '').replace(/\/$/, '');
+};
+
 // Helper function to create commit URL for GitHub or GitLab repositories
 const createCommitLink = (repoUrl: string, revision: string): string | null => {
   if (!repoUrl || !revision) return null;
 
   try {
-    // Remove potential .git suffix and trailing slashes
-    const cleanUrl = repoUrl.replace(/\.git\/?$/, '').replace(/\/$/, '');
+    const cleanUrl = normalizeGitUrlToHttps(repoUrl);
     
     if (cleanUrl.includes('github.com')) {
       return `${cleanUrl}/commit/${revision}`;
