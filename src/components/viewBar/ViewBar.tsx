@@ -16,19 +16,19 @@ export interface View {
 
 const SYSTEM_VIEWS: View[] = [
   { 
-    id: 'services',
-    label: 'Services',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'core/Service' },
-      { name: 'Namespace', value: 'all-namespaces' }]
-  },
-  { 
     id: 'pods',
     label: 'Pods',
     isSystem: true,
     filters: [
       { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }]
+  },
+  { 
+    id: 'services',
+    label: 'Services',
+    isSystem: true,
+    filters: [
+      { name: 'ResourceType', value: 'core/Service' },
       { name: 'Namespace', value: 'all-namespaces' }]
   },
   { 

@@ -803,9 +803,10 @@ h1 {
 /* Resource table styles */
 .resource-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate; /* sticky heads work more reliably */
+    border-spacing: 0;          /* keep same visual look as collapse */
     font-size: 0.875rem;
-    overflow: hidden;
+    overflow: visible; /* allow sticky header to render above tbody */
     table-layout: fixed;
     min-width: 100%;
 }
@@ -817,6 +818,29 @@ h1 {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+/* Keep header visible while rows scroll */
+.resource-table thead {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background-color: var(--linear-bg);
+}
+.resource-table thead tr {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.resource-table thead th {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background-color: var(--linear-bg);
+  background-clip: padding-box;
+}
+
 .resource-table td {
     padding: 0.25rem 0rem;
     color: var(--linear-text-primary);
@@ -824,6 +848,11 @@ h1 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.resource-table tbody {
+  position: relative;
+  z-index: 1; /* keep rows below sticky header */
 }
 
 /* Specific styles for status column to ensure proper wrapping */
@@ -878,7 +907,7 @@ h1 {
   width: 100%;
   height: calc(100vh - 175px); /* subtract header/nav height */
   max-height: 100%;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
   position: relative;
 }
@@ -1345,6 +1374,7 @@ td.message-cell {
   height: calc(100vh - 215px);
   width: 100%;
   margin-top: 16px;
+  position: relative; /* create stacking context for sticky header z-index */
 }
 
 .no-results {
