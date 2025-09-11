@@ -2,29 +2,30 @@ import type { Kustomization, ExtendedKustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const renderKustomizationDetails = (kustomization: ExtendedKustomization, columnCount = 4) => {
-  return(
-  <td colSpan={columnCount}>
-    <div class="second-row" style="display: flex; gap: 50px;">
-      <div>
-        <strong>Source:</strong> {kustomization.spec.sourceRef.kind}/{kustomization.spec.sourceRef.namespace ? kustomization.spec.sourceRef.namespace : kustomization.metadata.namespace}/{kustomization.spec.sourceRef.name} <br />
-        <strong>Path:</strong> {kustomization.spec.path} <br />
-        <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"}{" "}
-        <br />
-        <strong>Interval:</strong> {kustomization.spec.interval}
+  return (
+    <DetailRowCard columnCount={columnCount} style="display: flex; gap: 50px;">
+      <div style="display: contents;">
+        <div>
+          <strong>Source:</strong> {kustomization.spec.sourceRef.kind}/{kustomization.spec.sourceRef.namespace ? kustomization.spec.sourceRef.namespace : kustomization.metadata.namespace}/{kustomization.spec.sourceRef.name} <br />
+          <strong>Path:</strong> {kustomization.spec.path} <br />
+          <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"} <br />
+          <strong>Interval:</strong> {kustomization.spec.interval}
+        </div>
+        <div>
+          <strong>Events:</strong>
+          <ul>
+            {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
+              <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <div>
-        <strong>Events:</strong>
-        <ul>
-          {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
-            <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
-          ))} 
-        </ul>
-      </div>
-    </div>
-  </td>
-)}
+    </DetailRowCard>
+  );
+}
 
 export const KustomizationColumns = [
   {

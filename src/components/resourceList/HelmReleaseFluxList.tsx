@@ -2,10 +2,11 @@ import type { HelmRelease } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
-  <td colSpan={columnCount}>
-    <div class="second-row">
+  <DetailRowCard columnCount={columnCount}>
+    <div style="display: contents;">
       <strong>Chart:</strong> {helmRelease.spec.chart.spec.chart} <br />
       <strong>Source Ref:</strong> {helmRelease.spec.chart.spec.sourceRef.kind}/{helmRelease.spec.chart.spec.sourceRef.name} <br />
       {helmRelease.spec.chart.spec.version && (
@@ -27,7 +28,7 @@ export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCou
       <strong>Suspended:</strong>{" "}
       {helmRelease.spec.suspend ? "True" : "False"}
     </div>
-  </td>
+  </DetailRowCard>
 );
 
 export const helmReleaseFluxColumns = [

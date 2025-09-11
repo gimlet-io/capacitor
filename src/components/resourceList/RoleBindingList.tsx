@@ -2,6 +2,7 @@ import type { RoleBinding, ClusterRoleBinding } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 // Format the subjects into a concise summary string
 function getSubjectsString(item: { subjects?: Array<{ kind: string; name: string; namespace?: string }> }): string {
@@ -90,8 +91,8 @@ export const clusterRoleBindingColumns = [
 export const renderRoleBindingDetails = (item: { subjects?: Array<{ kind: string; name: string; namespace?: string }> }, columnCount = 4) => {
   const subjects = item.subjects || [];
   return (
-    <td colSpan={columnCount}>
-      <div class="second-row" style="display: flex; gap: 24px;">
+    <DetailRowCard columnCount={columnCount} style="display: flex; gap: 24px;">
+      <div style="display: contents;">
         <div style="flex: 1;">
           {subjects.length === 0 ? (
             <div>None</div>
@@ -104,7 +105,7 @@ export const renderRoleBindingDetails = (item: { subjects?: Array<{ kind: string
           )}
         </div>
       </div>
-    </td>
+    </DetailRowCard>
   );
 };
 

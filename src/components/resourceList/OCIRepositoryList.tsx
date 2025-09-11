@@ -2,10 +2,11 @@ import type { OCIRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const renderOCIRepositoryDetails = (ociRepository: OCIRepository, columnCount = 4) => (
-  <td colSpan={columnCount}>
-    <div class="second-row">
+  <DetailRowCard columnCount={columnCount}>
+    <div style="display: contents;">
       <strong>URL:</strong> {ociRepository.spec.url} <br />
       {ociRepository.spec.secretRef && (
         <>
@@ -31,7 +32,7 @@ export const renderOCIRepositoryDetails = (ociRepository: OCIRepository, columnC
       <strong>Suspended:</strong>{" "}
       {ociRepository.spec.suspend ? "True" : "False"}
     </div>
-  </td>
+  </DetailRowCard>
 );
 
 export const ociRepositoryColumns = [

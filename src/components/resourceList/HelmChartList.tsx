@@ -2,10 +2,11 @@ import type { HelmChart } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const renderHelmChartDetails = (helmChart: HelmChart, columnCount = 4) => (
-  <td colSpan={columnCount}>
-    <div class="second-row">
+  <DetailRowCard columnCount={columnCount}>
+    <div style="display: contents;">
       <strong>Chart:</strong> {helmChart.spec.chart} <br />
       <strong>Source Ref:</strong> {helmChart.spec.sourceRef.kind}/{helmChart.spec.sourceRef.name} <br />
       {helmChart.spec.valuesFiles && helmChart.spec.valuesFiles.length > 0 && (
@@ -17,7 +18,7 @@ export const renderHelmChartDetails = (helmChart: HelmChart, columnCount = 4) =>
       <strong>Suspended:</strong>{" "}
       {helmChart.spec.suspend ? "True" : "False"}
     </div>
-  </td>
+  </DetailRowCard>
 );
 
 export const helmChartColumns = [

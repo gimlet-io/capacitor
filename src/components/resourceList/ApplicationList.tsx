@@ -2,6 +2,7 @@ import type { ArgoCDApplication } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const argocdApplicationSyncFilter: Filter = {
   name: "ApplicationSyncStatus",
@@ -49,13 +50,13 @@ export const argocdApplicationHealthFilter: Filter = {
 };
 
 export const renderApplicationDetails = (application: ArgoCDApplication, columnCount = 4) => (
-  <td colSpan={columnCount}>
-    <div class="second-row">
+  <DetailRowCard columnCount={columnCount}>
+    <div style="display: contents;">
       <strong>Source:</strong> {application.spec.source.repoURL} <br />
       <strong>Path:</strong> {application.spec.source.path} <br />
       <strong>Revision:</strong> {application.status?.sync.revision}
     </div>
-  </td>
+  </DetailRowCard>
 );
 
 export const applicationColumns = [

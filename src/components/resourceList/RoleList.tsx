@@ -3,6 +3,7 @@ import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 import { createMemo, createSignal } from "solid-js";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 type RuleRow = {
   resources: string[];
@@ -31,8 +32,8 @@ const RoleRulesTable = (props: { rules: Array<{ apiGroups?: string[]; resources?
   });
   const visible = createMemo(() => expanded() ? rows() : rows().slice(0, 3));
   return (
-    <td colSpan={props.columnCount}>
-      <div class="second-row" style="display: flex; gap: 24px;">
+    <DetailRowCard columnCount={props.columnCount} style="display: flex; gap: 24px;">
+      <div style="display: contents;">
         <div style="width: 70%;">
           <div style="display: flex; flex-direction: column; gap: 8px; border-spacing: 20px 0;">
             {/* Header row */}
@@ -53,13 +54,13 @@ const RoleRulesTable = (props: { rules: Array<{ apiGroups?: string[]; resources?
             ))}
           </div>
           {rows().length > 3 && (
-            <button class="outline" onClick={() => setExpanded(!expanded())} style="margin-top: 8px;">
+            <button type="button" class="outline" onClick={() => setExpanded(!expanded())} style="margin-top: 8px;">
               {expanded() ? 'Show less' : `Show all ${rows().length}`}
             </button>
           )}
         </div>
       </div>
-    </td>
+    </DetailRowCard>
   );
 };
 

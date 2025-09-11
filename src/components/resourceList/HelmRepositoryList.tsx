@@ -2,10 +2,11 @@ import type { HelmRepository } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const renderHelmRepositoryDetails = (helmRepository: HelmRepository, columnCount = 4) => (
-  <td colSpan={columnCount}>
-    <div class="second-row">
+  <DetailRowCard columnCount={columnCount}>
+    <div style="display: contents;">
       <strong>URL:</strong> {helmRepository.spec.url} <br />
       {helmRepository.spec.secretRef && (
         <>
@@ -17,7 +18,7 @@ export const renderHelmRepositoryDetails = (helmRepository: HelmRepository, colu
       <strong>Suspended:</strong>{" "}
       {helmRepository.spec.suspend ? "True" : "False"}
     </div>
-  </td>
+  </DetailRowCard>
 );
 
 export const helmRepositoryColumns = [

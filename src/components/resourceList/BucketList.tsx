@@ -2,6 +2,7 @@ import type { Source } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 // Type definition for Bucket since it's not in k8s.ts
 type Bucket = Source & {
@@ -19,8 +20,8 @@ type Bucket = Source & {
 };
 
 export const renderBucketDetails = (bucket: Bucket, columnCount = 4) => (
-  <td colSpan={columnCount}>
-    <div class="second-row">
+  <DetailRowCard columnCount={columnCount}>
+    <div style="display: contents;">
       <strong>Bucket Name:</strong> {bucket.spec.bucketName} <br />
       <strong>Endpoint:</strong> {bucket.spec.endpoint} <br />
       {bucket.spec.provider && (
@@ -43,7 +44,7 @@ export const renderBucketDetails = (bucket: Bucket, columnCount = 4) => (
       <strong>Suspended:</strong>{" "}
       {bucket.spec.suspend ? "True" : "False"}
     </div>
-  </td>
+  </DetailRowCard>
 );
 
 export const bucketColumns = [
