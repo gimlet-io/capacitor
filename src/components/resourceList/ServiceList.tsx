@@ -172,7 +172,16 @@ export const renderServiceDetails = (service: Service | ServiceWithResources, co
                         <span>Applied: n/a</span>
                       )}
                       {revision && <span> {revision}</span>}
-                      <div style="color: var(--linear-text-tertiary);">({k.metadata.namespace}/{k.metadata.name})</div>
+                      <div>
+                        (
+                          <a
+                            href={`#/kustomization/${k.metadata.namespace}/${k.metadata.name}`}
+                            style={{ "text-decoration": "underline", "color": "var(--linear-blue)" }}
+                          >
+                            {k.metadata.namespace}/{k.metadata.name}
+                          </a>
+                        )
+                      </div>
                     </li>
                   );
                 }}</For>
