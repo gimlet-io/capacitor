@@ -166,10 +166,10 @@ export const renderServiceDetails = (service: Service | ServiceWithResources, co
                       </div>
                       {appliedAt ? (
                         <>
-                          Applied <span title={appliedAt}>{useCalculateAge(appliedAt)()}</span>
+                          Reconciled <span title={appliedAt}>{useCalculateAge(appliedAt)()}</span>
                         </>
                       ) : (
-                        <span>Applied: n/a</span>
+                        <span>Reconciled: n/a</span>
                       )}
                       {revision && <span> {revision}</span>}
                       <div>
