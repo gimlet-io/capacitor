@@ -838,6 +838,12 @@ h1 {
     color: #ffffff; /* White text for contrast */
 }
 
+/* Ensure detail container is readable when a row is selected */
+.resource-table tr.selected td .second-row {
+  background-color: #1e1e1e !important;
+  border-color: #3a3a3a !important;
+}
+
 .resource-table .second-row {
   font-size: 12px;
   margin-left: 1rem;

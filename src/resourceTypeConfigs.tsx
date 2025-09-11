@@ -1,7 +1,7 @@
 import { JSX } from "solid-js";
 import { podColumns } from "./components/resourceList/PodList.tsx";
 import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx";
-import { serviceColumns } from "./components/resourceList/ServiceList.tsx";
+import { serviceColumns, renderServiceDetails } from "./components/resourceList/ServiceList.tsx";
 import { ingressColumns } from "./components/resourceList/IngressList.tsx";
 import { KustomizationColumns, renderKustomizationDetails } from "./components/resourceList/KustomizationList.tsx";
 import { gitRepositoryColumns, renderGitRepositoryDetails } from "./components/resourceList/GitRepositoryList.tsx";
@@ -40,7 +40,7 @@ import { fluxReadyFilter } from "./utils/fluxUtils.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources } from "./utils/fluxUtils.tsx";
 import { scaledJobColumns, scaledJobTriggerFilter, scaledJobStrategyFilter } from "./components/resourceList/ScaledJobList.tsx";
 import { sortByNamespace } from "./utils/sortUtils.ts";
-import {
+import { 
   updateDeploymentMatchingResources,
   updateKustomizationMatchingEvents,
   updateReplicaSetMatchingResources,
@@ -48,7 +48,7 @@ import {
   updateKustomizationMatchingBuckets,
   updateKustomizationMatchingOCIRepositories
 } from "./utils/k8s.ts";
-import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources } from "./utils/k8s.ts";
+import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources, updateServiceMatchingPods, updateServiceMatchingIngresses, updateServiceMatchingKustomizations } from "./utils/k8s.ts";
 
 export interface Column<T> {
   header: string;
@@ -343,6 +343,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'core/Service': {
     columns: serviceColumns,
+    detailRowRenderer: renderServiceDetails,
     commands: [
       ...builtInCommands,
       {
@@ -353,7 +354,24 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
-    abbreviations: ['svc']
+    abbreviations: ['svc'],
+    extraWatches: [
+      {
+        resourceType: 'core/Pod',
+        updater: (service, pods) => updateServiceMatchingPods(service, pods),
+        isParent: (_resource: any, _obj: any) => {return false}
+      },
+      {
+        resourceType: 'networking.k8s.io/Ingress',
+        updater: (service, ingresses) => updateServiceMatchingIngresses(service, ingresses),
+        isParent: (_resource: any, _obj: any) => {return false}
+      },
+      {
+        resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
+        updater: (service, kustomizations) => updateServiceMatchingKustomizations(service, kustomizations),
+        isParent: (_resource: any, _obj: any) => {return false}
+      }
+    ]
   },
   
   'networking.k8s.io/Ingress': {
