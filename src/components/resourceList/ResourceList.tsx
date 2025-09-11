@@ -633,6 +633,25 @@ export function ResourceList<T>(props: {
       const container = listContainer();
       if (!container) return;
       
+      // When virtualization is enabled, the target row might not be in the DOM.
+      // In that case, adjust the scrollTop directly to bring the row into view.
+      if (canVirtualize()) {
+        const rh = rowHeight;
+        const targetTop = index * rh;
+        const targetBottom = targetTop + rh;
+        const viewHeight = container.clientHeight || viewportHeight();
+        const currentTop = container.scrollTop;
+        const currentBottom = currentTop + viewHeight;
+
+        if (targetTop < currentTop || targetBottom > currentBottom) {
+          // Center the selected row within the viewport when scrolling
+          const centerOffset = Math.max(0, Math.floor((viewHeight - rh) / 2));
+          const newTop = Math.max(0, targetTop - centerOffset);
+          container.scrollTop = newTop;
+        }
+        return;
+      }
+      
       // If we have detail rows, we need to select the main row
       let rows: NodeListOf<HTMLTableRowElement>;
       if (props.resourceTypeConfig.detailRowRenderer) {
