@@ -185,6 +185,8 @@ export interface ServiceList {
 export interface ServiceWithResources extends Service {
   matchingPods: Pod[];
   matchingDeployments: Deployment[];
+  ingresses?: Ingress[];
+  kustomizations?: Kustomization[];
 }
 
 import { Condition } from "../utils/conditions.ts";

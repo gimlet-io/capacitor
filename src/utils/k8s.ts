@@ -15,6 +15,8 @@ import type { Pod,
   StatefulSet,
   StatefulSetWithResources,
   DaemonSet,
+  Ingress,
+  Kustomization,
 } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
@@ -39,6 +41,82 @@ export const updateServiceMatchingResources = (service: Service, allPods: Pod[],
     ...service,
     matchingPods: getMatchingPods(service, allPods),
     matchingDeployments: getMatchingDeployments(service, allDeployments)
+  };
+};
+
+// Service -> Pods (separate updater for extra watches pipeline)
+export const updateServiceMatchingPods = (service: Service | ServiceWithResources, allPods: Pod[]): ServiceWithResources => {
+  const current = service as ServiceWithResources;
+  return {
+    ...(service as Service),
+    matchingPods: getMatchingPods(service as Service, allPods),
+    matchingDeployments: current.matchingDeployments || [],
+    ingresses: current.ingresses,
+    kustomizations: current.kustomizations,
+  };
+};
+
+// Service -> Deployments (separate updater)
+export const updateServiceMatchingDeployments = (service: Service | ServiceWithResources, allDeployments: Deployment[]): ServiceWithResources => {
+  const current = service as ServiceWithResources;
+  return {
+    ...(service as Service),
+    matchingPods: current.matchingPods || [],
+    matchingDeployments: getMatchingDeployments(service as Service, allDeployments),
+    ingresses: current.ingresses,
+    kustomizations: current.kustomizations,
+  };
+};
+
+// Service -> Ingresses that route to the service
+export const getServiceMatchingIngresses = (service: Service, allIngresses: Ingress[]): Ingress[] => {
+  const ns = service.metadata.namespace;
+  const name = service.metadata.name;
+  return (allIngresses || []).filter((ing) => {
+    if (ing.metadata.namespace !== ns) return false;
+    const rules = ing.spec?.rules || [];
+    for (const rule of rules) {
+      for (const p of (rule.http?.paths ?? [])) {
+        const svc = p.backend?.service;
+        if (svc?.name === name) return true;
+      }
+    }
+    // Also check default backend
+    const defSvc = ing.spec?.defaultBackend?.service;
+    return defSvc?.name === name;
+  });
+};
+
+export const updateServiceMatchingIngresses = (service: Service | ServiceWithResources, allIngresses: Ingress[]): ServiceWithResources => {
+  const current = service as ServiceWithResources;
+  return {
+    ...(service as Service),
+    matchingPods: current.matchingPods || [],
+    matchingDeployments: current.matchingDeployments || [],
+    ingresses: getServiceMatchingIngresses(service as Service, allIngresses),
+    kustomizations: current.kustomizations,
+  };
+};
+
+// Service -> Kustomizations containing it in inventory
+const serviceInventoryId = (service: Service): string => {
+  // Core group uses double underscore between name and kind
+  return `${service.metadata.namespace}_${service.metadata.name}__Service`;
+};
+
+export const getServiceKustomizations = (service: Service, allKustomizations: Kustomization[]): Kustomization[] => {
+  const id = serviceInventoryId(service);
+  return (allKustomizations || []).filter(k => (k.status?.inventory?.entries || []).some(e => e.id === id));
+};
+
+export const updateServiceMatchingKustomizations = (service: Service | ServiceWithResources, allKustomizations: Kustomization[]): ServiceWithResources => {
+  const current = service as ServiceWithResources;
+  return {
+    ...(service as Service),
+    matchingPods: current.matchingPods || [],
+    matchingDeployments: current.matchingDeployments || [],
+    ingresses: current.ingresses,
+    kustomizations: getServiceKustomizations(service as Service, allKustomizations),
   };
 };
 

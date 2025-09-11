@@ -5,6 +5,7 @@ import { Show, JSX } from "solid-js";
 import type {
   Kustomization,
   ExtendedKustomization,
+  GitRepository,
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
@@ -224,7 +225,6 @@ export function KustomizationDetails() {
 
   // Initialize state for the specific kustomization and its related resources
   const [kustomization, setKustomization] = createSignal<ExtendedKustomization | null>(null);
-  const [sourceRepository, setSourceRepository] = createSignal<any | null>(null);
   
   // Dynamic resources state - keyed by resource type
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
@@ -1198,7 +1198,11 @@ export function KustomizationDetails() {
                         <div class="info-grid">
                           <div class="info-item" style={{ "grid-column": "1 / 3" }}>
                             <span class="label">Last Attempted Revision:</span>
-                            {renderRevision(k().status?.lastAttemptedRevision, k().spec.sourceRef.kind, sourceRepository()?.spec?.url )}
+                            {renderRevision(
+                              k().status?.lastAttemptedRevision,
+                              k().spec.sourceRef.kind,
+                              k().source?.kind === 'GitRepository' ? (k().source as GitRepository).spec.url : undefined
+                            )}
                           </div>
                           <div class="info-item">
                             <span class="label">Last Handled Reconcile:</span>
@@ -1206,7 +1210,11 @@ export function KustomizationDetails() {
                           </div>
                           <div class="info-item" style={{ "grid-column": "4 / 6" }}>
                             <span class="label">Last Applied Revision:</span>
-                            {renderRevision(k().status?.lastAppliedRevision, k().spec.sourceRef.kind, sourceRepository()?.spec?.url )}
+                            {renderRevision(
+                              k().status?.lastAppliedRevision,
+                              k().spec.sourceRef.kind,
+                              k().source?.kind === 'GitRepository' ? (k().source as GitRepository).spec.url : undefined
+                            )}
                           </div>
                         </div>
                       </div>
