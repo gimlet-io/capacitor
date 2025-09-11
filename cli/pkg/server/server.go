@@ -264,6 +264,7 @@ func (s *Server) Setup() {
 			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
 			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
 			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+			"Terraform":       "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
 		}
 
 		// Direct lookup with the exact kind name
@@ -283,18 +284,10 @@ func (s *Server) Setup() {
 			Body([]byte(patchData)).
 			DoRaw(ctx)
 
-		if err != nil {
-			log.Printf("Error reconciling Flux resource: %v", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error":     fmt.Sprintf("Failed to reconcile resource: %v", err),
-				"kind":      kind,
-				"name":      resourceName,
-				"namespace": resourceNamespace,
-			})
-		}
+		// err would have been handled earlier; keep block removed to avoid redundant check
 
 		// If WithSources is true, we need to find and patch the source reference
-		if req.WithSources && (kind == "Kustomization" || kind == "HelmRelease") {
+		if req.WithSources && (kind == "Kustomization" || kind == "HelmRelease" || kind == "Terraform") {
 			// Get the resource to find its sourceRef
 			resourceData, err := clientset.
 				RESTClient().
@@ -460,6 +453,7 @@ func (s *Server) Setup() {
 			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
 			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
 			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
+			"Terraform":       "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
 		}
 
 		// Direct lookup with the exact kind name
@@ -503,6 +497,105 @@ func (s *Server) Setup() {
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Successfully %s %s/%s", actionType, kind, req.Name),
 			"output":  output,
+		})
+	})
+
+	// Add endpoint for approving Terraform plans (Flux Tofu Controller)
+	s.echo.POST("/api/flux/approve", func(c echo.Context) error {
+		var req struct {
+			Kind      string `json:"kind"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		// Verify required fields
+		if req.Kind == "" || req.Name == "" || req.Namespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Kind, name, and namespace are required fields",
+			})
+		}
+
+		// Only Terraform supports approve flow
+		if req.Kind != "Terraform" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Unsupported kind for approve: %s. Only Terraform is supported", req.Kind),
+			})
+		}
+
+		clientset := s.k8sClient.Clientset
+		ctx := context.Background()
+
+		// API paths for supported kinds
+		resourceAPIs := map[string]string{
+			"Terraform": "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
+		}
+
+		apiPath, found := resourceAPIs[req.Kind]
+		if !found {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("Unsupported Flux resource kind: %s", req.Kind),
+			})
+		}
+
+		// Read current resource to get pending plan identifier
+		resourceData, err := clientset.
+			RESTClient().
+			Get().
+			AbsPath(fmt.Sprintf(apiPath, req.Namespace, req.Name)).
+			DoRaw(ctx)
+		if err != nil {
+			log.Printf("Error getting Terraform resource for approve: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to get Terraform resource: %v", err),
+			})
+		}
+
+		var resourceObj map[string]interface{}
+		if err := json.Unmarshal(resourceData, &resourceObj); err != nil {
+			log.Printf("Error parsing Terraform resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to parse Terraform resource: %v", err),
+			})
+		}
+
+		pendingPlan := ""
+		if status, ok := resourceObj["status"].(map[string]interface{}); ok {
+			if plan, ok := status["plan"].(map[string]interface{}); ok {
+				if p, ok := plan["pending"].(string); ok {
+					pendingPlan = p
+				}
+			}
+		}
+
+		if strings.TrimSpace(pendingPlan) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "No pending plan to approve",
+			})
+		}
+
+		// Patch spec.approvePlan with the pending plan identifier
+		patchData := fmt.Sprintf(`{"spec":{"approvePlan":"%s"}}`, pendingPlan)
+
+		_, err = clientset.
+			RESTClient().
+			Patch(types.MergePatchType).
+			AbsPath(fmt.Sprintf(apiPath, req.Namespace, req.Name)).
+			Body([]byte(patchData)).
+			DoRaw(ctx)
+		if err != nil {
+			log.Printf("Error approving Terraform plan: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to approve plan: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Successfully approved plan for Terraform %s/%s", req.Namespace, req.Name),
 		})
 	})
 

@@ -335,6 +335,11 @@ h1 {
   color: #eff6ff;
 }
 
+.status-badge.approval-required {
+  background-color: var(--linear-orange);
+  color: #eff6ff;
+}
+
 .status-badge.stalled {
   background-color: var(--linear-yellow);
   color: #fffbeb;
@@ -2043,6 +2048,12 @@ td.message-cell {
   overflow-x: auto;
   border: 1px solid var(--linear-border);
   max-height: 300px;
+}
+
+/* Allow plan text to grow vertically without scrolling */
+.conditions-yaml.plan-text {
+  max-height: none;
+  overflow: visible;
 }
 
 .info-item details summary {

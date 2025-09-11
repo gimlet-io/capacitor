@@ -337,6 +337,44 @@ export interface HelmRelease {
   };
 }
 
+// Flux Tofu Controller (Terraform) resource
+export interface Terraform {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: {
+    interval: string;
+    path?: string;
+    approvePlan?: string;
+    // When set to 'human' or 'json', controller stores a readable plan
+    // 'human' -> ConfigMap text, 'json' -> Secret gzipped JSON
+    storeReadablePlan?: string;
+    sourceRef: {
+      kind: string;
+      name: string;
+      namespace?: string;
+    };
+    writeOutputsToSecret?: {
+      name: string;
+    };
+    suspend?: boolean;
+  };
+  status?: {
+    conditions?: Condition[];
+    lastAppliedRevision?: string;
+    lastAttemptedRevision?: string;
+    // Name of the Secret containing current outputs
+    availableOutputs?: string;
+    // Plan related info
+    plan?: {
+      // Name of the Secret/ConfigMap containing the last applied plan
+      lastApplied?: string;
+      // Non-empty when a plan is pending approval
+      pending?: string;
+    };
+  };
+}
+
 export interface GitRepository extends Source {
   spec: Source['spec'] & {
     url: string;

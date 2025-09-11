@@ -3,7 +3,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -202,6 +202,13 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => {
             handlers.navigate!(`/secret/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === navigateToTerraform && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/terraform/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
       } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('classic') && handlers.navigate) {
