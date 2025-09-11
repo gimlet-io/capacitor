@@ -713,7 +713,7 @@ export function ResourceList<T>(props: {
   });
 
   return (
-    <div class={`resource-list-container ${props.resourceTypeConfig.noSelectClass ? 'no-select' : ''}`}>      
+    <div class={`resource-list-container`}>      
       <div class="keyboard-shortcut-container">
         <KeyboardShortcuts
           shortcuts={getAvailableShortcuts()}
