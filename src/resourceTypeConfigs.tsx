@@ -73,7 +73,6 @@ export interface ResourceCardRenderer {
 export interface ResourceTypeConfig {
   columns: Column<any>[];
   detailRowRenderer?: (item: any, columnCount?: number) => JSX.Element;
-  noSelectClass?: boolean;
   rowKeyField?: string;
   commands?: ResourceCommand[];
   filter?: Filter[];
@@ -623,7 +622,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'kustomize.toolkit.fluxcd.io/Kustomization': {
     columns: KustomizationColumns,
     detailRowRenderer: renderKustomizationDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -665,7 +663,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'source.toolkit.fluxcd.io/GitRepository': {
     columns: gitRepositoryColumns,
     detailRowRenderer: renderGitRepositoryDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -684,7 +681,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'source.toolkit.fluxcd.io/HelmRepository': {
     columns: helmRepositoryColumns,
     detailRowRenderer: renderHelmRepositoryDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -703,7 +699,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'source.toolkit.fluxcd.io/HelmChart': {
     columns: helmChartColumns,
     detailRowRenderer: renderHelmChartDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -722,7 +717,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'source.toolkit.fluxcd.io/OCIRepository': {
     columns: ociRepositoryColumns,
     detailRowRenderer: renderOCIRepositoryDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -741,7 +735,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'source.toolkit.fluxcd.io/Bucket': {
     columns: bucketColumns,
     detailRowRenderer: renderBucketDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -760,7 +753,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'helm.toolkit.fluxcd.io/HelmRelease': {
     columns: helmReleaseFluxColumns,
     detailRowRenderer: renderHelmReleaseFluxDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -784,7 +776,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'infra.contrib.fluxcd.io/Terraform': {
     columns: terraformColumns,
     detailRowRenderer: renderTerraformDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
@@ -811,7 +802,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'argoproj.io/Application': {
     columns: applicationColumns,
     detailRowRenderer: renderApplicationDetails,
-    noSelectClass: true,
     rowKeyField: "name",
     commands: [
       navigateToApplication

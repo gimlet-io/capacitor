@@ -912,9 +912,6 @@ h1 {
   position: relative;
 }
 
-.no-select {
-  user-select: none; /* Disable text selection */
-}
 
 td.message-cell {
   word-wrap: break-word;
