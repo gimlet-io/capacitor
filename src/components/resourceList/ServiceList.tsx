@@ -141,8 +141,8 @@ export const renderServiceDetails = (service: Service | ServiceWithResources, co
           {/* Sync */}
           <Show when={kustomizations().length > 0}>
             <div style="flex: 1; min-width: 0;">
-              <div style="font-weight: bold; margin-bottom: 8px;">Sync</div>
-              <ul style="margin: 0; padding-left: 16px;">
+              <div style="font-weight: bold; margin-bottom: 8px;">Flux</div>
+              <ul>
                 <For each={kustomizations()}>{(k) => {
                   const readyCond = k.status?.conditions?.find(c => c.type === ConditionType.Ready);
                   const reconcilingCond = k.status?.conditions?.find(c => c.type === ConditionType.Reconciling);
