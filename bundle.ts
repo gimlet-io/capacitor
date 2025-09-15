@@ -1,6 +1,6 @@
-import * as esbuild from "npm:esbuild@0.20.2";
+import * as esbuild from "npm:esbuild@0.25.9";
 import { denoPlugins } from "jsr:@luca/esbuild-deno-loader@^0.11.1";
-import { solidPlugin } from "npm:esbuild-plugin-solid";
+import { solidPlugin } from "npm:esbuild-plugin-solid@0.6.0";
 
 // Utility to compute short hex from ArrayBuffer
 function toShortHex(input: ArrayBuffer): string {
