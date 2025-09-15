@@ -201,7 +201,6 @@ func (h *WebSocketHandler) handleSubscribe(
 		defer close(eventsChan)
 		defer watchCancel()
 
-		log.Printf("Starting watch for path: %s", msg.Path)
 		if err := h.k8sClient.WatchPath(watchCtx, msg.Path, eventsChan); err != nil {
 			if watchCtx.Err() == context.Canceled {
 				log.Printf("Watch canceled for path: %s", msg.Path)
@@ -233,7 +232,6 @@ func (h *WebSocketHandler) handleSubscribe(
 
 	// Send success message for standard K8s resources
 	h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
-	log.Printf("Successfully subscribed to path: %s", msg.Path)
 }
 
 // handleUnsubscribe handles an unsubscribe message
