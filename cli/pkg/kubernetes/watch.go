@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -76,12 +75,9 @@ func (w *ResourceWatcher) WatchResource(ctx context.Context, path string, events
 
 // createWatchRequest creates an HTTP request for watching a Kubernetes resource
 func (w *ResourceWatcher) createWatchRequest(path string) (*http.Request, error) {
-	// Log path for debugging
-	log.Printf("Creating watch request for path: %s", path)
-
 	// Normalize the path - strip /k8s prefix if present
-	if strings.HasPrefix(path, "/k8s") {
-		path = strings.TrimPrefix(path, "/k8s")
+	if after, ok := strings.CutPrefix(path, "/k8s"); ok {
+		path = after
 	}
 
 	// Ensure path has leading slash
@@ -100,7 +96,6 @@ func (w *ResourceWatcher) createWatchRequest(path string) (*http.Request, error)
 
 	// Combine the base URL with the path
 	fullURL := w.client.Config.Host + path
-	log.Printf("Watch URL: %s", fullURL)
 
 	// Create request
 	req, err := http.NewRequest("GET", fullURL, nil)

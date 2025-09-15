@@ -289,6 +289,8 @@ export function KustomizationDetails() {
   type K8sObjMinimal = { metadata?: { name?: string; namespace?: string } };
   const batchQueues: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: K8sObjMinimal }>> = {};
   const batchTimers: Record<string, number | undefined> = {};
+  // Track active watches to avoid duplicate subscriptions per (namespace, resourceType)
+  const activeWatchKeys = new Set<string>();
   
   const scheduleFlush = (resourceTypeId: string) => {
     if (batchTimers[resourceTypeId] !== undefined) return;
@@ -452,6 +454,8 @@ export function KustomizationDetails() {
         batchTimers[k] = undefined;
       }
     });
+    // Clear active watch registry
+    activeWatchKeys.clear();
   });
 
   const setupWatches = (ns: string, name: string) => {
@@ -470,6 +474,8 @@ export function KustomizationDetails() {
         batchTimers[k] = undefined;
       }
     });
+    // Reset active watch registry so fresh subscriptions can be created
+    activeWatchKeys.clear();
     // Reset all kustomizations cache for dependency graph
     setAllKustomizations([]);
 
@@ -698,6 +704,13 @@ export function KustomizationDetails() {
       console.warn(`Unknown resource type in inventory: ${resourceType.resourceType}. Available resource types:`, filterStore.k8sResources.map(r => r.id));
       return;
     }
+
+    // Deduplicate per (namespace, resourceType)
+    const watchKey = `${resourceType.namespace}|${resourceType.resourceType}`;
+    if (activeWatchKeys.has(watchKey)) {
+      return;
+    }
+    activeWatchKeys.add(watchKey);
 
     let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
     if (k8sResource.namespaced) {

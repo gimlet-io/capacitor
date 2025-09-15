@@ -259,6 +259,7 @@ export function Dashboard() {
     });
     
     const watches = [];
+    const plannedWatchKeys = new Set<string>();
 
     const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
     if (!k8sResource) return;
@@ -270,25 +271,28 @@ export function Dashboard() {
     }
     
     const mainExtraWatches = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
-    watches.push({
-      path: watchPath,
-      callback: (event: { type: string; object: any; error?: string; path?: string }) => {
-        // Handle ERROR events from the WebSocket
-        if (event.type === 'ERROR') {
-          handleWatchError(event.error || 'Unknown watch error', event.path || watchPath);
-          return;
-        }
+    if (!plannedWatchKeys.has(watchPath)) {
+      plannedWatchKeys.add(watchPath);
+      watches.push({
+        path: watchPath,
+        callback: (event: { type: string; object: any; error?: string; path?: string }) => {
+          // Handle ERROR events from the WebSocket
+          if (event.type === 'ERROR') {
+            handleWatchError(event.error || 'Unknown watch error', event.path || watchPath);
+            return;
+          }
 
-        // Clear any existing errors when we receive data successfully
-        if (errorStore.currentError) {
-          errorStore.clearError();
-        }
+          // Clear any existing errors when we receive data successfully
+          if (errorStore.currentError) {
+            errorStore.clearError();
+          }
 
-        // Queue event and schedule a flush for this resource type
-        (batchQueues[k8sResource.id] ||= []).push({ type: event.type as any, object: event.object });
-        scheduleFlush(k8sResource.id, mainExtraWatches);
-      }
-    });
+          // Queue event and schedule a flush for this resource type
+          (batchQueues[k8sResource.id] ||= []).push({ type: event.type as any, object: event.object });
+          scheduleFlush(k8sResource.id, mainExtraWatches);
+        }
+      });
+    }
 
     // Set up extra watches if configured for this resource type
     const extraWatchesForResource = mainExtraWatches;
@@ -306,38 +310,41 @@ export function Dashboard() {
           extraWatchPath = `${extraResource.apiPath}/namespaces/${ns}/${extraResource.name}?watch=true`;
         }
         
-        watches.push({
-          path: extraWatchPath,
-          callback: (event: { type: string; object: any; error?: string; path?: string }) => {
-            // Handle ERROR events from the WebSocket
-            if (event.type === 'ERROR') {
-              handleWatchError(event.error || 'Unknown watch error', event.path || extraWatchPath);
-              return;
+        if (!plannedWatchKeys.has(extraWatchPath)) {
+          plannedWatchKeys.add(extraWatchPath);
+          watches.push({
+            path: extraWatchPath,
+            callback: (event: { type: string; object: any; error?: string; path?: string }) => {
+              // Handle ERROR events from the WebSocket
+              if (event.type === 'ERROR') {
+                handleWatchError(event.error || 'Unknown watch error', event.path || extraWatchPath);
+                return;
+              }
+              
+              // Clear any existing errors when we receive data successfully
+              if (errorStore.currentError) {
+                errorStore.clearError();
+              }
+              
+              // Update cache based on event type
+              if (event.type === 'ADDED') {
+                extraResources[extraResourceType] = [
+                  ...(extraResources[extraResourceType] || []),
+                  event.object
+                ];
+              } else if (event.type === 'MODIFIED') {
+                extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
+                  .map(item => item.metadata.name === event.object.metadata.name ? event.object : item);
+              } else if (event.type === 'DELETED') {
+                extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
+                  .filter(item => item.metadata.name !== event.object.metadata.name);
+              }
+              
+              // Schedule a flush for the main resource type so updaters re-apply once per frame
+              scheduleFlush(resourceType, extraWatchesForResource);
             }
-            
-            // Clear any existing errors when we receive data successfully
-            if (errorStore.currentError) {
-              errorStore.clearError();
-            }
-            
-            // Update cache based on event type
-            if (event.type === 'ADDED') {
-              extraResources[extraResourceType] = [
-                ...(extraResources[extraResourceType] || []),
-                event.object
-              ];
-            } else if (event.type === 'MODIFIED') {
-              extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
-                .map(item => item.metadata.name === event.object.metadata.name ? event.object : item);
-            } else if (event.type === 'DELETED') {
-              extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
-                .filter(item => item.metadata.name !== event.object.metadata.name);
-            }
-            
-            // Schedule a flush for the main resource type so updaters re-apply once per frame
-            scheduleFlush(resourceType, extraWatchesForResource);
-          }
-        });
+          });
+        }
       });
     }
 
