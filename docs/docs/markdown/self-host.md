@@ -20,6 +20,8 @@ OIDC_REDIRECT_URL=http://127.0.0.1:8181/auth/callback
 OIDC_INSECURE_SKIP_TLS_VERIFY=true
 AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
 # ENTRA_ID_FEDEREATED_TOKEN_AUTH=true # if you use Azure Entra ID
+# OIDC_SCOPES="openid,profile,email" # <-- the default list. Include groups if needed. eg.: "openid,profile,email,groups"
+# OIDC_GROUPS_CLAIM=groups # <-- default
 ```
 
 ### noauth
