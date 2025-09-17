@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"sort"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -144,6 +145,11 @@ func (c *Client) GetContexts() []ContextInfo {
 
 		contexts = append(contexts, contextInfo)
 	}
+
+	// Order contexts by name for deterministic output
+	sort.Slice(contexts, func(i, j int) bool {
+		return contexts[i].Name < contexts[j].Name
+	})
 
 	return contexts
 }
