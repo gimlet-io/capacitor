@@ -37,8 +37,6 @@ export function Dashboard() {
     }
     
     try {
-      // Clear any existing error before attempting context switch
-      errorStore.clearError();
       await apiResourceStore.switchContext(contextName);
       setContextMenuOpen(false);
     } catch (error) {
@@ -104,56 +102,40 @@ export function Dashboard() {
     }
   });
   
-  // Monitor API resource loading errors
+  // Monitor errors and handle retries for API/server connectivity
   createEffect(() => {
-    const lastError = apiResourceStore.lastError;
+    const currentError = errorStore.currentError;
     const resources = apiResourceStore.apiResources;
     const namespaces = apiResourceStore.namespaces;
     const contexts = apiResourceStore.contextInfo;
-    
-    // If there's an error from the API resource store, show it
-    if (lastError) {
-      console.log('Setting connection lost due to error:', lastError);
-      // Mark connection as lost to ensure we detect reconnection
-      setConnectionLost(true);
-      errorStore.setApiError(lastError);
-      
-      // Set up retry timer if not already set
+
+    // If there's an API/server error, mark connection lost and schedule retry
+    if (currentError && (currentError.type === 'api' || currentError.type === 'server')) {
+      if (!connectionLost()) {
+        console.log('Setting connection lost due to error:', currentError.message);
+        setConnectionLost(true);
+      }
       if (retryTimer() === null) {
         const timer = setTimeout(() => {
           retryLoadResources();
-          // Reset timer ID after retry
           setRetryTimer(null);
         }, 5000);
         setRetryTimer(timer);
       }
-    } else {
-      // No error from API store
-      // If we have successful data and previously had a connection error, connection is restored
-      if ((resources !== undefined || namespaces !== undefined || contexts !== undefined) &&
-          connectionLost()) {
-        
-        console.log('Connection restored! Clearing error and resetting state');
-        // Connection restored, clear error and reset connection state
-        errorStore.clearError();
-        setConnectionLost(false);
-        
-        // Clear any pending retry timer
-        if (retryTimer() !== null) {
-          clearTimeout(retryTimer()!);
-          setRetryTimer(null);
-        }
-        
-        // Reload resources and watches
-        setupWatches(filterStore.getNamespace(), filterStore.getResourceType()).catch(error => {
-          console.error('Error reloading watches after connection restoration:', error);
-        });
-      } else if (!connectionLost() && 
-                 (errorStore.currentError?.type === 'server' || errorStore.currentError?.type === 'api')) {
-        // We have data but still showing an error from a previous state - clear it
-        console.log('Clearing stale error');
-        errorStore.clearError();
+      return;
+    }
+
+    // If we have data and previously had a connection error, consider connection restored
+    if ((resources !== undefined || namespaces !== undefined || contexts !== undefined) && connectionLost()) {
+      console.log('Connection appears restored; resetting state');
+      setConnectionLost(false);
+      if (retryTimer() !== null) {
+        clearTimeout(retryTimer()!);
+        setRetryTimer(null);
       }
+      setupWatches(filterStore.getNamespace(), filterStore.getResourceType()).catch(error => {
+        console.error('Error reloading watches after connection restoration:', error);
+      });
     }
   });
 
@@ -282,8 +264,8 @@ export function Dashboard() {
             return;
           }
 
-          // Clear any existing errors when we receive data successfully
-          if (errorStore.currentError) {
+          // Clear watch errors only when receiving data successfully
+          if (errorStore.currentError?.type === 'watch') {
             errorStore.clearError();
           }
 
@@ -321,8 +303,8 @@ export function Dashboard() {
                 return;
               }
               
-              // Clear any existing errors when we receive data successfully
-              if (errorStore.currentError) {
+              // Clear watch errors only when receiving data successfully
+              if (errorStore.currentError?.type === 'watch') {
                 errorStore.clearError();
               }
               

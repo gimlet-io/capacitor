@@ -1,5 +1,6 @@
 import { createContext, createResource, useContext, JSX, createSignal } from "solid-js";
 import type { ApiResource, ApiResourceList, ApiGroupList } from "../types/k8s.ts";
+import { useErrorStore } from "./errorStore.tsx";
 
 // Define types for the context information
 export interface KubeContext {
@@ -21,20 +22,21 @@ interface ApiResourceState {
   contextInfo: ContextInfo | undefined;
   switchContext: (contextName: string) => Promise<void>;
   isSwitchingContext: boolean;
-  lastError: string | null;
   refetchResources: () => Promise<void>;
 }
 
 const ApiResourceContext = createContext<ApiResourceState>();
 
 export function ApiResourceProvider(props: { children: JSX.Element }) {
+  const errorStore = useErrorStore();
   const [isSwitchingContext, setIsSwitchingContext] = createSignal(false);
-  const [lastError, setLastError] = createSignal<string | null>(null);
   
   const [apiResources, { refetch: refetchApiResources }] = createResource(async () => {
     try {
-      // Clear error at the start of a successful fetch
-      setLastError(null);
+      // Clear previous API error if present on successful fetch
+      if (errorStore.currentError?.type === 'api') {
+        errorStore.clearError();
+      }
       
       // Fetch core API resources (v1)
       const coreResponse = await fetch('/k8s/api/v1');
@@ -125,13 +127,15 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
         resource.kind // Ensure it has a kind
       );
       
-      // Explicitly clear error on successful completion
-      setLastError(null);
+      // Explicitly clear API error on successful completion
+      if (errorStore.currentError?.type === 'api') {
+        errorStore.clearError();
+      }
       return filteredResources;
     } catch (error) {
       console.error("Error fetching API resources:", error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching API resources';
-      setLastError(errorMessage);
+      errorStore.setApiError(errorMessage);
       throw error; // Re-throw to let createResource handle the error state
     }
   });
@@ -148,13 +152,15 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       const data = await response.json();
       const nsList = data.items.map((ns: { metadata: { name: string } }) => ns.metadata.name);
       
-      // Clear error on successful completion
-      setLastError(null);
+      // Clear API error on successful completion
+      if (errorStore.currentError?.type === 'api') {
+        errorStore.clearError();
+      }
       return nsList;
     } catch (error) {
       console.error("Error fetching namespaces:", error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching namespaces';
-      setLastError(errorMessage);
+      errorStore.setApiError(errorMessage);
       throw error;
     }
   });
@@ -169,13 +175,15 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       }
       const data = await response.json() as ContextInfo;
       
-      // Clear error on successful completion
-      setLastError(null);
+      // Clear API error on successful completion
+      if (errorStore.currentError?.type === 'api') {
+        errorStore.clearError();
+      }
       return data;
     } catch (error) {
       console.error("Error fetching context information:", error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error fetching contexts';
-      setLastError(errorMessage);
+      errorStore.setApiError(errorMessage);
       throw error;
     }
   });
@@ -186,7 +194,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     
     try {
       setIsSwitchingContext(true);
-      
+
       const response = await fetch('/api/contexts/switch', {
         method: 'POST',
         headers: {
@@ -206,29 +214,29 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
         }
         throw new Error(errorMessage);
       }
-      
-      // Refetch data with the new context
-      await refetchContexts();
-      await refetchApiResources();
-      await refetchNamespaces();
-      
+
+      // Clear API error after successful context switch
+      if (errorStore.currentError?.type === 'api') {
+        errorStore.clearError();
+      }
     } catch (error) {
       console.error('Error switching context:', error);
       
       // Set error in store for monitoring
       const errorMessage = error instanceof Error ? error.message : 'Unknown error switching context';
-      setLastError(`Context switch failed: ${errorMessage}`);
+      errorStore.setApiError(`Context switch failed: ${errorMessage}`);
       
       throw error;
     } finally {
       setIsSwitchingContext(false);
     }
+
+    refetchResources();
   };
 
   // Function to refetch all resources
   const refetchResources = async () => {
     try {
-      setLastError(null);
       await Promise.all([
         refetchApiResources(),
         refetchNamespaces(),
@@ -238,7 +246,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     } catch (error) {
       console.error('Error refetching resources:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to refetch resources';
-      setLastError(errorMessage);
+      errorStore.setApiError(errorMessage);
     }
   };
 
@@ -248,7 +256,6 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     get contextInfo() { return contextInfo(); },
     switchContext,
     get isSwitchingContext() { return isSwitchingContext(); },
-    get lastError() { return lastError(); },
     refetchResources
   };
 
