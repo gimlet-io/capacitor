@@ -76,9 +76,17 @@ func (p *KubernetesProxy) HandleAPIRequest(c echo.Context) error {
 	// Get path from request
 	path := c.Request().URL.Path
 
-	// Strip /k8s prefix if present
-	if after, ok := strings.CutPrefix(path, "/k8s"); ok {
-		path = after
+	// Strip /k8s/:context prefix
+	if after, ok := strings.CutPrefix(path, "/k8s/"); ok {
+		// Remove the context segment (up to next '/')
+		// Expect formats: /k8s/<context>/..., or /k8s
+		slash := strings.IndexByte(after, '/')
+		if slash >= 0 {
+			path = after[slash:]
+		} else {
+			// No trailing path; forward to root
+			path = "/"
+		}
 	}
 
 	// Update the path

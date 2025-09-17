@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gimlet-io/capacitor/pkg/config"
@@ -49,14 +50,15 @@ import (
 
 // Server represents the API server
 type Server struct {
-	echo       *echo.Echo
-	config     *config.Config
-	k8sClient  *kubernetes.Client
-	helmClient *helm.Client
-	wsHandler  *WebSocketHandler
-	k8sProxy   *KubernetesProxy
-	embedFS    fs.FS // embedded file system for static files
-	version    string
+	echo         *echo.Echo
+	config       *config.Config
+	k8sClient    *kubernetes.Client
+	helmClient   *helm.Client
+	wsHandler    *WebSocketHandler
+	k8sProxies   map[string]*KubernetesProxy
+	k8sProxiesMu sync.RWMutex
+	embedFS      fs.FS // embedded file system for static files
+	version      string
 }
 
 // New creates a new server instance
@@ -73,11 +75,13 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Ser
 	// Create WebSocket handler
 	wsHandler := NewWebSocketHandler(k8sClient, helmClient)
 
-	// Create Kubernetes proxy
-	k8sProxy, err := NewKubernetesProxy(k8sClient)
+	// Initialize proxy cache and seed with current context
+	proxyCache := make(map[string]*KubernetesProxy)
+	initialProxy, err := NewKubernetesProxy(k8sClient)
 	if err != nil {
 		return nil, fmt.Errorf("error creating kubernetes proxy: %w", err)
 	}
+	proxyCache[k8sClient.CurrentContext] = initialProxy
 
 	return &Server{
 		echo:       e,
@@ -85,7 +89,7 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Ser
 		k8sClient:  k8sClient,
 		helmClient: helmClient,
 		wsHandler:  wsHandler,
-		k8sProxy:   k8sProxy,
+		k8sProxies: proxyCache,
 		version:    version,
 	}, nil
 }
@@ -113,9 +117,36 @@ func (s *Server) Setup() {
 		s.echo.Static("/", s.config.StaticFilesDirectory)
 	}
 
-	// WebSocket endpoint
-	s.echo.GET("/ws", func(c echo.Context) error {
-		return s.wsHandler.HandleWebSocket(c)
+	// WebSocket endpoint with context
+	s.echo.GET("/ws/:context", func(c echo.Context) error {
+		ctxName := c.Param("context")
+		if strings.TrimSpace(ctxName) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "context parameter is required",
+			})
+		}
+
+		proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+				status = http.StatusBadRequest
+			}
+			return c.JSON(status, map[string]string{
+				"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
+			})
+		}
+
+		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create helm client for context '%s': %v", ctxName, err),
+			})
+		}
+
+		// Create a per-connection handler so it uses the context-specific clients
+		h := NewWebSocketHandler(proxy.k8sClient, hc)
+		return h.HandleWebSocket(c)
 	})
 
 	// Version endpoint
@@ -176,14 +207,12 @@ func (s *Server) Setup() {
 			})
 		}
 
-		// Recreate the Kubernetes proxy with the new context
-		k8sProxy, err := NewKubernetesProxy(s.k8sClient)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("Error recreating Kubernetes proxy: %v", err),
-			})
+		// Update proxy cache for the new current context
+		if proxy, err := NewKubernetesProxy(s.k8sClient); err == nil {
+			s.k8sProxiesMu.Lock()
+			s.k8sProxies[s.k8sClient.CurrentContext] = proxy
+			s.k8sProxiesMu.Unlock()
 		}
-		s.k8sProxy = k8sProxy
 
 		// Recreate the Helm client with the new context
 		helmClient, err := helm.NewClient(s.k8sClient.Config, "")
@@ -1024,20 +1053,98 @@ func (s *Server) Setup() {
 	})
 
 	// Kubernetes API proxy endpoints
-	// Match all routes starting with /k8s
-	s.echo.Any("/k8s*", func(c echo.Context) error {
-		return s.k8sProxy.HandleAPIRequest(c)
+	// New: match routes with explicit context: /k8s/:context/*
+	s.echo.Any("/k8s/:context/*", func(c echo.Context) error {
+		ctxName := c.Param("context")
+		if strings.TrimSpace(ctxName) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "context parameter is required",
+			})
+		}
+
+		proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+				status = http.StatusBadRequest
+			}
+			return c.JSON(status, map[string]string{
+				"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
+			})
+		}
+
+		return proxy.HandleAPIRequest(c)
 	})
 
-	// Add endpoint for kubectl exec WebSocket connections
-	s.echo.GET("/api/exec/:namespace/:podname", func(c echo.Context) error {
-		return s.handleExecWebSocket(c)
+	// Add endpoint for kubectl exec WebSocket connections with context
+	s.echo.GET("/api/:context/exec/:namespace/:podname", func(c echo.Context) error {
+		ctxName := c.Param("context")
+		if strings.TrimSpace(ctxName) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "context parameter is required",
+			})
+		}
+
+		proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+				status = http.StatusBadRequest
+			}
+			return c.JSON(status, map[string]string{
+				"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
+			})
+		}
+
+		return s.handleExecWebSocketWithClient(c, proxy.k8sClient)
 	})
 
 	// Health check endpoint
 	s.echo.GET("/healthz", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
+}
+
+// getOrCreateK8sProxyForContext returns a cached proxy for the given context,
+// or creates and caches a new one if missing.
+func (s *Server) getOrCreateK8sProxyForContext(contextName string) (*KubernetesProxy, error) {
+	// Fast path: read lock then return if exists
+	s.k8sProxiesMu.RLock()
+	if proxy, ok := s.k8sProxies[contextName]; ok {
+		s.k8sProxiesMu.RUnlock()
+		return proxy, nil
+	}
+	s.k8sProxiesMu.RUnlock()
+
+	// Build a new client for the requested context
+	client, err := kubernetes.NewClient(s.config.KubeConfigPath, s.config.InsecureSkipTLSVerify)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	// Switch to requested context (validates existence)
+	if client.CurrentContext != contextName {
+		if err := client.SwitchContext(contextName, s.config.KubeConfigPath); err != nil {
+			return nil, fmt.Errorf("failed to switch to context '%s': %w", contextName, err)
+		}
+	}
+
+	// Create proxy for this context
+	proxy, err := NewKubernetesProxy(client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create proxy for context '%s': %w", contextName, err)
+	}
+
+	// Cache it with write lock
+	s.k8sProxiesMu.Lock()
+	// Initialize map if nil (defensive)
+	if s.k8sProxies == nil {
+		s.k8sProxies = make(map[string]*KubernetesProxy)
+	}
+	s.k8sProxies[contextName] = proxy
+	s.k8sProxiesMu.Unlock()
+
+	return proxy, nil
 }
 
 // downloadAndExtractArtifact downloads and extracts a Flux source artifact
@@ -1220,119 +1327,6 @@ func (s *Server) getBucket(ctx context.Context, name, namespace string) (map[str
 	var resource map[string]interface{}
 	err = json.Unmarshal(data, &resource)
 	return resource, err
-}
-
-// getResourceFromCluster retrieves a resource from the cluster
-func (s *Server) getResourceFromCluster(ctx context.Context, namespace, name, kind string) (map[string]interface{}, error) {
-	clientset := s.k8sClient.Clientset
-
-	// Try common resource types first with hardcoded paths for performance
-	var apiPath string
-	switch strings.ToLower(kind) {
-	case "deployment":
-		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/deployments/%s", namespace, name)
-	case "service":
-		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/services/%s", namespace, name)
-	case "configmap":
-		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/configmaps/%s", namespace, name)
-	case "secret":
-		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/secrets/%s", namespace, name)
-	case "ingress":
-		apiPath = fmt.Sprintf("/apis/networking.k8s.io/v1/namespaces/%s/ingresses/%s", namespace, name)
-	case "pod":
-		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s", namespace, name)
-	case "replicaset":
-		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/replicasets/%s", namespace, name)
-	case "daemonset":
-		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/daemonsets/%s", namespace, name)
-	case "statefulset":
-		apiPath = fmt.Sprintf("/apis/apps/v1/namespaces/%s/statefulsets/%s", namespace, name)
-	case "job":
-		apiPath = fmt.Sprintf("/apis/batch/v1/namespaces/%s/jobs/%s", namespace, name)
-	case "cronjob":
-		apiPath = fmt.Sprintf("/apis/batch/v1/namespaces/%s/cronjobs/%s", namespace, name)
-	case "persistentvolumeclaim", "pvc":
-		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/persistentvolumeclaims/%s", namespace, name)
-	case "serviceaccount":
-		apiPath = fmt.Sprintf("/api/v1/namespaces/%s/serviceaccounts/%s", namespace, name)
-	case "role":
-		apiPath = fmt.Sprintf("/apis/rbac.authorization.k8s.io/v1/namespaces/%s/roles/%s", namespace, name)
-	case "rolebinding":
-		apiPath = fmt.Sprintf("/apis/rbac.authorization.k8s.io/v1/namespaces/%s/rolebindings/%s", namespace, name)
-	case "networkpolicy":
-		apiPath = fmt.Sprintf("/apis/networking.k8s.io/v1/namespaces/%s/networkpolicies/%s", namespace, name)
-	default:
-		// For unknown resource types, try to discover the API path
-		discoveredPath, err := s.discoverResourceAPIPath(namespace, name, kind)
-		if err != nil {
-			return nil, fmt.Errorf("unsupported resource kind '%s' and failed to discover API path: %w", kind, err)
-		}
-		apiPath = discoveredPath
-	}
-
-	data, err := clientset.
-		RESTClient().
-		Get().
-		AbsPath(apiPath).
-		DoRaw(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var resource map[string]interface{}
-	if err := json.Unmarshal(data, &resource); err != nil {
-		return nil, err
-	}
-
-	return resource, nil
-}
-
-// discoverResourceAPIPath discovers the API path for a resource using the discovery client
-func (s *Server) discoverResourceAPIPath(namespace, name, kind string) (string, error) {
-	// Create a discovery client
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.k8sClient.Config)
-	if err != nil {
-		return "", fmt.Errorf("failed to create discovery client: %w", err)
-	}
-
-	// Get all API resources
-	apiResourceLists, err := discoveryClient.ServerPreferredResources()
-	if err != nil {
-		return "", fmt.Errorf("failed to get API resources: %w", err)
-	}
-
-	// Search for the resource kind
-	for _, apiResourceList := range apiResourceLists {
-		for _, apiResource := range apiResourceList.APIResources {
-			if strings.EqualFold(apiResource.Kind, kind) {
-				// Found the resource, construct the API path
-				groupVersion := apiResourceList.GroupVersion
-
-				var apiPath string
-				if apiResource.Namespaced {
-					if groupVersion == "v1" {
-						// Core API group
-						apiPath = fmt.Sprintf("/api/v1/namespaces/%s/%s/%s", namespace, apiResource.Name, name)
-					} else {
-						// Named API group
-						apiPath = fmt.Sprintf("/apis/%s/namespaces/%s/%s/%s", groupVersion, namespace, apiResource.Name, name)
-					}
-				} else {
-					// Cluster-scoped resource
-					if groupVersion == "v1" {
-						apiPath = fmt.Sprintf("/api/v1/%s/%s", apiResource.Name, name)
-					} else {
-						apiPath = fmt.Sprintf("/apis/%s/%s/%s", groupVersion, apiResource.Name, name)
-					}
-				}
-
-				log.Printf("Discovered API path for %s: %s", kind, apiPath)
-				return apiPath, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("resource kind '%s' not found in cluster", kind)
 }
 
 // getResourceGVK gets the GroupVersionKind for a resource
@@ -1538,22 +1532,19 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 	return localURL, cleanup, nil
 }
 
-// handleExecWebSocket handles WebSocket connections for kubectl exec
-func (s *Server) handleExecWebSocket(c echo.Context) error {
+// handleExecWebSocketWithClient handles WebSocket connections for kubectl exec using a specific k8s client
+func (s *Server) handleExecWebSocketWithClient(c echo.Context, client *kubernetes.Client) error {
 	namespace := c.Param("namespace")
 	podname := c.Param("podname")
-	// We'll auto-detect the best available shell
 
-	log.Printf("Setting up exec WebSocket for pod %s/%s with auto shell detection", namespace, podname)
+	log.Printf("Setting up exec WebSocket for pod %s/%s with auto shell detection (context: %s)", namespace, podname, client.CurrentContext)
 
-	// Create WebSocket upgrader
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for now
+			return true
 		},
 	}
 
-	// Upgrade to WebSocket connection
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		log.Printf("Failed to upgrade to websocket: %v", err)
@@ -1561,24 +1552,17 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 	}
 	defer ws.Close()
 
-	// Try shells in order of preference: bash -> sh -> ash
 	shells := []string{"bash", "sh", "ash"}
-
-	log.Printf("Will try shells in order: %v", shells)
 
 	var executor remotecommand.Executor
 	var execCmd []string
 	var shell string
 	var shellFound bool
 
-	// Try each shell until one works by actually testing if it exists
 	for _, tryShell := range shells {
 		log.Printf("Trying shell: %s", tryShell)
 
-		// Test if the shell exists by trying to execute it with --version or --help
 		var shellExists bool
-
-		// Try different ways to test shell existence
 		testMethods := [][]string{
 			{tryShell, "--version"},
 			{tryShell, "--help"},
@@ -1586,7 +1570,7 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		}
 
 		for _, testCmd := range testMethods {
-			testReq := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
+			testReq := client.Clientset.CoreV1().RESTClient().Post().
 				Resource("pods").
 				Name(podname).
 				Namespace(namespace).
@@ -1599,19 +1583,17 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 					TTY:     false,
 				}, scheme.ParameterCodec)
 
-			testExec, err := remotecommand.NewSPDYExecutor(s.k8sClient.Config, "POST", testReq.URL())
+			testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
 			if err != nil {
 				continue
 			}
 
-			// Test if shell responds
 			var testOut, testErr bytes.Buffer
-			err = testExec.Stream(remotecommand.StreamOptions{
+			err = testExec.StreamWithContext(c.Request().Context(), remotecommand.StreamOptions{
 				Stdout: &testOut,
 				Stderr: &testErr,
 			})
 
-			// If any test method works, the shell exists
 			if err == nil {
 				shellExists = true
 				log.Printf("Shell %s found using test: %v", tryShell, testCmd)
@@ -1624,9 +1606,8 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 			continue
 		}
 
-		// Now set up the interactive session with the working shell
 		execCmd = []string{tryShell}
-		req := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
+		req := client.Clientset.CoreV1().RESTClient().Post().
 			Resource("pods").
 			Name(podname).
 			Namespace(namespace).
@@ -1639,8 +1620,7 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 				TTY:     true,
 			}, scheme.ParameterCodec)
 
-		// Create interactive executor
-		exec, err := remotecommand.NewSPDYExecutor(s.k8sClient.Config, "POST", req.URL())
+		exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
 		if err != nil {
 			log.Printf("Failed to create interactive executor for shell %s: %v", tryShell, err)
 			continue
@@ -1663,7 +1643,6 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 
 	log.Printf("Using shell: %s", shell)
 
-	// Send connected message now that we have a working executor
 	connectedMsg := map[string]interface{}{
 		"type":    "connected",
 		"message": fmt.Sprintf("Connected to %s/%s with shell %s", namespace, podname, shell),
@@ -1673,22 +1652,17 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		return err
 	}
 
-	// Create pipes for stdin/stdout/stderr
 	stdinReader, stdinWriter := io.Pipe()
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
 
-	// Channel to signal when to stop
 	done := make(chan struct{})
 
-	// Start monitoring WebSocket and handle messages
 	go func() {
 		defer func() {
 			stdinWriter.Close()
-			// Signal all goroutines to stop
 			select {
 			case <-done:
-				// Already closed
 			default:
 				close(done)
 			}
@@ -1715,7 +1689,6 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 						}
 					}
 				case "resize":
-					// Handle terminal resize - TODO: Implement if needed
 					if cols, ok := msg["cols"].(float64); ok {
 						if rows, ok := msg["rows"].(float64); ok {
 							log.Printf("Terminal resize: %dx%d", int(cols), int(rows))
@@ -1726,7 +1699,6 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		}
 	}()
 
-	// Handle stdout in a goroutine
 	go func() {
 		defer stdoutWriter.Close()
 		buf := make([]byte, 1024)
@@ -1757,7 +1729,6 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		}
 	}()
 
-	// Handle stderr in a goroutine
 	go func() {
 		defer stderrWriter.Close()
 		buf := make([]byte, 1024)
@@ -1788,11 +1759,10 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		}
 	}()
 
-	// Execute the command in a goroutine so we can handle WebSocket messages
 	execDone := make(chan error, 1)
 	go func() {
 		log.Printf("Starting exec stream for %s/%s with shell %s", namespace, podname, shell)
-		err := executor.Stream(remotecommand.StreamOptions{
+		err := executor.StreamWithContext(c.Request().Context(), remotecommand.StreamOptions{
 			Stdin:  stdinReader,
 			Stdout: stdoutWriter,
 			Stderr: stderrWriter,
@@ -1802,7 +1772,6 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		execDone <- err
 	}()
 
-	// Wait for either exec to complete or WebSocket to close
 	select {
 	case err := <-execDone:
 		if err != nil {
@@ -1819,10 +1788,8 @@ func (s *Server) handleExecWebSocket(c echo.Context) error {
 		log.Printf("WebSocket closed, terminating exec session")
 	}
 
-	// Signal all goroutines to stop
 	select {
 	case <-done:
-		// Already closed
 	default:
 		close(done)
 	}
