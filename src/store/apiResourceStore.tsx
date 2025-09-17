@@ -23,6 +23,7 @@ interface ApiResourceState {
   switchContext: (contextName: string) => Promise<void>;
   isSwitchingContext: boolean;
   refetchResources: () => Promise<void>;
+  clearResources: () => void;
 }
 
 const ApiResourceContext = createContext<ApiResourceState>();
@@ -31,7 +32,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
   const errorStore = useErrorStore();
   const [isSwitchingContext, setIsSwitchingContext] = createSignal(false);
   
-  const [apiResources, { refetch: refetchApiResources }] = createResource(async () => {
+  const [apiResources, { refetch: refetchApiResources, mutate: mutateApiResources }] = createResource(async () => {
     try {
       // Clear previous API error if present on successful fetch
       if (errorStore.currentError?.type === 'api') {
@@ -140,7 +141,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     }
   });
 
-  const [namespaces, { refetch: refetchNamespaces }] = createResource(async () => {
+  const [namespaces, { refetch: refetchNamespaces, mutate: mutateNamespaces }] = createResource(async () => {
     try {
       const response = await fetch('/k8s/api/v1/namespaces');
       
@@ -166,7 +167,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
   });
 
   // Fetch context information from the API
-  const [contextInfo, { refetch: refetchContexts }] = createResource(async () => {
+  const [contextInfo, { refetch: refetchContexts, mutate: mutateContexts }] = createResource(async () => {
     try {
       const response = await fetch('/api/contexts');
       if (!response.ok) {
@@ -188,12 +189,22 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     }
   });
 
+  // Clear all stored API data immediately (used when switching contexts)
+  const clearResources = () => {
+    // Set to undefined so consumers can react to loading state cleanly
+    mutateApiResources(undefined as unknown as ApiResource[]);
+    mutateNamespaces(undefined as unknown as string[]);
+    mutateContexts(undefined as unknown as ContextInfo);
+  };
+
   // Function to switch Kubernetes context
   const switchContext = async (contextName: string) => {
     if (isSwitchingContext()) return;
     
     try {
       setIsSwitchingContext(true);
+      // Immediately clear existing data so UI doesn't show stale info
+      clearResources();
 
       const response = await fetch('/api/contexts/switch', {
         method: 'POST',
@@ -254,6 +265,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     get apiResources() { return apiResources(); },
     get namespaces() { return namespaces(); },
     get contextInfo() { return contextInfo(); },
+    clearResources,
     switchContext,
     get isSwitchingContext() { return isSwitchingContext(); },
     refetchResources

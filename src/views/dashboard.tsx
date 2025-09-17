@@ -28,6 +28,7 @@ export function Dashboard() {
 
   // Resource state
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
+  const [listResetKey, setListResetKey] = createSignal(0);
 
   // Function to switch to a new context
   const handleContextSwitch = async (contextName: string) => {
@@ -37,7 +38,16 @@ export function Dashboard() {
     }
     
     try {
+      // Stop current watches and clear in-memory resources immediately
+      untrack(() => {
+        watchControllers().forEach(controller => controller.abort());
+      });
+      setWatchControllers([]);
+      setDynamicResources(() => ({}));
+
       await apiResourceStore.switchContext(contextName);
+      // Bump reset key so ResourceList clears its internal UI state
+      setListResetKey(prev => prev + 1);
       setContextMenuOpen(false);
     } catch (error) {
       console.error("Error switching context in dashboard:", error);
@@ -486,6 +496,7 @@ export function Dashboard() {
             <ResourceList 
               resources={filteredResources()}
               resourceTypeConfig={currentResourceConfig()!}
+              resetKey={listResetKey()}
             />
           }>
             <ErrorDisplay class="inline" />
