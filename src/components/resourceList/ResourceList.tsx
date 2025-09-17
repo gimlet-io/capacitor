@@ -287,6 +287,7 @@ export const replaceHandlers = (
 export function ResourceList<T>(props: { 
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
+  resetKey?: unknown;
 }) {
   const navigate = useNavigate();
   const filterStore = useFilterStore();
@@ -311,6 +312,22 @@ export function ResourceList<T>(props: {
   createEffect(() => {
     if (!filterStore.sortColumn && props.resourceTypeConfig.defaultSortColumn) {
       filterStore.setSortColumn(props.resourceTypeConfig.defaultSortColumn);
+    }
+  });
+
+  // Reset UI state when resetKey changes
+  createEffect(() => {
+    const key = props.resetKey;
+    // Only used for reactive dependency
+    void key;
+    setSelectedIndex(-1);
+    setDrawerOpen(false);
+    setSelectedResource(null);
+    setActiveTab("describe");
+    setScrollTop(0);
+    const container = listContainer();
+    if (container) {
+      container.scrollTop = 0;
     }
   });
 

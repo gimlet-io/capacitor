@@ -77,8 +77,8 @@ func (p *KubernetesProxy) HandleAPIRequest(c echo.Context) error {
 	path := c.Request().URL.Path
 
 	// Strip /k8s prefix if present
-	if strings.HasPrefix(path, "/k8s") {
-		path = strings.TrimPrefix(path, "/k8s")
+	if after, ok := strings.CutPrefix(path, "/k8s"); ok {
+		path = after
 	}
 
 	// Update the path
