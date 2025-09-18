@@ -2,15 +2,40 @@ import { getWebSocketClient } from './k8sWebSocketClient.ts';
 
 // WebSocket-based implementation for watching K8s resources
 export const watchResource = async (
-  path: string, 
-  callback: (event: any) => void, 
-  controller: AbortController, 
+  path: string,
+  callback: (event: any) => void,
+  controller: AbortController,
   setWatchStatus: (status: string) => void,
-  onError?: (message: string, path: string) => void
+  onError?: (message: string, path: string) => void,
+  contextNameOverride?: string
 ) => {
-  const wsClient = getWebSocketClient();
+  // Determine context name using explicit override only
+  const contextName = contextNameOverride || '';
+  const wsClient = getWebSocketClient(contextName);
 
-  path = path.startsWith("/k8s") ? path.slice(4) : path;
+  // Normalize paths that start with /k8s[/<context>]/...
+  // We need to strip the /k8s prefix and optional context segment,
+  // but preserve the API root segment ("api" or "apis").
+  if (path.startsWith("/k8s/")) {
+    const rest = path.slice(5); // after "/k8s/"
+    // Case 1: already "/k8s/api/..." or "/k8s/apis/..." → keep as-is minus "/k8s"
+    if (rest.startsWith("api/") || rest.startsWith("apis/")) {
+      path = `/${rest}`;
+    } else {
+      // Case 2: "/k8s/<context>/api..." → drop the context segment only
+      const firstSlash = rest.indexOf('/');
+      if (firstSlash === -1) {
+        path = '/';
+      } else {
+        const afterContext = rest.slice(firstSlash + 1);
+        path = `/${afterContext}`;
+      }
+    }
+  }
+  // If explicit context provided and path starts with /api/<context>/..., normalize to /api/...
+  if (contextName && path.startsWith(`/api/${contextName}/`)) {
+    path = `/api/${path.slice(6 + contextName.length)}`;
+  }
 
   try {
     // Set status to active
@@ -38,7 +63,7 @@ export const watchResource = async (
     setTimeout(() => {
       // Only retry if the controller is not aborted
       if (!controller.signal.aborted) {
-        watchResource(path, callback, controller, setWatchStatus, onError);
+        watchResource(path, callback, controller, setWatchStatus, onError, contextName);
       }
     }, retryDelay);
   }

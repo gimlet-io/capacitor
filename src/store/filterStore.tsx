@@ -38,6 +38,16 @@ interface FilterState {
 const FilterContext = createContext<FilterState>();
 
 // URL parameter utilities
+const getCtxFromUrl = (): string | undefined => {
+  try {
+    const url = new URL(globalThis.location.href);
+    const val = url.searchParams.get('ctx');
+    return val || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const serializeFilters = (filters: ActiveFilter[]): string => {
   if (filters.length === 0) return '';
   const filterParams = filters.map(f => `${f.name}=${encodeURIComponent(f.value)}`).join('&');
@@ -47,16 +57,21 @@ const serializeFilters = (filters: ActiveFilter[]): string => {
 const deserializeFilters = (searchParams: URLSearchParams): ActiveFilter[] => {
   const filters: ActiveFilter[] = [];
   for (const [name, value] of searchParams) {
-    if (name !== 'view' && name !== 'sortColumn' && name !== 'sortAscending') { // Skip view and sort parameters
+    if (name !== 'view' && name !== 'sortColumn' && name !== 'sortAscending' && name !== 'ctx') { // Skip view, sort, and ctx parameters
       filters.push({ name, value: decodeURIComponent(value) });
     }
   }
   return filters;
 };
 
-const updateURL = (filters: ActiveFilter[], view: string, sortColumn: string | null, sortAscending: boolean) => {
+const updateURL = (filters: ActiveFilter[], view: string, sortColumn: string | null, sortAscending: boolean, ctx?: string) => {
   const url = new URL(window.location.href);
   url.search = '';
+  
+  // Ensure ctx is the first parameter when present
+  if (ctx) {
+    url.searchParams.set('ctx', ctx);
+  }
   
   // Add view parameter
   if (view) {
@@ -239,7 +254,8 @@ export function FilterProvider(props: { children: JSX.Element }) {
   const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
     setActiveFilters(filters);
     if (isInitialized()) {
-      updateURL(filters, selectedView(), sortColumn(), sortAscending());
+      const ctx = apiResourceStore.contextInfo?.current || getCtxFromUrl();
+      updateURL(filters, selectedView(), sortColumn(), sortAscending(), ctx);
     }
     addToHistory(filters, selectedView());
   };
@@ -347,13 +363,14 @@ export function FilterProvider(props: { children: JSX.Element }) {
       });
 
     // Add Helm releases as a special resource type
+    const ctxName = encodeURIComponent(apiResourceStore.contextInfo?.current || '');
     const helmReleaseResource: K8sResource = {
       id: 'helm.sh/Release',
       filters: [namespaceFilter(), nameFilter, ...(resourceTypeConfigs['helm.sh/Release']?.filter || [])],
       group: 'helm.sh',
       version: 'v3',
       kind: 'Release',
-      apiPath: '/api/helm/releases',
+      apiPath: ctxName ? `/api/${ctxName}/helm/releases` : '/api/helm/releases',
       name: 'releases',
       namespaced: true
     };
@@ -416,7 +433,8 @@ export function FilterProvider(props: { children: JSX.Element }) {
   // Sync URL when selectedView or sorting changes
   createEffect(() => {
     if (isInitialized()) {
-      updateURL(activeFilters(), selectedView(), sortColumn(), sortAscending());
+      const ctx = apiResourceStore.contextInfo?.current || getCtxFromUrl();
+      updateURL(activeFilters(), selectedView(), sortColumn(), sortAscending(), ctx);
     }
   });
 

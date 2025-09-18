@@ -12,12 +12,14 @@ import type {
   DeploymentWithResources
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
+import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { createNode, createNodeWithCardRenderer, ResourceTree } from "../components/ResourceTree.tsx";
 import * as graphlib from "graphlib";
 
 export function ApplicationDetails() {
   const params = useParams();
   const navigate = useNavigate();
+  const apiResourceStore = useApiResourceStore();
 
   // Initialize state for the specific kustomization and its related resources
   const [argoCDApplication, setArgoCDApplication] = createSignal<ArgoCDApplication | null>(null);
@@ -118,7 +120,7 @@ export function ApplicationDetails() {
 
     const controllers = watches.map(({ path, callback }) => {
       const controller = new AbortController();
-      watchResource(path, callback, controller, setWatchStatus);
+      watchResource(path, callback, controller, setWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       return controller;
     });
 

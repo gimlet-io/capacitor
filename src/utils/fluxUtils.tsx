@@ -70,9 +70,16 @@ export const fluxReadyFilter: Filter = {
  * The backend API expects lowercase resource kinds in its lookup table,
  * though it has logic to handle capitalized resource kinds as well.
  */
-export async function handleFluxReconcile(resource: FluxResource) {
+import { useApiResourceStore } from "../store/apiResourceStore.tsx";
+
+export async function handleFluxReconcile(resource: FluxResource, contextName?: string) {
   try {
-    const response = await fetch('/api/flux/reconcile', {
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
+    const response = await fetch(`${apiPrefix}/flux/reconcile`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,9 +109,14 @@ export async function handleFluxReconcile(resource: FluxResource) {
  * Generic reconcile function for Flux CD resources with sources
  * Equivalent to running `flux reconcile <kind> <name> --with-sources`
  */
-export async function handleFluxReconcileWithSources(resource: FluxResource) {
+export async function handleFluxReconcileWithSources(resource: FluxResource, contextName?: string) {
   try {
-    const response = await fetch('/api/flux/reconcile', {
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
+    const response = await fetch(`${apiPrefix}/flux/reconcile`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,7 +145,10 @@ export async function handleFluxReconcileWithSources(resource: FluxResource) {
 
 export async function handleFluxSuspend(resource: FluxResource, suspend: boolean = true) {
   try {
-    const response = await fetch('/api/flux/suspend', {
+    const { contextInfo } = useApiResourceStore();
+    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    const response = await fetch(`${apiPrefix}/flux/suspend`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -162,7 +177,10 @@ export async function handleFluxSuspend(resource: FluxResource, suspend: boolean
 
 export async function handleFluxDiff(resource: any): Promise<any> {
   try {
-    const response = await fetch("/api/flux/diff", {
+    const { contextInfo } = useApiResourceStore();
+    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    const response = await fetch(`${apiPrefix}/flux/diff`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -188,7 +206,10 @@ export async function handleFluxDiff(resource: any): Promise<any> {
 
 export async function handleFluxApprove(resource: FluxResource) {
   try {
-    const response = await fetch('/api/flux/approve', {
+    const { contextInfo } = useApiResourceStore();
+    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    const response = await fetch(`${apiPrefix}/flux/approve`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

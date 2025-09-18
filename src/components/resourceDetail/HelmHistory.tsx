@@ -42,8 +42,10 @@ export function HelmHistory(props: {
       unsubscribeHistory();
       unsubscribeHistory = null;
     }
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+    // Context is conveyed by the WS connection URL; the subscribe path must be context-agnostic
     const wsPath = `/api/helm/history/${props.namespace}/${props.name}`;
-    const wsClient = getWebSocketClient();
+    const wsClient = getWebSocketClient(ctxName);
     wsClient.watchResource(wsPath, (data) => {
       if (data && data.object && data.object.releases) {
         const sortedReleases = data.object.releases.sort((a: any, b: any) => b.revision - a.revision);
@@ -84,7 +86,8 @@ export function HelmHistory(props: {
     if (canRollback() === false) return;
     if (!window.confirm(`Are you sure you want to rollback ${props.name} to revision ${revisionNumber}?`)) return;
     try {
-      const url = `/api/helm/rollback/${props.namespace}/${props.name}/${revisionNumber}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const url = (ctxName ? `/api/${ctxName}` : '/api') + `/helm/rollback/${props.namespace}/${props.name}/${revisionNumber}`;
       const response = await fetch(url, { method: "POST" });
       if (!response.ok) throw new Error(`Failed to rollback release: ${response.statusText}`);
     } catch (error) {
@@ -98,8 +101,10 @@ export function HelmHistory(props: {
     const diffKey = `${toRevision}-${fromRevision}`;
     if (diffData()[diffKey]) return diffData()[diffKey];
     try {
-      const url1 = `/api/helm/values/${props.namespace}/${props.name}?revision=${fromRevision}`;
-      const url2 = `/api/helm/values/${props.namespace}/${props.name}?revision=${toRevision}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+      const url1 = `${apiPrefix}/helm/values/${props.namespace}/${props.name}?revision=${fromRevision}`;
+      const url2 = `${apiPrefix}/helm/values/${props.namespace}/${props.name}?revision=${toRevision}`;
       const [r1, r2] = await Promise.all([fetch(url1), fetch(url2)]);
       if (!r1.ok) throw new Error(`Failed to fetch values for revision ${fromRevision}: ${r1.statusText}`);
       if (!r2.ok) throw new Error(`Failed to fetch values for revision ${toRevision}: ${r2.statusText}`);
@@ -118,8 +123,10 @@ export function HelmHistory(props: {
     const diffKey = `${toRevision}-${fromRevision}-manifest`;
     if (diffData()[diffKey]) return diffData()[diffKey];
     try {
-      const url1 = `/api/helm/manifest/${props.namespace}/${props.name}?revision=${fromRevision}`;
-      const url2 = `/api/helm/manifest/${props.namespace}/${props.name}?revision=${toRevision}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+      const url1 = `${apiPrefix}/helm/manifest/${props.namespace}/${props.name}?revision=${fromRevision}`;
+      const url2 = `${apiPrefix}/helm/manifest/${props.namespace}/${props.name}?revision=${toRevision}`;
       const [r1, r2] = await Promise.all([fetch(url1), fetch(url2)]);
       if (!r1.ok) throw new Error(`Failed to fetch manifest for revision ${fromRevision}: ${r1.statusText}`);
       if (!r2.ok) throw new Error(`Failed to fetch manifest for revision ${toRevision}: ${r2.statusText}`);

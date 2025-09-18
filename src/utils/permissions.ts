@@ -1,4 +1,5 @@
 import type { ApiResource, ObjectMeta } from "../types/k8s.ts";
+import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 
 export type MinimalK8sResource = {
   apiVersion?: string;
@@ -100,7 +101,9 @@ export const checkPermissionSSAR = async (
       if (resolvedName) body.spec.resourceAttributes.name = resolvedName;
       if (opts.subresource) body.spec.resourceAttributes.subresource = opts.subresource;
 
-      const resp = await fetch('/k8s/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', {
+      const { contextInfo } = useApiResourceStore();
+      const k8sPrefix = contextInfo?.current ? `/k8s/${encodeURIComponent(contextInfo.current)}` : '/k8s';
+      const resp = await fetch(`${k8sPrefix}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

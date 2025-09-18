@@ -12,7 +12,7 @@ import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permis
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
-  handler: (item: any) => void | Promise<void>;
+  handler: (item: any, contextName?: string) => void | Promise<void>;
 }
 
 export const builtInCommands = [
@@ -35,7 +35,7 @@ export const builtInCommands = [
 ]
 
 // Shared function to handle resource deletion
-export const handleDeleteResource = async (resource: any) => {
+export const handleDeleteResource = async (resource: any, contextName?: string) => {
   if (!resource || !resource.metadata) return;
   
   const resourceName = resource.metadata.name;
@@ -55,11 +55,12 @@ export const handleDeleteResource = async (resource: any) => {
       ? resource.apiVersion.split('/')[1] 
       : resource.apiVersion || 'v1';
     
+    const ctxName = encodeURIComponent(contextName || '');
     let apiPath = '';
     if (!group || group === 'core') {
-      apiPath = `/k8s/api/${version}`;
+      apiPath = ctxName ? `/k8s/${ctxName}/api/${version}` : `/k8s/api/${version}`;
     } else {
-      apiPath = `/k8s/apis/${group}/${version}`;
+      apiPath = ctxName ? `/k8s/${ctxName}/apis/${group}/${version}` : `/k8s/apis/${group}/${version}`;
     }
     
     // Build the full delete URL
@@ -138,6 +139,7 @@ export const replaceHandlers = (
     openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: any) => void;
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
+    getContextName?: () => string | undefined;
   }
 ) => {
   // Replace the null handlers with actual implementations for built-in commands
@@ -174,7 +176,7 @@ export const replaceHandlers = (
       } else if (cmd.shortcut.description === 'Delete resource') {
         commands[i] = {
           ...cmd,
-          handler: handleDeleteResource
+          handler: (resource) => handleDeleteResource(resource, handlers.getContextName?.())
         };
       } else if (cmd === navigateToKustomization && handlers.navigate) {
         commands[i] = {
@@ -291,6 +293,7 @@ export function ResourceList<T>(props: {
 }) {
   const navigate = useNavigate();
   const filterStore = useFilterStore();
+  const apiStore = useApiResourceStore();
 
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
@@ -512,7 +515,8 @@ export function ResourceList<T>(props: {
     replaceHandlers(commands, {
       openDrawer,
       navigate: navigate,
-      updateFilters: (filters) => filterStore.setActiveFilters(filters)
+      updateFilters: (filters) => filterStore.setActiveFilters(filters),
+      getContextName: () => apiStore.contextInfo?.current
     });
     return commands;
   };
@@ -540,7 +544,7 @@ export function ResourceList<T>(props: {
       const id = commandId(command);
       const allowed = commandPermissions()[id];
       if (allowed === false) return;
-      await command.handler(resource);
+      await command.handler(resource, apiStore.contextInfo?.current);
     } catch (error) {
       console.error(`Error executing command ${command.shortcut.description}:`, error);
     }

@@ -196,14 +196,15 @@ export function HelmReleaseDetails() {
         }
       };
       const noopSetWatchStatus = (_: string) => {};
-      watchResource(path, callback, controller, noopSetWatchStatus);
+      watchResource(path, callback, controller, noopSetWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       controllers.push(controller);
     }
 
     // Watch Events in namespace and keep last few relevant to this HelmRelease
     {
       const controller = new AbortController();
-      const path = `/k8s/api/v1/namespaces/${ns}/events?watch=true`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const path = (ctxName ? `/k8s/${ctxName}` : '/k8s') + `/api/v1/namespaces/${ns}/events?watch=true`;
       const callback = (event: EventWatch) => {
         const obj = event.object;
         setHelmRelease((prev) => {
@@ -216,7 +217,7 @@ export function HelmReleaseDetails() {
         });
       };
       const noopSetWatchStatus = (_: string) => {};
-      watchResource(path, callback, controller, noopSetWatchStatus);
+      watchResource(path, callback, controller, noopSetWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       controllers.push(controller);
     }
 
@@ -233,7 +234,9 @@ export function HelmReleaseDetails() {
         const ns = hr.metadata.namespace;
         const name = hr.metadata.name;
         // Fetch history to get latest revision
-        const histResp = await fetch(`/api/helm/history/${ns}/${name}`);
+        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+        const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+        const histResp = await fetch(`${apiPrefix}/helm/history/${ns}/${name}`);
         if (!histResp.ok) throw new Error('Failed to fetch Helm history');
         const histData = await histResp.json();
         const releases: Array<{ revision: number }> = Array.isArray(histData.releases) ? histData.releases : [];
@@ -241,7 +244,7 @@ export function HelmReleaseDetails() {
         const latest = releases.sort((a, b) => (b.revision || 0) - (a.revision || 0))[0];
         const revision = latest.revision;
         // Fetch manifest for latest revision
-        const manResp = await fetch(`/api/helm/manifest/${ns}/${name}?revision=${revision}`);
+        const manResp = await fetch(`${apiPrefix}/helm/manifest/${ns}/${name}?revision=${revision}`);
         if (!manResp.ok) throw new Error('Failed to fetch Helm manifest');
         const manData = await manResp.json();
         const manifest: string = manData.manifest || '';
@@ -492,7 +495,9 @@ export function HelmReleaseDetails() {
         }
       },
       controller,
-      () => {}
+      () => {},
+      undefined,
+      apiResourceStore.contextInfo?.current
     );
     setWatchControllers(prev => [...prev, controller]);
   };

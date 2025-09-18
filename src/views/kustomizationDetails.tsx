@@ -566,7 +566,7 @@ export function KustomizationDetails() {
 
     const controllers = watches.map(({ path, callback }) => {
       const controller = new AbortController();
-      watchResource(path, callback, controller, setWatchStatus);
+      watchResource(path, callback, controller, setWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       return controller;
     });
 
@@ -727,7 +727,9 @@ export function KustomizationDetails() {
         scheduleFlush(resourceType.resourceType);
       },
       controller,
-      setWatchStatus
+      setWatchStatus,
+      undefined,
+      apiResourceStore.contextInfo?.current
     );
     // Add this controller to the list
     setWatchControllers(prev => [...prev, controller]);

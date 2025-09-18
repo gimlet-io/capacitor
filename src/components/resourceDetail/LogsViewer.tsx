@@ -1,4 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { createStore } from "solid-js/store";
 
 type LogHistoryOption = "5m" | "10m" | "60m" | "24h" | "all" | "previous";
@@ -25,7 +26,8 @@ function createContainerLogUrl(
   container: string, 
   baseParams: URLSearchParams, 
   isFollow: boolean,
-  isPrevious: boolean = false
+  isPrevious: boolean = false,
+  k8sPrefix?: string
 ): string {
   const containerParams = new URLSearchParams(baseParams);
   containerParams.append("container", container);
@@ -41,13 +43,17 @@ function createContainerLogUrl(
     containerParams.append("previous", "true");
   }
   
-  return `/k8s/api/v1/namespaces/${namespace}/pods/${podName}/log?${containerParams.toString()}`;
+  const base = k8sPrefix || '/k8s';
+  return `${base}/api/v1/namespaces/${namespace}/pods/${podName}/log?${containerParams.toString()}`;
 }
 
 export function LogsViewer(props: {
   resource: any;
   isOpen: boolean;
 }) {
+  const apiResourceStore = useApiResourceStore();
+  const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+  const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
   const [logs, setLogs] = createSignal<string>("");
   const [loading, setLoading] = createSignal<boolean>(true);
   const [containerColors, setContainerColors] = createStore<Record<string, string>>({});
@@ -107,7 +113,7 @@ export function LogsViewer(props: {
 
     // Find pods for this deployment
     const podsUrl =
-      `/k8s/api/v1/namespaces/${namespace}/pods?labelSelector=${selectorString}`;
+      `${k8sPrefix}/api/v1/namespaces/${namespace}/pods?labelSelector=${selectorString}`;
     const podsResponse = await fetch(podsUrl);
     const podsData = await podsResponse.json();
 
@@ -303,7 +309,8 @@ export function LogsViewer(props: {
               container, 
               params, 
               true,
-              logHistoryOption() === "previous"
+              logHistoryOption() === "previous",
+              k8sPrefix
             );
             
             const response = await fetch(containerLogsUrl, {
@@ -397,7 +404,8 @@ export function LogsViewer(props: {
                   container, 
                   params, 
                   false,
-                  logHistoryOption() === "previous"
+                  logHistoryOption() === "previous",
+                  k8sPrefix
                 );
                 
                 const response = await fetch(containerLogsUrl, {

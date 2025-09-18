@@ -1,7 +1,9 @@
 import { Show, createEffect, createSignal } from "solid-js";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { stringify } from "@std/yaml";
 
 export function HelmValues(props: { namespace?: string; name: string }) {
+  const apiResourceStore = useApiResourceStore();
   const [valuesData, setValuesData] = createSignal<unknown>(null);
   const [loading, setLoading] = createSignal<boolean>(false);
   const [showAllValues, setShowAllValues] = createSignal<boolean>(false);
@@ -11,7 +13,9 @@ export function HelmValues(props: { namespace?: string; name: string }) {
     setLoading(true);
     try {
       const namespace = props.namespace || "";
-      const url = `/api/helm/values/${namespace}/${props.name}?allValues=${showAllValues()}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+      const url = `${apiPrefix}/helm/values/${namespace}/${props.name}?allValues=${showAllValues()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch Helm release values: ${response.statusText}`);
