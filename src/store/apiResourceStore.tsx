@@ -1,4 +1,4 @@
-import { createContext, createResource, useContext, JSX, createSignal } from "solid-js";
+import { createContext, createResource, useContext, JSX, createSignal, onMount } from "solid-js";
 import type { ApiResource, ApiResourceList, ApiGroupList } from "../types/k8s.ts";
 import { useErrorStore } from "./errorStore.tsx";
 
@@ -32,6 +32,35 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
   const errorStore = useErrorStore();
   const [isSwitchingContext, setIsSwitchingContext] = createSignal(false);
   
+  // Read ctx from URL if present and keep URL in sync when context changes
+  const getCtxFromUrl = (): string | undefined => {
+    try {
+      const url = new URL(globalThis.location.href);
+      const val = url.searchParams.get('ctx');
+      return val || undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  
+  const writeCtxToUrl = (ctx?: string) => {
+    try {
+      const url = new URL(globalThis.location.href);
+      // rebuild query so ctx is first
+      const currentParams = new URLSearchParams(url.search);
+      url.search = '';
+      if (ctx) url.searchParams.set('ctx', ctx);
+      // re-add the rest (excluding ctx, to ensure first position)
+      for (const [k, v] of currentParams.entries()) {
+        if (k === 'ctx') continue;
+        url.searchParams.append(k, v);
+      }
+      globalThis.history.replaceState(null, '', url.toString());
+    } catch {
+      // noop
+    }
+  };
+  
   // Fetch context information from the API (must be initialized before other resources)
   const [contextInfo, { refetch: _refetchContexts, mutate: mutateContexts }] = createResource(async () => {
     try {
@@ -42,10 +71,13 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
         throw new Error(`Failed to fetch contexts: ${response.status} ${response.statusText} - ${errorText}`);
       }
       const data = await response.json() as ContextInfo;
-      // Use server-provided current if present, otherwise first context
-      const currentName = data.current || (data.contexts?.[0]?.name || '');
+      // Use ctx from URL if provided; else server-provided current; else first
+      const ctxFromUrl = getCtxFromUrl();
+      const currentName = ctxFromUrl || data.current || (data.contexts?.[0]?.name || '');
       const normalizedContexts = (data.contexts || []).map(c => ({ ...c, isCurrent: c.name === currentName }));
       const normalized: ContextInfo = { contexts: normalizedContexts, current: currentName };
+      // Ensure URL reflects chosen context and has ctx first
+      writeCtxToUrl(currentName || undefined);
       
       // Clear API error on successful completion
       if (errorStore.currentError?.type === 'api') {
@@ -228,6 +260,8 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
         };
         mutateContexts(updated);
       }
+      // Sync ctx into URL
+      writeCtxToUrl(contextName || undefined);
     } catch (error) {
       console.error('Error switching context:', error);
       
@@ -274,6 +308,24 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
     get isSwitchingContext() { return isSwitchingContext(); },
     refetchResources
   };
+
+  // Handle browser navigation: if ctx changes in URL, switch context accordingly
+  onMount(() => {
+    const handlePopState = () => {
+      const fromUrl = getCtxFromUrl();
+      const current = contextInfo()?.current || '';
+      // If ctx present and different, switch
+      if (fromUrl && fromUrl !== current) {
+        // Fire and forget; errors are handled internally
+        switchContext(fromUrl);
+      }
+      // If ctx is missing, do nothing; keep current selection as-is
+    };
+    globalThis.addEventListener('popstate', handlePopState);
+    return () => {
+      globalThis.removeEventListener('popstate', handlePopState);
+    };
+  });
 
   return (
     <ApiResourceContext.Provider value={store}>
