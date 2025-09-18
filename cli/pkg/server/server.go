@@ -52,28 +52,62 @@ import (
 type Server struct {
 	echo         *echo.Echo
 	config       *config.Config
-	k8sClient    *kubernetes.Client
-	helmClient   *helm.Client
-	wsHandler    *WebSocketHandler
 	k8sProxies   map[string]*KubernetesProxy
 	k8sProxiesMu sync.RWMutex
 	embedFS      fs.FS // embedded file system for static files
 	version      string
 }
 
+// proxyContextKey is the type used to store the KubernetesProxy in the request context
+type proxyContextKey struct{}
+
+var proxyCtxKey = &proxyContextKey{}
+
+// withK8sProxy is middleware that resolves a Kubernetes proxy from the :context param
+// and attaches it to the request context for handlers to consume.
+func (s *Server) withK8sProxy() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			ctxName := c.Param("context")
+			if strings.TrimSpace(ctxName) == "" {
+				return c.JSON(http.StatusBadRequest, map[string]string{
+					"error": "context parameter is required",
+				})
+			}
+
+			proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
+			if err != nil {
+				status := http.StatusInternalServerError
+				if strings.Contains(strings.ToLower(err.Error()), "not found") {
+					status = http.StatusBadRequest
+				}
+				return c.JSON(status, map[string]string{
+					"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
+				})
+			}
+
+			req := c.Request()
+			ctx := context.WithValue(req.Context(), proxyCtxKey, proxy)
+			c.SetRequest(req.WithContext(ctx))
+			return next(c)
+		}
+	}
+}
+
+// getProxyFromContext fetches the KubernetesProxy previously attached by middleware
+func getProxyFromContext(c echo.Context) (*KubernetesProxy, bool) {
+	v := c.Request().Context().Value(proxyCtxKey)
+	if v == nil {
+		return nil, false
+	}
+	proxy, ok := v.(*KubernetesProxy)
+	return proxy, ok
+}
+
 // New creates a new server instance
 func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Server, error) {
 	// Create the echo instance
 	e := echo.New()
-
-	// Create Helm client
-	helmClient, err := helm.NewClient(k8sClient.Config, "")
-	if err != nil {
-		return nil, fmt.Errorf("error creating helm client: %w", err)
-	}
-
-	// Create WebSocket handler
-	wsHandler := NewWebSocketHandler(k8sClient, helmClient)
 
 	// Initialize proxy cache and seed with current context
 	proxyCache := make(map[string]*KubernetesProxy)
@@ -86,9 +120,6 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Ser
 	return &Server{
 		echo:       e,
 		config:     cfg,
-		k8sClient:  k8sClient,
-		helmClient: helmClient,
-		wsHandler:  wsHandler,
 		k8sProxies: proxyCache,
 		version:    version,
 	}, nil
@@ -140,7 +171,7 @@ func (s *Server) Setup() {
 		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("failed to create helm client for context '%s': %v", ctxName, err),
+				"error": fmt.Sprintf("failed to create helm client: %v", err),
 			})
 		}
 
@@ -165,75 +196,25 @@ func (s *Server) Setup() {
 
 	// Add endpoint for getting kubeconfig contexts
 	s.echo.GET("/api/contexts", func(c echo.Context) error {
-		contexts := s.k8sClient.GetContexts()
+		tmpClient, err := kubernetes.NewClient(s.config.KubeConfigPath, s.config.InsecureSkipTLSVerify)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create kubernetes client: %v", err),
+			})
+		}
+		contexts := tmpClient.GetContexts()
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"contexts": contexts,
-			"current":  s.k8sClient.CurrentContext,
+			"current":  tmpClient.CurrentContext,
 		})
 	})
 
-	// Add endpoint for switching context
-	s.echo.POST("/api/contexts/switch", func(c echo.Context) error {
-		var req struct {
-			Context string `json:"context"`
+	// Add endpoint for reconciling Flux resources (context-aware)
+	s.echo.POST("/api/:context/flux/reconcile", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
 		}
-		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "Invalid request body",
-			})
-		}
-
-		// Check if context exists
-		contexts := s.k8sClient.GetContexts()
-		contextExists := false
-		for _, ctx := range contexts {
-			if ctx.Name == req.Context {
-				contextExists = true
-				break
-			}
-		}
-
-		if !contextExists {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "Context not found",
-			})
-		}
-
-		// Switch context
-		err := s.k8sClient.SwitchContext(req.Context, s.config.KubeConfigPath)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("Failed to switch context: %v", err),
-			})
-		}
-
-		// Update proxy cache for the new current context
-		if proxy, err := NewKubernetesProxy(s.k8sClient); err == nil {
-			s.k8sProxiesMu.Lock()
-			s.k8sProxies[s.k8sClient.CurrentContext] = proxy
-			s.k8sProxiesMu.Unlock()
-		}
-
-		// Recreate the Helm client with the new context
-		helmClient, err := helm.NewClient(s.k8sClient.Config, "")
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("Error recreating Helm client: %v", err),
-			})
-		}
-		s.helmClient = helmClient
-
-		// Update the WebSocket handler with the new clients
-		s.wsHandler.UpdateClients(s.k8sClient, s.helmClient)
-
-		return c.JSON(http.StatusOK, map[string]string{
-			"message": fmt.Sprintf("Switched to context %s", req.Context),
-			"context": req.Context,
-		})
-	})
-
-	// Add endpoint for reconciling Flux resources
-	s.echo.POST("/api/flux/reconcile", func(c echo.Context) error {
 		var req struct {
 			Kind        string `json:"kind"`
 			Name        string `json:"name"`
@@ -254,7 +235,7 @@ func (s *Server) Setup() {
 		}
 
 		// Get the Kubernetes client
-		clientset := s.k8sClient.Clientset
+		clientset := proxy.k8sClient.Clientset
 
 		// Create a context
 		ctx := context.Background()
@@ -272,7 +253,6 @@ func (s *Server) Setup() {
 
 		patchData = fmt.Sprintf(`{"metadata":{"annotations":{"reconcile.fluxcd.io/requestedAt":"%s"}}}`, currentTime)
 
-		var err error
 		var output string
 
 		// Normalize kind to lowercase for case-insensitive comparison
@@ -306,7 +286,7 @@ func (s *Server) Setup() {
 		}
 
 		// Patch the resource to trigger reconciliation
-		_, err = clientset.
+		_, err := clientset.
 			RESTClient().
 			Patch(types.MergePatchType).
 			AbsPath(fmt.Sprintf(apiPath, resourceNamespace, resourceName)).
@@ -429,8 +409,12 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for suspending Flux resources
-	s.echo.POST("/api/flux/suspend", func(c echo.Context) error {
+	// Add endpoint for suspending Flux resources (context-aware)
+	s.echo.POST("/api/:context/flux/suspend", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
 		var req struct {
 			Kind      string `json:"kind"`
 			Name      string `json:"name"`
@@ -451,7 +435,7 @@ func (s *Server) Setup() {
 		}
 
 		// Get the Kubernetes client
-		clientset := s.k8sClient.Clientset
+		clientset := proxy.k8sClient.Clientset
 
 		// Create a context
 		ctx := context.Background()
@@ -464,7 +448,6 @@ func (s *Server) Setup() {
 
 		patchData := fmt.Sprintf(`{"spec":{"suspend":%s}}`, suspendValue)
 
-		var err error
 		var output string
 
 		// Normalize kind to lowercase for case-insensitive comparison
@@ -495,7 +478,7 @@ func (s *Server) Setup() {
 		}
 
 		// Patch the resource to suspend or resume it
-		_, err = clientset.
+		_, err := clientset.
 			RESTClient().
 			Patch(types.MergePatchType).
 			AbsPath(fmt.Sprintf(apiPath, req.Namespace, req.Name)).
@@ -529,8 +512,12 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for approving Terraform plans (Flux Tofu Controller)
-	s.echo.POST("/api/flux/approve", func(c echo.Context) error {
+	// Add endpoint for approving Terraform plans (Flux Tofu Controller) (context-aware)
+	s.echo.POST("/api/:context/flux/approve", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
 		var req struct {
 			Kind      string `json:"kind"`
 			Name      string `json:"name"`
@@ -556,7 +543,7 @@ func (s *Server) Setup() {
 			})
 		}
 
-		clientset := s.k8sClient.Clientset
+		clientset := proxy.k8sClient.Clientset
 		ctx := context.Background()
 
 		// API paths for supported kinds
@@ -628,8 +615,12 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for diffing Flux Kustomization resources
-	s.echo.POST("/api/flux/diff", func(c echo.Context) error {
+	// Add endpoint for diffing Flux Kustomization resources (context-aware)
+	s.echo.POST("/api/:context/flux/diff", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
 		var req struct {
 			Name      string `json:"name"`
 			Namespace string `json:"namespace"`
@@ -647,7 +638,7 @@ func (s *Server) Setup() {
 			})
 		}
 
-		clientset := s.k8sClient.Clientset
+		clientset := proxy.k8sClient.Clientset
 		ctx := context.Background()
 
 		// Get the Kustomization resource
@@ -673,7 +664,7 @@ func (s *Server) Setup() {
 			})
 		}
 
-		fluxDiffResult, err := s.generateKustomizationDiffWithFluxStyle(ctx, &kustomization)
+		fluxDiffResult, err := s.generateKustomizationDiffWithFluxStyle(ctx, proxy.k8sClient, &kustomization)
 		if err != nil {
 			log.Printf("Error generating FluxCD-style diff: %v", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -687,8 +678,12 @@ func (s *Server) Setup() {
 
 	})
 
-	// Add endpoint for scaling Kubernetes resources
-	s.echo.POST("/api/scale", func(c echo.Context) error {
+	// Add endpoint for scaling Kubernetes resources (context-aware)
+	s.echo.POST("/api/:context/scale", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
 		var req struct {
 			Kind      string `json:"kind"`
 			Name      string `json:"name"`
@@ -717,7 +712,7 @@ func (s *Server) Setup() {
 		kind := req.Kind
 
 		// Get the Kubernetes client
-		clientset := s.k8sClient.Clientset
+		clientset := proxy.k8sClient.Clientset
 
 		switch strings.ToLower(kind) {
 		case "deployment", "deployments":
@@ -788,8 +783,12 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for rollout restart of Kubernetes resources
-	s.echo.POST("/api/rollout-restart", func(c echo.Context) error {
+	// Add endpoint for rollout restart of Kubernetes resources (context-aware)
+	s.echo.POST("/api/:context/rollout-restart", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
 		var req struct {
 			Kind      string `json:"kind"`
 			Name      string `json:"name"`
@@ -817,7 +816,7 @@ func (s *Server) Setup() {
 		kind := req.Kind
 
 		// Get the Kubernetes client
-		clientset := s.k8sClient.Clientset
+		clientset := proxy.k8sClient.Clientset
 
 		switch strings.ToLower(kind) {
 		case "deployment", "deployments":
@@ -928,8 +927,13 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for describing Kubernetes resources using kubectl describe
-	s.echo.GET("/api/describe/:namespace/:kind/:name", func(c echo.Context) error {
+	// Add endpoint for describing Kubernetes resources using kubectl describe (context-aware)
+	s.echo.GET("/api/:context/describe/:namespace/:kind/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
 		namespace := c.Param("namespace")
 		kind := c.Param("kind")
 		name := c.Param("name")
@@ -937,7 +941,7 @@ func (s *Server) Setup() {
 
 		log.Printf("Describing resource: %s/%s in namespace %s with apiVersion '%s'", kind, name, namespace, apiVersion)
 
-		output, err := s.describeResourceWithKubectl(namespace, kind, name, apiVersion)
+		output, err := s.describeResourceWithKubectl(proxy.k8sClient, namespace, kind, name, apiVersion)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to describe resource: %v", err),
@@ -949,13 +953,25 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for Helm release history
-	s.echo.GET("/api/helm/history/:namespace/:name", func(c echo.Context) error {
+	// Add endpoint for Helm release history (context-aware)
+	s.echo.GET("/api/:context/helm/history/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
 		namespace := c.Param("namespace")
 		name := c.Param("name")
 
+		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create helm client: %v", err),
+			})
+		}
+
 		// Get the Helm release history
-		releases, err := s.helmClient.GetHistory(c.Request().Context(), name, namespace)
+		releases, err := hc.GetHistory(c.Request().Context(), name, namespace)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to get Helm release history: %v", err),
@@ -967,8 +983,13 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for Helm release values
-	s.echo.GET("/api/helm/values/:namespace/:name", func(c echo.Context) error {
+	// Add endpoint for Helm release values (context-aware)
+	s.echo.GET("/api/:context/helm/values/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
 		namespace := c.Param("namespace")
 		name := c.Param("name")
 
@@ -986,8 +1007,15 @@ func (s *Server) Setup() {
 			}
 		}
 
+		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create helm client: %v", err),
+			})
+		}
+
 		// Get the Helm release values
-		values, err := s.helmClient.GetValues(c.Request().Context(), name, namespace, allValues, revision)
+		values, err := hc.GetValues(c.Request().Context(), name, namespace, allValues, revision)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to get Helm release values: %v", err),
@@ -999,8 +1027,13 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for Helm release manifest
-	s.echo.GET("/api/helm/manifest/:namespace/:name", func(c echo.Context) error {
+	// Add endpoint for Helm release manifest (context-aware)
+	s.echo.GET("/api/:context/helm/manifest/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
 		namespace := c.Param("namespace")
 		name := c.Param("name")
 
@@ -1012,8 +1045,15 @@ func (s *Server) Setup() {
 			}
 		}
 
+		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create helm client: %v", err),
+			})
+		}
+
 		// Get the Helm release manifest
-		manifest, err := s.helmClient.GetManifest(c.Request().Context(), name, namespace, revision)
+		manifest, err := hc.GetManifest(c.Request().Context(), name, namespace, revision)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to get Helm release manifest: %v", err),
@@ -1025,8 +1065,13 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for Helm release rollback
-	s.echo.POST("/api/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
+	// Add endpoint for Helm release rollback (context-aware)
+	s.echo.POST("/api/:context/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
 		namespace := c.Param("namespace")
 		name := c.Param("name")
 		revisionStr := c.Param("revision")
@@ -1039,8 +1084,15 @@ func (s *Server) Setup() {
 			})
 		}
 
+		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create helm client: %v", err),
+			})
+		}
+
 		// Perform the rollback
-		err = s.helmClient.Rollback(c.Request().Context(), name, namespace, revision)
+		err = hc.Rollback(c.Request().Context(), name, namespace, revision)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("Failed to rollback Helm release: %v", err),
@@ -1055,45 +1107,18 @@ func (s *Server) Setup() {
 	// Kubernetes API proxy endpoints
 	// New: match routes with explicit context: /k8s/:context/*
 	s.echo.Any("/k8s/:context/*", func(c echo.Context) error {
-		ctxName := c.Param("context")
-		if strings.TrimSpace(ctxName) == "" {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "context parameter is required",
-			})
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
 		}
-
-		proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
-		if err != nil {
-			status := http.StatusInternalServerError
-			if strings.Contains(strings.ToLower(err.Error()), "not found") {
-				status = http.StatusBadRequest
-			}
-			return c.JSON(status, map[string]string{
-				"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
-			})
-		}
-
 		return proxy.HandleAPIRequest(c)
 	})
 
 	// Add endpoint for kubectl exec WebSocket connections with context
 	s.echo.GET("/api/:context/exec/:namespace/:podname", func(c echo.Context) error {
-		ctxName := c.Param("context")
-		if strings.TrimSpace(ctxName) == "" {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "context parameter is required",
-			})
-		}
-
-		proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
-		if err != nil {
-			status := http.StatusInternalServerError
-			if strings.Contains(strings.ToLower(err.Error()), "not found") {
-				status = http.StatusBadRequest
-			}
-			return c.JSON(status, map[string]string{
-				"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
-			})
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
 		}
 
 		return s.handleExecWebSocketWithClient(c, proxy.k8sClient)
@@ -1148,7 +1173,7 @@ func (s *Server) getOrCreateK8sProxyForContext(contextName string) (*KubernetesP
 }
 
 // downloadAndExtractArtifact downloads and extracts a Flux source artifact
-func (s *Server) downloadAndExtractArtifact(ctx context.Context, artifactURL string) (string, error) {
+func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, error) {
 	// Create a temporary directory
 	tempDir, err := os.MkdirTemp("", "flux-artifact-*")
 	if err != nil {
@@ -1180,7 +1205,7 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, artifactURL str
 		// This is an internal cluster URL, we need to set up port-forwarding
 		log.Printf("Detected internal cluster URL, setting up port-forwarding to source-controller")
 
-		localURL, cleanup, err := s.setupSourceControllerPortForward(ctx, artifactURL)
+		localURL, cleanup, err := s.setupSourceControllerPortForward(ctx, client, artifactURL)
 		if err != nil {
 			os.RemoveAll(tempDir)
 			return "", fmt.Errorf("failed to setup port-forwarding: %w", err)
@@ -1293,9 +1318,9 @@ func (s *Server) extractTarGz(data []byte, destDir string) error {
 }
 
 // Helper functions to get source resources
-func (s *Server) getGitRepository(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
+func (s *Server) getGitRepository(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
 	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s", namespace, name)
-	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1305,9 +1330,9 @@ func (s *Server) getGitRepository(ctx context.Context, name, namespace string) (
 	return resource, err
 }
 
-func (s *Server) getOCIRepository(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
+func (s *Server) getOCIRepository(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
 	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s", namespace, name)
-	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1317,9 +1342,9 @@ func (s *Server) getOCIRepository(ctx context.Context, name, namespace string) (
 	return resource, err
 }
 
-func (s *Server) getBucket(ctx context.Context, name, namespace string) (map[string]interface{}, error) {
+func (s *Server) getBucket(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
 	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s", namespace, name)
-	data, err := s.k8sClient.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1354,7 +1379,7 @@ func (s *Server) getResourceGVK(kind, apiVersion string) (schema.GroupVersionKin
 }
 
 // describeResourceWithKubectl describes a Kubernetes resource using the official kubectl describe package
-func (s *Server) describeResourceWithKubectl(namespace, kind, name, apiVersion string) (string, error) {
+func (s *Server) describeResourceWithKubectl(client *kubernetes.Client, namespace, kind, name, apiVersion string) (string, error) {
 	// Create a ConfigFlags struct from the current Kubernetes client config
 	configFlags := genericclioptions.NewConfigFlags(true)
 
@@ -1363,14 +1388,14 @@ func (s *Server) describeResourceWithKubectl(namespace, kind, name, apiVersion s
 		configFlags.Namespace = &namespace
 	}
 
-	// Set other config parameters from our client
-	configFlags.Context = &s.k8sClient.CurrentContext
-	configFlags.APIServer = &s.k8sClient.Config.Host
-	configFlags.BearerToken = &s.k8sClient.Config.BearerToken
-	if s.k8sClient.Config.CAFile != "" {
-		configFlags.CAFile = &s.k8sClient.Config.CAFile
+	// Set other config parameters from provided client
+	configFlags.Context = &client.CurrentContext
+	configFlags.APIServer = &client.Config.Host
+	configFlags.BearerToken = &client.Config.BearerToken
+	if client.Config.CAFile != "" {
+		configFlags.CAFile = &client.Config.CAFile
 	}
-	configFlags.Insecure = &s.k8sClient.Config.Insecure
+	configFlags.Insecure = &client.Config.Insecure
 
 	// Set the kubeconfig path from the server's config
 	if s.config.KubeConfigPath != "" {
@@ -1378,7 +1403,7 @@ func (s *Server) describeResourceWithKubectl(namespace, kind, name, apiVersion s
 	}
 
 	// Create a discovery client
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.k8sClient.Config)
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(client.Config)
 	if err != nil {
 		return "", fmt.Errorf("failed to create discovery client: %w", err)
 	}
@@ -1436,7 +1461,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 // setupSourceControllerPortForward sets up port-forwarding to the source-controller
-func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactURL string) (string, func(), error) {
+func (s *Server) setupSourceControllerPortForward(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, func(), error) {
 	// Parse the original URL to extract the path
 	u, err := url.Parse(artifactURL)
 	if err != nil {
@@ -1452,7 +1477,7 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 	listener.Close()
 
 	// Get the source-controller pod
-	pods, err := s.k8sClient.Clientset.CoreV1().Pods("flux-system").List(ctx, metav1.ListOptions{
+	pods, err := client.Clientset.CoreV1().Pods("flux-system").List(ctx, metav1.ListOptions{
 		LabelSelector: "app=source-controller",
 	})
 	if err != nil {
@@ -1467,14 +1492,14 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, artifactU
 	log.Printf("Setting up port-forward to pod %s in namespace flux-system", podName)
 
 	// Create the port-forward request
-	req := s.k8sClient.Clientset.CoreV1().RESTClient().Post().
+	req := client.Clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Namespace("flux-system").
 		Name(podName).
 		SubResource("portforward")
 
-	// Create SPDY transport
-	transport, upgrader, err := spdy.RoundTripperFor(s.k8sClient.Config)
+		// Create SPDY transport
+	transport, upgrader, err := spdy.RoundTripperFor(client.Config)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create SPDY transport: %w", err)
 	}
@@ -1798,7 +1823,7 @@ func (s *Server) handleExecWebSocketWithClient(c echo.Context, client *kubernete
 }
 
 // generateKustomizationDiffWithFluxStyle generates a diff using the actual FluxCD Builder and Diff functionality
-func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kustomization *kustomizev1.Kustomization) ([]FluxDiffResult, error) {
+func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, client *kubernetes.Client, kustomization *kustomizev1.Kustomization) ([]FluxDiffResult, error) {
 	log.Printf("Generating FluxCD diff for Kustomization %s/%s using actual FluxCD Builder",
 		kustomization.ObjectMeta.Namespace,
 		kustomization.ObjectMeta.Name,
@@ -1810,7 +1835,7 @@ func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kus
 	}
 
 	// Step 1: Download and extract the source artifact to a temporary directory
-	tempDir, err := s.getSourceArtifactDirectory(ctx, kustomization, sourceNamespace)
+	tempDir, err := s.getSourceArtifactDirectory(ctx, client, kustomization, sourceNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source artifact: %w", err)
 	}
@@ -1818,14 +1843,14 @@ func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kus
 
 	// Step 2: Create ConfigFlags from our Kubernetes client
 	configFlags := &genericclioptions.ConfigFlags{
-		APIServer:   &s.k8sClient.Config.Host,
-		BearerToken: &s.k8sClient.Config.BearerToken,
-		Context:     &s.k8sClient.CurrentContext,
+		APIServer:   &client.Config.Host,
+		BearerToken: &client.Config.BearerToken,
+		Context:     &client.CurrentContext,
 	}
-	if s.k8sClient.Config.CAFile != "" {
-		configFlags.CAFile = &s.k8sClient.Config.CAFile
+	if client.Config.CAFile != "" {
+		configFlags.CAFile = &client.Config.CAFile
 	}
-	configFlags.Insecure = &s.k8sClient.Config.Insecure
+	configFlags.Insecure = &client.Config.Insecure
 
 	// Set the kubeconfig path from the server's config
 	if s.config.KubeConfigPath != "" {
@@ -1871,18 +1896,18 @@ func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, kus
 }
 
 // getSourceArtifactDirectory downloads and extracts the source artifact, returning the temporary directory path
-func (s *Server) getSourceArtifactDirectory(ctx context.Context, kustomization *kustomizev1.Kustomization, sourceNamespace string) (string, error) {
+func (s *Server) getSourceArtifactDirectory(ctx context.Context, client *kubernetes.Client, kustomization *kustomizev1.Kustomization, sourceNamespace string) (string, error) {
 	// Get the source resource to find the artifact
 	var sourceResource map[string]interface{}
 	var err error
 
 	switch strings.ToLower(kustomization.Spec.SourceRef.Kind) {
 	case "gitrepository":
-		sourceResource, err = s.getGitRepository(ctx, kustomization.Spec.SourceRef.Name, sourceNamespace)
+		sourceResource, err = s.getGitRepository(ctx, client, kustomization.Spec.SourceRef.Name, sourceNamespace)
 	case "ocirepository":
-		sourceResource, err = s.getOCIRepository(ctx, kustomization.Spec.SourceRef.Name, sourceNamespace)
+		sourceResource, err = s.getOCIRepository(ctx, client, kustomization.Spec.SourceRef.Name, sourceNamespace)
 	case "bucket":
-		sourceResource, err = s.getBucket(ctx, kustomization.Spec.SourceRef.Name, sourceNamespace)
+		sourceResource, err = s.getBucket(ctx, client, kustomization.Spec.SourceRef.Name, sourceNamespace)
 	default:
 		return "", fmt.Errorf("unsupported source kind: %s", kustomization.Spec.SourceRef.Kind)
 	}
@@ -1908,7 +1933,7 @@ func (s *Server) getSourceArtifactDirectory(ctx context.Context, kustomization *
 	}
 
 	// Download and extract the artifact
-	tempDir, err := s.downloadAndExtractArtifact(ctx, artifactURL)
+	tempDir, err := s.downloadAndExtractArtifact(ctx, client, artifactURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to download and extract artifact: %w", err)
 	}
