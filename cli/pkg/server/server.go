@@ -63,36 +63,7 @@ type proxyContextKey struct{}
 
 var proxyCtxKey = &proxyContextKey{}
 
-// withK8sProxy is middleware that resolves a Kubernetes proxy from the :context param
-// and attaches it to the request context for handlers to consume.
-func (s *Server) withK8sProxy() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			ctxName := c.Param("context")
-			if strings.TrimSpace(ctxName) == "" {
-				return c.JSON(http.StatusBadRequest, map[string]string{
-					"error": "context parameter is required",
-				})
-			}
-
-			proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
-			if err != nil {
-				status := http.StatusInternalServerError
-				if strings.Contains(strings.ToLower(err.Error()), "not found") {
-					status = http.StatusBadRequest
-				}
-				return c.JSON(status, map[string]string{
-					"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
-				})
-			}
-
-			req := c.Request()
-			ctx := context.WithValue(req.Context(), proxyCtxKey, proxy)
-			c.SetRequest(req.WithContext(ctx))
-			return next(c)
-		}
-	}
-}
+// Removed per-route withK8sProxy wrapper; using global middleware to attach proxies
 
 // getProxyFromContext fetches the KubernetesProxy previously attached by middleware
 func getProxyFromContext(c echo.Context) (*KubernetesProxy, bool) {
@@ -131,6 +102,32 @@ func (s *Server) Setup() {
 	s.echo.Use(middleware.Logger())
 	s.echo.Use(middleware.Recover())
 	s.echo.Use(middleware.CORS())
+
+	// Attach Kubernetes proxy automatically for any route that includes a :context param
+	// This ensures handlers under /api/:context/... have access to the proxy without
+	// explicitly wrapping every route with withK8sProxy().
+	s.echo.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			ctxName := c.Param("context")
+			if strings.TrimSpace(ctxName) != "" {
+				proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
+				if err != nil {
+					status := http.StatusInternalServerError
+					if strings.Contains(strings.ToLower(err.Error()), "not found") {
+						status = http.StatusBadRequest
+					}
+					return c.JSON(status, map[string]string{
+						"error": fmt.Sprintf("failed to get proxy for context '%s': %v", ctxName, err),
+					})
+				}
+
+				req := c.Request()
+				ctx := context.WithValue(req.Context(), proxyCtxKey, proxy)
+				c.SetRequest(req.WithContext(ctx))
+			}
+			return next(c)
+		}
+	})
 
 	// Serve embedded static files if available
 	if s.embedFS != nil {
@@ -1106,14 +1103,13 @@ func (s *Server) Setup() {
 
 	// Kubernetes API proxy endpoints
 	// New: match routes with explicit context: /k8s/:context/*
-	// Apply per-route middleware to resolve and attach the proxy from :context
-	s.echo.Any("/k8s/:context/*", s.withK8sProxy()(func(c echo.Context) error {
+	s.echo.Any("/k8s/:context/*", func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
 		if !ok {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
 		}
 		return proxy.HandleAPIRequest(c)
-	}))
+	})
 
 	// Add endpoint for kubectl exec WebSocket connections with context
 	s.echo.GET("/api/:context/exec/:namespace/:podname", func(c echo.Context) error {

@@ -43,7 +43,8 @@ export function HelmHistory(props: {
       unsubscribeHistory = null;
     }
     const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-    const wsPath = ctxName ? `/api/${ctxName}/helm/history/${props.namespace}/${props.name}` : `/api/helm/history/${props.namespace}/${props.name}`;
+    // Context is conveyed by the WS connection URL; the subscribe path must be context-agnostic
+    const wsPath = `/api/helm/history/${props.namespace}/${props.name}`;
     const wsClient = getWebSocketClient(ctxName);
     wsClient.watchResource(wsPath, (data) => {
       if (data && data.object && data.object.releases) {

@@ -13,14 +13,23 @@ export const watchResource = async (
   const contextName = contextNameOverride || '';
   const wsClient = getWebSocketClient(contextName);
 
-  // Strip leading /k8s and always remove the next segment as context
+  // Normalize paths that start with /k8s[/<context>]/...
+  // We need to strip the /k8s prefix and optional context segment,
+  // but preserve the API root segment ("api" or "apis").
   if (path.startsWith("/k8s/")) {
     const rest = path.slice(5); // after "/k8s/"
-    const firstSlash = rest.indexOf('/');
-    if (firstSlash === -1) {
-      path = '/';
+    // Case 1: already "/k8s/api/..." or "/k8s/apis/..." → keep as-is minus "/k8s"
+    if (rest.startsWith("api/") || rest.startsWith("apis/")) {
+      path = `/${rest}`;
     } else {
-      path = `/${rest.slice(firstSlash + 1)}`;
+      // Case 2: "/k8s/<context>/api..." → drop the context segment only
+      const firstSlash = rest.indexOf('/');
+      if (firstSlash === -1) {
+        path = '/';
+      } else {
+        const afterContext = rest.slice(firstSlash + 1);
+        path = `/${afterContext}`;
+      }
     }
   }
   // If explicit context provided and path starts with /api/<context>/..., normalize to /api/...
@@ -54,7 +63,7 @@ export const watchResource = async (
     setTimeout(() => {
       // Only retry if the controller is not aborted
       if (!controller.signal.aborted) {
-        watchResource(path, callback, controller, setWatchStatus, onError);
+        watchResource(path, callback, controller, setWatchStatus, onError, contextName);
       }
     }, retryDelay);
   }
