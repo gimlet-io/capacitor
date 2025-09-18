@@ -343,7 +343,7 @@ export function TerraformDetails() {
                       setDiffLoading(true);
                       setDiffDrawerOpen(true);
                       try {
-                        const result = await handleFluxDiff(tf());
+                        const result = await handleFluxDiff(tf(), apiResourceStore.contextInfo?.current);
                         setDiffData(result);
                       } catch (error) {
                         console.error("Failed to generate diff:", error);
@@ -360,7 +360,7 @@ export function TerraformDetails() {
                           disabled={canReconcile() === false}
                           title={canReconcile() === false ? "Not permitted" : undefined}
                           onClick={() => {
-                            handleFluxReconcile(tf());
+                            handleFluxReconcile(tf(), apiResourceStore.contextInfo?.current);
                             setDropdownOpen(false);
                           }}
                           style={{ "border-top-right-radius": "0", "border-bottom-right-radius": "0", "margin-right": "1px" }}
@@ -383,7 +383,7 @@ export function TerraformDetails() {
                             class={`context-menu-item ${canReconcileWithSources() === false ? 'disabled' : ''}`}
                             onClick={() => {
                               if (canReconcileWithSources() === false) return;
-                              handleFluxReconcileWithSources(tf());
+                              handleFluxReconcileWithSources(tf(), apiResourceStore.contextInfo?.current);
                               setDropdownOpen(false);
                             }}
                             title={canReconcileWithSources() === false ? "Not permitted" : undefined}
@@ -399,7 +399,7 @@ export function TerraformDetails() {
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxApprove(tf()).catch((e) => console.error("Failed to approve plan:", e));
+                          handleFluxApprove(tf(), apiResourceStore.contextInfo?.current).catch((e) => console.error("Failed to approve plan:", e));
                         }}
                       >
                         <span style={{ "margin-right": "5px", "font-weight": "bold" }}>✔</span> Approve
@@ -413,7 +413,7 @@ export function TerraformDetails() {
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(tf(), false).catch((e) => console.error("Failed to resume Terraform:", e));
+                          handleFluxSuspend(tf(), false, apiResourceStore.contextInfo?.current).catch((e) => console.error("Failed to resume Terraform:", e));
                         }}
                       >
                         <span style={{ "margin-right": "5px", "font-weight": "bold" }}>▶</span> Resume
@@ -424,7 +424,7 @@ export function TerraformDetails() {
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(tf(), true).catch((e) => console.error("Failed to suspend Terraform:", e));
+                          handleFluxSuspend(tf(), true, apiResourceStore.contextInfo?.current).catch((e) => console.error("Failed to suspend Terraform:", e));
                         }}
                       >
                         <span style={{ "margin-right": "5px", "font-weight": "bold" }}>⏸</span> Suspend

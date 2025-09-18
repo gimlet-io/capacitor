@@ -70,7 +70,6 @@ export const fluxReadyFilter: Filter = {
  * The backend API expects lowercase resource kinds in its lookup table,
  * though it has logic to handle capitalized resource kinds as well.
  */
-import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 
 export async function handleFluxReconcile(resource: FluxResource, contextName?: string) {
   try {
@@ -143,11 +142,13 @@ export async function handleFluxReconcileWithSources(resource: FluxResource, con
   }
 }
 
-export async function handleFluxSuspend(resource: FluxResource, suspend: boolean = true) {
+export async function handleFluxSuspend(resource: FluxResource, suspend: boolean = true, contextName?: string) {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
-    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
     const response = await fetch(`${apiPrefix}/flux/suspend`, {
       method: 'POST',
       headers: {
@@ -175,11 +176,13 @@ export async function handleFluxSuspend(resource: FluxResource, suspend: boolean
   }
 }
 
-export async function handleFluxDiff(resource: any): Promise<any> {
+export async function handleFluxDiff(resource: any, contextName?: string): Promise<any> {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
-    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
     const response = await fetch(`${apiPrefix}/flux/diff`, {
       method: "POST",
       headers: {
@@ -204,11 +207,13 @@ export async function handleFluxDiff(resource: any): Promise<any> {
   }
 } 
 
-export async function handleFluxApprove(resource: FluxResource) {
+export async function handleFluxApprove(resource: FluxResource, contextName?: string) {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
-    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
     const response = await fetch(`${apiPrefix}/flux/approve`, {
       method: 'POST',
       headers: {

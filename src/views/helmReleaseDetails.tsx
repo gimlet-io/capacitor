@@ -530,7 +530,7 @@ export function HelmReleaseDetails() {
                       setDiffLoading(true);
                       setDiffDrawerOpen(true);
                       try {
-                        const result = await handleFluxDiff(hr());
+                        const result = await handleFluxDiff(hr(), apiResourceStore.contextInfo?.current);
                         setDiffData(result);
                       } catch (error) {
                         console.error("Failed to generate diff:", error);
@@ -543,7 +543,7 @@ export function HelmReleaseDetails() {
                       class="sync-button reconcile-button"
                       disabled={canReconcile() === false}
                       title={canReconcile() === false ? "Not permitted" : undefined}
-                      onClick={() => handleFluxReconcile(hr())}
+                      onClick={() => handleFluxReconcile(hr(), apiResourceStore.contextInfo?.current)}
                     >
                       Reconcile
                     </button>
@@ -551,7 +551,7 @@ export function HelmReleaseDetails() {
                       class="sync-button"
                       disabled={canReconcileWithSources() === false}
                       title={canReconcileWithSources() === false ? "Not permitted" : undefined}
-                      onClick={() => handleFluxReconcileWithSources(hr())}
+                      onClick={() => handleFluxReconcileWithSources(hr(), apiResourceStore.contextInfo?.current)}
                     >
                       Reconcile with sources
                     </button>
@@ -562,7 +562,7 @@ export function HelmReleaseDetails() {
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(hr(), false).catch((e) => console.error("Failed to resume HelmRelease:", e));
+                          handleFluxSuspend(hr(), false, apiResourceStore.contextInfo?.current).catch((e) => console.error("Failed to resume HelmRelease:", e));
                         }}
                       >
                         <span style={{ "margin-right": "5px", "font-weight": "bold" }}>▶</span> Resume
@@ -573,7 +573,7 @@ export function HelmReleaseDetails() {
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(hr(), true).catch((e) => console.error("Failed to suspend HelmRelease:", e));
+                          handleFluxSuspend(hr(), true, apiResourceStore.contextInfo?.current).catch((e) => console.error("Failed to suspend HelmRelease:", e));
                         }}
                       >
                         <span style={{ "margin-right": "5px", "font-weight": "bold" }}>⏸</span> Suspend

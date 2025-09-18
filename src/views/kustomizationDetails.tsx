@@ -1109,7 +1109,7 @@ export function KustomizationDetails() {
                       setDiffDrawerOpen(true);
                       
                       try {
-                        const result = await handleFluxDiff(k());
+                        const result = await handleFluxDiff(k(), apiResourceStore.contextInfo?.current);
                         setDiffData(result);
                       } catch (error) {
                         console.error("Failed to generate diff:", error);
@@ -1125,7 +1125,7 @@ export function KustomizationDetails() {
                           disabled={canReconcile() === false}
                           title={canReconcile() === false ? "Not permitted" : undefined}
                           onClick={() => {
-                            handleFluxReconcile(k());
+                            handleFluxReconcile(k(), apiResourceStore.contextInfo?.current);
                             setDropdownOpen(false);
                           }}
                           style={{ 
@@ -1157,7 +1157,7 @@ export function KustomizationDetails() {
                             class={`context-menu-item ${canReconcileWithSources() === false ? 'disabled' : ''}`}
                             onClick={() => {
                               if (canReconcileWithSources() === false) return;
-                              handleFluxReconcileWithSources(k());
+                              handleFluxReconcileWithSources(k(), apiResourceStore.contextInfo?.current);
                               setDropdownOpen(false);
                             }}
                             title={canReconcileWithSources() === false ? "Not permitted" : undefined}
@@ -1174,7 +1174,7 @@ export function KustomizationDetails() {
                         disabled={canPatchKustomization() === false}
                         title={canPatchKustomization() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(k(), false) // Resume
+                          handleFluxSuspend(k(), false, apiResourceStore.contextInfo?.current) // Resume
                             .catch(error => {
                               console.error("Failed to resume kustomization:", error);
                             });
@@ -1188,7 +1188,7 @@ export function KustomizationDetails() {
                         disabled={canPatchKustomization() === false}
                         title={canPatchKustomization() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(k(), true) // Suspend
+                          handleFluxSuspend(k(), true, apiResourceStore.contextInfo?.current) // Suspend
                             .catch(error => {
                               console.error("Failed to suspend kustomization:", error);
                             });
