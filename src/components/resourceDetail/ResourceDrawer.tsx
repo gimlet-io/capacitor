@@ -39,13 +39,15 @@ export function ResourceDrawer(props: {
     
     setLoading(true);
     try {
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
       const kind = props.resource.kind || "unknown";
       const name = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace || "";
       const apiVersion = props.resource.apiVersion || "";
       
       // Construct the URL with apiVersion as a query parameter if available
-      let url = `/api/describe/${namespace}/${kind}/${name}`;
+      let url = `${apiPrefix}/describe/${namespace}/${kind}/${name}`;
       if (apiVersion) {
         url += `?apiVersion=${encodeURIComponent(apiVersion)}`;
       }
@@ -96,6 +98,8 @@ export function ResourceDrawer(props: {
 
     setLoading(true);
     try {
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
       const kind = props.resource.kind || "unknown";
       const name = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
@@ -104,8 +108,8 @@ export function ResourceDrawer(props: {
       // Use kubectl proxy to get the resource
       const isNamespaced = namespace && namespace !== '';
       const resourcePath = apiVersion.includes('/') 
-        ? `/k8s/apis/${apiVersion}` 
-        : `/k8s/api/${apiVersion || 'v1'}`;
+        ? `${k8sPrefix}/apis/${apiVersion}` 
+        : `${k8sPrefix}/api/${apiVersion || 'v1'}`;
       
       // Get the correct plural resource name
       const resourceName = getResourceName(kind, apiVersion);
@@ -139,6 +143,8 @@ export function ResourceDrawer(props: {
     
     setLoading(true);
     try {
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
       const kind = props.resource.kind;
       const name = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
@@ -146,8 +152,8 @@ export function ResourceDrawer(props: {
       // Fetch events using the field selector
       const fieldSelector = `involvedObject.name=${name},involvedObject.kind=${kind}`;
       const eventsUrl = namespace 
-        ? `/k8s/api/v1/namespaces/${namespace}/events?fieldSelector=${fieldSelector}`
-        : `/k8s/api/v1/events?fieldSelector=${fieldSelector}`;
+        ? `${k8sPrefix}/api/v1/namespaces/${namespace}/events?fieldSelector=${fieldSelector}`
+        : `${k8sPrefix}/api/v1/events?fieldSelector=${fieldSelector}`;
       
       const response = await fetch(eventsUrl);
       const eventsData = await response.json();

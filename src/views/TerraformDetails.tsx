@@ -138,7 +138,9 @@ export function TerraformDetails() {
       if (!preferred) return;
       if (mode === 'human') {
         try {
-          const resp = await fetch(`/k8s/api/v1/namespaces/${ns}/configmaps/${preferred}`);
+          const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+          const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+          const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/configmaps/${preferred}`);
           if (resp.ok) {
             const cm = await resp.json();
             setPlanConfigMap({ data: cm.data, binaryData: cm.binaryData });
@@ -146,7 +148,9 @@ export function TerraformDetails() {
         } catch (_e) { /* ignore */ }
       } else if (mode === 'json') {
         try {
-          const resp = await fetch(`/k8s/api/v1/namespaces/${ns}/secrets/${preferred}`);
+          const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+          const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+          const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/secrets/${preferred}`);
           if (resp.ok) {
             const sec = await resp.json();
             setPlanSecret({ data: sec.data, stringData: sec.stringData });
@@ -227,14 +231,15 @@ export function TerraformDetails() {
         }
       };
       const noopSetWatchStatus = (_: string) => {};
-      watchResource(path, callback, controller, noopSetWatchStatus);
+      watchResource(path, callback, controller, noopSetWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       controllers.push(controller);
     }
 
     // Watch Events in namespace and keep relevant ones for this Terraform
     {
       const controller = new AbortController();
-      const path = `/k8s/api/v1/namespaces/${ns}/events?watch=true`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const path = (ctxName ? `/k8s/${ctxName}` : '/k8s') + `/api/v1/namespaces/${ns}/events?watch=true`;
       const callback = (event: { type: string; object: Event }) => {
         const obj = event.object;
         setTerraform((prev) => {
@@ -246,14 +251,15 @@ export function TerraformDetails() {
         });
       };
       const noopSetWatchStatus = (_: string) => {};
-      watchResource(path, callback, controller, noopSetWatchStatus);
+      watchResource(path, callback, controller, noopSetWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       controllers.push(controller);
     }
 
     // Watch ConfigMaps in namespace to capture plan ConfigMap per naming convention
     {
       const controller = new AbortController();
-      const path = `/k8s/api/v1/namespaces/${ns}/configmaps?watch=true`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const path = (ctxName ? `/k8s/${ctxName}` : '/k8s') + `/api/v1/namespaces/${ns}/configmaps?watch=true`;
       const callback = (event: { type: string; object: { metadata: { name: string; namespace: string }; data?: Record<string, string>; binaryData?: Record<string, string> } }) => {
         const obj = event.object;
         if (!obj || obj.metadata.namespace !== ns) return;
@@ -271,14 +277,15 @@ export function TerraformDetails() {
         }
       };
       const noopSetWatchStatus = (_: string) => {};
-      watchResource(path, callback, controller, noopSetWatchStatus);
+      watchResource(path, callback, controller, noopSetWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       controllers.push(controller);
     }
 
     // Watch Secrets in namespace to capture plan Secret (json mode) and outputs Secret
     {
       const controller = new AbortController();
-      const path = `/k8s/api/v1/namespaces/${ns}/secrets?watch=true`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const path = (ctxName ? `/k8s/${ctxName}` : '/k8s') + `/api/v1/namespaces/${ns}/secrets?watch=true`;
       const callback = (event: { type: string; object: { metadata: { name: string; namespace: string }; data?: Record<string, string>; stringData?: Record<string, string> } }) => {
         const obj = event.object;
         if (!obj || obj.metadata.namespace !== ns) return;
@@ -303,7 +310,7 @@ export function TerraformDetails() {
         }
       };
       const noopSetWatchStatus = (_: string) => {};
-      watchResource(path, callback, controller, noopSetWatchStatus);
+      watchResource(path, callback, controller, noopSetWatchStatus, undefined, apiResourceStore.contextInfo?.current);
       controllers.push(controller);
     }
 

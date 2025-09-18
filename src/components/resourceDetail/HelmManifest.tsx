@@ -1,12 +1,16 @@
 import { Show, createEffect, createSignal } from "solid-js";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 
 export function HelmManifest(props: { namespace?: string; name: string; revision?: number }) {
+  const apiResourceStore = useApiResourceStore();
   const [manifestData, setManifestData] = createSignal<string>("");
   const [loading, setLoading] = createSignal<boolean>(false);
 
   const fetchLatestRevision = async (namespace: string, name: string): Promise<number | null> => {
     try {
-      const hist = await fetch(`/api/helm/history/${namespace}/${name}`);
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+      const hist = await fetch(`${apiPrefix}/helm/history/${namespace}/${name}`);
       if (!hist.ok) return null;
       const data = await hist.json();
       const releases: Array<{ revision: number }> = Array.isArray(data?.releases) ? data.releases : [];
@@ -31,7 +35,9 @@ export function HelmManifest(props: { namespace?: string; name: string; revision
         setManifestData("");
         return;
       }
-      const url = `/api/helm/manifest/${namespace}/${props.name}?revision=${revision}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+      const url = `${apiPrefix}/helm/manifest/${namespace}/${props.name}?revision=${revision}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch Helm release manifest: ${response.statusText}`);

@@ -3,12 +3,14 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { Show, For } from "solid-js";
 import type { Secret } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
+import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 
 export function SecretDetails() {
   const params = useParams();
   const navigate = useNavigate();
+  const apiResourceStore = useApiResourceStore();
   
   // Initialize state for the specific secret
   const [secret, setSecret] = createSignal<Secret | null>(null);
@@ -72,7 +74,9 @@ export function SecretDetails() {
         }
       },
       controller,
-      setWatchStatus
+      setWatchStatus,
+      undefined,
+      apiResourceStore.contextInfo?.current
     );
 
     setWatchControllers([controller]);
@@ -169,7 +173,9 @@ export function SecretDetails() {
     setSavingNewKey(true);
     setSaveError(null);
     try {
-      const url = `/k8s/api/v1/namespaces/${currentSecret.metadata.namespace}/secrets/${currentSecret.metadata.name}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+      const url = `${k8sPrefix}/api/v1/namespaces/${currentSecret.metadata.namespace}/secrets/${currentSecret.metadata.name}`;
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
@@ -235,7 +241,9 @@ export function SecretDetails() {
     });
 
     try {
-      const url = `/k8s/api/v1/namespaces/${currentSecret.metadata.namespace}/secrets/${currentSecret.metadata.name}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+      const url = `${k8sPrefix}/api/v1/namespaces/${currentSecret.metadata.namespace}/secrets/${currentSecret.metadata.name}`;
       const response = await fetch(url, {
         method: "PATCH",
         headers: {

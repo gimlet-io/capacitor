@@ -1,11 +1,13 @@
 import { createSignal, onMount, onCleanup, Show, createEffect } from "solid-js";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 
 export function TerminalViewer(props: {
   resource: any;
   isOpen: boolean;
 }) {
+  const apiResourceStore = useApiResourceStore();
   const [terminal, setTerminal] = createSignal<Terminal | null>(null);
   const [fitAddon, setFitAddon] = createSignal<FitAddon | null>(null);
   const [isConnected, setIsConnected] = createSignal<boolean>(false);
@@ -119,7 +121,9 @@ export function TerminalViewer(props: {
       
       // Create WebSocket URL for exec (direct connection) - backend will auto-select shell
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/exec/${namespace}/${podName}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const contextSegment = ctxName ? `/${ctxName}` : '';
+      const wsUrl = `${protocol}//${window.location.host}/api${contextSegment}/exec/${namespace}/${podName}`;
       
       console.log("Connecting to exec WebSocket:", wsUrl);
       

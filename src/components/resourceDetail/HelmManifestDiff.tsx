@@ -32,7 +32,9 @@ export function HelmManifestDiff(props: { namespace?: string; name: string; revi
 
   const fetchLatestRevision = async (namespace: string, name: string): Promise<number | null> => {
     try {
-      const hist = await fetch(`/api/helm/history/${namespace}/${name}`);
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+      const hist = await fetch(`${apiPrefix}/helm/history/${namespace}/${name}`);
       if (!hist.ok) return null;
       const data = await hist.json();
       const releases: Array<{ revision: number }> = Array.isArray(data?.releases) ? data.releases : [];
@@ -75,7 +77,9 @@ export function HelmManifestDiff(props: { namespace?: string; name: string; revi
     if (!k8sResource) return null;
     const ns = res.metadata.namespace || fallbackNs;
     try {
-      const baseApiPath = k8sResource.apiPath.startsWith('/k8s') ? k8sResource.apiPath : `/k8s${k8sResource.apiPath}`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+      const baseApiPath = k8sResource.apiPath.startsWith('/k8s') ? k8sResource.apiPath : `${k8sPrefix}${k8sResource.apiPath}`;
       let url = `${baseApiPath}/${k8sResource.name}/${res.metadata.name}`;
       if (k8sResource.namespaced) {
         url = `${baseApiPath}/namespaces/${ns}/${k8sResource.name}/${res.metadata.name}`;

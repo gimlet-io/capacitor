@@ -1,4 +1,5 @@
 import type { DeploymentWithResources, ObjectMeta } from "../../types/k8s.ts";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
@@ -40,7 +41,10 @@ export const scaleResource = async (
   replicas: number,
 ) => {
   try {
-    const response = await fetch("/api/scale", {
+    const { contextInfo } = useApiResourceStore();
+    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    const response = await fetch(`${apiPrefix}/scale`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -92,7 +96,10 @@ export const rolloutRestart = async (
   metadata: ObjectMeta,
 ) => {
   try {
-    const response = await fetch("/api/rollout-restart", {
+    const { contextInfo } = useApiResourceStore();
+    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    const response = await fetch(`${apiPrefix}/rollout-restart`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

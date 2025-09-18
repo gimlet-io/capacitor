@@ -41,7 +41,9 @@ export function UpdateNotice() {
 
   onMount(async () => {
     try {
-      const versionResp = await fetch("/api/version");
+      const ctx = (window as any).apiResourceContext || undefined;
+      const apiPrefix = ctx ? `/api/${encodeURIComponent(ctx)}` : '/api';
+      const versionResp = await fetch(`${apiPrefix}/version`);
       const versionData = (await versionResp.json()) as { version: string };
       const current = versionData?.version ?? "0.0.0";
 

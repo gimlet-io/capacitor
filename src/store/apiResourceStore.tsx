@@ -35,6 +35,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
   // Fetch context information from the API (must be initialized before other resources)
   const [contextInfo, { refetch: _refetchContexts, mutate: mutateContexts }] = createResource(async () => {
     try {
+      // Contexts endpoint is cluster-agnostic; no per-context prefix
       const response = await fetch('/api/contexts');
       if (!response.ok) {
         const errorText = await response.text();
