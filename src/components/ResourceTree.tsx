@@ -7,6 +7,7 @@ import { KeyboardShortcuts, KeyboardShortcut } from "./keyboardShortcuts/Keyboar
 import { useNavigate } from "@solidjs/router";
 import { resourceTypeConfigs, ResourceCommand, ResourceTypeConfig, ResourceCardRenderer } from "../resourceTypeConfigs.tsx";
 import { builtInCommands, replaceHandlers } from "./resourceList/ResourceList.tsx";
+import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 
 // Helper function to determine resource type from resource object
 const getResourceType = (resource: any): string => {
@@ -236,6 +237,7 @@ import { doesEventMatchShortcut } from "../utils/shortcuts.ts";
 export function ResourceTree(props: ResourceTreeProps) {
   const { g } = props;
   const navigate = useNavigate();
+  const apiStore = useApiResourceStore();
 
   let svgRef: SVGSVGElement | undefined;
   let gRef: SVGGElement | undefined;
@@ -346,7 +348,8 @@ export function ResourceTree(props: ResourceTreeProps) {
     const commands = [...(config?.commands || builtInCommands)];
     replaceHandlers(commands, {
       openDrawer: openDrawerWithExec,
-      navigate
+      navigate,
+      getContextName: () => apiStore.contextInfo?.current
     });
     return commands;
   };
@@ -371,7 +374,7 @@ export function ResourceTree(props: ResourceTreeProps) {
     if (!resourceNode || !resourceNode.resource) return;
     
     try {
-      await command.handler(resourceNode.resource);
+      await command.handler(resourceNode.resource, apiStore.contextInfo?.current);
     } catch (error) {
       console.error(`Error executing command ${command.shortcut.description}:`, error);
     }

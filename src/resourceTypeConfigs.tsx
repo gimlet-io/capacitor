@@ -61,7 +61,7 @@ export interface Column<T> {
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
-  handler: (item: any) => void | Promise<void>;
+  handler: (item: any, contextName?: string) => void | Promise<void>;
 }
 
 export interface ResourceCardRenderer {

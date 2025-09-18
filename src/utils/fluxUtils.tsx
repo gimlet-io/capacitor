@@ -72,11 +72,13 @@ export const fluxReadyFilter: Filter = {
  */
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 
-export async function handleFluxReconcile(resource: FluxResource) {
+export async function handleFluxReconcile(resource: FluxResource, contextName?: string) {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
-    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
     const response = await fetch(`${apiPrefix}/flux/reconcile`, {
       method: 'POST',
       headers: {
@@ -107,11 +109,13 @@ export async function handleFluxReconcile(resource: FluxResource) {
  * Generic reconcile function for Flux CD resources with sources
  * Equivalent to running `flux reconcile <kind> <name> --with-sources`
  */
-export async function handleFluxReconcileWithSources(resource: FluxResource) {
+export async function handleFluxReconcileWithSources(resource: FluxResource, contextName?: string) {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
-    const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+    if (!contextName) {
+      throw new Error('No Kubernetes context selected');
+    }
+    const ctxName = encodeURIComponent(contextName);
+    const apiPrefix = `/api/${ctxName}`;
     const response = await fetch(`${apiPrefix}/flux/reconcile`, {
       method: 'POST',
       headers: {

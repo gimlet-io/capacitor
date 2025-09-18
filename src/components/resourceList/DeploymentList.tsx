@@ -1,5 +1,4 @@
 import type { DeploymentWithResources, ObjectMeta } from "../../types/k8s.ts";
-import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { useCalculateAge } from "./timeUtils.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
@@ -39,10 +38,10 @@ export const scaleResource = async (
   kind: string,
   metadata: ObjectMeta,
   replicas: number,
+  contextName: string,
 ) => {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const ctxName = encodeURIComponent(contextName);
     const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
     const response = await fetch(`${apiPrefix}/scale`, {
       method: "POST",
@@ -67,37 +66,32 @@ export const scaleResource = async (
   }
 };
 
-export const handleScale = (resource: any) => {
+export const handleScale = (resource: any, contextName?: string) => {
   if (!resource || !resource.metadata) return;
-  
-  // Try to get current replicas to show in the prompt
+  if (!contextName) {
+    throw new Error('No Kubernetes context selected');
+  }
   const currentReplicas = resource.spec?.replicas || '0';
-  
-  const input = window.prompt(
-    `Enter desired number of replicas for ${resource.kind} "${resource.metadata.name}":`, 
+  const input = globalThis.prompt(
+    `Enter desired number of replicas for ${resource.kind} "${resource.metadata.name}":`,
     currentReplicas.toString()
   );
-  
-  // Check if user canceled or entered an invalid number
   if (input === null) return;
-  
   const replicas = parseInt(input, 10);
   if (isNaN(replicas) || replicas < 0) {
-    window.alert("Please enter a valid non-negative number");
+    globalThis.alert("Please enter a valid non-negative number");
     return;
   }
-  
-  // Call the API to scale the resource
-  return scaleResource(resource.kind, resource.metadata, replicas);
+  return scaleResource(resource.kind, resource.metadata, replicas, contextName);
 };
 
 export const rolloutRestart = async (
   kind: string,
   metadata: ObjectMeta,
+  contextName: string,
 ) => {
   try {
-    const { contextInfo } = useApiResourceStore();
-    const ctxName = contextInfo?.current ? encodeURIComponent(contextInfo.current) : '';
+    const ctxName = encodeURIComponent(contextName);
     const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
     const response = await fetch(`${apiPrefix}/rollout-restart`, {
       method: "POST",
@@ -121,17 +115,17 @@ export const rolloutRestart = async (
   }
 };
 
-export const handleRolloutRestart = (resource: any) => {
+export const handleRolloutRestart = (resource: any, contextName?: string) => {
   if (!resource || !resource.metadata) return;
-  
-  const confirmed = window.confirm(
+  if (!contextName) {
+    throw new Error('No Kubernetes context selected');
+  }
+
+  const confirmed = globalThis.confirm(
     `Are you sure you want to restart the rollout for ${resource.kind} "${resource.metadata.name}"?`
   );
-  
   if (!confirmed) return;
-  
-  // Call the API to restart the rollout
-  return rolloutRestart(resource.kind, resource.metadata);
+  return rolloutRestart(resource.kind, resource.metadata, contextName);
 };
 
 export const deploymentColumns = [
