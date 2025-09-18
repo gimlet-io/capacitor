@@ -727,7 +727,9 @@ export function KustomizationDetails() {
         scheduleFlush(resourceType.resourceType);
       },
       controller,
-      setWatchStatus
+      setWatchStatus,
+      undefined,
+      apiResourceStore.contextInfo?.current
     );
     // Add this controller to the list
     setWatchControllers(prev => [...prev, controller]);

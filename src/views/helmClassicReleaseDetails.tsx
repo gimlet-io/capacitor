@@ -396,7 +396,9 @@ export function HelmClassicReleaseDetails() {
         }
       },
       controller,
-      () => {}
+      () => {},
+      undefined,
+      apiResourceStore.contextInfo?.current
     );
     setWatchControllers(prev => [...prev, controller]);
   };
