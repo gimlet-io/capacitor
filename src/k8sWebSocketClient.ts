@@ -10,12 +10,14 @@ export class K8sWebSocketClient {
   private maxReconnectAttempts: number = 10;
   private connected: boolean = false;
   private serverReady: boolean = false;
+  private contextName: string;
   
   /**
    * Creates a new K8sWebSocketClient
-   * @param baseUrl The base URL of the Kubernetes proxy server (without /ws)
+   * @param contextName The Kubernetes context name for this client
    */
-  constructor() {
+  constructor(contextName?: string) {
+    this.contextName = contextName || '';
     this.connect();
   }
   
@@ -29,7 +31,8 @@ export class K8sWebSocketClient {
     }
     
     this.connectionPromise = new Promise((resolve, reject) => {
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
+      const wsPath = this.contextName ? `/ws/${encodeURIComponent(this.contextName)}` : '/ws';
+      const wsUrl = `${globalThis.location.protocol === 'https:' ? 'wss' : 'ws'}://${globalThis.location.host}${wsPath}`;
       console.log(`Connecting to WebSocket at ${wsUrl}`);
       
       try {
@@ -88,7 +91,7 @@ export class K8sWebSocketClient {
               console.log(`[onready] Resubscribing to ${this.subscribers.size} paths`);
               
               // Resubscribe to all paths now that server is ready
-              for (const [path, callback] of this.subscribers.entries()) {
+              for (const [path, _callback] of this.subscribers.entries()) {
                 console.log(`[onready] Resubscribing to: ${path}`);
                 this.sendSubscribeMessage(path);
               }
@@ -258,12 +261,15 @@ export class K8sWebSocketClient {
   }
 }
 
-// Singleton instance for use throughout the application
-let instance: K8sWebSocketClient | null = null;
+// Singleton instances per context for use throughout the application
+const instances: Map<string, K8sWebSocketClient> = new Map();
 
-export function getWebSocketClient(): K8sWebSocketClient {
-  if (!instance) {
-    instance = new K8sWebSocketClient();
+export function getWebSocketClient(contextName?: string): K8sWebSocketClient {
+  const key = contextName || '';
+  let existing = instances.get(key);
+  if (!existing) {
+    existing = new K8sWebSocketClient(contextName);
+    instances.set(key, existing);
   }
-  return instance;
+  return existing;
 }

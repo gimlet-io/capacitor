@@ -2,15 +2,31 @@ import { getWebSocketClient } from './k8sWebSocketClient.ts';
 
 // WebSocket-based implementation for watching K8s resources
 export const watchResource = async (
-  path: string, 
-  callback: (event: any) => void, 
-  controller: AbortController, 
+  path: string,
+  callback: (event: any) => void,
+  controller: AbortController,
   setWatchStatus: (status: string) => void,
-  onError?: (message: string, path: string) => void
+  onError?: (message: string, path: string) => void,
+  contextNameOverride?: string
 ) => {
-  const wsClient = getWebSocketClient();
+  // Determine context name using explicit override only
+  const contextName = contextNameOverride || '';
+  const wsClient = getWebSocketClient(contextName);
 
-  path = path.startsWith("/k8s") ? path.slice(4) : path;
+  // Strip leading /k8s and always remove the next segment as context
+  if (path.startsWith("/k8s/")) {
+    const rest = path.slice(5); // after "/k8s/"
+    const firstSlash = rest.indexOf('/');
+    if (firstSlash === -1) {
+      path = '/';
+    } else {
+      path = `/${rest.slice(firstSlash + 1)}`;
+    }
+  }
+  // If explicit context provided and path starts with /api/<context>/..., normalize to /api/...
+  if (contextName && path.startsWith(`/api/${contextName}/`)) {
+    path = `/api/${path.slice(6 + contextName.length)}`;
+  }
 
   try {
     // Set status to active

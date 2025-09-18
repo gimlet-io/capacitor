@@ -1106,13 +1106,14 @@ func (s *Server) Setup() {
 
 	// Kubernetes API proxy endpoints
 	// New: match routes with explicit context: /k8s/:context/*
-	s.echo.Any("/k8s/:context/*", func(c echo.Context) error {
+	// Apply per-route middleware to resolve and attach the proxy from :context
+	s.echo.Any("/k8s/:context/*", s.withK8sProxy()(func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
 		if !ok {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
 		}
 		return proxy.HandleAPIRequest(c)
-	})
+	}))
 
 	// Add endpoint for kubectl exec WebSocket connections with context
 	s.echo.GET("/api/:context/exec/:namespace/:podname", func(c echo.Context) error {

@@ -55,11 +55,12 @@ export const handleDeleteResource = async (resource: any) => {
       ? resource.apiVersion.split('/')[1] 
       : resource.apiVersion || 'v1';
     
+    const ctxName = encodeURIComponent(useApiResourceStore().contextInfo?.current || '');
     let apiPath = '';
     if (!group || group === 'core') {
-      apiPath = `/k8s/api/${version}`;
+      apiPath = ctxName ? `/k8s/${ctxName}/api/${version}` : `/k8s/api/${version}`;
     } else {
-      apiPath = `/k8s/apis/${group}/${version}`;
+      apiPath = ctxName ? `/k8s/${ctxName}/apis/${group}/${version}` : `/k8s/apis/${group}/${version}`;
     }
     
     // Build the full delete URL

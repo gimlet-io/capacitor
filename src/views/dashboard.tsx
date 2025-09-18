@@ -343,7 +343,8 @@ export function Dashboard() {
     const controllers = watches.map(({ path, callback }) => {
       const controller = new AbortController();
       try {
-        watchResource(path, callback, controller, setWatchStatus, handleWatchError);
+        const ctxName = apiResourceStore.contextInfo?.current;
+        watchResource(path, callback, controller, setWatchStatus, handleWatchError, ctxName);
       } catch (error) {
         console.error(`Failed to start watch for ${path}:`, error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown watch error';
