@@ -79,9 +79,9 @@ This case laszlo@gimlet.io has a static password, and my user is impersonating a
 
 ### Impersonation rules
 
-`IMPERSONATE_SA_RULES` maps users, or wildcard of users to impersonate a service account. This way you can set up RBAC for them, even if the identity does not have RBAC grants
+`IMPERSONATE_SA_RULES` maps users - or wildcard of users - to impersonate a service account. This way you can set up RBAC for them, even if the identity does not have RBAC grants.
 
-Te example bellow authorizes all emails in the company and Laszlo, then the company assumes the flux-system:capacitor-next-builtin-editor service account when interacting with the cluster.
+The example bellow authorizes an external email and all emails in the company, then the company emails assume the `flux-system:capacitor-next-builtin-editor` service account when interacting with the cluster. The external email must have RBAC defined to be able to query the cluster.
 
 ```
 AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
