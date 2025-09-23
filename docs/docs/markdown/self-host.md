@@ -19,6 +19,7 @@ OIDC_CLIENT_SECRET=example-secret
 OIDC_REDIRECT_URL=http://127.0.0.1:8181/auth/callback
 OIDC_INSECURE_SKIP_TLS_VERIFY=true
 AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
+# IMPERSONATE_SA_RULES=*@mycompany.com=flux-system:capacitor-next-builtin-editor # for wildcard impersonation rules
 # ENTRA_ID_FEDEREATED_TOKEN_AUTH=true # if you use Azure Entra ID
 # OIDC_SCOPES="openid,profile,email" # <-- the default list. Include groups if needed. eg.: "openid,profile,email,groups"
 # OIDC_GROUPS_CLAIM=groups # <-- default
@@ -76,7 +77,18 @@ IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-builtin-editor
 
 This case laszlo@gimlet.io has a static password, and my user is impersonating a service account. If my user has RBAC on the cluster the IMPERSONATE_SA_RULES is not needed.
 
-### Definining clusters
+### Impersonation rules
+
+`IMPERSONATE_SA_RULES` maps users, or wildcard of users to impersonate a service account. This way you can set up RBAC for them, even if the identity does not have RBAC grants
+
+Te example bellow authorizes all emails in the company and Laszlo, then the company assumes the flux-system:capacitor-next-builtin-editor service account when interacting with the cluster.
+
+```
+AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
+IMPERSONATE_SA_RULES=*@mycompany.com=flux-system:capacitor-next-builtin-editor # for wildcard impersonation rules
+```
+
+## Definining clusters
 
 ```
 clusters:
