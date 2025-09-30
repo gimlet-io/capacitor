@@ -110,6 +110,13 @@ func (s *Server) Setup() {
 		return func(c echo.Context) error {
 			ctxName := c.Param("context")
 			if strings.TrimSpace(ctxName) != "" {
+				// URL decode the context name to handle special characters like @
+				ctxName, err := url.PathUnescape(ctxName)
+				if err != nil {
+					return c.JSON(http.StatusBadRequest, map[string]string{
+						"error": fmt.Sprintf("failed to decode context name: %v", err),
+					})
+				}
 				proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
 				if err != nil {
 					status := http.StatusInternalServerError
@@ -151,6 +158,14 @@ func (s *Server) Setup() {
 		if strings.TrimSpace(ctxName) == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": "context parameter is required",
+			})
+		}
+
+		// URL decode the context name to handle special characters like @
+		ctxName, err := url.PathUnescape(ctxName)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("failed to decode context name: %v", err),
 			})
 		}
 
