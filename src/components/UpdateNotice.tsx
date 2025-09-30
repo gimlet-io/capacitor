@@ -12,25 +12,59 @@ function normalizeVersion(v: string): string {
   return trimmed.startsWith("v") ? trimmed.slice(1) : trimmed;
 }
 
-function parseSemver(v: string): [number, number, number] {
-  if (v.startsWith("next-")) {
-    v = v.split("next-")[1];
+function isFeatureRelease(v: string): boolean {
+  // Feature releases are in format: YYYY-MM.N (e.g., 2025-09.1)
+  // Non-feature releases have suffixes: -patch*, -rc*, -debug*
+  const normalized = normalizeVersion(v);
+  if (!normalized || normalized === "0.0.0") return false;
+  
+  // Check for suffixes that indicate non-feature releases
+  if (normalized.includes("-patch") || normalized.includes("-rc") || normalized.includes("-debug")) {
+    return false;
   }
-  const core = normalizeVersion(v).split("-")[0];
-  const parts = core.split(".").map((s) => parseInt(s, 10));
-  const major = Number.isFinite(parts[0]) ? parts[0] : 0;
-  const minor = Number.isFinite(parts[1]) ? parts[1] : 0;
-  const patch = Number.isFinite(parts[2]) ? parts[2] : 0;
-  return [major, minor, patch];
+  
+  // Check if it matches the calendar versioning pattern: YYYY-MM.N
+  const pattern = /^\d{4}-\d{2}\.\d+$/;
+  return pattern.test(normalized);
+}
+
+function parseCalendarVersion(v: string): [number, number, number] {
+  const normalized = normalizeVersion(v);
+  // Handle "next-" prefix for backwards compatibility
+  let version = normalized;
+  if (version.startsWith("next-")) {
+    version = version.split("next-")[1];
+  }
+  
+  // Remove any suffix (e.g., -patch1, -rc2, -debug1)
+  const core = version.split("-")[0];
+  
+  // Parse calendar version: YYYY-MM.N
+  const match = core.match(/^(\d{4})-(\d{2})\.(\d+)$/);
+  if (match) {
+    return [
+      parseInt(match[1], 10), // year
+      parseInt(match[2], 10), // month
+      parseInt(match[3], 10), // feature number
+    ];
+  }
+  
+  return [0, 0, 0];
 }
 
 function isNewerVersion(latest: string, current: string): boolean {
-  const [lMaj, lMin, lPatch] = parseSemver(latest);
-  const [cMaj, cMin, cPatch] = parseSemver(current);
-  if (lMaj !== cMaj) return lMaj > cMaj;
-  if (lMin !== cMin) return lMin > cMin;
-  if (lPatch !== cPatch) return lPatch > cPatch;
-  // if tags equal numerically but strings differ (e.g., pre-release), don't prompt
+  // Only compare if latest is a feature release
+  if (!isFeatureRelease(latest)) {
+    return false;
+  }
+  
+  const [lYear, lMonth, lFeature] = parseCalendarVersion(latest);
+  const [cYear, cMonth, cFeature] = parseCalendarVersion(current);
+  
+  if (lYear !== cYear) return lYear > cYear;
+  if (lMonth !== cMonth) return lMonth > cMonth;
+  if (lFeature !== cFeature) return lFeature > cFeature;
+  
   return false;
 }
 
