@@ -257,11 +257,21 @@ func (h *WebSocketHandler) handleUnsubscribe(
 
 // sendDataMessage sends a data message to the client
 func (h *WebSocketHandler) sendDataMessage(ws *WebSocketConnection, id, path string, data *kubernetes.WatchEvent) {
+	// Create a shallow copy to avoid mutating the original event
+	var event kubernetes.WatchEvent
+	if data != nil {
+		event = *data
+		// Remove metadata.managedFields to avoid streaming large, unnecessary payloads
+		if len(event.Object) > 0 {
+			event.Object = stripManagedFields(event.Object)
+		}
+	}
+
 	msg := ServerMessage{
 		ID:   id,
 		Type: "data",
 		Path: path,
-		Data: data,
+		Data: &event,
 	}
 	h.sendMessage(ws, &msg)
 }
@@ -302,6 +312,26 @@ func (h *WebSocketHandler) sendMessage(ws *WebSocketConnection, msg *ServerMessa
 	if err := ws.WriteMessage(websocket.TextMessage, data); err != nil {
 		log.Printf("error writing message: %v", err)
 	}
+}
+
+// stripManagedFields removes metadata.managedFields from a Kubernetes object represented as json.RawMessage.
+// It returns the original bytes if unmarshaling or marshaling fails.
+func stripManagedFields(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return raw
+	}
+	if meta, ok := obj["metadata"].(map[string]interface{}); ok {
+		delete(meta, "managedFields")
+	}
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return raw
+	}
+	return json.RawMessage(b)
 }
 
 // handleHelmReleaseWatch handles watching Helm releases with polling
