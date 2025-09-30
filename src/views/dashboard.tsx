@@ -23,6 +23,9 @@ export function Dashboard() {
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
+  const [initialLoadComplete, setInitialLoadComplete] = createSignal(true);
+  const [resourceCount, setResourceCount] = createSignal(0);
+  let debounceTimer: number | undefined;
   
   let contextDropdownRef: HTMLDivElement | undefined;
 
@@ -83,12 +86,15 @@ export function Dashboard() {
     // Handle async setupWatches
     const handleSetupWatches = async () => {
       try {
+        setInitialLoadComplete(false);
+        setResourceCount(0);
         await setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
         console.error('Error setting up watches:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to set up watches';
         console.log('[Dashboard] Setting watch error due to watch setup failure');
         errorStore.setWatchError(`Failed to watch resources: ${errorMessage}`);
+        setInitialLoadComplete(true);
       }
     };
     
@@ -164,6 +170,19 @@ export function Dashboard() {
       batchTimers[resourceTypeId] = undefined;
       if (changes.length === 0 && (!extraWatchesForResource || extraWatchesForResource.length === 0)) return;
 
+      // Track ADDED events for initial load detection
+      const addedCount = changes.filter(evt => evt.type === 'ADDED').length;
+      if (addedCount > 0 && !initialLoadComplete()) {
+        // Clear existing debounce timer
+        if (debounceTimer !== undefined) {
+          clearTimeout(debounceTimer);
+        }
+        // Set new debounce timer - if no more ADDED events for 400ms, consider initial load complete
+        debounceTimer = setTimeout(() => {
+          setInitialLoadComplete(true);
+        }, 400) as unknown as number;
+      }
+
       setDynamicResources(prev => {
         const current = prev[resourceTypeId] || [];
         // Build index by name for efficient updates
@@ -217,6 +236,11 @@ export function Dashboard() {
 
         // Sort once per flush by name (stable display)
         next.sort((a, b) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+
+        // Update resource count
+        if (resourceTypeId === filterStore.getResourceType()) {
+          setResourceCount(next.length);
+        }
 
         return { ...prev, [resourceTypeId]: next };
       });
@@ -490,6 +514,8 @@ export function Dashboard() {
           filters={filterStore.filters}
           activeFilters={filterStore.activeFilters}
           onFilterChange={filterStore.setActiveFilters}
+          initialLoadComplete={initialLoadComplete()}
+          resourceCount={resourceCount()}
         />
 
         <section class="resource-section full-width">

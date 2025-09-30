@@ -87,8 +87,33 @@ export function FilterBar(props: {
   filters: Filter[];
   activeFilters: ActiveFilter[];
   onFilterChange: (filters: ActiveFilter[]) => void;
+  initialLoadComplete?: boolean;
+  resourceCount?: number;
 }) {
   const filterStore = useFilterStore();
+  const [spinnerFrame, setSpinnerFrame] = createSignal(0);
+  const spinnerFrames = ["|", "/", "-", "\\"];
+  let spinnerTimer: number | undefined;
+  
+  // Update spinner animation
+  createEffect(() => {
+    if (props.initialLoadComplete === false) {
+      spinnerTimer = setInterval(() => {
+        setSpinnerFrame((prev) => (prev + 1) % spinnerFrames.length);
+      }, 80) as unknown as number;
+    } else {
+      if (spinnerTimer !== undefined) {
+        clearInterval(spinnerTimer);
+        spinnerTimer = undefined;
+      }
+    }
+  });
+  
+  onCleanup(() => {
+    if (spinnerTimer !== undefined) {
+      clearInterval(spinnerTimer);
+    }
+  });
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
@@ -747,6 +772,22 @@ export function FilterBar(props: {
             );
           }}
         </For>
+        
+        {/* Loading indicator with ANSI spinner */}
+        <Show when={props.initialLoadComplete !== undefined}>
+          <div class="filter-loading-indicator">
+            <Show when={props.initialLoadComplete === false}>
+              <span class="filter-spinner-text">
+                [{spinnerFrames[spinnerFrame()]}] ({props.resourceCount || 0})
+              </span>
+            </Show>
+            <Show when={props.initialLoadComplete === true && (props.resourceCount || 0) > 0}>
+              <span class="filter-resource-count">
+                {props.resourceCount} resources
+              </span>
+            </Show>
+          </div>
+        </Show>
       </div>
       
       {/* Filter history navigation */}
