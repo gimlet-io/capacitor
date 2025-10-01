@@ -413,7 +413,16 @@ export function Dashboard() {
                 <span class="context-label">Current Context:</span>
                 <span class="context-name">{apiResourceStore.contextInfo?.current}</span>
                 <span class="context-dropdown-arrow">▼</span>
-                {/* Watch status removed in fetch mode */}
+                <Show when={watchStatus}>
+                  <span
+                    classList={{ 
+                      "watch-status": true, 
+                      "error": watchStatus() !== "●" 
+                    }}
+                  >
+                    {watchStatus()}
+                  </span>
+                </Show>
               </div>
               
               <Show when={contextMenuOpen()}>
