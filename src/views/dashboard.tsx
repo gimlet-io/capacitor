@@ -1,4 +1,4 @@
-import { createSignal, createEffect, Show, onMount, createMemo } from "solid-js";
+import { createSignal, createEffect, Show, onMount, createMemo, untrack } from "solid-js";
 import { ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
@@ -8,7 +8,7 @@ import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
-import { resourceTypeConfigs, type Column, namespaceColumn } from "../resourceTypeConfigs.tsx";
+import { resourceTypeConfigs, type Column, namespaceColumn, type ExtraWatchConfig } from "../resourceTypeConfigs.tsx";
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 import { setJobNodeOptions } from "../components/resourceList/JobList.tsx";
 
@@ -18,7 +18,7 @@ export function Dashboard() {
   const errorStore = useErrorStore();
   
   const [watchStatus, setWatchStatus] = createSignal("●");
-  const [watchController, setWatchController] = createSignal<AbortController | null>(null);
+  const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
   const [initialLoadComplete, setInitialLoadComplete] = createSignal(true);
   const [resourceCount, setResourceCount] = createSignal(0);
@@ -70,9 +70,9 @@ export function Dashboard() {
   
   onCleanup(() => {
     document.removeEventListener('mousedown', handleOutsideClick);
-    // untrack(() => {
-    //   watchControllers().forEach(controller => controller.abort());
-    // });
+    untrack(() => {
+      watchControllers().forEach(controller => controller.abort());
+    });
   });
 
   // Call setupWatches when namespace or resource filter changes
@@ -82,8 +82,14 @@ export function Dashboard() {
       try {
         setInitialLoadComplete(false);
         setResourceCount(0);
+        // Abort any existing watchers before starting new ones
+        untrack(() => {
+          watchControllers().forEach(c => c.abort());
+        });
+        setWatchControllers([]);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
         await startStream(filterStore.getNamespace(), filterStore.getResourceType());
+        await startExtraWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
         console.error('Error fetching resources (Table):', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch resources';
@@ -245,11 +251,6 @@ export function Dashboard() {
   // Start a simple stream (watch) to enhance/replace Table rows with full objects
   const startStream = async (ns: string | undefined, resourceType: string | undefined) => {
     try {
-      // Abort previous watch
-      const prev = watchController();
-      if (prev) prev.abort();
-      setWatchController(null);
-
       if (!resourceType) return;
       const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
       if (!k8sResource) return;
@@ -260,7 +261,7 @@ export function Dashboard() {
       }
 
       const controller = new AbortController();
-      setWatchController(controller);
+      setWatchControllers(prev => [...prev, controller]);
       const ctxName = apiResourceStore.contextInfo?.current;
       await watchResource(watchPath, (event: { type: string; object: any; error?: string; path?: string }) => {
         if (event.type === 'ERROR') {
@@ -283,9 +284,20 @@ export function Dashboard() {
           } else {
             // Preserve table cells if present
             const prevItem = idx !== -1 ? list[idx] : undefined;
-            const nextItem = { ...obj } as any;
+            let nextItem = { ...obj } as any;
             if ((prevItem as any)?.__cells && !nextItem.__cells) {
               nextItem.__cells = (prevItem as any).__cells;
+            }
+            // Enrich main resource with any available extra resources using configured updaters
+            const cfg = resourceTypeConfigs[k8sResource.id];
+            const extras: ExtraWatchConfig[] = Array.isArray(cfg?.extraWatches) ? cfg!.extraWatches! : [];
+            for (const ex of extras) {
+              const extraList = (prev[ex.resourceType] || []) as any[];
+              try {
+                nextItem = ex.updater(nextItem, extraList);
+              } catch (_e) {
+                // ignore enrich errors
+              }
             }
             // Replace or append
             if (idx === -1) list.push(nextItem); else list[idx] = nextItem;
@@ -301,6 +313,82 @@ export function Dashboard() {
       }, controller, setWatchStatus, (msg, path) => errorStore.setWatchError(msg, path), ctxName);
     } catch (e) {
       console.error('Failed to start stream:', e);
+    }
+  };
+
+  // Start watches for extra resource types defined by the current main resource type
+  const startExtraWatches = async (ns: string | undefined, resourceType: string | undefined) => {
+    try {
+      if (!resourceType) return;
+      const mainRes = filterStore.k8sResources.find(res => res.id === resourceType);
+      if (!mainRes) return;
+      const cfg = resourceTypeConfigs[resourceType];
+      const extras: ExtraWatchConfig[] = Array.isArray(cfg?.extraWatches) ? cfg!.extraWatches! : [];
+      if (extras.length === 0) return;
+
+      const ctxName = apiResourceStore.contextInfo?.current;
+
+      for (const ex of extras) {
+        const extraRes = filterStore.k8sResources.find(r => r.id === ex.resourceType);
+        if (!extraRes) continue;
+        let extraPath = `${extraRes.apiPath}/${extraRes.name}?watch=true`;
+        if (extraRes.namespaced && ns && ns !== 'all-namespaces') {
+          extraPath = `${extraRes.apiPath}/namespaces/${ns}/${extraRes.name}?watch=true`;
+        }
+        const controller = new AbortController();
+        setWatchControllers(prev => [...prev, controller]);
+
+        const noopSetWatchStatus = (_: string) => {};
+        await watchResource(
+          extraPath,
+          (event: { type: string; object: any; error?: string; path?: string }) => {
+            if (event.type === 'ERROR') {
+              const msg = event.error || 'Unknown watch error';
+              errorStore.setWatchError(msg, event.path || extraPath);
+              return;
+            }
+            const obj = event.object;
+            if (!obj?.metadata?.name) return;
+
+            setDynamicResources(prev => {
+              // Update extra resource cache
+              const extraList = (prev[ex.resourceType] || []).slice();
+              const name = obj.metadata.name;
+              let idx = -1;
+              for (let i = 0; i < extraList.length; i++) {
+                if ((extraList[i] as any)?.metadata?.name === name) { idx = i; break; }
+              }
+              if (event.type === 'DELETED') {
+                if (idx !== -1) extraList.splice(idx, 1);
+              } else {
+                if (idx === -1) extraList.push(obj); else extraList[idx] = obj;
+              }
+
+              // Enrich main list items using the updater and updated extra list
+              const mainId = mainRes.id;
+              const currentMain = (prev[mainId] || []) as any[];
+              const enriched = currentMain.map(item => {
+                try {
+                  return ex.updater(item, extraList);
+                } catch (_e) {
+                  return item;
+                }
+              });
+              // Maintain stable sort by name
+              enriched.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+
+              const next: Record<string, any[]> = { ...prev, [ex.resourceType]: extraList, [mainId]: enriched };
+              return next;
+            });
+          },
+          controller,
+          noopSetWatchStatus,
+          (msg, path) => errorStore.setWatchError(msg, path),
+          ctxName
+        );
+      }
+    } catch (e) {
+      console.error('Failed to start extra watches:', e);
     }
   };
 
