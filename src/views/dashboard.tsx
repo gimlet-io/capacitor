@@ -83,7 +83,7 @@ export function Dashboard() {
         setInitialLoadComplete(false);
         setResourceCount(0);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
-        //await startStream(filterStore.getNamespace(), filterStore.getResourceType());
+        await startStream(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
         console.error('Error fetching resources (Table):', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch resources';
