@@ -29,7 +29,6 @@ export function Dashboard() {
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
   // Dynamic columns from K8s Table response
   const [tableColumns, setTableColumns] = createSignal<Column<any>[] | null>(null);
-  const [tableColumnNames, setTableColumnNames] = createSignal<string[]>([]);
   const [listResetKey, setListResetKey] = createSignal(0);
 
   // Function to switch to a new context
@@ -84,7 +83,7 @@ export function Dashboard() {
         setInitialLoadComplete(false);
         setResourceCount(0);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
-        await startStream(filterStore.getNamespace(), filterStore.getResourceType());
+        //await startStream(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
         console.error('Error fetching resources (Table):', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch resources';
@@ -203,7 +202,6 @@ export function Dashboard() {
       }
 
       const columnDefs = Array.isArray(data?.columnDefinitions) ? data.columnDefinitions : [];
-      setTableColumnNames(columnDefs.map((d: any) => String(d?.name || '').toLowerCase()));
       const rows = Array.isArray(data?.rows) ? data.rows : [];
 
       // Build dynamic columns based on Table column definitions
@@ -225,6 +223,8 @@ export function Dashboard() {
           } catch (_e) {
             // ignore attach errors
           }
+          // Mark that this item originated from a Table response so accessors can fallback to cells
+          (obj as any).__fromTable = true;
           return obj;
         });
 
@@ -360,7 +360,7 @@ export function Dashboard() {
     const resourceType = filterStore.getResourceType();
     const cfg = resourceType ? resourceTypeConfigs[resourceType] : undefined;
     const tblCols = tableColumns();
-    const tblNames = tableColumnNames();
+    const tblNames = Array.isArray(tblCols) ? tblCols.map(c => String((c as any)?.header || '').toLowerCase()) : [];
 
     const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
     const namespaced = Boolean(k8sResource?.namespaced);
@@ -375,17 +375,19 @@ export function Dashboard() {
         const idx = tblNames.indexOf(headerName);
         const fallbackAccessor = (item: any) => <>{(item as any)?.__cells?.[idx] ?? ''}</>;
         const accessor = (item: any) => {
-          try {
-            // If item came from Table and no full object yet, use table cell fallback
-            if ((item as any)?.__fromTable && idx !== -1) {
-              return fallbackAccessor(item);
-            }
-            return col.accessor(item);
-          } catch {
-            return idx !== -1 ? fallbackAccessor(item) : col.accessor(item);
+          // If item came from Table and no full object yet, use table cell fallback
+          if ((item as any)?.__fromTable) {
+            return fallbackAccessor(item);
           }
+          return col.accessor(item);
         };
-        return { ...col, accessor } as Column<any>;
+        const title = (item: any) => {
+          if ((item as any)?.__fromTable) {
+            return undefined;
+          }
+          return col.title ? col.title(item) : '';
+        };
+        return { ...col, accessor, title } as Column<any>;
       });
 
       // Inject Namespace column as the second column when appropriate
