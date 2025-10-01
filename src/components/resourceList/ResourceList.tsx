@@ -767,7 +767,11 @@ export function ResourceList<T>(props: {
                         </td>
                       ))}
                     </tr>
-                    {/* detailRowRenderer disabled for now */}
+                    {props.resourceTypeConfig.detailRowRenderer && (
+                      <tr class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}>
+                        {props.resourceTypeConfig.detailRowRenderer(resource, props.columns.length)}
+                      </tr>
+                    )}
                   </>
                 );
               }}
