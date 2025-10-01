@@ -3,7 +3,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
@@ -290,6 +290,8 @@ export function ResourceList<T>(props: {
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
   resetKey?: unknown;
+  // When provided, these columns (from Table response) override the config columns
+  overrideColumns?: Column<any>[];
 }) {
   const navigate = useNavigate();
   const filterStore = useFilterStore();
@@ -339,8 +341,11 @@ export function ResourceList<T>(props: {
     return filterStore.getNamespace();
   });
 
-  // Process columns with namespace column insertion
+  // Process columns: prefer overrideColumns from Table response when provided
   const visibleColumns = createMemo(() => {
+    if (Array.isArray(props.overrideColumns) && props.overrideColumns.length > 0) {
+      return props.overrideColumns;
+    }
     const namespace = selectedNamespace();
     const resourceColumns = props.resourceTypeConfig.columns;
     
@@ -372,6 +377,11 @@ export function ResourceList<T>(props: {
   const sortedResources = createMemo(() => {
     let resources = props.resources;
     
+    // If overrideColumns are present (Table mode), skip client-side sorting by config
+    if (Array.isArray(props.overrideColumns) && props.overrideColumns.length > 0) {
+      return resources;
+    }
+
     // Apply column-specific sorting
     const currentSortColumn = sortColumn();
     if (currentSortColumn) {
@@ -800,13 +810,7 @@ export function ResourceList<T>(props: {
                         </td>
                       ))}
                     </tr>
-                    {props.resourceTypeConfig.detailRowRenderer && (
-                      <tr class={selectedIndex() === globalIndex() ? 'selected' : ''}
-                        onClick={handleClick}
-                      >
-                        {props.resourceTypeConfig.detailRowRenderer(resource, visibleColumns().length)}
-                      </tr>
-                    )}
+                    {/* detailRowRenderer disabled for now */}
                   </>
                 );
               }}
