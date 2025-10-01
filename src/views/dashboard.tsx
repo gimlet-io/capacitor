@@ -4,15 +4,13 @@ import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
-import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
-import { resourceTypeConfigs, type Column } from "../resourceTypeConfigs.tsx";
+import { resourceTypeConfigs, type Column, namespaceColumn } from "../resourceTypeConfigs.tsx";
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 import { setJobNodeOptions } from "../components/resourceList/JobList.tsx";
-import { sortByName, sortByAge, sortByNamespace } from "../utils/sortUtils.ts";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
@@ -355,41 +353,24 @@ export function Dashboard() {
   });
 
   // Look up the current resource type configuration
-  const currentResourceConfig = createMemo(() => {
-    const resourceType = filterStore.getResourceType();
-    return resourceType && resourceTypeConfigs[resourceType] ? resourceTypeConfigs[resourceType] : {
-      columns: [
-        { 
-          header: "Name", 
-          width: "40%", 
-          accessor: (item) => <>{item.metadata?.name || ""}</>,
-          sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
-        },
-        { 
-          header: "Namespace", 
-          width: "30%", 
-          accessor: (item) => <>{item.metadata?.namespace || ""}</>,
-          sortFunction: (items: any[], ascending: boolean) => sortByNamespace(items, ascending),
-        },
-        { 
-          header: "Age", 
-          width: "30%", 
-          accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')(),
-          sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
-        }
-      ]
-    };
-  });
 
-  // Build effective columns: prefer configured columns; when only Table object is present, fallback to table cells matching headers
-  const effectiveColumns = createMemo<Column<any>[] | null>(() => {
+  // Build effective columns in one place: prefer configured columns; when only Table object is present, fallback to table cells matching headers.
+  // Also inject the Namespace column for namespaced resources when viewing all namespaces.
+  const effectiveColumns = createMemo<Column<any>[]>(() => {
     const resourceType = filterStore.getResourceType();
-    const hasDefined = !!(resourceType && resourceTypeConfigs[resourceType]);
-    const cfg = currentResourceConfig();
+    const cfg = resourceType ? resourceTypeConfigs[resourceType] : undefined;
     const tblCols = tableColumns();
     const tblNames = tableColumnNames();
-    if (hasDefined && cfg?.columns) {
-      const wrapped = cfg.columns.map((col) => {
+
+    const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+    const namespaced = Boolean(k8sResource?.namespaced);
+    const ns = filterStore.getNamespace();
+    const viewingAllNamespaces = !ns || ns === 'all-namespaces';
+
+    // Use configured columns when available,
+    // wrapping accessors to optionally use Table cells as fallback
+    if (Array.isArray(cfg?.columns)) {
+      const base = cfg.columns.map((col) => {
         const headerName = String(col.header || '').toLowerCase();
         const idx = tblNames.indexOf(headerName);
         const fallbackAccessor = (item: any) => <>{(item as any)?.__cells?.[idx] ?? ''}</>;
@@ -406,10 +387,16 @@ export function Dashboard() {
         };
         return { ...col, accessor } as Column<any>;
       });
-      return wrapped;
+
+      // Inject Namespace column as the second column when appropriate
+      if (viewingAllNamespaces && namespaced && base.length > 0) {
+        return [base[0], namespaceColumn, ...base.slice(1)];
+      }
+      return base;
     }
-    // No configured columns – use Table model if available
-    return tblCols || null;
+
+    // No configured columns – use Table model if available; otherwise, return empty
+    return Array.isArray(tblCols) ? tblCols : [];
   });
 
   return (
@@ -468,12 +455,14 @@ export function Dashboard() {
 
         <section class="resource-section full-width">
           <Show when={errorStore.currentError} fallback={
-            <ResourceList 
-              resources={filteredResources()}
-              resourceTypeConfig={currentResourceConfig()!}
-              resetKey={listResetKey()}
-              columns={effectiveColumns() || undefined}
-            />
+            <Show when={effectiveColumns().length > 0}>
+              <ResourceList 
+                resources={filteredResources()}
+                resourceTypeConfig={(resourceTypeConfigs[filterStore.getResourceType() || ''] as any) || { columns: [] }}
+                resetKey={listResetKey()}
+                columns={effectiveColumns()}
+              />
+            </Show>
           }>
             <ErrorDisplay class="inline" />
           </Show>

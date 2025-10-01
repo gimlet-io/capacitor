@@ -6,7 +6,6 @@ import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
-import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
@@ -290,7 +289,7 @@ export function ResourceList<T>(props: {
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
   resetKey?: unknown;
-  columns?: Column<any>[];
+  columns: Column<any>[];
 }) {
   const navigate = useNavigate();
   const filterStore = useFilterStore();
@@ -335,56 +334,15 @@ export function ResourceList<T>(props: {
     }
   });
 
-  // Get the selected namespace
-  const selectedNamespace = createMemo(() => {
-    return filterStore.getNamespace();
-  });
-
-  // Process columns: prefer overrideColumns from Table response when provided
-  const visibleColumns = createMemo(() => {
-    if (Array.isArray(props.columns) && props.columns.length > 0) {
-      return props.columns;
-    }
-    const namespace = selectedNamespace();
-    const resourceColumns = props.resourceTypeConfig.columns;
-    
-    // If no specific namespace is selected or it's "all-namespaces", inject the namespace column
-    if (!namespace || namespace === 'all-namespaces') {
-      // Check if the resource has a namespace field (is namespaced)
-      const isNamespaced = props.resources.length > 0 && 
-                           props.resources[0] && 
-                           (props.resources[0] as any).metadata && 
-                           (props.resources[0] as any).metadata.namespace !== undefined;
-      
-      if (isNamespaced) {
-        // Create a new array with namespace column inserted as the second column
-        const result = [
-          resourceColumns[0],
-          namespaceColumn,
-          ...resourceColumns.slice(1)
-        ];
-        return result;
-      }
-      
-      return resourceColumns;
-    }
-    
-    return resourceColumns;
-  });
 
   // Apply sorting based on the current sort column and direction
   const sortedResources = createMemo(() => {
     let resources = props.resources;
     
-    // If overrideColumns are present (Table mode), skip client-side sorting by config
-    if (Array.isArray(props.columns) && props.columns.length > 0) {
-      return resources;
-    }
-
     // Apply column-specific sorting
     const currentSortColumn = sortColumn();
     if (currentSortColumn) {
-      const columns = visibleColumns();
+      const columns = props.columns;
       const sortingColumn = columns.find(col => col.header === currentSortColumn);
       if (sortingColumn?.sortFunction) {
         resources = sortingColumn.sortFunction(resources, sortAscending());
@@ -502,7 +460,7 @@ export function ResourceList<T>(props: {
   });
 
   const handleColumnHeaderClick = (columnHeader: string) => {
-    const columns = visibleColumns();
+    const columns = props.columns;
     const column = columns.find(col => col.header === columnHeader);
     
     if (!column?.sortable) return;
@@ -755,7 +713,7 @@ export function ResourceList<T>(props: {
         <table class="resource-table">
           <thead>
             <tr>
-              {visibleColumns().map(column => (
+              {props.columns.map(column => (
                 <th 
                   style={`width: ${column.width}; ${column.sortable ? 'cursor: pointer; user-select: none;' : ''}`}
                   onClick={() => handleColumnHeaderClick(column.header)}
@@ -780,12 +738,12 @@ export function ResourceList<T>(props: {
           <tbody>
             {canVirtualize() && totalCount() > 0 && (
               <tr aria-hidden="true">
-                <td colSpan={visibleColumns().length} style={`height: ${topSpacerHeight()}px; padding: 0; border: 0;`}></td>
+                <td colSpan={props.columns.length} style={`height: ${topSpacerHeight()}px; padding: 0; border: 0;`}></td>
               </tr>
             )}
             <For each={canVirtualize() ? visibleSlice() : sortedResources()} fallback={
               <tr>
-                <td colSpan={visibleColumns().length} class="no-results">
+                <td colSpan={props.columns.length} class="no-results">
                   {props.resources.length === 0 ? 'No resources found' : 'No resources match the current filters'}
                 </td>
               </tr>
@@ -803,7 +761,7 @@ export function ResourceList<T>(props: {
                       class={selectedIndex() === globalIndex() ? 'selected' : ''} 
                       onClick={handleClick}
                     >
-                      {visibleColumns().map(column => (
+                      {props.columns.map(column => (
                         <td title={column.title ? column.title(resource) : undefined}>
                           {column.accessor(resource)}
                         </td>
@@ -816,7 +774,7 @@ export function ResourceList<T>(props: {
             </For>
             {canVirtualize() && totalCount() > 0 && (
               <tr aria-hidden="true">
-                <td colSpan={visibleColumns().length} style={`height: ${bottomSpacerHeight()}px; padding: 0; border: 0;`}></td>
+                <td colSpan={props.columns.length} style={`height: ${bottomSpacerHeight()}px; padding: 0; border: 0;`}></td>
               </tr>
             )}
           </tbody>
