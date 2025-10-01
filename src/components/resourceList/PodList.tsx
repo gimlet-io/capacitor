@@ -230,7 +230,7 @@ export const podColumns = [
   {
     header: "AGE",
     width: "10%",
-    accessor: (pod: Pod) => useCalculateAge(pod.status.startTime || '')(),
+    accessor: (pod: Pod) => useCalculateAge(pod.metadata.creationTimestamp || '')(),
     sortable: true,
     sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },

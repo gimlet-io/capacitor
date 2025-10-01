@@ -290,8 +290,7 @@ export function ResourceList<T>(props: {
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
   resetKey?: unknown;
-  // When provided, these columns (from Table response) override the config columns
-  overrideColumns?: Column<any>[];
+  columns?: Column<any>[];
 }) {
   const navigate = useNavigate();
   const filterStore = useFilterStore();
@@ -343,8 +342,8 @@ export function ResourceList<T>(props: {
 
   // Process columns: prefer overrideColumns from Table response when provided
   const visibleColumns = createMemo(() => {
-    if (Array.isArray(props.overrideColumns) && props.overrideColumns.length > 0) {
-      return props.overrideColumns;
+    if (Array.isArray(props.columns) && props.columns.length > 0) {
+      return props.columns;
     }
     const namespace = selectedNamespace();
     const resourceColumns = props.resourceTypeConfig.columns;
@@ -378,7 +377,7 @@ export function ResourceList<T>(props: {
     let resources = props.resources;
     
     // If overrideColumns are present (Table mode), skip client-side sorting by config
-    if (Array.isArray(props.overrideColumns) && props.overrideColumns.length > 0) {
+    if (Array.isArray(props.columns) && props.columns.length > 0) {
       return resources;
     }
 

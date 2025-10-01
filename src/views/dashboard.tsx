@@ -2,7 +2,7 @@ import { createSignal, createEffect, Show, onMount, createMemo } from "solid-js"
 import { ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
-// import { watchResource } from "../watches.tsx"; // Commented out: switching from watch to simple fetch (Table)
+import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
@@ -19,8 +19,8 @@ export function Dashboard() {
   const apiResourceStore = useApiResourceStore();
   const errorStore = useErrorStore();
   
-  // const [watchStatus, setWatchStatus] = createSignal("●"); // Commented out: watch indicator not used with simple fetch
-  // const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]); // Commented out: no live watches
+  const [watchStatus, setWatchStatus] = createSignal("●");
+  const [watchController, setWatchController] = createSignal<AbortController | null>(null);
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
   const [initialLoadComplete, setInitialLoadComplete] = createSignal(true);
   const [resourceCount, setResourceCount] = createSignal(0);
@@ -31,6 +31,7 @@ export function Dashboard() {
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
   // Dynamic columns from K8s Table response
   const [tableColumns, setTableColumns] = createSignal<Column<any>[] | null>(null);
+  const [tableColumnNames, setTableColumnNames] = createSignal<string[]>([]);
   const [listResetKey, setListResetKey] = createSignal(0);
 
   // Function to switch to a new context
@@ -79,12 +80,13 @@ export function Dashboard() {
 
   // Call setupWatches when namespace or resource filter changes
   createEffect(() => {    
-    // Simple fetch of resources using Table response instead of watches
+    // Simple fetch of resources using Table response, then start stream to enhance with full objects
     const handleFetchTable = async () => {
       try {
         setInitialLoadComplete(false);
         setResourceCount(0);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
+        await startStream(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
         console.error('Error fetching resources (Table):', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch resources';
@@ -203,6 +205,7 @@ export function Dashboard() {
       }
 
       const columnDefs = Array.isArray(data?.columnDefinitions) ? data.columnDefinitions : [];
+      setTableColumnNames(columnDefs.map((d: any) => String(d?.name || '').toLowerCase()));
       const rows = Array.isArray(data?.rows) ? data.rows : [];
 
       // Build dynamic columns based on Table column definitions
@@ -238,6 +241,68 @@ export function Dashboard() {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       errorStore.setApiError(`Failed to fetch resources: ${msg}`);
       setInitialLoadComplete(true);
+    }
+  };
+
+  // Start a simple stream (watch) to enhance/replace Table rows with full objects
+  const startStream = async (ns: string | undefined, resourceType: string | undefined) => {
+    try {
+      // Abort previous watch
+      const prev = watchController();
+      if (prev) prev.abort();
+      setWatchController(null);
+
+      if (!resourceType) return;
+      const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+      if (!k8sResource) return;
+
+      let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+      if (k8sResource.namespaced && ns && ns !== 'all-namespaces') {
+        watchPath = `${k8sResource.apiPath}/namespaces/${ns}/${k8sResource.name}?watch=true`;
+      }
+
+      const controller = new AbortController();
+      setWatchController(controller);
+      const ctxName = apiResourceStore.contextInfo?.current;
+      await watchResource(watchPath, (event: { type: string; object: any; error?: string; path?: string }) => {
+        if (event.type === 'ERROR') {
+          const msg = event.error || 'Unknown watch error';
+          errorStore.setWatchError(msg, event.path || watchPath);
+          return;
+        }
+        const obj = event.object;
+        if (!obj?.metadata?.name) return;
+
+        setDynamicResources(prev => {
+          const list = (prev[k8sResource.id] || []).slice();
+          const name = obj.metadata.name;
+          let idx = -1;
+          for (let i = 0; i < list.length; i++) {
+            if ((list[i] as any)?.metadata?.name === name) { idx = i; break; }
+          }
+          if (event.type === 'DELETED') {
+            if (idx !== -1) list.splice(idx, 1);
+          } else {
+            // Preserve table cells if present
+            const prevItem = idx !== -1 ? list[idx] : undefined;
+            const nextItem = { ...obj } as any;
+            if ((prevItem as any)?.__cells && !nextItem.__cells) {
+              nextItem.__cells = (prevItem as any).__cells;
+            }
+            // Replace or append
+            if (idx === -1) list.push(nextItem); else list[idx] = nextItem;
+          }
+          // Sort by name for stable display
+          list.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+          // Update count if current type
+          if (k8sResource.id === filterStore.getResourceType()) {
+            setResourceCount(list.length);
+          }
+          return { ...prev, [k8sResource.id]: list };
+        });
+      }, controller, setWatchStatus, (msg, path) => errorStore.setWatchError(msg, path), ctxName);
+    } catch (e) {
+      console.error('Failed to start stream:', e);
     }
   };
 
@@ -316,6 +381,37 @@ export function Dashboard() {
     };
   });
 
+  // Build effective columns: prefer configured columns; when only Table object is present, fallback to table cells matching headers
+  const effectiveColumns = createMemo<Column<any>[] | null>(() => {
+    const resourceType = filterStore.getResourceType();
+    const hasDefined = !!(resourceType && resourceTypeConfigs[resourceType]);
+    const cfg = currentResourceConfig();
+    const tblCols = tableColumns();
+    const tblNames = tableColumnNames();
+    if (hasDefined && cfg?.columns) {
+      const wrapped = cfg.columns.map((col) => {
+        const headerName = String(col.header || '').toLowerCase();
+        const idx = tblNames.indexOf(headerName);
+        const fallbackAccessor = (item: any) => <>{(item as any)?.__cells?.[idx] ?? ''}</>;
+        const accessor = (item: any) => {
+          try {
+            // If item came from Table and no full object yet, use table cell fallback
+            if ((item as any)?.__fromTable && idx !== -1) {
+              return fallbackAccessor(item);
+            }
+            return col.accessor(item);
+          } catch {
+            return idx !== -1 ? fallbackAccessor(item) : col.accessor(item);
+          }
+        };
+        return { ...col, accessor } as Column<any>;
+      });
+      return wrapped;
+    }
+    // No configured columns – use Table model if available
+    return tblCols || null;
+  });
+
   return (
     <div class="layout">
       <main class="main-content">
@@ -376,7 +472,7 @@ export function Dashboard() {
               resources={filteredResources()}
               resourceTypeConfig={currentResourceConfig()!}
               resetKey={listResetKey()}
-              overrideColumns={tableColumns() || undefined}
+              columns={effectiveColumns() || undefined}
             />
           }>
             <ErrorDisplay class="inline" />
