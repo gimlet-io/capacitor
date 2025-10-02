@@ -32,6 +32,11 @@ export function Dashboard() {
   // Dynamic columns from K8s Table response
   const [tableColumns, setTableColumns] = createSignal<Column<any>[] | null>(null);
   const [listResetKey, setListResetKey] = createSignal(0);
+  // Batching state for watch updates (per resource type)
+  const mainBatchQueue: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
+  const mainBatchTimer: Record<string, number | undefined> = {};
+  const extraBatchQueue: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
+  const extraBatchTimer: Record<string, number | undefined> = {};
 
   // Determine if non-trivial filters are active (excluding ResourceType and Namespace)
   const hasUserFilters = createMemo(() => {
@@ -291,6 +296,58 @@ export function Dashboard() {
       // Enter enhancing/filtering stage now that streaming starts
       untrack(() => setLoadingStage(hasUserFilters() ? 'filtering' : 'enhancing'));
       bumpSettleTimer();
+      const scheduleMainFlush = (resTypeId: string) => {
+        if (mainBatchTimer[resTypeId] !== undefined) return;
+        mainBatchTimer[resTypeId] = setTimeout(() => {
+          const changes = mainBatchQueue[resTypeId] || [];
+          mainBatchQueue[resTypeId] = [];
+          mainBatchTimer[resTypeId] = undefined;
+          if (changes.length === 0) return;
+
+          setDynamicResources(prev => {
+            const list = (prev[resTypeId] || []).slice();
+            // Build name index for fast lookup
+            const nameToIndex = new Map<string, number>();
+            for (let i = 0; i < list.length; i++) {
+              const n = (list[i] as any)?.metadata?.name as string | undefined;
+              if (n) nameToIndex.set(n, i);
+            }
+            for (const evt of changes) {
+              const obj = evt.object;
+              const name = obj?.metadata?.name as string | undefined;
+              if (!name) continue;
+              const idx = nameToIndex.get(name);
+              if (evt.type === 'DELETED') {
+                if (idx !== undefined) {
+                  list.splice(idx, 1);
+                  nameToIndex.delete(name);
+                }
+              } else {
+                // Preserve table cells if present
+                const prevItem = idx !== undefined ? list[idx] : undefined;
+                let nextItem = { ...obj } as any;
+                if ((prevItem as any)?.__cells && !nextItem.__cells) {
+                  nextItem.__cells = (prevItem as any).__cells;
+                }
+                if (idx === undefined) {
+                  nameToIndex.set(name, list.length);
+                  list.push(nextItem);
+                } else {
+                  list[idx] = nextItem;
+                }
+              }
+            }
+            // Stable sort by name once per flush
+            list.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+            // Update count if current type
+            if (resTypeId === filterStore.getResourceType()) {
+              setResourceCount(list.length);
+            }
+            return { ...prev, [resTypeId]: list };
+          });
+        }, 40) as unknown as number;
+      };
+
       await watchResource(watchPath, (event: { type: string; object: any; error?: string; path?: string }) => {
         if (event.type === 'ERROR') {
           const msg = event.error || 'Unknown watch error';
@@ -299,49 +356,13 @@ export function Dashboard() {
         }
         const obj = event.object;
         if (!obj?.metadata?.name) return;
-
-        setDynamicResources(prev => {
-          const list = (prev[k8sResource.id] || []).slice();
-          const name = obj.metadata.name;
-          let idx = -1;
-          for (let i = 0; i < list.length; i++) {
-            if ((list[i] as any)?.metadata?.name === name) { idx = i; break; }
-          }
-          if (event.type === 'DELETED') {
-            if (idx !== -1) list.splice(idx, 1);
-          } else {
-            // Preserve table cells if present
-            const prevItem = idx !== -1 ? list[idx] : undefined;
-            let nextItem = { ...obj } as any;
-            if ((prevItem as any)?.__cells && !nextItem.__cells) {
-              nextItem.__cells = (prevItem as any).__cells;
-            }
-            // Enrich main resource with any available extra resources using configured updaters
-            const cfg = resourceTypeConfigs[k8sResource.id];
-            const extras: ExtraWatchConfig[] = Array.isArray(cfg?.extraWatches) ? cfg!.extraWatches! : [];
-            for (const ex of extras) {
-              const extraList = (prev[ex.resourceType] || []) as any[];
-              try {
-                nextItem = ex.updater(nextItem, extraList);
-              } catch (_e) {
-                // ignore enrich errors
-              }
-            }
-            // Replace or append
-            if (idx === -1) list.push(nextItem); else list[idx] = nextItem;
-            // Reset settle timer on effective adds
-            if (idx === -1 || event.type === 'ADDED') {
-              bumpSettleTimer();
-            }
-          }
-          // Sort by name for stable display
-          list.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
-          // Update count if current type
-          if (k8sResource.id === filterStore.getResourceType()) {
-            setResourceCount(list.length);
-          }
-          return { ...prev, [k8sResource.id]: list };
-        });
+        // Queue main event
+        const rt = k8sResource.id;
+        if (!Array.isArray(mainBatchQueue[rt])) mainBatchQueue[rt] = [];
+        mainBatchQueue[rt].push({ type: event.type as any, object: obj });
+        // Bump settle for ADDED
+        if (event.type === 'ADDED') bumpSettleTimer();
+        scheduleMainFlush(rt);
       }, controller, setWatchStatus, (msg, path) => errorStore.setWatchError(msg, path), ctxName);
     } catch (e) {
       console.error('Failed to start stream:', e);
@@ -371,6 +392,55 @@ export function Dashboard() {
         setWatchControllers(prev => [...prev, controller]);
 
         const noopSetWatchStatus = (_: string) => {};
+        const scheduleExtraFlush = (resTypeId: string, mainId: string, updater: (item: any, extras: any[]) => any) => {
+          if (extraBatchTimer[resTypeId] !== undefined) return;
+          extraBatchTimer[resTypeId] = setTimeout(() => {
+            const changes = extraBatchQueue[resTypeId] || [];
+            extraBatchQueue[resTypeId] = [];
+            extraBatchTimer[resTypeId] = undefined;
+            if (changes.length === 0) return;
+
+            setDynamicResources(prev => {
+              // Update extra cache
+              const extraList = (prev[resTypeId] || []).slice();
+              const keyOf = (o: any) => o?.metadata ? `${o.metadata.namespace || ''}/${o.metadata.name || ''}` : '';
+              const keyToIndex = new Map<string, number>();
+              for (let i = 0; i < extraList.length; i++) keyToIndex.set(keyOf(extraList[i]), i);
+              for (const evt of changes) {
+                const key = keyOf(evt.object);
+                if (!key) continue;
+                const idx = keyToIndex.get(key);
+                if (evt.type === 'DELETED') {
+                  if (idx !== undefined) {
+                    extraList.splice(idx, 1);
+                    keyToIndex.delete(key);
+                  }
+                } else {
+                  if (idx === undefined) {
+                    keyToIndex.set(key, extraList.length);
+                    extraList.push(evt.object);
+                  } else {
+                    extraList[idx] = evt.object;
+                  }
+                }
+              }
+
+              // Enrich main list items once per flush
+              const currentMain = (prev[mainId] || []) as any[];
+              const enriched = currentMain.map(item => {
+                try {
+                  return updater(item, extraList);
+                } catch (_e) {
+                  return item;
+                }
+              });
+              enriched.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+              const next: Record<string, any[]> = { ...prev, [resTypeId]: extraList, [mainId]: enriched };
+              return next;
+            });
+          }, 40) as unknown as number;
+        };
+
         await watchResource(
           extraPath,
           (event: { type: string; object: any; error?: string; path?: string }) => {
@@ -381,39 +451,13 @@ export function Dashboard() {
             }
             const obj = event.object;
             if (!obj?.metadata?.name) return;
-
-            setDynamicResources(prev => {
-              // Update extra resource cache
-              const extraList = (prev[ex.resourceType] || []).slice();
-              const name = obj.metadata.name;
-              let idx = -1;
-              for (let i = 0; i < extraList.length; i++) {
-                if ((extraList[i] as any)?.metadata?.name === name) { idx = i; break; }
-              }
-              if (event.type === 'DELETED') {
-                if (idx !== -1) extraList.splice(idx, 1);
-              } else {
-                if (idx === -1) extraList.push(obj); else extraList[idx] = obj;
-              }
-
-              // Enrich main list items using the updater and updated extra list
-              const mainId = mainRes.id;
-              const currentMain = (prev[mainId] || []) as any[];
-              const enriched = currentMain.map(item => {
-                try {
-                  return ex.updater(item, extraList);
-                } catch (_e) {
-                  return item;
-                }
-              });
-              // Maintain stable sort by name
-              enriched.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
-
-              const next: Record<string, any[]> = { ...prev, [ex.resourceType]: extraList, [mainId]: enriched };
-              // Extra watcher updates also indicate ongoing enhancement; reset settle timer
-              bumpSettleTimer();
-              return next;
-            });
+            // Queue extra event and schedule flush
+            const rt = ex.resourceType;
+            const mainId = mainRes.id;
+            if (!Array.isArray(extraBatchQueue[rt])) extraBatchQueue[rt] = [];
+            extraBatchQueue[rt].push({ type: event.type as any, object: obj });
+            if (event.type === 'ADDED' || event.type === 'DELETED') bumpSettleTimer();
+            scheduleExtraFlush(rt, mainId, ex.updater);
           },
           controller,
           noopSetWatchStatus,

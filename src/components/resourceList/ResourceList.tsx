@@ -301,6 +301,9 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
+  // Debounce and cache for permission checks
+  let permissionTimer: number | undefined;
+  const permissionCache = new Map<string, Record<string, boolean | undefined>>();
   // Virtualization state
   const rowHeight = 36;
   const [scrollTop, setScrollTop] = createSignal(0);
@@ -443,20 +446,31 @@ export function ResourceList<T>(props: {
     return undefined;
   };
 
-  // Recompute all command permissions on selection change
+  // Recompute all command permissions on selection change (debounced + cached)
   createEffect(() => {
     const res = selectedResource() as unknown as MinimalK8sResource | null;
     if (!res) {
       setCommandPermissions({});
       return;
     }
-    const cmds = getAllCommands();
-    (async () => {
+    const key = `${res.kind}|${res.metadata?.namespace || ''}|${res.metadata?.name || ''}`;
+    if (permissionTimer !== undefined) {
+      clearTimeout(permissionTimer);
+      permissionTimer = undefined;
+    }
+    permissionTimer = setTimeout(async () => {
+      const cached = permissionCache.get(key);
+      if (cached) {
+        setCommandPermissions(cached);
+        return;
+      }
+      const cmds = getAllCommands();
       const entries = await Promise.all(cmds.map(async (c) => [commandId(c), await derivePermission(c, res)] as const));
       const map: Record<string, boolean | undefined> = {};
       for (const [id, allowed] of entries) map[id] = allowed;
+      permissionCache.set(key, map);
       setCommandPermissions(map);
-    })();
+    }, 80) as unknown as number;
   });
 
   const handleColumnHeaderClick = (columnHeader: string) => {
@@ -767,7 +781,7 @@ export function ResourceList<T>(props: {
                         </td>
                       ))}
                     </tr>
-                    {props.resourceTypeConfig.detailRowRenderer /*&& !((resource as any).__fromTable)*/ && (
+                    {props.resourceTypeConfig.detailRowRenderer && (
                       <tr class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}>
                         {props.resourceTypeConfig.detailRowRenderer(resource, props.columns.length)}
                       </tr>
