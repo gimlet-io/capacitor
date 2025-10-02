@@ -782,7 +782,10 @@ export function ResourceList<T>(props: {
                       ))}
                     </tr>
                     {props.resourceTypeConfig.detailRowRenderer && (
-                      <tr class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}>
+                      <tr 
+                        class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}
+                        onClick={handleClick}
+                      >
                         {props.resourceTypeConfig.detailRowRenderer(resource, props.columns.length)}
                       </tr>
                     )}
