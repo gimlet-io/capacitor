@@ -124,7 +124,7 @@ export function Dashboard() {
         });
         setWatchControllers([]);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
-       await new Promise(resolve => setTimeout(resolve, 3000));
+      //  await new Promise(resolve => setTimeout(resolve, 3000));
         await startStream(filterStore.getNamespace(), filterStore.getResourceType());
         await startExtraWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
