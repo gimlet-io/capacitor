@@ -88,6 +88,7 @@ export function Dashboard() {
         });
         setWatchControllers([]);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
+        // await new Promise(resolve => setTimeout(resolve, 3000));;
         await startStream(filterStore.getNamespace(), filterStore.getResourceType());
         await startExtraWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
@@ -155,15 +156,6 @@ export function Dashboard() {
       });
     }
   });
-  // Note: Watch-related batching removed in fetch mode
-
-  // Error handler for watch failures
-  // const handleWatchError = (message: string, path: string) => {
-  //   console.log('Watch error:', { message, path });
-  //   errorStore.setWatchError(message, path);
-  // };
-
-  // Watches disabled: using Table-based fetch
 
   // Fetch resources using the Kubernetes Table response and build dynamic columns
   const fetchResourceTable = async (ns: string | undefined, resourceType: string | undefined) => {
