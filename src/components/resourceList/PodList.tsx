@@ -54,8 +54,8 @@ export const podsReadinessFilter: Filter = {
   filterFunction: (pod: Pod, value: string): boolean => {
     if (value === "notReady") {
       // Check if any container is not ready
-      const containerStatuses = pod.status.containerStatuses || [];
-      const totalContainers = pod.spec.containers.length;
+      const containerStatuses = pod.status?.containerStatuses || [];
+      const totalContainers = pod.spec?.containers.length;
       const readyContainers = containerStatuses.filter(cs => cs.ready).length;
       
       return readyContainers < totalContainers;

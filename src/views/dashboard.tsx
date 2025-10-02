@@ -22,6 +22,8 @@ export function Dashboard() {
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
   const [initialLoadComplete, setInitialLoadComplete] = createSignal(true);
   const [resourceCount, setResourceCount] = createSignal(0);
+  const [loadingStage, setLoadingStage] = createSignal<'loading' | 'enhancing' | 'filtering' | null>(null);
+  const [settleTimer, setSettleTimer] = createSignal<number | null>(null);
   
   let contextDropdownRef: HTMLDivElement | undefined;
 
@@ -30,6 +32,29 @@ export function Dashboard() {
   // Dynamic columns from K8s Table response
   const [tableColumns, setTableColumns] = createSignal<Column<any>[] | null>(null);
   const [listResetKey, setListResetKey] = createSignal(0);
+
+  // Determine if non-trivial filters are active (excluding ResourceType and Namespace)
+  const hasUserFilters = createMemo(() => {
+    return filterStore.activeFilters.some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
+  });
+
+  // Bump a 300ms settle timer; sets stage based on whether user filters exist
+  const bumpSettleTimer = () => {
+    untrack(() => {
+      if (initialLoadComplete() === false) {
+        setLoadingStage('loading');
+      } else {
+        setLoadingStage(hasUserFilters() ? 'filtering' : 'enhancing');
+      }
+      const existing = settleTimer();
+      if (existing !== null) clearTimeout(existing!);
+      const timer = setTimeout(() => {
+        setLoadingStage(null);
+        setSettleTimer(null);
+      }, 300) as unknown as number;
+      setSettleTimer(timer);
+    });
+  };
 
   // Function to switch to a new context
   const handleContextSwitch = async (contextName: string) => {
@@ -73,6 +98,11 @@ export function Dashboard() {
     untrack(() => {
       watchControllers().forEach(controller => controller.abort());
     });
+    const timer = settleTimer();
+    if (timer !== null) {
+      clearTimeout(timer);
+      setSettleTimer(null);
+    }
   });
 
   // Call setupWatches when namespace or resource filter changes
@@ -81,6 +111,7 @@ export function Dashboard() {
     const handleFetchTable = async () => {
       try {
         setInitialLoadComplete(false);
+        setLoadingStage('loading');
         setResourceCount(0);
         // Abort any existing watchers before starting new ones
         untrack(() => {
@@ -88,7 +119,7 @@ export function Dashboard() {
         });
         setWatchControllers([]);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
-        await new Promise(resolve => setTimeout(resolve, 3000));;
+//        await new Promise(resolve => setTimeout(resolve, 3000));
         await startStream(filterStore.getNamespace(), filterStore.getResourceType());
         await startExtraWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
@@ -96,6 +127,7 @@ export function Dashboard() {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch resources';
         errorStore.setApiError(`Failed to fetch resources: ${errorMessage}`);
         setInitialLoadComplete(true);
+        setLoadingStage(null);
       }
     };
 
@@ -237,6 +269,7 @@ export function Dashboard() {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       errorStore.setApiError(`Failed to fetch resources: ${msg}`);
       setInitialLoadComplete(true);
+      setLoadingStage(null);
     }
   };
 
@@ -255,6 +288,9 @@ export function Dashboard() {
       const controller = new AbortController();
       setWatchControllers(prev => [...prev, controller]);
       const ctxName = apiResourceStore.contextInfo?.current;
+      // Enter enhancing/filtering stage now that streaming starts
+      untrack(() => setLoadingStage(hasUserFilters() ? 'filtering' : 'enhancing'));
+      bumpSettleTimer();
       await watchResource(watchPath, (event: { type: string; object: any; error?: string; path?: string }) => {
         if (event.type === 'ERROR') {
           const msg = event.error || 'Unknown watch error';
@@ -293,6 +329,10 @@ export function Dashboard() {
             }
             // Replace or append
             if (idx === -1) list.push(nextItem); else list[idx] = nextItem;
+            // Reset settle timer on effective adds
+            if (idx === -1 || event.type === 'ADDED') {
+              bumpSettleTimer();
+            }
           }
           // Sort by name for stable display
           list.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
@@ -370,6 +410,8 @@ export function Dashboard() {
               enriched.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
 
               const next: Record<string, any[]> = { ...prev, [ex.resourceType]: extraList, [mainId]: enriched };
+              // Extra watcher updates also indicate ongoing enhancement; reset settle timer
+              bumpSettleTimer();
               return next;
             });
           },
@@ -391,6 +433,27 @@ export function Dashboard() {
     if (filters.length === 0) { return resources }
 
     return resources.filter(resource => filters.some(filter => filterStore.filterRegistry[filter.name]?.filterFunction(resource, filter.value)));
+  });
+
+  // Keep resourceCount in sync with settle: update total immediately; update filtered count after 300ms settle
+  createEffect(() => {
+    const hasFilters = filterStore.activeFilters.some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
+    if (!hasFilters) {
+      const all = dynamicResources()[filterStore.getResourceType() || ''] || [];
+      setResourceCount(all.length);
+      return;
+    }
+    // If filtering, update count only when loadingStage is null (settled)
+    if (loadingStage() === null) {
+      setResourceCount(filteredResources().length);
+    }
+  });
+
+  // When filters change, reflect filtering stage and restart settle window
+  createEffect(() => {
+    const _filters = filterStore.activeFilters;
+    void _filters;
+    untrack(() => bumpSettleTimer());
   });
 
   // Populate node filter options for pods
@@ -541,6 +604,7 @@ export function Dashboard() {
           activeFilters={filterStore.activeFilters}
           onFilterChange={filterStore.setActiveFilters}
           initialLoadComplete={initialLoadComplete()}
+          loadingStage={loadingStage()}
           resourceCount={resourceCount()}
         />
 

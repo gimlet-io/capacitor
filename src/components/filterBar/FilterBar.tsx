@@ -88,6 +88,7 @@ export function FilterBar(props: {
   activeFilters: ActiveFilter[];
   onFilterChange: (filters: ActiveFilter[]) => void;
   initialLoadComplete?: boolean;
+  loadingStage?: 'loading' | 'enhancing' | 'filtering' | null;
   resourceCount?: number;
 }) {
   const filterStore = useFilterStore();
@@ -97,7 +98,8 @@ export function FilterBar(props: {
   
   // Update spinner animation
   createEffect(() => {
-    if (props.initialLoadComplete === false) {
+    const shouldSpin = props.loadingStage != null || props.initialLoadComplete === false;
+    if (shouldSpin) {
       spinnerTimer = setInterval(() => {
         setSpinnerFrame((prev) => (prev + 1) % spinnerFrames.length);
       }, 80) as unknown as number;
@@ -773,15 +775,19 @@ export function FilterBar(props: {
           }}
         </For>
         
-        {/* Loading indicator with ANSI spinner */}
-        <Show when={props.initialLoadComplete !== undefined}>
+      {/* Loading indicator with ANSI spinner and staged labels */}
+      <Show when={props.initialLoadComplete !== undefined || props.loadingStage !== undefined}>
           <div class="filter-loading-indicator">
-            <Show when={props.initialLoadComplete === false}>
-              <span class="filter-spinner-text">
-                [{spinnerFrames[spinnerFrame()]}] ({props.resourceCount || 0})
-              </span>
-            </Show>
-            <Show when={props.initialLoadComplete === true && (props.resourceCount || 0) > 0}>
+          <Show when={props.loadingStage != null || props.initialLoadComplete === false}>
+            <span class="filter-spinner-text">
+              [{spinnerFrames[spinnerFrame()]}]
+              {" "}
+              {props.loadingStage ? props.loadingStage : 'loading'}
+              {" "}
+              ({props.resourceCount || 0})
+            </span>
+          </Show>
+          <Show when={(props.loadingStage == null) && props.initialLoadComplete === true && (props.resourceCount || 0) > 0}>
               <span class="filter-resource-count">
                 {props.resourceCount} resources
               </span>
