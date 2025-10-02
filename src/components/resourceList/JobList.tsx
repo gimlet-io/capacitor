@@ -134,7 +134,7 @@ export const jobStatusFilter: Filter = {
   ],
   filterFunction: (job: Job, value: string) => {
     const succeeded = job.status?.succeeded || 0;
-    const completions = job.spec.completions || 1;
+    const completions = job.spec?.completions || 1;
     const failed = job.status?.failed || 0;
     const active = job.status?.active || 0;
     

@@ -1,19 +1,16 @@
-import { createSignal, createEffect, untrack, Show, onMount, createMemo } from "solid-js";
+import { createSignal, createEffect, Show, onMount, createMemo, untrack } from "solid-js";
 import { ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
-import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
-import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
+import { resourceTypeConfigs, type Column, namespaceColumn, type ExtraWatchConfig } from "../resourceTypeConfigs.tsx";
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 import { setJobNodeOptions } from "../components/resourceList/JobList.tsx";
-import { ExtraWatchConfig } from "../resourceTypeConfigs.tsx";
-import { sortByName, sortByAge, sortByNamespace } from "../utils/sortUtils.ts";
 
 export function Dashboard() {
   const filterStore = useFilterStore();
@@ -23,12 +20,46 @@ export function Dashboard() {
   const [watchStatus, setWatchStatus] = createSignal("●");
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
+  const [initialLoadComplete, setInitialLoadComplete] = createSignal(true);
+  const [resourceCount, setResourceCount] = createSignal(0);
+  const [loadingStage, setLoadingStage] = createSignal<'loading' | 'enhancing' | 'filtering' | null>(null);
+  const [settleTimer, setSettleTimer] = createSignal<number | null>(null);
   
   let contextDropdownRef: HTMLDivElement | undefined;
 
   // Resource state
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
+  // Dynamic columns from K8s Table response
+  const [tableColumns, setTableColumns] = createSignal<Column<any>[] | null>(null);
   const [listResetKey, setListResetKey] = createSignal(0);
+  // Batching state for watch updates (per resource type)
+  const mainBatchQueue: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
+  const mainBatchTimer: Record<string, number | undefined> = {};
+  const extraBatchQueue: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
+  const extraBatchTimer: Record<string, number | undefined> = {};
+
+  // Determine if non-trivial filters are active (excluding ResourceType and Namespace)
+  const hasUserFilters = createMemo(() => {
+    return filterStore.activeFilters.some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
+  });
+
+  // Bump a 300ms settle timer; sets stage based on whether user filters exist
+  const bumpSettleTimer = () => {
+    untrack(() => {
+      if (initialLoadComplete() === false) {
+        setLoadingStage('loading');
+      } else {
+        setLoadingStage(hasUserFilters() ? 'filtering' : 'enhancing');
+      }
+      const existing = settleTimer();
+      if (existing !== null) clearTimeout(existing!);
+      const timer = setTimeout(() => {
+        setLoadingStage(null);
+        setSettleTimer(null);
+      }, 300) as unknown as number;
+      setSettleTimer(timer);
+    });
+  };
 
   // Function to switch to a new context
   const handleContextSwitch = async (contextName: string) => {
@@ -38,11 +69,7 @@ export function Dashboard() {
     }
     
     try {
-      // Stop current watches and clear in-memory resources immediately
-      untrack(() => {
-        watchControllers().forEach(controller => controller.abort());
-      });
-      setWatchControllers([]);
+      // Clear in-memory resources immediately
       setDynamicResources(() => ({}));
 
       await apiResourceStore.switchContext(contextName);
@@ -76,23 +103,40 @@ export function Dashboard() {
     untrack(() => {
       watchControllers().forEach(controller => controller.abort());
     });
+    const timer = settleTimer();
+    if (timer !== null) {
+      clearTimeout(timer);
+      setSettleTimer(null);
+    }
   });
 
   // Call setupWatches when namespace or resource filter changes
   createEffect(() => {    
-    // Handle async setupWatches
-    const handleSetupWatches = async () => {
+    // Simple fetch of resources using Table response, then start stream to enhance with full objects
+    const handleFetchTable = async () => {
       try {
-        await setupWatches(filterStore.getNamespace(), filterStore.getResourceType());
+        setInitialLoadComplete(false);
+        setLoadingStage('loading');
+        setResourceCount(0);
+        // Abort any existing watchers before starting new ones
+        untrack(() => {
+          watchControllers().forEach(c => c.abort());
+        });
+        setWatchControllers([]);
+        await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
+      //  await new Promise(resolve => setTimeout(resolve, 3000));
+        await startStream(filterStore.getNamespace(), filterStore.getResourceType());
+        await startExtraWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
-        console.error('Error setting up watches:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to set up watches';
-        console.log('[Dashboard] Setting watch error due to watch setup failure');
-        errorStore.setWatchError(`Failed to watch resources: ${errorMessage}`);
+        console.error('Error fetching resources (Table):', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch resources';
+        errorStore.setApiError(`Failed to fetch resources: ${errorMessage}`);
+        setInitialLoadComplete(true);
+        setLoadingStage(null);
       }
     };
-    
-    handleSetupWatches();
+
+    handleFetchTable();
   });
 
   // Monitor API resource loading errors and handle retries
@@ -143,217 +187,307 @@ export function Dashboard() {
         clearTimeout(retryTimer()!);
         setRetryTimer(null);
       }
-      setupWatches(filterStore.getNamespace(), filterStore.getResourceType()).catch(error => {
-        console.error('Error reloading watches after connection restoration:', error);
+      // After connection restoration, re-fetch the resources
+      fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType()).catch(error => {
+        console.error('Error reloading resources after connection restoration:', error);
       });
     }
   });
 
-  // Maintain resources for each extra watch
-  const extraResources: Record<string, any[]> = {};
-
-  // Batch queues and timers per resource type id
-  const batchQueues: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
-  const batchTimers: Record<string, number | undefined> = {};
-
-  const scheduleFlush = (resourceTypeId: string, extraWatchesForResource?: ExtraWatchConfig[]) => {
-    if (batchTimers[resourceTypeId] !== undefined) return;
-    batchTimers[resourceTypeId] = setTimeout(() => {
-      const changes = batchQueues[resourceTypeId] || [];
-      batchQueues[resourceTypeId] = [];
-      batchTimers[resourceTypeId] = undefined;
-      if (changes.length === 0 && (!extraWatchesForResource || extraWatchesForResource.length === 0)) return;
-
-      setDynamicResources(prev => {
-        const current = prev[resourceTypeId] || [];
-        // Build index by name for efficient updates
-        const nameToIndex = new Map<string, number>();
-        for (let i = 0; i < current.length; i++) {
-          nameToIndex.set(current[i]?.metadata?.name, i);
-        }
-        let next = current.slice();
-
-        // Apply queued changes
-        for (const evt of changes) {
-          const name = evt.object?.metadata?.name;
-          if (!name) continue;
-          if (evt.type === 'DELETED') {
-            const idx = nameToIndex.get(name);
-            if (idx !== undefined) {
-              next.splice(idx, 1);
-              // rebuild map lazily
-              nameToIndex.delete(name);
-            }
-          } else {
-            // Enhance via extra watchers if provided
-            let enhanced = evt.object;
-            if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-              for (const cfg of extraWatchesForResource) {
-                const related = extraResources[cfg.resourceType] || [];
-                enhanced = cfg.updater(enhanced, related);
-              }
-            }
-            const idx = nameToIndex.get(name);
-            if (idx === undefined) {
-              nameToIndex.set(name, next.length);
-              next.push(enhanced);
-            } else {
-              next[idx] = enhanced;
-            }
-          }
-        }
-
-        // If extra resources changed since last flush, re-apply updaters across the list
-        if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-          next = next.map(item => {
-            let updated = item;
-            for (const cfg of extraWatchesForResource) {
-              const related = extraResources[cfg.resourceType] || [];
-              updated = cfg.updater(updated, related);
-            }
-            return updated;
-          });
-        }
-
-        // Sort once per flush by name (stable display)
-        next.sort((a, b) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
-
-        return { ...prev, [resourceTypeId]: next };
-      });
-    }, 16) as unknown as number;
-  };
-
-  // Error handler for watch failures
-  const handleWatchError = (message: string, path: string) => {
-    console.log('Watch error:', { message, path });
-    errorStore.setWatchError(message, path);
-  };
-
-  /**
-   * Sets up watches for the selected resource type and any related resources
-   * configured in extraWatches.
-   * 
-   * @param ns The selected namespace or undefined for all namespaces
-   * @param resourceFilter The selected resource type to watch
-   */
-  const setupWatches = async (ns: string | undefined, resourceType: string | undefined) => {
+  // Fetch resources using the Kubernetes Table response and build dynamic columns
+  const fetchResourceTable = async (ns: string | undefined, resourceType: string | undefined) => {
     if (!resourceType) return;
 
-    // Cancel existing watches
-    untrack(() => {
-      watchControllers().forEach(controller => controller.abort());
-    });
-
-    // Clear existing resources and cache
+    // Clear existing resources and columns
     setDynamicResources(() => ({}));
-    Object.keys(extraResources).forEach(key => {
-      extraResources[key] = [];
-    });
-    
-    const watches = [];
-    const plannedWatchKeys = new Set<string>();
+    setTableColumns(null);
 
     const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
     if (!k8sResource) return;
-  
-    // Only use namespace path if the resource is namespaced and we have a valid namespace
-    let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+
+    // Construct list path
+    let listPath = `${k8sResource.apiPath}/${k8sResource.name}`;
     if (k8sResource.namespaced && ns && ns !== 'all-namespaces') {
-      watchPath = `${k8sResource.apiPath}/namespaces/${ns}/${k8sResource.name}?watch=true`;
+      listPath = `${k8sResource.apiPath}/namespaces/${ns}/${k8sResource.name}`;
     }
-    
-    const mainExtraWatches = resourceTypeConfigs[k8sResource.id]?.extraWatches || [];
-    if (!plannedWatchKeys.has(watchPath)) {
-      plannedWatchKeys.add(watchPath);
-      watches.push({
-        path: watchPath,
-        callback: (event: { type: string; object: any; error?: string; path?: string }) => {
-          // Handle ERROR events from the WebSocket
-          if (event.type === 'ERROR') {
-            handleWatchError(event.error || 'Unknown watch error', event.path || watchPath);
-            return;
-          }
 
-          // Clear watch errors only when receiving data successfully
-          if (errorStore.currentError?.type === 'watch') {
-            errorStore.clearError();
-          }
+    // Use apiPath as-is; it already contains the correct /k8s/<context> prefix
+    const url = listPath;
 
-          // Queue event and schedule a flush for this resource type
-          (batchQueues[k8sResource.id] ||= []).push({ type: event.type as any, object: event.object });
-          scheduleFlush(k8sResource.id, mainExtraWatches);
+    try {
+      const resp = await fetch(url, {
+        headers: {
+          // Ask for Table; fallback to JSON if server does not honor it
+          'Accept': 'application/json;as=Table;g=meta.k8s.io;v=v1, application/json'
         }
       });
-    }
-
-    // Set up extra watches if configured for this resource type
-    const extraWatchesForResource = mainExtraWatches;
-    if (extraWatchesForResource && extraWatchesForResource.length > 0) {
-      // For each extra watch configuration
-      extraWatchesForResource.forEach((config: ExtraWatchConfig) => {
-        const extraResourceType = config.resourceType;
-        const extraResource = filterStore.k8sResources.find(res => res.id === extraResourceType);
-        
-        if (!extraResource) return;
-        
-        // Set up watch for this extra resource
-        let extraWatchPath = `${extraResource.apiPath}/${extraResource.name}?watch=true`;
-        if (extraResource.namespaced && ns && ns !== 'all-namespaces') {
-          extraWatchPath = `${extraResource.apiPath}/namespaces/${ns}/${extraResource.name}?watch=true`;
-        }
-        
-        if (!plannedWatchKeys.has(extraWatchPath)) {
-          plannedWatchKeys.add(extraWatchPath);
-          watches.push({
-            path: extraWatchPath,
-            callback: (event: { type: string; object: any; error?: string; path?: string }) => {
-              // Handle ERROR events from the WebSocket
-              if (event.type === 'ERROR') {
-                handleWatchError(event.error || 'Unknown watch error', event.path || extraWatchPath);
-                return;
-              }
-              
-              // Clear watch errors only when receiving data successfully
-              if (errorStore.currentError?.type === 'watch') {
-                errorStore.clearError();
-              }
-              
-              // Update cache based on event type
-              if (event.type === 'ADDED') {
-                extraResources[extraResourceType] = [
-                  ...(extraResources[extraResourceType] || []),
-                  event.object
-                ];
-              } else if (event.type === 'MODIFIED') {
-                extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
-                  .map(item => item.metadata.name === event.object.metadata.name ? event.object : item);
-              } else if (event.type === 'DELETED') {
-                extraResources[extraResourceType] = (extraResources[extraResourceType] || [])
-                  .filter(item => item.metadata.name !== event.object.metadata.name);
-              }
-              
-              // Schedule a flush for the main resource type so updaters re-apply once per frame
-              scheduleFlush(resourceType, extraWatchesForResource);
-            }
-          });
-        }
-      });
-    }
-
-    const controllers = watches.map(({ path, callback }) => {
-      const controller = new AbortController();
-      try {
-        const ctxName = apiResourceStore.contextInfo?.current;
-        watchResource(path, callback, controller, setWatchStatus, handleWatchError, ctxName);
-      } catch (error) {
-        console.error(`Failed to start watch for ${path}:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown watch error';
-        handleWatchError(errorMessage, path);
+      if (!resp.ok) {
+        throw new Error(`${resp.status} ${resp.statusText}`);
       }
-      return controller;
-    });
+      const data = await resp.json();
 
-    setWatchControllers(controllers);
+      // If we didn't get a Table, fall back to listing items
+      if (data?.kind !== 'Table' || !Array.isArray(data?.rows)) {
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setDynamicResources(prev => ({ ...prev, [k8sResource.id]: items }));
+        setResourceCount(items.length);
+        setInitialLoadComplete(true);
+        setTableColumns(null);
+        return;
+      }
+
+      const columnDefs = Array.isArray(data?.columnDefinitions) ? data.columnDefinitions : [];
+      const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+      // Build dynamic columns based on Table column definitions
+      const cols: Column<any>[] = columnDefs.map((def: any, idx: number) => ({
+        header: String(def?.name || ''),
+        width: `${Math.max(10, Math.floor(100 / Math.max(1, columnDefs.length)))}%`,
+        accessor: (resource: any) => <>{(resource as any)?.__cells?.[idx] ?? ''}</>,
+        sortable: false
+      }));
+      setTableColumns(cols);
+
+      // Map rows to underlying objects while attaching cells for rendering
+      const effectiveApiVersion = (k8sResource.group && k8sResource.group !== 'core')
+        ? `${k8sResource.group}/${k8sResource.version}`
+        : k8sResource.version;
+      const mapped = rows
+        .map((r: any) => {
+          const obj = r?.object || {};
+          try {
+            // Attach cells for UI rendering
+            (obj as any).__cells = Array.isArray(r?.cells) ? r.cells : [];
+          } catch (_e) {
+            // ignore attach errors
+          }
+          // Normalize identity so commands work before stream enrichment
+          try {
+            if (!obj || typeof obj !== 'object') {
+              // ensure object-like
+            } else {
+              if (!(obj as any).metadata) (obj as any).metadata = {};
+              if (!(obj as any).kind || (obj as any).kind === 'PartialObjectMetadata') {
+                (obj as any).kind = k8sResource.kind;
+              }
+              const apiVer = (obj as any).apiVersion;
+              if (!apiVer || apiVer === 'meta.k8s.io/v1') {
+                (obj as any).apiVersion = effectiveApiVersion;
+              }
+            }
+          } catch (_e) {
+            // ignore normalization errors
+          }
+          // Mark that this item originated from a Table response so accessors can fallback to cells
+          (obj as any).__fromTable = true;
+          return obj;
+        });
+
+      // Sort once by name for stable display when possible
+      mapped.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+
+      setDynamicResources(prev => ({ ...prev, [k8sResource.id]: mapped }));
+      setResourceCount(mapped.length);
+      setInitialLoadComplete(true);
+    } catch (err) {
+      console.error('Failed fetching Table list:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      errorStore.setApiError(`Failed to fetch resources: ${msg}`);
+      setInitialLoadComplete(true);
+      setLoadingStage(null);
+    }
+  };
+
+  // Start a simple stream (watch) to enhance/replace Table rows with full objects
+  const startStream = async (ns: string | undefined, resourceType: string | undefined) => {
+    try {
+      if (!resourceType) return;
+      const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+      if (!k8sResource) return;
+
+      let watchPath = `${k8sResource.apiPath}/${k8sResource.name}?watch=true`;
+      if (k8sResource.namespaced && ns && ns !== 'all-namespaces') {
+        watchPath = `${k8sResource.apiPath}/namespaces/${ns}/${k8sResource.name}?watch=true`;
+      }
+
+      const controller = new AbortController();
+      setWatchControllers(prev => [...prev, controller]);
+      const ctxName = apiResourceStore.contextInfo?.current;
+      // Enter enhancing/filtering stage now that streaming starts
+      untrack(() => setLoadingStage(hasUserFilters() ? 'filtering' : 'enhancing'));
+      bumpSettleTimer();
+      const scheduleMainFlush = (resTypeId: string) => {
+        if (mainBatchTimer[resTypeId] !== undefined) return;
+        mainBatchTimer[resTypeId] = setTimeout(() => {
+          const changes = mainBatchQueue[resTypeId] || [];
+          mainBatchQueue[resTypeId] = [];
+          mainBatchTimer[resTypeId] = undefined;
+          if (changes.length === 0) return;
+
+          setDynamicResources(prev => {
+            const list = (prev[resTypeId] || []).slice();
+            // Build name index for fast lookup
+            const nameToIndex = new Map<string, number>();
+            for (let i = 0; i < list.length; i++) {
+              const n = (list[i] as any)?.metadata?.name as string | undefined;
+              if (n) nameToIndex.set(n, i);
+            }
+            for (const evt of changes) {
+              const obj = evt.object;
+              const name = obj?.metadata?.name as string | undefined;
+              if (!name) continue;
+              const idx = nameToIndex.get(name);
+              if (evt.type === 'DELETED') {
+                if (idx !== undefined) {
+                  list.splice(idx, 1);
+                  nameToIndex.delete(name);
+                }
+              } else {
+                // Preserve table cells if present
+                const prevItem = idx !== undefined ? list[idx] : undefined;
+                let nextItem = { ...obj } as any;
+                if ((prevItem as any)?.__cells && !nextItem.__cells) {
+                  nextItem.__cells = (prevItem as any).__cells;
+                }
+                if (idx === undefined) {
+                  nameToIndex.set(name, list.length);
+                  list.push(nextItem);
+                } else {
+                  list[idx] = nextItem;
+                }
+              }
+            }
+            // Stable sort by name once per flush
+            list.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+            // Update count if current type
+            if (resTypeId === filterStore.getResourceType()) {
+              setResourceCount(list.length);
+            }
+            return { ...prev, [resTypeId]: list };
+          });
+        }, 40) as unknown as number;
+      };
+
+      await watchResource(watchPath, (event: { type: string; object: any; error?: string; path?: string }) => {
+        if (event.type === 'ERROR') {
+          const msg = event.error || 'Unknown watch error';
+          errorStore.setWatchError(msg, event.path || watchPath);
+          return;
+        }
+        const obj = event.object;
+        if (!obj?.metadata?.name) return;
+        // Queue main event
+        const rt = k8sResource.id;
+        if (!Array.isArray(mainBatchQueue[rt])) mainBatchQueue[rt] = [];
+        mainBatchQueue[rt].push({ type: event.type as any, object: obj });
+        // Bump settle for ADDED
+        if (event.type === 'ADDED') bumpSettleTimer();
+        scheduleMainFlush(rt);
+      }, controller, setWatchStatus, (msg, path) => errorStore.setWatchError(msg, path), ctxName);
+    } catch (e) {
+      console.error('Failed to start stream:', e);
+    }
+  };
+
+  // Start watches for extra resource types defined by the current main resource type
+  const startExtraWatches = async (ns: string | undefined, resourceType: string | undefined) => {
+    try {
+      if (!resourceType) return;
+      const mainRes = filterStore.k8sResources.find(res => res.id === resourceType);
+      if (!mainRes) return;
+      const cfg = resourceTypeConfigs[resourceType];
+      const extras: ExtraWatchConfig[] = Array.isArray(cfg?.extraWatches) ? cfg!.extraWatches! : [];
+      if (extras.length === 0) return;
+
+      const ctxName = apiResourceStore.contextInfo?.current;
+
+      for (const ex of extras) {
+        const extraRes = filterStore.k8sResources.find(r => r.id === ex.resourceType);
+        if (!extraRes) continue;
+        let extraPath = `${extraRes.apiPath}/${extraRes.name}?watch=true`;
+        if (extraRes.namespaced && ns && ns !== 'all-namespaces') {
+          extraPath = `${extraRes.apiPath}/namespaces/${ns}/${extraRes.name}?watch=true`;
+        }
+        const controller = new AbortController();
+        setWatchControllers(prev => [...prev, controller]);
+
+        const noopSetWatchStatus = (_: string) => {};
+        const scheduleExtraFlush = (resTypeId: string, mainId: string, updater: (item: any, extras: any[]) => any) => {
+          if (extraBatchTimer[resTypeId] !== undefined) return;
+          extraBatchTimer[resTypeId] = setTimeout(() => {
+            const changes = extraBatchQueue[resTypeId] || [];
+            extraBatchQueue[resTypeId] = [];
+            extraBatchTimer[resTypeId] = undefined;
+            if (changes.length === 0) return;
+
+            setDynamicResources(prev => {
+              // Update extra cache
+              const extraList = (prev[resTypeId] || []).slice();
+              const keyOf = (o: any) => o?.metadata ? `${o.metadata.namespace || ''}/${o.metadata.name || ''}` : '';
+              const keyToIndex = new Map<string, number>();
+              for (let i = 0; i < extraList.length; i++) keyToIndex.set(keyOf(extraList[i]), i);
+              for (const evt of changes) {
+                const key = keyOf(evt.object);
+                if (!key) continue;
+                const idx = keyToIndex.get(key);
+                if (evt.type === 'DELETED') {
+                  if (idx !== undefined) {
+                    extraList.splice(idx, 1);
+                    keyToIndex.delete(key);
+                  }
+                } else {
+                  if (idx === undefined) {
+                    keyToIndex.set(key, extraList.length);
+                    extraList.push(evt.object);
+                  } else {
+                    extraList[idx] = evt.object;
+                  }
+                }
+              }
+
+              // Enrich main list items once per flush
+              const currentMain = (prev[mainId] || []) as any[];
+              const enriched = currentMain.map(item => {
+                try {
+                  return updater(item, extraList);
+                } catch (_e) {
+                  return item;
+                }
+              });
+              enriched.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
+              const next: Record<string, any[]> = { ...prev, [resTypeId]: extraList, [mainId]: enriched };
+              return next;
+            });
+          }, 40) as unknown as number;
+        };
+
+        await watchResource(
+          extraPath,
+          (event: { type: string; object: any; error?: string; path?: string }) => {
+            if (event.type === 'ERROR') {
+              const msg = event.error || 'Unknown watch error';
+              errorStore.setWatchError(msg, event.path || extraPath);
+              return;
+            }
+            const obj = event.object;
+            if (!obj?.metadata?.name) return;
+            // Queue extra event and schedule flush
+            const rt = ex.resourceType;
+            const mainId = mainRes.id;
+            if (!Array.isArray(extraBatchQueue[rt])) extraBatchQueue[rt] = [];
+            extraBatchQueue[rt].push({ type: event.type as any, object: obj });
+            if (event.type === 'ADDED' || event.type === 'DELETED') bumpSettleTimer();
+            scheduleExtraFlush(rt, mainId, ex.updater);
+          },
+          controller,
+          noopSetWatchStatus,
+          (msg, path) => errorStore.setWatchError(msg, path),
+          ctxName
+        );
+      }
+    } catch (e) {
+      console.error('Failed to start extra watches:', e);
+    }
   };
 
   // Filter resources based on active filters
@@ -363,6 +497,27 @@ export function Dashboard() {
     if (filters.length === 0) { return resources }
 
     return resources.filter(resource => filters.some(filter => filterStore.filterRegistry[filter.name]?.filterFunction(resource, filter.value)));
+  });
+
+  // Keep resourceCount in sync with settle: update total immediately; update filtered count after 300ms settle
+  createEffect(() => {
+    const hasFilters = filterStore.activeFilters.some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
+    if (!hasFilters) {
+      const all = dynamicResources()[filterStore.getResourceType() || ''] || [];
+      setResourceCount(all.length);
+      return;
+    }
+    // If filtering, update count only when loadingStage is null (settled)
+    if (loadingStage() === null) {
+      setResourceCount(filteredResources().length);
+    }
+  });
+
+  // When filters change, reflect filtering stage and restart settle window
+  createEffect(() => {
+    const _filters = filterStore.activeFilters;
+    void _filters;
+    untrack(() => bumpSettleTimer());
   });
 
   // Populate node filter options for pods
@@ -405,30 +560,52 @@ export function Dashboard() {
   });
 
   // Look up the current resource type configuration
-  const currentResourceConfig = createMemo(() => {
+
+  // Build effective columns in one place: prefer configured columns; when only Table object is present, fallback to table cells matching headers.
+  // Also inject the Namespace column for namespaced resources when viewing all namespaces.
+  const effectiveColumns = createMemo<Column<any>[]>(() => {
     const resourceType = filterStore.getResourceType();
-    return resourceType && resourceTypeConfigs[resourceType] ? resourceTypeConfigs[resourceType] : {
-      columns: [
-        { 
-          header: "Name", 
-          width: "40%", 
-          accessor: (item) => <>{item.metadata?.name || ""}</>,
-          sortFunction: (items: any[], ascending: boolean) => sortByName(items, ascending),
-        },
-        { 
-          header: "Namespace", 
-          width: "30%", 
-          accessor: (item) => <>{item.metadata?.namespace || ""}</>,
-          sortFunction: (items: any[], ascending: boolean) => sortByNamespace(items, ascending),
-        },
-        { 
-          header: "Age", 
-          width: "30%", 
-          accessor: (item) => useCalculateAge(item.metadata?.creationTimestamp || '')(),
-          sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
-        }
-      ]
-    };
+    const cfg = resourceType ? resourceTypeConfigs[resourceType] : undefined;
+    const tblCols = tableColumns();
+    const tblNames = Array.isArray(tblCols) ? tblCols.map(c => String((c as any)?.header || '').toLowerCase()) : [];
+
+    const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
+    const namespaced = Boolean(k8sResource?.namespaced);
+    const ns = filterStore.getNamespace();
+    const viewingAllNamespaces = !ns || ns === 'all-namespaces';
+
+    // Use configured columns when available,
+    // wrapping accessors to optionally use Table cells as fallback
+    if (Array.isArray(cfg?.columns)) {
+      const base = cfg.columns.map((col) => {
+        const headerName = String(col.header || '').toLowerCase();
+        const idx = tblNames.indexOf(headerName);
+        const fallbackAccessor = (item: any) => <>{(item as any)?.__cells?.[idx] ?? ''}</>;
+        const accessor = (item: any) => {
+          // If item came from Table and no full object yet, use table cell fallback
+          if ((item as any)?.__fromTable) {
+            return fallbackAccessor(item);
+          }
+          return col.accessor(item);
+        };
+        const title = (item: any) => {
+          if ((item as any)?.__fromTable) {
+            return undefined;
+          }
+          return col.title ? col.title(item) : '';
+        };
+        return { ...col, accessor, title } as Column<any>;
+      });
+
+      // Inject Namespace column as the second column when appropriate
+      if (viewingAllNamespaces && namespaced && base.length > 0) {
+        return [base[0], namespaceColumn, ...base.slice(1)];
+      }
+      return base;
+    }
+
+    // No configured columns – use Table model if available; otherwise, return empty
+    return Array.isArray(tblCols) ? tblCols : [];
   });
 
   return (
@@ -446,7 +623,7 @@ export function Dashboard() {
                 <span class="context-name">{apiResourceStore.contextInfo?.current}</span>
                 <span class="context-dropdown-arrow">▼</span>
                 <Show when={watchStatus}>
-                  <span 
+                  <span
                     classList={{ 
                       "watch-status": true, 
                       "error": watchStatus() !== "●" 
@@ -490,15 +667,21 @@ export function Dashboard() {
           filters={filterStore.filters}
           activeFilters={filterStore.activeFilters}
           onFilterChange={filterStore.setActiveFilters}
+          initialLoadComplete={initialLoadComplete()}
+          loadingStage={loadingStage()}
+          resourceCount={resourceCount()}
         />
 
         <section class="resource-section full-width">
           <Show when={errorStore.currentError} fallback={
-            <ResourceList 
-              resources={filteredResources()}
-              resourceTypeConfig={currentResourceConfig()!}
-              resetKey={listResetKey()}
-            />
+            <Show when={effectiveColumns().length > 0}>
+              <ResourceList 
+                resources={filteredResources()}
+                resourceTypeConfig={(resourceTypeConfigs[filterStore.getResourceType() || ''] as any) || { columns: [] }}
+                resetKey={listResetKey()}
+                columns={effectiveColumns()}
+              />
+            </Show>
           }>
             <ErrorDisplay class="inline" />
           </Show>

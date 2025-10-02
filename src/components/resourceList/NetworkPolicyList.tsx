@@ -97,7 +97,7 @@ export const networkPolicyTypeFilter: Filter = {
     { value: "Both", label: "Both" },
   ],
   filterFunction: (policy: NetworkPolicy, value: string) => {
-    const types = policy.spec.policyTypes || [];
+    const types = policy.spec?.policyTypes || [];
     const hasIngress = types.includes("Ingress") || !!policy.spec.ingress;
     const hasEgress = types.includes("Egress") || !!policy.spec.egress;
     

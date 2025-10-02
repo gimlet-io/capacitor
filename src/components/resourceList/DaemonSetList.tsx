@@ -115,9 +115,9 @@ export const daemonSetReadinessFilter: Filter = {
     { value: "notReady", label: "Not Ready" },
   ],
   filterFunction: (daemonSet: DaemonSet, value: string) => {
-    const desiredScheduled = daemonSet.status.desiredNumberScheduled;
-    const numberReady = daemonSet.status.numberReady;
-    const numberUnavailable = daemonSet.status.numberUnavailable || 0;
+    const desiredScheduled = daemonSet.status?.desiredNumberScheduled;
+    const numberReady = daemonSet.status?.numberReady;
+    const numberUnavailable = daemonSet.status?.numberUnavailable || 0;
     
     const isReady = numberReady === desiredScheduled && numberUnavailable === 0;
     
