@@ -52,8 +52,8 @@ export const argocdApplicationHealthFilter: Filter = {
 export const renderApplicationDetails = (application: ArgoCDApplication, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>Source:</strong> {application.spec.source.repoURL} <br />
-      <strong>Path:</strong> {application.spec.source.path} <br />
+      <strong>Source:</strong> {application.spec?.source.repoURL} <br />
+      <strong>Path:</strong> {application.spec?.source.path} <br />
       <strong>Revision:</strong> {application.status?.sync.revision}
     </div>
   </DetailRowCard>
