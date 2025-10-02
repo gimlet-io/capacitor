@@ -29,7 +29,7 @@ export const podsStatusFilter: Filter = {
   multiSelect: true,
   filterFunction: (pod: Pod, value: string): boolean => {
     // For filtering, we'll use a simpler approach based primarily on phase
-    if (pod.status.phase === value) {
+    if (pod.status?.phase === value) {
       return true;
     }
     
@@ -74,7 +74,7 @@ export const podsNodeFilter: Filter = {
   multiSelect: true,
   searchable: true,
   filterFunction: (pod: Pod, value: string): boolean => {
-    return pod.spec.nodeName === value;
+    return pod.spec?.nodeName === value;
   },
 };
 

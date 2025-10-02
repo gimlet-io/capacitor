@@ -54,7 +54,7 @@ export const fluxReadyFilter: Filter = {
   multiSelect: true,
   filterFunction: (resource: FluxResource, value: string) => {
     if (value === "Suspended") {
-      if (resource.spec.suspend) return true;
+      if (resource.spec?.suspend) return true;
       else return false;
     } else {
       const readyCondition = resource.status?.conditions?.find((c) =>
