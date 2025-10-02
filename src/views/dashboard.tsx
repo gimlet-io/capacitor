@@ -124,7 +124,7 @@ export function Dashboard() {
         });
         setWatchControllers([]);
         await fetchResourceTable(filterStore.getNamespace(), filterStore.getResourceType());
-//        await new Promise(resolve => setTimeout(resolve, 3000));
+       await new Promise(resolve => setTimeout(resolve, 3000));
         await startStream(filterStore.getNamespace(), filterStore.getResourceType());
         await startExtraWatches(filterStore.getNamespace(), filterStore.getResourceType());
       } catch (error) {
@@ -249,6 +249,9 @@ export function Dashboard() {
       setTableColumns(cols);
 
       // Map rows to underlying objects while attaching cells for rendering
+      const effectiveApiVersion = (k8sResource.group && k8sResource.group !== 'core')
+        ? `${k8sResource.group}/${k8sResource.version}`
+        : k8sResource.version;
       const mapped = rows
         .map((r: any) => {
           const obj = r?.object || {};
@@ -257,6 +260,23 @@ export function Dashboard() {
             (obj as any).__cells = Array.isArray(r?.cells) ? r.cells : [];
           } catch (_e) {
             // ignore attach errors
+          }
+          // Normalize identity so commands work before stream enrichment
+          try {
+            if (!obj || typeof obj !== 'object') {
+              // ensure object-like
+            } else {
+              if (!(obj as any).metadata) (obj as any).metadata = {};
+              if (!(obj as any).kind || (obj as any).kind === 'PartialObjectMetadata') {
+                (obj as any).kind = k8sResource.kind;
+              }
+              const apiVer = (obj as any).apiVersion;
+              if (!apiVer || apiVer === 'meta.k8s.io/v1') {
+                (obj as any).apiVersion = effectiveApiVersion;
+              }
+            }
+          } catch (_e) {
+            // ignore normalization errors
           }
           // Mark that this item originated from a Table response so accessors can fallback to cells
           (obj as any).__fromTable = true;
