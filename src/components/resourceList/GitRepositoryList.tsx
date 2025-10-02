@@ -7,24 +7,24 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 export const renderGitRepositoryDetails = (gitRepository: GitRepository, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>URL:</strong> {gitRepository.spec.url} <br />
-      {gitRepository.spec.ref && (
+      <strong>URL:</strong> {gitRepository.spec?.url} <br />
+      {gitRepository.spec?.ref && (
         <>
           <strong>Ref:</strong>{" "}
-          {gitRepository.spec.ref.branch ? `Branch: ${gitRepository.spec.ref.branch}` : 
-           gitRepository.spec.ref.tag ? `Tag: ${gitRepository.spec.ref.tag}` : 
-           gitRepository.spec.ref.semver ? `Semver: ${gitRepository.spec.ref.semver}` : 
-           gitRepository.spec.ref.commit ? `Commit: ${gitRepository.spec.ref.commit}` : ""} <br />
+          {gitRepository.spec?.ref.branch ? `Branch: ${gitRepository.spec.ref.branch}` : 
+           gitRepository.spec?.ref.tag ? `Tag: ${gitRepository.spec.ref.tag}` : 
+           gitRepository.spec?.ref.semver ? `Semver: ${gitRepository.spec.ref.semver}` : 
+           gitRepository.spec?.ref.commit ? `Commit: ${gitRepository.spec.ref.commit}` : ""} <br />
         </>
       )}
-      {gitRepository.spec.secretRef && (
+      <strong>Secret:</strong> {gitRepository.spec?.secretRef?.name} <br />
+      <strong>Interval:</strong> {gitRepository.spec?.interval} <br />
+      <strong>Suspended:</strong>
+      {gitRepository.spec && (
         <>
-          <strong>Secret:</strong> {gitRepository.spec.secretRef.name} <br />
+          {gitRepository.spec.suspend ? " True" : " False"} <br />
         </>
       )}
-      <strong>Interval:</strong> {gitRepository.spec.interval} <br />
-      <strong>Suspended:</strong>{" "}
-      {gitRepository.spec.suspend ? "True" : "False"}
     </div>
   </DetailRowCard>
 );

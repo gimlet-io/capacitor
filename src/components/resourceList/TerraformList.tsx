@@ -7,23 +7,16 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 export const renderTerraformDetails = (terraform: Terraform, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>Source Ref:</strong> {terraform.spec.sourceRef.kind}/{terraform.spec.sourceRef.namespace ? terraform.spec.sourceRef.namespace : terraform.metadata.namespace}/{terraform.spec.sourceRef.name} <br />
-      {terraform.spec.path && (
+      <strong>Source Ref:</strong>
+      {terraform.spec && (
         <>
-          <strong>Path:</strong> {terraform.spec.path} <br />
+          {terraform.spec.sourceRef.kind}/{terraform.spec.sourceRef.namespace ? terraform.spec.sourceRef.namespace : terraform.metadata.namespace}/{terraform.spec.sourceRef.name}
         </>
       )}
-      <strong>Interval:</strong> {terraform.spec.interval} <br />
-      {terraform.spec.approvePlan && (
-        <>
-          <strong>Approve Plan:</strong> {terraform.spec.approvePlan} <br />
-        </>
-      )}
-      {terraform.spec.writeOutputsToSecret?.name && (
-        <>
-          <strong>Outputs Secret:</strong> {terraform.spec.writeOutputsToSecret.name}
-        </>
-      )}
+      <br />
+      <strong>Path:</strong>{terraform.spec?.path} <br />
+      <strong>Interval:</strong> {terraform.spec?.interval} <br />
+      <strong>Approve Plan:</strong>{terraform.spec?.approvePlan} <br />
     </div>
   </DetailRowCard>
 );

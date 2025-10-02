@@ -7,30 +7,17 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 export const renderOCIRepositoryDetails = (ociRepository: OCIRepository, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>URL:</strong> {ociRepository.spec.url} <br />
-      {ociRepository.spec.secretRef && (
+      <strong>URL:</strong> {ociRepository.spec?.url} <br />
+      <strong>Secret:</strong> {ociRepository.spec?.secretRef?.name} <br />
+      <strong>Service Account:</strong> {ociRepository.spec?.serviceAccountName} <br />
+      <strong>Insecure:</strong> {ociRepository.spec?.insecure ? "True" : "False"} <br />
+      <strong>Interval:</strong> {ociRepository.spec?.interval} <br />
+      <strong>Suspended:</strong>
+      {ociRepository.spec && (
         <>
-          <strong>Secret:</strong> {ociRepository.spec.secretRef.name} <br />
+          {ociRepository.spec.suspend ? " True" : " False"} <br />
         </>
       )}
-      {ociRepository.spec.provider && (
-        <>
-          <strong>Provider:</strong> {ociRepository.spec.provider} <br />
-        </>
-      )}
-      {ociRepository.spec.serviceAccountName && (
-        <>
-          <strong>Service Account:</strong> {ociRepository.spec.serviceAccountName} <br />
-        </>
-      )}
-      {ociRepository.spec.insecure !== undefined && (
-        <>
-          <strong>Insecure:</strong> {ociRepository.spec.insecure ? "True" : "False"} <br />
-        </>
-      )}
-      <strong>Interval:</strong> {ociRepository.spec.interval} <br />
-      <strong>Suspended:</strong>{" "}
-      {ociRepository.spec.suspend ? "True" : "False"}
     </div>
   </DetailRowCard>
 );
@@ -76,7 +63,7 @@ export const ociRepositoryColumns = [
           {artifactCondition?.status === ConditionStatus.True && (
             <span class="status-badge artifact">Artifact</span>
           )}
-          {ociRepository.spec.suspend && (
+          {ociRepository.spec?.suspend && (
             <span class="status-badge suspended">Suspended</span>
           )}
         </div>

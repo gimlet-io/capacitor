@@ -9,15 +9,14 @@ export const renderKustomizationDetails = (kustomization: ExtendedKustomization,
     <DetailRowCard columnCount={columnCount} style="display: flex; gap: 50px;">
       <div style="display: contents;">
         <div>
-          <strong>Source:</strong> {kustomization.spec.sourceRef.kind}/{kustomization.spec.sourceRef.namespace ? kustomization.spec.sourceRef.namespace : kustomization.metadata.namespace}/{kustomization.spec.sourceRef.name} <br />
-          <strong>Path:</strong> {kustomization.spec.path} <br />
-          <strong>Prune:</strong> {kustomization.spec.prune ? "True" : "False"} <br />
-          <strong>Interval:</strong> {kustomization.spec.interval}
+          <strong>Source:</strong> {kustomization.spec?.sourceRef.kind}/{kustomization.spec?.sourceRef.namespace ? kustomization.spec.sourceRef.namespace : kustomization.metadata.namespace}/{kustomization.spec?.sourceRef.name} <br />
+          <strong>Path:</strong> {kustomization.spec?.path} <br />
+          <strong>Prune:</strong> {kustomization.spec?.prune ? "True" : "False"} <br />
+          <strong>Interval:</strong> {kustomization.spec?.interval}
         </div>
         <div>
-          <strong>Events:</strong>
           <ul>
-            {kustomization.events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
+            {kustomization.events?.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
               <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
             ))}
           </ul>
@@ -94,7 +93,7 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
       {reconcilingCondition?.status === ConditionStatus.True && (
         <span class="status-badge reconciling">Reconciling</span>
       )}
-      {kustomization.spec.suspend && (
+      {kustomization.spec?.suspend && (
         <span class="status-badge suspended">Suspended</span>
       )}
       {sourceReadyCondition?.status === ConditionStatus.True && (

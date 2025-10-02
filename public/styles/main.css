@@ -734,6 +734,16 @@ h1 {
   font-size: 14px;
 }
 
+/* Loading Spinner Component */
+.loading-spinner-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  opacity: 0.95;
+  padding: 12px;
+  text-align: center;
+}
+
 /* Node and Edge styles - these are used with ResourceTree.tsx */
 .node {
   background: var(--linear-bg);
@@ -1221,6 +1231,26 @@ td.message-cell {
   gap: 4px;
   margin-left: auto;
   align-items: center;
+}
+
+.filter-loading-indicator {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.filter-spinner-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--linear-text-secondary);
+  font-weight: 500;
+}
+
+.filter-resource-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--linear-text-tertiary);
+  font-weight: 500;
 }
 
 .filter-group {

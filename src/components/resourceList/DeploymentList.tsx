@@ -15,7 +15,7 @@ export const deploymentReadinessFilter: Filter = {
   filterFunction: (deployment: DeploymentWithResources, value: string): boolean => {
     if (value === "notReady") {
       // Check if desired replicas don't match ready replicas
-      return (deployment.spec.replicas !== (deployment.status.readyReplicas || 0));
+      return (deployment.spec?.replicas !== (deployment.status?.readyReplicas || 0));
     }
     return true;
   },

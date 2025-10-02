@@ -231,12 +231,15 @@ export function HelmReleaseDetails() {
     if (!hr || !filterStore.k8sResources || filterStore.k8sResources.length === 0) return;
     (async () => {
       try {
-        const ns = hr.metadata.namespace;
-        const name = hr.metadata.name;
+        // Use actual Helm release name and storage namespace
+        const helmReleaseName = hr.spec?.releaseName || hr.metadata.name;
+        const storageNamespace = hr.status?.storageNamespace || hr.metadata.namespace;
+        const targetNamespace = hr.spec?.targetNamespace || hr.metadata.namespace;
+        
         // Fetch history to get latest revision
         const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
         const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-        const histResp = await fetch(`${apiPrefix}/helm/history/${ns}/${name}`);
+        const histResp = await fetch(`${apiPrefix}/helm/history/${storageNamespace}/${helmReleaseName}`);
         if (!histResp.ok) throw new Error('Failed to fetch Helm history');
         const histData = await histResp.json();
         const releases: Array<{ revision: number }> = Array.isArray(histData.releases) ? histData.releases : [];
@@ -244,11 +247,11 @@ export function HelmReleaseDetails() {
         const latest = releases.sort((a, b) => (b.revision || 0) - (a.revision || 0))[0];
         const revision = latest.revision;
         // Fetch manifest for latest revision
-        const manResp = await fetch(`${apiPrefix}/helm/manifest/${ns}/${name}?revision=${revision}`);
+        const manResp = await fetch(`${apiPrefix}/helm/manifest/${storageNamespace}/${helmReleaseName}?revision=${revision}`);
         if (!manResp.ok) throw new Error('Failed to fetch Helm manifest');
         const manData = await manResp.json();
         const manifest: string = manData.manifest || '';
-        const resources = parseManifestResources(manifest, ns);
+        const resources = parseManifestResources(manifest, targetNamespace);
         setManifestResources(resources);
         // Base resource types from manifest
         const manifestTypes = Array.from(new Set(resources.map(r => r.resourceType)));
@@ -701,27 +704,33 @@ export function HelmReleaseDetails() {
 
       {/* Values Tab */}
       <Show when={activeMainTab() === "values" && !!helmRelease()}>
-        <HelmValues namespace={helmRelease()!.metadata.namespace} name={helmRelease()!.metadata.name} />
+        <HelmValues 
+          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace} 
+          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name} 
+        />
       </Show>
 
       {/* Manifest Tab */}
       <Show when={activeMainTab() === "manifest" && !!helmRelease()}>
-        <HelmManifest namespace={helmRelease()!.metadata.namespace} name={helmRelease()!.metadata.name} />
+        <HelmManifest 
+          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace} 
+          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name} 
+        />
       </Show>
 
       {/* Live vs Manifest Diff Tab */}
       <Show when={activeMainTab() === "diff" && !!helmRelease()}>
         <HelmManifestDiff
-          namespace={helmRelease()!.metadata.namespace}
-          name={helmRelease()!.metadata.name}
+          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace}
+          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name}
         />
       </Show>
 
       {/* Release History Tab */}
       <Show when={activeMainTab() === "history" && !!helmRelease()}>
         <HelmHistory
-          namespace={helmRelease()!.metadata.namespace}
-          name={helmRelease()!.metadata.name}
+          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace}
+          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name}
           apiVersion={helmRelease()!.apiVersion}
           kind={helmRelease()!.kind}
         />
@@ -730,5 +739,3 @@ export function HelmReleaseDetails() {
     </div>
   );
 }
-
-

@@ -10,16 +10,16 @@ function getNodeStatus(node: Node): { status: string; message: string } {
   let message = "";
 
   // Check if node is schedulable
-  if (node.spec.unschedulable) {
+  if (node.spec?.unschedulable) {
     statuses.push("SchedulingDisabled");
   }
 
-  if (!node.status.conditions) {
+  if (!node.status?.conditions) {
     return { status: "Unknown", message: "No conditions reported" };
   }
 
   // Check Ready condition first
-  const readyCondition = node.status.conditions.find(
+  const readyCondition = node.status?.conditions.find(
     (condition) => condition.type === "Ready"
   );
 
@@ -42,7 +42,7 @@ function getNodeStatus(node: Node): { status: string; message: string } {
     "NetworkUnavailable"
   ];
 
-  node.status.conditions.forEach(condition => {
+  node.status?.conditions.forEach(condition => {
     if (pressureConditions.includes(condition.type) && condition.status === "True") {
       statuses.push(condition.type);
     }

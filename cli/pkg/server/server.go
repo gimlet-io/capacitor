@@ -110,6 +110,13 @@ func (s *Server) Setup() {
 		return func(c echo.Context) error {
 			ctxName := c.Param("context")
 			if strings.TrimSpace(ctxName) != "" {
+				// URL decode the context name to handle special characters like @
+				ctxName, err := url.PathUnescape(ctxName)
+				if err != nil {
+					return c.JSON(http.StatusBadRequest, map[string]string{
+						"error": fmt.Sprintf("failed to decode context name: %v", err),
+					})
+				}
 				proxy, err := s.getOrCreateK8sProxyForContext(ctxName)
 				if err != nil {
 					status := http.StatusInternalServerError
@@ -151,6 +158,14 @@ func (s *Server) Setup() {
 		if strings.TrimSpace(ctxName) == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": "context parameter is required",
+			})
+		}
+
+		// URL decode the context name to handle special characters like @
+		ctxName, err := url.PathUnescape(ctxName)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("failed to decode context name: %v", err),
 			})
 		}
 
@@ -1062,6 +1077,29 @@ func (s *Server) Setup() {
 		})
 	})
 
+	// Add endpoints for listing Helm releases (context-aware) with optional Table response
+	// Support trailing resource segment to match client list path construction
+	s.echo.GET("/api/:context/helm/releases/releases", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return s.handleHelmReleasesList(c, proxy, "")
+	})
+
+	// Support trailing resource segment for namespaced path as well
+	s.echo.GET("/api/:context/helm/releases/namespaces/:namespace/releases", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		ns := c.Param("namespace")
+		if strings.EqualFold(ns, "all-namespaces") {
+			ns = ""
+		}
+		return s.handleHelmReleasesList(c, proxy, ns)
+	})
+
 	// Add endpoint for Helm release rollback (context-aware)
 	s.echo.POST("/api/:context/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
@@ -1167,6 +1205,124 @@ func (s *Server) getOrCreateK8sProxyForContext(contextName string) (*KubernetesP
 	s.k8sProxiesMu.Unlock()
 
 	return proxy, nil
+}
+
+// handleHelmReleasesList lists Helm releases and returns either a Kubernetes Table or a plain List
+func (s *Server) handleHelmReleasesList(c echo.Context, proxy *KubernetesProxy, namespace string) error {
+	hc, err := helm.NewClient(proxy.k8sClient.Config, "")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("failed to create helm client: %v", err),
+		})
+	}
+
+	releases, err := hc.ListReleases(c.Request().Context(), namespace)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("Failed to list Helm releases: %v", err),
+		})
+	}
+
+	accept := c.Request().Header.Get("Accept")
+	if strings.Contains(accept, "as=Table;g=meta.k8s.io;v=v1") {
+		table := buildHelmReleasesTable(releases)
+		return c.JSON(http.StatusOK, table)
+	}
+
+	// Default JSON list fallback
+	items := make([]map[string]interface{}, 0, len(releases))
+	for _, rel := range releases {
+		items = append(items, buildHelmReleaseObject(rel))
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"kind":       "List",
+		"apiVersion": "v1",
+		"items":      items,
+	})
+}
+
+// buildHelmReleaseObject converts a Helm release to a Kubernetes-like object
+func buildHelmReleaseObject(release *helm.Release) map[string]interface{} {
+	return map[string]interface{}{
+		"apiVersion": "helm.sh/v3",
+		"kind":       "Release",
+		"metadata": map[string]interface{}{
+			"name":              release.Name,
+			"namespace":         release.Namespace,
+			"creationTimestamp": release.Updated.Format(time.RFC3339),
+		},
+		"spec": map[string]interface{}{
+			"chart":        release.Chart,
+			"chartVersion": release.ChartVersion,
+			"values":       release.Values,
+		},
+		"status": map[string]interface{}{
+			"status":     release.Status,
+			"revision":   release.Revision,
+			"appVersion": release.AppVersion,
+			"notes":      release.Notes,
+		},
+	}
+}
+
+// buildHelmReleasesTable constructs a meta.k8s.io/v1 Table response for Helm releases
+func buildHelmReleasesTable(releases []*helm.Release) map[string]interface{} {
+	columnDefinitions := []map[string]interface{}{
+		{"name": "Name", "type": "string", "format": "name"},
+		{"name": "Chart", "type": "string"},
+		{"name": "App Version", "type": "string"},
+		{"name": "Status", "type": "string"},
+		{"name": "Revision", "type": "string"},
+		{"name": "Age", "type": "string"},
+	}
+
+	rows := make([]map[string]interface{}, 0, len(releases))
+	now := time.Now()
+	for _, rel := range releases {
+		age := humanizeDuration(now.Sub(rel.Updated))
+		chart := rel.Chart
+		if rel.ChartVersion != "" {
+			chart = fmt.Sprintf("%s (%s)", rel.Chart, rel.ChartVersion)
+		}
+		cells := []interface{}{
+			rel.Name,
+			chart,
+			rel.AppVersion,
+			rel.Status,
+			fmt.Sprintf("%d", rel.Revision),
+			age,
+		}
+		rows = append(rows, map[string]interface{}{
+			"cells":  cells,
+			"object": buildHelmReleaseObject(rel),
+		})
+	}
+
+	return map[string]interface{}{
+		"kind":              "Table",
+		"apiVersion":        "meta.k8s.io/v1",
+		"columnDefinitions": columnDefinitions,
+		"rows":              rows,
+	}
+}
+
+// humanizeDuration returns a short human-readable duration like 5m, 2h, 3d
+func humanizeDuration(d time.Duration) string {
+	if d < time.Minute {
+		s := int(d.Seconds())
+		if s <= 0 {
+			return "0s"
+		}
+		return fmt.Sprintf("%ds", s)
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	days := int(d.Hours()) / 24
+	return fmt.Sprintf("%dd", days)
 }
 
 // downloadAndExtractArtifact downloads and extracts a Flux source artifact

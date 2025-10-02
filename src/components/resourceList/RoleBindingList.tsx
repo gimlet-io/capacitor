@@ -134,6 +134,6 @@ export const roleBindingRoleKindFilter: Filter = {
     { value: "ClusterRole", label: "ClusterRole" },
   ],
   filterFunction: (roleBinding: RoleBinding, value: string) => {
-    return roleBinding.roleRef.kind === value;
+    return roleBinding.roleRef?.kind === value;
   },
 }; 

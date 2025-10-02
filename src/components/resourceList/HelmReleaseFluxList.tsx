@@ -7,26 +7,18 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>Chart:</strong> {helmRelease.spec.chart.spec.chart} <br />
-      <strong>Source Ref:</strong> {helmRelease.spec.chart.spec.sourceRef.kind}/{helmRelease.spec.chart.spec.sourceRef.name} <br />
-      {helmRelease.spec.chart.spec.version && (
+      <strong>Chart:</strong> {helmRelease.spec?.chart.spec.chart} <br />
+      <strong>Source Ref:</strong> {helmRelease.spec?.chart.spec.sourceRef.kind}/{helmRelease.spec?.chart.spec.sourceRef.name} <br />
+      <strong>Version:</strong> {helmRelease.spec?.chart.spec.version} <br />
+      <strong>Release Name:</strong> {helmRelease.spec?.releaseName} <br />
+      <strong>Target Namespace:</strong> {helmRelease.spec?.targetNamespace} <br />
+      <strong>Interval:</strong> {helmRelease.spec?.interval} <br />
+      <strong>Suspended:</strong>
+      {helmRelease.spec && (
         <>
-          <strong>Version:</strong> {helmRelease.spec.chart.spec.version} <br />
+          {helmRelease.spec.suspend ? " True" : " False"} <br />
         </>
       )}
-      {helmRelease.spec.releaseName && (
-        <>
-          <strong>Release Name:</strong> {helmRelease.spec.releaseName} <br />
-        </>
-      )}
-      {helmRelease.spec.targetNamespace && (
-        <>
-          <strong>Target Namespace:</strong> {helmRelease.spec.targetNamespace} <br />
-        </>
-      )}
-      <strong>Interval:</strong> {helmRelease.spec.interval} <br />
-      <strong>Suspended:</strong>{" "}
-      {helmRelease.spec.suspend ? "True" : "False"}
     </div>
   </DetailRowCard>
 );
@@ -72,7 +64,7 @@ export const helmReleaseFluxColumns = [
           {reconcilingCondition?.status === ConditionStatus.True && (
             <span class="status-badge reconciling">Reconciling</span>
           )}
-          {helmRelease.spec.suspend && (
+          {helmRelease.spec?.suspend && (
             <span class="status-badge suspended">Suspended</span>
           )}
         </div>

@@ -22,7 +22,7 @@ import { deploymentReadinessFilter } from "./components/resourceList/DeploymentL
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
 import { nodeColumns, nodeReadinessFilter, nodeRoleFilter } from "./components/resourceList/NodeList.tsx";
-import { configMapColumns, configMapDataFilter } from "./components/resourceList/ConfigMapList.tsx";
+import { configMapColumns } from "./components/resourceList/ConfigMapList.tsx";
 import { secretColumns, secretTypeFilter } from "./components/resourceList/SecretList.tsx";
 import { pvcColumns, pvcStatusFilter, pvcStorageClassFilter } from "./components/resourceList/PersistentVolumeClaimList.tsx";
 import { daemonSetColumns, daemonSetReadinessFilter } from "./components/resourceList/DaemonSetList.tsx";
@@ -394,7 +394,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   
   'core/ConfigMap': {
     columns: configMapColumns,
-    filter: [configMapDataFilter],
     commands: [
       ...builtInCommands
     ],

@@ -37,19 +37,3 @@ export const configMapColumns = [
     sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
 ];
-
-// Filter for ConfigMap based on whether it has data or not
-export const configMapDataFilter: Filter = {
-  name: "configMapData",
-  label: "Has Data",
-  options: [
-    { value: "yes", label: "Yes" },
-    { value: "no", label: "No" },
-  ],
-  filterFunction: (configMap: ConfigMap, value: string) => {
-    const hasData = (configMap.data && Object.keys(configMap.data).length > 0) || 
-                   (configMap.binaryData && Object.keys(configMap.binaryData).length > 0);
-    
-    return (value === "yes" && hasData) || (value === "no" && !hasData);
-  },
-}; 

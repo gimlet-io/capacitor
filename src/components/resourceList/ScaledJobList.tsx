@@ -177,7 +177,7 @@ export const scaledJobTriggerFilter: Filter = {
   ],
   multiSelect: true,
   filterFunction: (scaledJob: ScaledJob, value: string) => {
-    const triggers = scaledJob.spec.triggers || [];
+    const triggers = scaledJob.spec?.triggers || [];
     return triggers.some(trigger => trigger.type.toLowerCase() === value.toLowerCase());
   },
 };
@@ -193,7 +193,7 @@ export const scaledJobStrategyFilter: Filter = {
     { value: "accurate", label: "Accurate" },
   ],
   filterFunction: (scaledJob: ScaledJob, value: string) => {
-    const strategy = scaledJob.spec.scalingStrategy?.strategy || "default";
+    const strategy = scaledJob.spec?.scalingStrategy?.strategy || "default";
     return strategy.toLowerCase() === value.toLowerCase();
   },
 }; 

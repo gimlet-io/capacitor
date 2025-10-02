@@ -1,38 +1,10 @@
 import { createSignal, onMount, Show } from "solid-js";
+import { isNewerVersion } from "../utils/version.ts";
 
 type GithubRelease = {
   tag_name: string;
   html_url?: string;
 };
-
-function normalizeVersion(v: string): string {
-  if (!v) return "0.0.0";
-  const trimmed = v.trim();
-  if (trimmed.toLowerCase() === "dev") return "0.0.0";
-  return trimmed.startsWith("v") ? trimmed.slice(1) : trimmed;
-}
-
-function parseSemver(v: string): [number, number, number] {
-  if (v.startsWith("next-")) {
-    v = v.split("next-")[1];
-  }
-  const core = normalizeVersion(v).split("-")[0];
-  const parts = core.split(".").map((s) => parseInt(s, 10));
-  const major = Number.isFinite(parts[0]) ? parts[0] : 0;
-  const minor = Number.isFinite(parts[1]) ? parts[1] : 0;
-  const patch = Number.isFinite(parts[2]) ? parts[2] : 0;
-  return [major, minor, patch];
-}
-
-function isNewerVersion(latest: string, current: string): boolean {
-  const [lMaj, lMin, lPatch] = parseSemver(latest);
-  const [cMaj, cMin, cPatch] = parseSemver(current);
-  if (lMaj !== cMaj) return lMaj > cMaj;
-  if (lMin !== cMin) return lMin > cMin;
-  if (lPatch !== cPatch) return lPatch > cPatch;
-  // if tags equal numerically but strings differ (e.g., pre-release), don't prompt
-  return false;
-}
 
 export function UpdateNotice() {
   const [show, setShow] = createSignal(false);

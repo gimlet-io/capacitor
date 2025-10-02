@@ -7,16 +7,15 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 export const renderHelmChartDetails = (helmChart: HelmChart, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>Chart:</strong> {helmChart.spec.chart} <br />
-      <strong>Source Ref:</strong> {helmChart.spec.sourceRef.kind}/{helmChart.spec.sourceRef.name} <br />
-      {helmChart.spec.valuesFiles && helmChart.spec.valuesFiles.length > 0 && (
+      <strong>Chart:</strong> {helmChart.spec?.chart} <br />
+      <strong>Source Ref:</strong> {helmChart.spec?.sourceRef.kind}/{helmChart.spec?.sourceRef.name} <br />
+      <strong>Interval:</strong> {helmChart.spec?.interval} <br />
+      <strong>Suspended:</strong>
+      {helmChart.spec && (
         <>
-          <strong>Values Files:</strong> {helmChart.spec.valuesFiles.join(", ")} <br />
+          {helmChart.spec.suspend ? " True" : " False"} <br />
         </>
       )}
-      <strong>Interval:</strong> {helmChart.spec.interval} <br />
-      <strong>Suspended:</strong>{" "}
-      {helmChart.spec.suspend ? "True" : "False"}
     </div>
   </DetailRowCard>
 );

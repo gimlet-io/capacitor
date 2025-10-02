@@ -103,7 +103,7 @@ export const cronJobSuspendedFilter: Filter = {
     { value: "Suspended", label: "Suspended" },
   ],
   filterFunction: (cronJob: CronJob, value: string) => {
-    const suspended = cronJob.spec.suspend === true;
+    const suspended = cronJob.spec?.suspend === true;
     const status = suspended ? "Suspended" : "Active";
     return status === value;
   },

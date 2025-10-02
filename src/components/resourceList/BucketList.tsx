@@ -22,27 +22,18 @@ type Bucket = Source & {
 export const renderBucketDetails = (bucket: Bucket, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>Bucket Name:</strong> {bucket.spec.bucketName} <br />
-      <strong>Endpoint:</strong> {bucket.spec.endpoint} <br />
-      {bucket.spec.provider && (
+      <strong>Bucket Name:</strong> {bucket.spec?.bucketName} <br />
+      <strong>Endpoint:</strong> {bucket.spec?.endpoint} <br />
+      <strong>Secret:</strong> {bucket.spec?.provider} <br />
+      <strong>Secret:</strong> {bucket.spec?.secretRef?.name} <br />
+      <strong>Insecure:</strong> {bucket.spec?.insecure ? "True" : "False"} <br />
+      <strong>Interval:</strong> {bucket.spec?.interval} <br />
+      <strong>Suspended:</strong>
+      {bucket.spec && (
         <>
-          <strong>Provider:</strong> {bucket.spec.provider} <br />
+          {bucket.spec.suspend ? " True" : " False"} <br />
         </>
       )}
-      {bucket.spec.region && (
-        <>
-          <strong>Region:</strong> {bucket.spec.region} <br />
-        </>
-      )}
-      {bucket.spec.secretRef && (
-        <>
-          <strong>Secret:</strong> {bucket.spec.secretRef.name} <br />
-        </>
-      )}
-      <strong>Insecure:</strong> {bucket.spec.insecure ? "True" : "False"} <br />
-      <strong>Interval:</strong> {bucket.spec.interval} <br />
-      <strong>Suspended:</strong>{" "}
-      {bucket.spec.suspend ? "True" : "False"}
     </div>
   </DetailRowCard>
 );

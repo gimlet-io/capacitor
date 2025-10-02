@@ -138,7 +138,7 @@ export const pvReclaimPolicyFilter: Filter = {
     { value: "Recycle", label: "Recycle" },
   ],
   filterFunction: (pv: PersistentVolume, value: string) => {
-    const policy = pv.spec.persistentVolumeReclaimPolicy || "Delete";
+    const policy = pv.spec?.persistentVolumeReclaimPolicy || "Delete";
     return policy === value;
   },
 }; 
