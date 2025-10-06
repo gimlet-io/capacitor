@@ -320,14 +320,12 @@ func stripManagedFields(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return raw
 	}
-	var obj map[string]interface{}
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
 		return raw
 	}
-	if meta, ok := obj["metadata"].(map[string]interface{}); ok {
-		delete(meta, "managedFields")
-	}
-	b, err := json.Marshal(obj)
+	removeManagedFieldsFromAny(&v)
+	b, err := json.Marshal(v)
 	if err != nil {
 		return raw
 	}

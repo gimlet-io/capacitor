@@ -212,7 +212,8 @@ export function Dashboard() {
     }
 
     // Use apiPath as-is; it already contains the correct /k8s/<context> prefix
-    const url = listPath;
+    // Ask the API server to exclude objects from Table rows (avoid managedFields)
+    const url = listPath + (listPath.includes('?') ? '&' : '?') + 'includeObject=None';
 
     try {
       const resp = await fetch(url, {
@@ -238,6 +239,10 @@ export function Dashboard() {
 
       const columnDefs = Array.isArray(data?.columnDefinitions) ? data.columnDefinitions : [];
       const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+      // Find indices for common identity columns in the Table
+      const nameIdx = columnDefs.findIndex((def: any) => String(def?.format || '').toLowerCase() === 'name' || String(def?.name || '').toLowerCase() === 'name');
+      const nsIdx = columnDefs.findIndex((def: any) => String(def?.name || '').toLowerCase() === 'namespace');
 
       // Build dynamic columns based on Table column definitions
       const cols: Column<any>[] = columnDefs.map((def: any, idx: number) => ({
@@ -267,6 +272,15 @@ export function Dashboard() {
               // ensure object-like
             } else {
               if (!(obj as any).metadata) (obj as any).metadata = {};
+              // If object wasn't included, derive name/namespace from Table cells when available
+              if ((obj as any).metadata && Array.isArray((obj as any).__cells)) {
+                if ((obj as any).metadata.name == null && nameIdx >= 0) {
+                  (obj as any).metadata.name = (obj as any).__cells[nameIdx] ?? (obj as any).metadata.name;
+                }
+                if ((obj as any).metadata.namespace == null && nsIdx >= 0) {
+                  (obj as any).metadata.namespace = (obj as any).__cells[nsIdx] ?? (obj as any).metadata.namespace;
+                }
+              }
               if (!(obj as any).kind || (obj as any).kind === 'PartialObjectMetadata') {
                 (obj as any).kind = k8sResource.kind;
               }

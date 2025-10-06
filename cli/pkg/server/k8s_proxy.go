@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -58,6 +60,40 @@ func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) 
 	// Set the custom transport with TLS config
 	proxy.Transport = transport
 
+	// Strip metadata.managedFields from JSON responses
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		// Skip if this is a watch stream; we don't buffer streaming responses here
+		if resp != nil && resp.Request != nil {
+			q := resp.Request.URL.Query().Get("watch")
+			if strings.EqualFold(q, "true") || q == "1" {
+				return nil
+			}
+		}
+
+		// Skip compressed or non-JSON responses
+		if enc := resp.Header.Get("Content-Encoding"); enc != "" && enc != "identity" {
+			return nil
+		}
+		ct := resp.Header.Get("Content-Type")
+		if !strings.Contains(ct, "json") {
+			return nil
+		}
+
+		// Read, filter, and replace body
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		_ = resp.Body.Close()
+
+		filtered := stripManagedFieldsFromBytes(body)
+
+		resp.Body = io.NopCloser(bytes.NewReader(filtered))
+		resp.ContentLength = int64(len(filtered))
+		resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(filtered)))
+		return nil
+	}
+
 	// Customize error handling
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		log.Printf("Error proxying request to Kubernetes API: %v", err)
@@ -99,4 +135,46 @@ func (p *KubernetesProxy) HandleAPIRequest(c echo.Context) error {
 	p.proxy.ServeHTTP(c.Response().Writer, c.Request())
 
 	return nil
+}
+
+// stripManagedFieldsFromBytes removes metadata.managedFields fields from any JSON structure.
+// On error, it returns the original input.
+func stripManagedFieldsFromBytes(in []byte) []byte {
+	if len(in) == 0 {
+		return in
+	}
+	var v interface{}
+	if err := json.Unmarshal(in, &v); err != nil {
+		return in
+	}
+	removeManagedFieldsFromAny(&v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return in
+	}
+	return b
+}
+
+// removeManagedFieldsFromAny walks arbitrarily nested maps/slices and deletes metadata.managedFields.
+func removeManagedFieldsFromAny(v *interface{}) {
+	switch t := (*v).(type) {
+	case map[string]interface{}:
+		if meta, ok := t["metadata"].(map[string]interface{}); ok {
+			delete(meta, "managedFields")
+		}
+		for k, child := range t {
+			// Recurse into children
+			c := interface{}(child)
+			removeManagedFieldsFromAny(&c)
+			t[k] = c
+		}
+	case []interface{}:
+		for i, child := range t {
+			c := interface{}(child)
+			removeManagedFieldsFromAny(&c)
+			t[i] = c
+		}
+	default:
+		// primitives: nothing to do
+	}
 }
