@@ -245,9 +245,9 @@ export const podColumns = [
     accessor: (pod: Pod) => (
       <span
         style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" 
-        title={pod.spec.nodeName}
+        title={pod.spec?.nodeName}
       >
-        {pod.spec.nodeName}
+        {pod.spec?.nodeName}
       </span>
     ),
   },

@@ -479,7 +479,7 @@ export function KustomizationDetails() {
     // Reset all kustomizations cache for dependency graph
     setAllKustomizations([]);
 
-    const watches = [];
+    const watches: Array<{ path: string; callback: (event: any) => void; params?: Record<string, string> }> = [];
 
     // Always watch for the kustomization itself (namespaced)
     watches.push({
@@ -560,13 +560,17 @@ export function KustomizationDetails() {
               ...updated
             };
           });
-        }
+        },
+        // Include projection fields if provided for this extra watch
+        params: (Array.isArray(config.projectFields) && config.projectFields.length > 0)
+          ? { fields: JSON.stringify(config.projectFields) }
+          : undefined
       });
     });
 
-    const controllers = watches.map(({ path, callback }) => {
+    const controllers = watches.map(({ path, callback, params }) => {
       const controller = new AbortController();
-      watchResource(path, callback, controller, setWatchStatus, undefined, apiResourceStore.contextInfo?.current);
+      watchResource(path, callback, controller, setWatchStatus, undefined, apiResourceStore.contextInfo?.current, params);
       return controller;
     });
 

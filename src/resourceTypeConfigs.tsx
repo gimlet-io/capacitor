@@ -247,6 +247,8 @@ export type ExtraWatchConfig = {
   resourceType: string;          // The type of resource to watch 
   updater: ResourceUpdater;      // Function to update main resource with the extra resource data
   isParent: (resource: any, obj: any) => boolean;
+  // Optional JSONPath-like field refs to project for this extra watch payload
+  projectFields?: string[];
 };
 
 // Define the centralized resource configurations
@@ -322,7 +324,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'core/Pod',
         updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ],
   },
@@ -364,7 +369,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'core/Pod',
         updater: (statefulSet, pods) => updateStatefulSetMatchingResources(statefulSet, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ]
   },
@@ -396,17 +404,33 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'core/Pod',
         updater: (service, pods) => updateServiceMatchingPods(service, pods),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       },
       {
         resourceType: 'networking.k8s.io/Ingress',
         updater: (service, ingresses) => updateServiceMatchingIngresses(service, ingresses),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'spec.rules',
+          'spec.defaultBackend',
+          'status.loadBalancer.ingress'
+        ]
       },
       {
         resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
         updater: (service, kustomizations) => updateServiceMatchingKustomizations(service, kustomizations),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'status.inventory.entries',
+          'status.conditions',
+          'spec.suspend',
+          'status.lastHandledReconcileAt',
+          'status.lastAppliedRevision',
+          'status.lastAttemptedRevision'
+        ]
       }
     ]
   },
@@ -511,7 +535,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'core/Pod',
         updater: (daemonSet, pods) => updateDaemonSetMatchingResources(daemonSet, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ]
   },
@@ -543,7 +570,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'core/Pod',
         updater: (replicaSet, pods) => updateReplicaSetMatchingResources(replicaSet, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ],
   },
@@ -587,7 +617,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'core/Pod',
         updater: (job, pods) => updateJobMatchingResources(job, pods),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'status.phase',
+          'spec.nodeName'
+        ]
       }
     ]
   },
@@ -805,22 +839,40 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         resourceType: 'source.toolkit.fluxcd.io/GitRepository',
         updater: (kustomization, gitRepositories) => updateKustomizationMatchingGitRepositories(kustomization, gitRepositories),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'spec.url',
+          'status.conditions'
+        ]
       },
       {
         resourceType: 'source.toolkit.fluxcd.io/Bucket',
         updater: (kustomization, buckets) => updateKustomizationMatchingBuckets(kustomization, buckets),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.conditions'
+        ]
       },
       {
         resourceType: 'source.toolkit.fluxcd.io/OCIRepository',
         updater: (kustomization, ocirepositories) => updateKustomizationMatchingOCIRepositories(kustomization, ocirepositories),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.conditions'
+        ]
       },
       {
         resourceType: 'core/Event',
         updater: (kustomization, events) => updateKustomizationMatchingEvents(kustomization, events),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'type',
+          'lastTimestamp',
+          'reason',
+          'involvedObject',
+          'message',
+          'source.component'
+        ]
       }
     ]
   },

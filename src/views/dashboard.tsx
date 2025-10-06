@@ -478,6 +478,11 @@ export function Dashboard() {
           }, 40) as unknown as number;
         };
 
+        // Prepare projection fields for the extra watch if configured
+        const extraParams = Array.isArray(ex.projectFields) && ex.projectFields.length > 0
+          ? { fields: JSON.stringify(ex.projectFields) }
+          : undefined;
+
         await watchResource(
           extraPath,
           (event: { type: string; object: any; error?: string; path?: string }) => {
@@ -499,7 +504,8 @@ export function Dashboard() {
           controller,
           noopSetWatchStatus,
           (msg, path) => errorStore.setWatchError(msg, path),
-          ctxName
+          ctxName,
+          extraParams
         );
       }
     } catch (e) {
