@@ -382,6 +382,9 @@ export function Dashboard() {
         }, 40) as unknown as number;
       };
 
+      // Send projection fields to server if configured for this resource type
+      const proj = (resourceType && resourceTypeConfigs[resourceType]?.projectFields) || undefined;
+      const params = proj && proj.length > 0 ? { fields: JSON.stringify(proj) } : undefined;
       await watchResource(watchPath, (event: { type: string; object: any; error?: string; path?: string }) => {
         if (event.type === 'ERROR') {
           const msg = event.error || 'Unknown watch error';
@@ -397,7 +400,7 @@ export function Dashboard() {
         // Bump settle for ADDED
         if (event.type === 'ADDED') bumpSettleTimer();
         scheduleMainFlush(rt);
-      }, controller, setWatchStatus, (msg, path) => errorStore.setWatchError(msg, path), ctxName);
+      }, controller, setWatchStatus, (msg, path) => errorStore.setWatchError(msg, path), ctxName, params);
     } catch (e) {
       console.error('Failed to start stream:', e);
     }

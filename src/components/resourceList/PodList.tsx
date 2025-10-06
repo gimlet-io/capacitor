@@ -93,7 +93,7 @@ export const podColumns = [
     accessor: (pod: Pod) => (
       <>
         {pod.status.containerStatuses?.filter((cs) => cs.ready).length ||
-          0}/{pod.spec.containers.length}
+          0}/{pod.spec?.containers.length}
       </>
     ),
   },

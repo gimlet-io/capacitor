@@ -7,7 +7,8 @@ export const watchResource = async (
   controller: AbortController,
   setWatchStatus: (status: string) => void,
   onError?: (message: string, path: string) => void,
-  contextNameOverride?: string
+  contextNameOverride?: string,
+  params?: Record<string, string>
 ) => {
   // Determine context name using explicit override only
   const contextName = contextNameOverride || '';
@@ -42,7 +43,7 @@ export const watchResource = async (
     setWatchStatus("●");
     
     // Start watching via WebSocket
-    const unsubscribe = await wsClient.watchResource(path, callback);
+    const unsubscribe = await wsClient.watchResource(path, callback, params);
     
     // Handle abort
     controller.signal.addEventListener('abort', () => {

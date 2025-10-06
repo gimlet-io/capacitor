@@ -46,6 +46,12 @@ type wsCounters struct {
 	bytesSent    int64
 }
 
+// watchCfg stores per-watch configuration for a connection
+type watchCfg struct {
+	cancel context.CancelFunc
+	fields []string
+}
+
 // WriteMessage sends a message to the WebSocket connection in a thread-safe way
 func (wsc *WebSocketConnection) WriteMessage(messageType int, data []byte) error {
 	wsc.mutex.Lock()
@@ -116,8 +122,8 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	connCtx, connCancel := context.WithCancel(context.Background())
 	defer connCancel()
 
-	// Create a map to store watch contexts for this connection
-	watchContextsForConn := make(map[string]context.CancelFunc)
+	// Create a map to store watch contexts and per-watch config for this connection
+	watchContextsForConn := make(map[string]watchCfg)
 	h.watchContexts.Store(ws, watchContextsForConn)
 	defer h.watchContexts.Delete(ws)
 
@@ -186,7 +192,7 @@ func (h *WebSocketHandler) handleSubscribe(
 	connCtx context.Context,
 	ws *WebSocketConnection,
 	msg *ClientMessage,
-	watchContextsForConn map[string]context.CancelFunc,
+	watchContextsForConn map[string]watchCfg,
 	counters *wsCounters,
 ) {
 	// Log the subscription request
@@ -200,7 +206,27 @@ func (h *WebSocketHandler) handleSubscribe(
 
 	// Create context for this watch that can be cancelled
 	watchCtx, watchCancel := context.WithCancel(connCtx)
-	watchContextsForConn[msg.Path] = watchCancel
+	// Parse optional projection fields from params (accept JSON array or comma-separated string)
+	var projFields []string
+	if msg.Params != nil {
+		if raw, ok := msg.Params["fields"]; ok && raw != "" {
+			// Try JSON array first
+			var arr []string
+			if err := json.Unmarshal([]byte(raw), &arr); err == nil {
+				projFields = arr
+			} else {
+				// Fallback to comma-separated
+				parts := strings.Split(raw, ",")
+				for _, p := range parts {
+					p = strings.TrimSpace(p)
+					if p != "" {
+						projFields = append(projFields, p)
+					}
+				}
+			}
+		}
+	}
+	watchContextsForConn[msg.Path] = watchCfg{cancel: watchCancel, fields: projFields}
 
 	// Check if this is a Helm release path
 	if strings.Contains(msg.Path, "/api/helm/releases") {
@@ -247,7 +273,7 @@ func (h *WebSocketHandler) handleSubscribe(
 					return
 				}
 				// Update counters and send
-				h.sendDataMessageWithCounters(ws, msg.ID, msg.Path, event, counters)
+				h.sendDataMessageWithCountersAndProject(ws, msg.ID, msg.Path, event, counters, projFields)
 			case <-watchCtx.Done():
 				log.Printf("Watch context done for path: %s", msg.Path)
 				return
@@ -263,17 +289,17 @@ func (h *WebSocketHandler) handleSubscribe(
 func (h *WebSocketHandler) handleUnsubscribe(
 	ws *WebSocketConnection,
 	msg *ClientMessage,
-	watchContextsForConn map[string]context.CancelFunc,
+	watchContextsForConn map[string]watchCfg,
 ) {
 	// Check if subscribed
-	watchCancel, exists := watchContextsForConn[msg.Path]
+	cfg, exists := watchContextsForConn[msg.Path]
 	if !exists {
 		h.sendErrorMessage(ws, msg.ID, msg.Path, "not subscribed to this path")
 		return
 	}
 
 	// Cancel the watch
-	watchCancel()
+	cfg.cancel()
 	delete(watchContextsForConn, msg.Path)
 
 	// Send success message
@@ -323,6 +349,44 @@ func (h *WebSocketHandler) sendDataMessageWithCounters(ws *WebSocketConnection, 
 		Data: &event,
 	}
 	// Marshal here to count exact bytes
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("error marshaling message: %v", err)
+		return
+	}
+	atomic.AddInt64(&counters.bytesSent, int64(len(payload)))
+	if err := ws.WriteMessage(websocket.TextMessage, payload); err != nil {
+		log.Printf("error writing message: %v", err)
+	}
+}
+
+// sendDataMessageWithCountersAndProject is like sendDataMessageWithCounters but also applies
+// frontend-provided JSONPath-style projections when provided.
+func (h *WebSocketHandler) sendDataMessageWithCountersAndProject(ws *WebSocketConnection, id, path string, data *kubernetes.WatchEvent, counters *wsCounters, fields []string) {
+	var event kubernetes.WatchEvent
+	if data != nil {
+		event = *data
+		if len(event.Object) > 0 {
+			stripped, removed := stripManagedFieldsCounted(event.Object)
+			// If fields are provided, apply path-based projection; otherwise keep stripped object
+			if len(fields) > 0 {
+				event.Object = projectObjectByFields(stripped, fields)
+			} else {
+				event.Object = stripped
+			}
+			atomic.AddInt64(&counters.objects, 1)
+			atomic.AddInt64(&counters.managedBytes, int64(removed))
+		} else {
+			atomic.AddInt64(&counters.objects, 1)
+		}
+	}
+
+	msg := ServerMessage{
+		ID:   id,
+		Type: "data",
+		Path: path,
+		Data: &event,
+	}
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("error marshaling message: %v", err)
@@ -434,6 +498,111 @@ func stripManagedFieldsCounted(raw json.RawMessage) (json.RawMessage, int) {
 		removed = 0
 	}
 	return json.RawMessage(after), removed
+}
+
+// projectObjectByFields reduces a JSON object to only the specified JSONPath-like fields.
+// Supported syntax: dot paths (e.g. metadata.name), array wildcards for shallow lists (e.g. spec.ports[*].port).
+// This is intentionally minimal and best-effort; on parsing errors, returns the original raw.
+func projectObjectByFields(raw json.RawMessage, fields []string) json.RawMessage {
+	if len(raw) == 0 || len(fields) == 0 {
+		return raw
+	}
+	var src interface{}
+	if err := json.Unmarshal(raw, &src); err != nil {
+		return raw
+	}
+	// Build a destination map and copy selected fields
+	dst := make(map[string]interface{})
+
+	addPath := func(path string) {
+		parts := strings.Split(path, ".")
+		var copyValue func(cur interface{}, idx int) interface{}
+		copyValue = func(cur interface{}, idx int) interface{} {
+			if idx >= len(parts) {
+				return cur
+			}
+			key := parts[idx]
+			if m, ok := cur.(map[string]interface{}); ok {
+				if key == "*" { // unsupported at object level
+					return nil
+				}
+				child, ok := m[key]
+				if !ok {
+					return nil
+				}
+				next := copyValue(child, idx+1)
+				if next == nil {
+					return nil
+				}
+				return map[string]interface{}{key: next}
+			}
+			if arr, ok := cur.([]interface{}); ok {
+				// Support wildcard segment like ports[*].port
+				if key == "*" || strings.HasPrefix(key, "[*]") {
+					// consume wildcard
+					nextIdx := idx + 1
+					// Recurse into each element with remaining path
+					outArr := make([]interface{}, 0, len(arr))
+					for _, el := range arr {
+						next := copyValue(el, nextIdx)
+						if next != nil {
+							outArr = append(outArr, next)
+						}
+					}
+					return outArr
+				}
+			}
+			return nil
+		}
+
+		merged := copyValue(src, 0)
+		// Merge merged into dst
+		var merge func(dst map[string]interface{}, src interface{})
+		merge = func(dst map[string]interface{}, src interface{}) {
+			if srcMap, ok := src.(map[string]interface{}); ok {
+				for k, v := range srcMap {
+					if v == nil {
+						continue
+					}
+					if existing, ok := dst[k]; ok {
+						if em, ok := existing.(map[string]interface{}); ok {
+							vm, _ := v.(map[string]interface{})
+							merge(em, vm)
+							continue
+						}
+					}
+					dst[k] = v
+				}
+			}
+		}
+		if merged != nil {
+			merge(dst, merged)
+		}
+	}
+
+	// Always include apiVersion/kind/metadata minimal identity to keep UI stable
+	addPath("apiVersion")
+	addPath("kind")
+	addPath("metadata.name")
+	addPath("metadata.namespace")
+	addPath("metadata.labels")
+	addPath("metadata.creationTimestamp")
+	addPath("metadata.deletionTimestamp")
+	addPath("metadata.resourceVersion")
+
+	for _, p := range fields {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		addPath(p)
+	}
+
+	b, err := json.Marshal(dst)
+	if err != nil {
+		return raw
+	}
+	return json.RawMessage(b)
 }
 
 // handleHelmReleaseWatch handles watching Helm releases with polling

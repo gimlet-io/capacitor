@@ -80,6 +80,8 @@ export interface ResourceTypeConfig {
   treeCardRenderer?: ResourceCardRenderer;
   abbreviations?: string[]; // Common abbreviations for this resource type
   extraWatches?: ExtraWatchConfig[];
+  // Optional JSONPath-like field refs to project in server watch payloads
+  projectFields?: string[];
 }
 
 // Define a reusable namespace column for all namespaced resources
@@ -268,7 +270,19 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands, 
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: podCardRenderer
+    treeCardRenderer: podCardRenderer,
+    projectFields: [
+      'spec.nodeName',
+      'spec.containers',
+      'spec.containers[*].name',
+      'spec.containers[*].ports',
+      'status.phase',
+      'status.podIP',
+      'status.containerStatuses',
+      'status.initContainerStatuses',
+      'status.conditions',
+      'metadata.deletionTimestamp'
+    ]
   },
   
   'apps/Deployment': {
@@ -296,6 +310,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
+    projectFields: [
+      'spec.replicas',
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'spec.template.spec.containers[*].ports',
+      'status.readyReplicas',
+      'status.updatedReplicas',
+      'status.availableReplicas'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
@@ -331,6 +354,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['sts'],
+    projectFields: [
+      'spec.replicas',
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'spec.template.spec.containers[*].ports',
+      'status.readyReplicas'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
@@ -354,6 +384,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
     abbreviations: ['svc'],
+    projectFields: [
+      'spec.type',
+      'spec.clusterIP',
+      'spec.selector',
+      'spec.ports[*].port',
+      'spec.ports[*].targetPort',
+      'spec.ports[*].protocol',
+      'status.loadBalancer.ingress'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
@@ -379,7 +418,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: ingressCardRenderer
+    treeCardRenderer: ingressCardRenderer,
+    projectFields: [
+      'spec.ingressClassName',
+      'spec.rules'
+    ]
   },
   
   'core/Node': {
@@ -389,7 +432,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: nodeCardRenderer
+    treeCardRenderer: nodeCardRenderer,
+    projectFields: [
+      'spec.unschedulable',
+      'status.conditions',
+      'status.addresses',
+      'status.nodeInfo'
+    ]
   },
   
   'core/ConfigMap': {
@@ -398,7 +447,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    abbreviations: ['cm']
+    abbreviations: ['cm'],
+    projectFields: []
   },
   
   'core/Secret': {
@@ -408,7 +458,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       navigateToSecret
     ],
-    defaultSortColumn: "NAME"
+    defaultSortColumn: "NAME",
+    // Do not include data in watch payloads for security/perf; count shown may be 0
+    projectFields: [
+      'type'
+    ]
   },
   
   'core/PersistentVolumeClaim': {
@@ -419,7 +473,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: pvcCardRenderer,
-    abbreviations: ['pvc']
+    abbreviations: ['pvc'],
+    projectFields: [
+      'spec.storageClassName',
+      'status.phase',
+      'status.capacity'
+    ]
   },
   
   'apps/DaemonSet': {
@@ -440,6 +499,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds'],
+    projectFields: [
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'status.desiredNumberScheduled',
+      'status.numberReady',
+      'status.updatedNumberScheduled'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
@@ -466,6 +532,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['rs'],
+    projectFields: [
+      'spec.replicas',
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'status.readyReplicas'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
@@ -483,7 +555,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       showPodsInNamespace
     ],
     defaultSortColumn: "NAME",
-    abbreviations: ['ns']
+    abbreviations: ['ns'],
+    projectFields: [
+      'status.phase'
+    ]
   },
   
   'batch/Job': {
@@ -498,6 +573,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: jobCardRenderer,
+    projectFields: [
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'status.active',
+      'status.succeeded',
+      'status.failed',
+      'status.conditions',
+      'status.ready'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
@@ -515,7 +599,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: cronJobCardRenderer,
-    abbreviations: ['cj']
+    abbreviations: ['cj'],
+    projectFields: [
+      'spec.schedule',
+      'spec.suspend',
+      'status.lastScheduleTime'
+    ]
   },
   
   'autoscaling/HorizontalPodAutoscaler': {
@@ -534,7 +623,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     treeCardRenderer: pvCardRenderer,
-    abbreviations: ['pv']
+    abbreviations: ['pv'],
+    projectFields: [
+      'status.phase',
+      'spec.capacity',
+      'spec.persistentVolumeReclaimPolicy'
+    ]
   },
   
   'rbac.authorization.k8s.io/Role': {
@@ -543,7 +637,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [roleVerbFilter],
     commands: [
       ...builtInCommands
-    ]
+    ],
+    projectFields: []
   },
   
   'rbac.authorization.k8s.io/ClusterRole': {
