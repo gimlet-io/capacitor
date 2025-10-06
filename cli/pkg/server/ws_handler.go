@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gimlet-io/capacitor/pkg/helm"
@@ -37,6 +38,12 @@ type ServerMessage struct {
 type WebSocketConnection struct {
 	conn  *websocket.Conn
 	mutex sync.Mutex
+}
+
+type wsCounters struct {
+	objects      int64
+	managedBytes int64
+	bytesSent    int64
 }
 
 // WriteMessage sends a message to the WebSocket connection in a thread-safe way
@@ -102,6 +109,9 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	ws := &WebSocketConnection{conn: conn}
 	defer ws.Close()
 
+	// Per-connection counters
+	var counters wsCounters
+
 	// Create connection context that can be cancelled when the connection closes
 	connCtx, connCancel := context.WithCancel(context.Background())
 	defer connCancel()
@@ -123,6 +133,20 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	if data, err := json.Marshal(readyMsg); err == nil {
 		ws.WriteMessage(websocket.TextMessage, data)
 	}
+
+	// Periodic stats emission
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	go func() {
+		for {
+			select {
+			case <-connCtx.Done():
+				return
+			case <-ticker.C:
+				h.sendStatsMessage(ws, &counters)
+			}
+		}
+	}()
 
 	// Handle incoming messages
 	for {
@@ -146,7 +170,7 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 		// Handle message based on action
 		switch clientMsg.Action {
 		case "subscribe":
-			h.handleSubscribe(connCtx, ws, &clientMsg, watchContextsForConn)
+			h.handleSubscribe(connCtx, ws, &clientMsg, watchContextsForConn, &counters)
 		case "unsubscribe":
 			h.handleUnsubscribe(ws, &clientMsg, watchContextsForConn)
 		default:
@@ -163,6 +187,7 @@ func (h *WebSocketHandler) handleSubscribe(
 	ws *WebSocketConnection,
 	msg *ClientMessage,
 	watchContextsForConn map[string]context.CancelFunc,
+	counters *wsCounters,
 ) {
 	// Log the subscription request
 	log.Printf("Subscribe request for path: %s", msg.Path)
@@ -221,8 +246,8 @@ func (h *WebSocketHandler) handleSubscribe(
 					log.Printf("Event channel closed for path: %s", msg.Path)
 					return
 				}
-				// log.Printf("Sending event %s: %s", time.Now().Format(time.StampMilli), event.Type)
-				h.sendDataMessage(ws, msg.ID, msg.Path, event)
+				// Update counters and send
+				h.sendDataMessageWithCounters(ws, msg.ID, msg.Path, event, counters)
 			case <-watchCtx.Done():
 				log.Printf("Watch context done for path: %s", msg.Path)
 				return
@@ -276,6 +301,39 @@ func (h *WebSocketHandler) sendDataMessage(ws *WebSocketConnection, id, path str
 	h.sendMessage(ws, &msg)
 }
 
+// sendDataMessageWithCounters is like sendDataMessage but updates counters
+func (h *WebSocketHandler) sendDataMessageWithCounters(ws *WebSocketConnection, id, path string, data *kubernetes.WatchEvent, counters *wsCounters) {
+	var event kubernetes.WatchEvent
+	if data != nil {
+		event = *data
+		if len(event.Object) > 0 {
+			stripped, removed := stripManagedFieldsCounted(event.Object)
+			event.Object = stripped
+			atomic.AddInt64(&counters.objects, 1)
+			atomic.AddInt64(&counters.managedBytes, int64(removed))
+		} else {
+			atomic.AddInt64(&counters.objects, 1)
+		}
+	}
+
+	msg := ServerMessage{
+		ID:   id,
+		Type: "data",
+		Path: path,
+		Data: &event,
+	}
+	// Marshal here to count exact bytes
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("error marshaling message: %v", err)
+		return
+	}
+	atomic.AddInt64(&counters.bytesSent, int64(len(payload)))
+	if err := ws.WriteMessage(websocket.TextMessage, payload); err != nil {
+		log.Printf("error writing message: %v", err)
+	}
+}
+
 // sendErrorMessage sends an error message to the client
 func (h *WebSocketHandler) sendErrorMessage(ws *WebSocketConnection, id, path, errorMsg string) {
 	msg := ServerMessage{
@@ -296,6 +354,30 @@ func (h *WebSocketHandler) sendStatusMessage(ws *WebSocketConnection, id, path, 
 		Data: &kubernetes.WatchEvent{
 			Type:   status,
 			Object: nil,
+		},
+	}
+	h.sendMessage(ws, &msg)
+}
+
+// sendStatsMessage emits periodic stats for the connection
+func (h *WebSocketHandler) sendStatsMessage(ws *WebSocketConnection, counters *wsCounters) {
+	objs := atomic.LoadInt64(&counters.objects)
+	sent := atomic.LoadInt64(&counters.bytesSent)
+	payload := map[string]interface{}{
+		"objects":         objs,
+		"bytesSent":       sent,
+		"intervalSeconds": 1,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	msg := ServerMessage{
+		Type: "stats",
+		Path: "",
+		Data: &kubernetes.WatchEvent{
+			Type:   "STATS",
+			Object: json.RawMessage(data),
 		},
 	}
 	h.sendMessage(ws, &msg)
@@ -330,6 +412,28 @@ func stripManagedFields(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	return json.RawMessage(b)
+}
+
+// stripManagedFieldsCounted removes managedFields and returns removed byte count
+func stripManagedFieldsCounted(raw json.RawMessage) (json.RawMessage, int) {
+	if len(raw) == 0 {
+		return raw, 0
+	}
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return raw, 0
+	}
+	before, _ := json.Marshal(v)
+	removeManagedFieldsFromAny(&v)
+	after, err := json.Marshal(v)
+	if err != nil {
+		return raw, 0
+	}
+	removed := len(before) - len(after)
+	if removed < 0 {
+		removed = 0
+	}
+	return json.RawMessage(after), removed
 }
 
 // handleHelmReleaseWatch handles watching Helm releases with polling

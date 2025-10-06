@@ -99,6 +99,22 @@ export class K8sWebSocketClient {
               resolve();
               return;
             }
+
+            // Handle periodic stats messages
+            if (message.type === 'stats') {
+              try {
+                let stats: any = (message?.data && (message.data as any).object) ? (message.data as any).object : {};
+                if (typeof stats === 'string') {
+                  try { stats = JSON.parse(stats); } catch { stats = {}; }
+                }
+                const bytes = Number((stats as any).bytesSent) || 0;
+                const kb = Math.round(bytes / 1024);
+                console.log('[WS stats] objects=%s sent=%s KB interval=%ss', (stats as any).objects ?? 0, kb, (stats as any).intervalSeconds ?? 3);
+              } catch (_e) {
+                // noop
+              }
+              return;
+            }
             
             if (message.type === 'error') {
               console.error(`WebSocket error for path ${message.path}: ${message.error}`);
