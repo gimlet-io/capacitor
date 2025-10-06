@@ -565,10 +565,53 @@ func projectObjectByFields(raw json.RawMessage, fields []string) json.RawMessage
 						continue
 					}
 					if existing, ok := dst[k]; ok {
+						// Map ← Map: deep-merge
 						if em, ok := existing.(map[string]interface{}); ok {
-							vm, _ := v.(map[string]interface{})
-							merge(em, vm)
-							continue
+							if vm, ok := v.(map[string]interface{}); ok {
+								merge(em, vm)
+								continue
+							}
+						}
+						// Array ← Array: merge elements by index, deep-merging maps
+						if ea, ok := existing.([]interface{}); ok {
+							if va, ok := v.([]interface{}); ok {
+								maxLen := len(ea)
+								if len(va) > maxLen {
+									maxLen = len(va)
+								}
+								out := make([]interface{}, 0, maxLen)
+								for i := 0; i < maxLen; i++ {
+									var left, right interface{}
+									if i < len(ea) {
+										left = ea[i]
+									}
+									if i < len(va) {
+										right = va[i]
+									}
+									// If both elements are maps, merge them
+									if lm, ok := left.(map[string]interface{}); ok {
+										if rm, ok := right.(map[string]interface{}); ok {
+											mergedEl := make(map[string]interface{})
+											// copy left
+											for kk, vv := range lm {
+												mergedEl[kk] = vv
+											}
+											// merge right
+											merge(mergedEl, rm)
+											out = append(out, mergedEl)
+											continue
+										}
+									}
+									// Prefer non-nil right, else left
+									if right != nil {
+										out = append(out, right)
+									} else {
+										out = append(out, left)
+									}
+								}
+								dst[k] = out
+								continue
+							}
 						}
 					}
 					dst[k] = v
