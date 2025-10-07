@@ -9,7 +9,7 @@ Self-host for your team. We are running a private beta on the self-hosted versio
 apiVersion: v1
 kind: Secret
 metadata:
-  name: capacitor-agent
+  name: capacitor-next-agent
   namespace: flux-system
 type: Opaque
 stringData:
