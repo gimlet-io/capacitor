@@ -22,7 +22,7 @@ spec:
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
-                name: capacitor-agent
+                name: capacitor-next-agent
           resources:
             requests:
               cpu: "50m"
