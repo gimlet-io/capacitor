@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capacitor-agent
+  namespace: flux-system
+  labels:
+    app: capacitor-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: capacitor-agent
+  template:
+    metadata:
+      labels:
+        app: capacitor-agent
+    spec:
+      serviceAccountName: capacitor-agent
+      containers:
+        - name: agent
+          image: ghcr.io/gimlet-io/capacitor-next:agent-latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: capacitor-agent
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
