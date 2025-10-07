@@ -438,31 +438,6 @@ export function FilterProvider(props: { children: JSX.Element }) {
     }
   });
 
-  // Preselect default namespace per context once, when namespaces are ready
-  createEffect(() => {
-    const currentCtx = apiResourceStore.contextInfo?.current;
-    const namespaces = apiResourceStore.namespaces;
-    if (!currentCtx || !Array.isArray(namespaces) || namespaces.length === 0) return;
-
-    const ctxEntry = apiResourceStore.contextInfo?.contexts.find(c => c.name === currentCtx);
-    const defaultNs = ctxEntry?.defaultNamespace;
-    if (!defaultNs) return;
-    if (!namespaces.includes(defaultNs)) return;
-
-    const existingNs = getNamespace();
-    // Only set if user hasn't chosen a namespace yet or is on all-namespaces
-    if (!existingNs || existingNs === 'all-namespaces') {
-      const newFilters = [...activeFilters()];
-      const nsIdx = newFilters.findIndex(f => f.name === 'Namespace');
-      if (nsIdx >= 0) {
-        newFilters[nsIdx] = { name: 'Namespace', value: defaultNs };
-      } else {
-        newFilters.push({ name: 'Namespace', value: defaultNs });
-      }
-      setActiveFiltersWithHistory(newFilters);
-    }
-  });
-
   // Handle view changes - keep this simple for integration with ViewBar
   createEffect(() => {
     const currentViewId = selectedView();

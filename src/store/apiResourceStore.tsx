@@ -7,7 +7,6 @@ export interface KubeContext {
   name: string;
   isCurrent: boolean;
   namespace?: string;
-  defaultNamespace?: string;
   clusterName?: string;
   user?: string;
 }

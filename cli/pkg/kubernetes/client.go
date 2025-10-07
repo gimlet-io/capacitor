@@ -121,12 +121,11 @@ func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
 // GetContexts returns the available contexts from the kubeconfig file
 // and marks the current active context
 type ContextInfo struct {
-	Name             string `json:"name"`
-	IsCurrent        bool   `json:"isCurrent"`
-	Namespace        string `json:"namespace,omitempty"`
-	DefaultNamespace string `json:"defaultNamespace,omitempty"`
-	ClusterName      string `json:"clusterName,omitempty"`
-	User             string `json:"user,omitempty"`
+	Name        string `json:"name"`
+	IsCurrent   bool   `json:"isCurrent"`
+	Namespace   string `json:"namespace,omitempty"`
+	ClusterName string `json:"clusterName,omitempty"`
+	User        string `json:"user,omitempty"`
 }
 
 func (c *Client) GetContexts() []ContextInfo {
