@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: capacitor-agent
+  name: capacitor-next-agent
   namespace: flux-system
   labels:
-    app: capacitor-agent
+    app: capacitor-next-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: capacitor-agent
+      app: capacitor-next-agent
   template:
     metadata:
       labels:
-        app: capacitor-agent
+        app: capacitor-next-agent
     spec:
-      serviceAccountName: capacitor-agent
+      serviceAccountName: capacitor-next-agent
       containers:
         - name: agent
           image: ghcr.io/gimlet-io/capacitor-next:agent-v2025-09.2-rc5
