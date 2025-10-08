@@ -16,19 +16,19 @@ export const serviceColumns = [
   {
     header: "TYPE",
     width: "15%",
-    accessor: (service: Service) => <>{service.spec.type}</>,
+    accessor: (service: Service) => <>{service.spec?.type}</>,
   },
   {
     header: "CLUSTER-IP",
     width: "15%",
-    accessor: (service: Service) => <>{service.spec.clusterIP}</>,
+    accessor: (service: Service) => <>{service.spec?.clusterIP}</>,
   },
   {
     header: "EXTERNAL-IP",
     width: "15%",
     accessor: (service: Service) => {
       const ingress = service.status?.loadBalancer?.ingress;
-      if (service.spec.type === "LoadBalancer" && ingress && ingress.length > 0) {
+      if (service.spec?.type === "LoadBalancer" && ingress && ingress.length > 0) {
         return <>{ingress.map(ingress => ingress.ip || ingress.hostname).filter(Boolean).join(", ") || "Pending"}</>;
       }
       return <>None</>;
@@ -39,7 +39,7 @@ export const serviceColumns = [
     width: "15%",
     accessor: (service: Service) => (
       <>
-        {service.spec.ports?.map((port) =>
+        {service.spec?.ports?.map((port) =>
           `${port.port}:${port.targetPort}/${port.protocol}`
         ).join(", ") || "None"}
       </>
