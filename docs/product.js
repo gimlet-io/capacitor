@@ -80,13 +80,58 @@
       const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
       const formatInline = (s) => {
         const safe = esc(s);
-        // Images first so they are not picked up by link regex
-        const withImages = safe.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
-          const urlEsc = String(url).replace(/"/g, '&quot;');
-          const altEsc = String(alt);
+        // Media (images and videos) first so they are not picked up by link regex
+        const withMedia = safe.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_m, alt, url) {
+          const rawUrl = String(url);
+          const urlEsc = rawUrl.replace(/"/g, '&quot;');
+          const ext = (rawUrl.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
+          if (/(mp4|webm|ogg|mov)/.test(ext)) {
+            const type = ext === 'mp4' ? 'video/mp4'
+              : ext === 'webm' ? 'video/webm'
+              : ext === 'ogg' ? 'video/ogg'
+              : 'video/quicktime';
+            const altRaw = String(alt);
+            const parts = altRaw.split('|').map(p => String(p).trim());
+            const label = (parts[0] || '').replace(/"/g, '&quot;');
+            const opts = {};
+            for (let i = 1; i < parts.length; i++) {
+              const p = parts[i];
+              if (!p) continue;
+              const eq = p.indexOf('=');
+              if (eq === -1) {
+                opts[p.toLowerCase()] = true;
+              } else {
+                const k = p.slice(0, eq).trim().toLowerCase();
+                const v = p.slice(eq + 1).trim();
+                opts[k] = v;
+              }
+            }
+            let attrs = ' controls';
+            if (opts['controls'] === 'false' || opts['controls'] === false) {
+              attrs = attrs.replace(' controls', '');
+            }
+            if (opts['autoplay']) {
+              attrs += ' autoplay muted';
+            }
+            if (opts['muted']) {
+              if (attrs.indexOf(' muted') === -1) attrs += ' muted';
+            }
+            if (opts['loop']) {
+              attrs += ' loop';
+            }
+            let styleAttr = '';
+            if (opts['width']) {
+              const wRaw = String(opts['width']);
+              const wCss = /^\d+$/.test(wRaw) ? (wRaw + 'px') : wRaw;
+              const wEsc = wCss.replace(/"/g, '&quot;');
+              styleAttr = ' style="width: ' + wEsc + ';"';
+            }
+            return '<video' + attrs + ' preload="metadata" playsinline aria-label="' + label + '"' + styleAttr + '><source src="' + urlEsc + '" type="' + type + '"></video>';
+          }
+          const altEsc = String(alt).replace(/"/g, '&quot;');
           return '<img src="' + urlEsc + '" alt="' + altEsc + '" />';
         });
-        const withLinks = withImages.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
+        const withLinks = withMedia.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
           const urlEsc = String(url).replace(/"/g, '&quot;');
           return '<a class="dim" href="' + urlEsc + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
         });

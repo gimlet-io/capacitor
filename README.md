@@ -67,7 +67,7 @@ You may install `patch` and `rc` releases if you please, `debug` releases if req
 You can install a specific version by supplying the version tag:
 
 ```
-wget -qO- https://gimlet.io/install-capacitor | bash -s -- v2025-09.1-patch1
+wget -qO- https://gimlet.io/install-capacitor | bash -s -- v2025-09.2
 ```
 
 ### Branching
