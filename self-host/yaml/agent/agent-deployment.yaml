@@ -18,7 +18,7 @@ spec:
       serviceAccountName: capacitor-next-agent
       containers:
         - name: agent
-          image: ghcr.io/gimlet-io/capacitor-next:agent-v2025-09.2-rc7
+          image: ghcr.io/gimlet-io/capacitor-next:agent-v2025-09.2-rc8
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
