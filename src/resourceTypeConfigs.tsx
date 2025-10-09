@@ -22,7 +22,7 @@ import { deploymentReadinessFilter } from "./components/resourceList/DeploymentL
 import { argocdApplicationSyncFilter, argocdApplicationHealthFilter } from "./components/resourceList/ApplicationList.tsx";
 import { builtInCommands } from "./components/resourceList/ResourceList.tsx";
 import { nodeColumns, nodeReadinessFilter, nodeRoleFilter } from "./components/resourceList/NodeList.tsx";
-import { configMapColumns, configMapDataFilter } from "./components/resourceList/ConfigMapList.tsx";
+import { configMapColumns } from "./components/resourceList/ConfigMapList.tsx";
 import { secretColumns, secretTypeFilter } from "./components/resourceList/SecretList.tsx";
 import { pvcColumns, pvcStatusFilter, pvcStorageClassFilter } from "./components/resourceList/PersistentVolumeClaimList.tsx";
 import { daemonSetColumns, daemonSetReadinessFilter } from "./components/resourceList/DaemonSetList.tsx";
@@ -80,6 +80,8 @@ export interface ResourceTypeConfig {
   treeCardRenderer?: ResourceCardRenderer;
   abbreviations?: string[]; // Common abbreviations for this resource type
   extraWatches?: ExtraWatchConfig[];
+  // Optional JSONPath-like field refs to project in server watch payloads
+  projectFields?: string[];
 }
 
 // Define a reusable namespace column for all namespaced resources
@@ -245,6 +247,8 @@ export type ExtraWatchConfig = {
   resourceType: string;          // The type of resource to watch 
   updater: ResourceUpdater;      // Function to update main resource with the extra resource data
   isParent: (resource: any, obj: any) => boolean;
+  // Optional JSONPath-like field refs to project for this extra watch payload
+  projectFields?: string[];
 };
 
 // Define the centralized resource configurations
@@ -268,7 +272,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands, 
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: podCardRenderer
+    treeCardRenderer: podCardRenderer,
+    projectFields: [
+      'spec.nodeName',
+      'spec.containers.[*].name',
+      'spec.containers.[*].ports',
+      'status.phase',
+      'status.podIP',
+      'status.containerStatuses',
+      'status.initContainerStatuses',
+      'status.conditions',
+      'metadata.deletionTimestamp'
+    ]
   },
   
   'apps/Deployment': {
@@ -296,11 +311,23 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [deploymentReadinessFilter],
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
+    projectFields: [
+      'spec.replicas',
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'spec.template.spec.containers.[*].ports',
+      'status.readyReplicas',
+      'status.updatedReplicas',
+      'status.availableReplicas'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
         updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ],
   },
@@ -331,11 +358,21 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['sts'],
+    projectFields: [
+      'spec.replicas',
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'spec.template.spec.containers.[*].ports',
+      'status.readyReplicas'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
         updater: (statefulSet, pods) => updateStatefulSetMatchingResources(statefulSet, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ]
   },
@@ -354,21 +391,46 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: serviceCardRenderer,
     abbreviations: ['svc'],
+    projectFields: [
+      'spec.type',
+      'spec.clusterIP',
+      'spec.selector',
+      'spec.ports.[*].port',
+      'spec.ports.[*].targetPort',
+      'spec.ports.[*].protocol',
+      'status.loadBalancer.ingress'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
         updater: (service, pods) => updateServiceMatchingPods(service, pods),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       },
       {
         resourceType: 'networking.k8s.io/Ingress',
         updater: (service, ingresses) => updateServiceMatchingIngresses(service, ingresses),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'spec.rules',
+          'spec.defaultBackend',
+          'status.loadBalancer.ingress'
+        ]
       },
       {
         resourceType: 'kustomize.toolkit.fluxcd.io/Kustomization',
         updater: (service, kustomizations) => updateServiceMatchingKustomizations(service, kustomizations),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'status.inventory.entries',
+          'status.conditions',
+          'spec.suspend',
+          'status.lastHandledReconcileAt',
+          'status.lastAppliedRevision',
+          'status.lastAttemptedRevision'
+        ]
       }
     ]
   },
@@ -379,7 +441,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: ingressCardRenderer
+    treeCardRenderer: ingressCardRenderer,
+    projectFields: [
+      'spec.ingressClassName',
+      'spec.rules',
+      'spec.tls',
+      'status.loadBalancer.ingress'
+    ]
   },
   
   'core/Node': {
@@ -389,17 +457,23 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    treeCardRenderer: nodeCardRenderer
+    treeCardRenderer: nodeCardRenderer,
+    projectFields: [
+      'spec.unschedulable',
+      'status.conditions',
+      'status.addresses',
+      'status.nodeInfo'
+    ]
   },
   
   'core/ConfigMap': {
     columns: configMapColumns,
-    filter: [configMapDataFilter],
     commands: [
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    abbreviations: ['cm']
+    abbreviations: ['cm'],
+    projectFields: []
   },
   
   'core/Secret': {
@@ -409,7 +483,11 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands,
       navigateToSecret
     ],
-    defaultSortColumn: "NAME"
+    defaultSortColumn: "NAME",
+    // Do not include data in watch payloads for security/perf; count shown may be 0
+    projectFields: [
+      'type'
+    ]
   },
   
   'core/PersistentVolumeClaim': {
@@ -420,7 +498,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: pvcCardRenderer,
-    abbreviations: ['pvc']
+    abbreviations: ['pvc'],
+    projectFields: [
+      'spec.storageClassName',
+      'status.phase',
+      'status.capacity'
+    ]
   },
   
   'apps/DaemonSet': {
@@ -441,11 +524,21 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds'],
+    projectFields: [
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'status.desiredNumberScheduled',
+      'status.numberReady',
+      'status.updatedNumberScheduled'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
         updater: (daemonSet, pods) => updateDaemonSetMatchingResources(daemonSet, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ]
   },
@@ -467,11 +560,20 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: deploymentCardRenderer,
     abbreviations: ['rs'],
+    projectFields: [
+      'spec.replicas',
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'status.readyReplicas'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
         updater: (replicaSet, pods) => updateReplicaSetMatchingResources(replicaSet, pods),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.phase'
+        ]
       }
     ],
   },
@@ -484,7 +586,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       showPodsInNamespace
     ],
     defaultSortColumn: "NAME",
-    abbreviations: ['ns']
+    abbreviations: ['ns'],
+    projectFields: [
+      'status.phase'
+    ]
   },
   
   'batch/Job': {
@@ -499,11 +604,24 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: jobCardRenderer,
+    projectFields: [
+      'spec.selector',
+      'spec.template.metadata.labels',
+      'status.active',
+      'status.succeeded',
+      'status.failed',
+      'status.conditions',
+      'status.ready'
+    ],
     extraWatches: [
       {
         resourceType: 'core/Pod',
         updater: (job, pods) => updateJobMatchingResources(job, pods),
-        isParent: (_resource: any, _obj: any) => {return false}
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'status.phase',
+          'spec.nodeName'
+        ]
       }
     ]
   },
@@ -516,7 +634,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: cronJobCardRenderer,
-    abbreviations: ['cj']
+    abbreviations: ['cj'],
+    projectFields: [
+      'spec.schedule',
+      'spec.suspend',
+      'status.lastScheduleTime'
+    ]
   },
   
   'autoscaling/HorizontalPodAutoscaler': {
@@ -525,7 +648,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['hpa']
+    abbreviations: ['hpa'],
+    projectFields: [
+      'spec.scaleTargetRef.kind',
+      'spec.scaleTargetRef.name',
+      'spec.targetCPUUtilizationPercentage',
+      'spec.metrics',
+      'spec.minReplicas',
+      'spec.maxReplicas',
+      'status.currentCPUUtilizationPercentage',
+      'status.currentReplicas',
+      'status.conditions'
+    ]
   },
   
   'core/PersistentVolume': {
@@ -535,7 +669,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     treeCardRenderer: pvCardRenderer,
-    abbreviations: ['pv']
+    abbreviations: ['pv'],
+    projectFields: [
+      'status.phase',
+      'spec.capacity',
+      'spec.persistentVolumeReclaimPolicy'
+    ]
   },
   
   'rbac.authorization.k8s.io/Role': {
@@ -544,6 +683,9 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [roleVerbFilter],
     commands: [
       ...builtInCommands
+    ],
+    projectFields: [
+      'rules'
     ]
   },
   
@@ -553,7 +695,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['cr']
+    abbreviations: ['cr'],
+    projectFields: [
+      'rules'
+    ]
   },
   
   'rbac.authorization.k8s.io/RoleBinding': {
@@ -563,7 +708,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['rb']
+    abbreviations: ['rb'],
+    projectFields: [
+      'roleRef.kind',
+      'roleRef.name',
+      'subjects'
+    ]
   },
   
   'rbac.authorization.k8s.io/ClusterRoleBinding': {
@@ -572,7 +722,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['crb']
+    abbreviations: ['crb'],
+    projectFields: [
+      'roleRef.kind',
+      'roleRef.name',
+      'subjects'
+    ]
   },
   
   'core/ServiceAccount': {
@@ -581,7 +736,12 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['sa']
+    abbreviations: ['sa'],
+    projectFields: [
+      'secrets',
+      'imagePullSecrets',
+      'automountServiceAccountToken'
+    ]
   },
   
   'networking.k8s.io/NetworkPolicy': {
@@ -590,7 +750,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['netpol']
+    abbreviations: ['netpol'],
+    projectFields: [
+      'spec.podSelector',
+      'spec.policyTypes',
+      'spec.ingress',
+      'spec.egress'
+    ]
   },
   
   'policy/PodDisruptionBudget': {
@@ -599,7 +765,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
-    abbreviations: ['pdb']
+    abbreviations: ['pdb'],
+    projectFields: [
+      'spec.minAvailable',
+      'spec.maxUnavailable',
+      'status.disruptionsAllowed',
+      'status.currentHealthy',
+      'status.desiredHealthy',
+      'status.expectedPods'
+    ]
   },
   
   'keda.sh/ScaledJob': {
@@ -608,7 +782,14 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       ...builtInCommands
     ],
-    abbreviations: ['sj']
+    abbreviations: ['sj'],
+    projectFields: [
+      'spec.triggers',
+      'spec.maxReplicaCount',
+      'spec.pollingInterval',
+      'spec.scalingStrategy.strategy',
+      'status.conditions'
+    ]
   },
   
   'helm.sh/Release': {
@@ -616,6 +797,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [helmReleaseStatusFilter, helmReleaseChartFilter],
     commands: [
       navigateToHelmClassicReleaseDetails,
+    ],
+    projectFields: [
+      'spec.chart',
+      'spec.chartVersion',
+      'status.status',
+      'status.revision',
+      'status.appVersion'
     ]
   },
   
@@ -636,27 +824,55 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       navigateToKustomization
     ],
     filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.sourceRef.kind',
+      'spec.sourceRef.name',
+      'spec.sourceRef.namespace',
+      'spec.path',
+      'spec.prune',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ],
     abbreviations: ['ks'],
     extraWatches: [
       {
         resourceType: 'source.toolkit.fluxcd.io/GitRepository',
         updater: (kustomization, gitRepositories) => updateKustomizationMatchingGitRepositories(kustomization, gitRepositories),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'spec.url',
+          'status.conditions'
+        ]
       },
       {
         resourceType: 'source.toolkit.fluxcd.io/Bucket',
         updater: (kustomization, buckets) => updateKustomizationMatchingBuckets(kustomization, buckets),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.conditions'
+        ]
       },
       {
         resourceType: 'source.toolkit.fluxcd.io/OCIRepository',
         updater: (kustomization, ocirepositories) => updateKustomizationMatchingOCIRepositories(kustomization, ocirepositories),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'status.conditions'
+        ]
       },
       {
         resourceType: 'core/Event',
         updater: (kustomization, events) => updateKustomizationMatchingEvents(kustomization, events),
-        isParent: (resource: any, obj: any) => {return false}
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'type',
+          'lastTimestamp',
+          'reason',
+          'involvedObject',
+          'message',
+          'source.component'
+        ]
       }
     ]
   },
@@ -675,7 +891,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleFluxReconcileWithSources
       }
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.url',
+      'spec.ref',
+      'spec.secretRef.name',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ]
   },
   
   'source.toolkit.fluxcd.io/HelmRepository': {
@@ -693,7 +917,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleFluxReconcileWithSources
       }
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.url',
+      'spec.secretRef.name',
+      'spec.passCredentials',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ]
   },
   
   'source.toolkit.fluxcd.io/HelmChart': {
@@ -711,7 +943,15 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleFluxReconcileWithSources
       }
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.chart',
+      'spec.sourceRef.kind',
+      'spec.sourceRef.name',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ]
   },
   
   'source.toolkit.fluxcd.io/OCIRepository': {
@@ -729,7 +969,16 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleFluxReconcileWithSources
       }
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.url',
+      'spec.secretRef.name',
+      'spec.serviceAccountName',
+      'spec.insecure',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ]
   },
   
   'source.toolkit.fluxcd.io/Bucket': {
@@ -747,7 +996,17 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         handler: handleFluxReconcileWithSources
       }
     ],
-    filter: [fluxReadyFilter]
+    filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.bucketName',
+      'spec.endpoint',
+      'spec.provider',
+      'spec.secretRef.name',
+      'spec.insecure',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ]
   },
   
   'helm.toolkit.fluxcd.io/HelmRelease': {
@@ -770,6 +1029,17 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       }
     ],
     filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.chart.spec.chart',
+      'spec.chart.spec.sourceRef.kind',
+      'spec.chart.spec.sourceRef.name',
+      'spec.chart.spec.version',
+      'spec.releaseName',
+      'spec.targetNamespace',
+      'spec.interval',
+      'spec.suspend',
+      'status.conditions'
+    ],
     abbreviations: ['hr']
   },
   
@@ -790,13 +1060,32 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       navigateToTerraform
     ],
     filter: [fluxReadyFilter],
+    projectFields: [
+      'spec.sourceRef.kind',
+      'spec.sourceRef.namespace',
+      'spec.sourceRef.name',
+      'spec.path',
+      'spec.interval',
+      'spec.approvePlan',
+      'spec.suspend',
+      'status.conditions'
+    ],
     abbreviations: ['tf']
   },
   
   'core/Event': {
     columns: eventColumns,
     filter: [eventTypeFilter],
-    defaultSortColumn: "LAST SEEN"
+    defaultSortColumn: "LAST SEEN",
+    projectFields: [
+      'type',
+      'lastTimestamp',
+      'count',
+      'reason',
+      'involvedObject',
+      'message',
+      'source.component'
+    ]
   },
   
   'argoproj.io/Application': {
@@ -806,6 +1095,13 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     commands: [
       navigateToApplication
     ],
-    filter: [argocdApplicationSyncFilter, argocdApplicationHealthFilter]
+    filter: [argocdApplicationSyncFilter, argocdApplicationHealthFilter],
+    projectFields: [
+      'status.sync.status',
+      'status.health.status',
+      'spec.source.repoURL',
+      'spec.source.path',
+      'status.sync.revision'
+    ]
   }
 };

@@ -2,93 +2,45 @@
 
 Self-host for your team. We are running a private beta on the self-hosted version. Please get in contact with laszlo at gimlet.io
 
-## Authentication
+## Deployment
 
-We support three authentication option:
-- `AUTH=oidc` is the default setting
-- `AUTH=noauth` for local setups like k3s/k3d
-- `AUTH=static` for small teams
-
-### OIDC
+### Service Account
 
 ```
-AUTH=oidc
-OIDC_ISSUER=https://dex.localhost:8888/
-OIDC_CLIENT_ID=example-app
-OIDC_CLIENT_SECRET=example-secret
-OIDC_REDIRECT_URL=http://127.0.0.1:8181/auth/callback
-OIDC_INSECURE_SKIP_TLS_VERIFY=true
-AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
-# IMPERSONATE_SA_RULES=*@mycompany.com=flux-system:capacitor-next-builtin-editor # for wildcard impersonation rules
-# ENTRA_ID_FEDEREATED_TOKEN_AUTH=true # if you use Azure Entra ID
-# OIDC_SCOPES="openid,profile,email" # <-- the default list. Include groups if needed. eg.: "openid,profile,email,groups"
-# OIDC_GROUPS_CLAIM=groups # <-- default
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capacitor-next
+  namespace: flux-system
 ```
 
-### noauth
+### Secrets
 
 ```
-AUTH=noauth
-IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-builtin-editor
+apiVersion: v1
+kind: Secret
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+type: Opaque
+stringData:
+  LICENSE_KEY: "contact laszlo at gimlet.io"
+  AUTH: noauth
+  IMPERSONATE_SA_RULES: noauth=flux-system:capacitor-next-builtin-editor
+  SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
+  SESSION_BLOCK_KEY: "base64:< same value as the line before>"
+  registry.yaml: |
+    clusters:
+      - id: in-cluster
+        name: In-cluster
+        apiServerURL: https://kubernetes.default.svc
+        certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        serviceAccount:
+          tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
-Capacitor default authenticates you as a user called `noauth` what you can then map to a service account. And define RBAC for that service account.
-
-### Static auth
-
-```
-AUTH=static
-USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG"
-```
-
-Where you have to encrypt the password with
-
-```
-# install: brew install httpd   # provides htpasswd
-htpasswd -bnBC 12 x 'mypassword' | cut -d: -f2`
-```
-
-## Authorization
-
-- Capacitor Next impersonates a Kubernetes user or service account in all cases.
-- The RBAC of this identity defines authorization
-- You can remap identities to service accounts to assume a more static set of RBAC rules.
-
-### Authorization with OIDC
-
-With OIDC, the user identity is returned by the OIDC server and Capacitor Next impersonates this identity.
-
-### Authorization for nouth
-
-```
-AUTH=noauth
-IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-builtin-editor
-```
-
-Every user will assume the RBAC roles defined for the mapped service account (SA). In the example case: capacitor-next-builtin-editor in the default namespace.
-
-### Authorization for static user mapping
-
-```
-AUTH=static
-USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG[,anotheruser:password]"
-IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-builtin-editor
-```
-
-This case laszlo@gimlet.io has a static password, and my user is impersonating a service account. If my user has RBAC on the cluster the IMPERSONATE_SA_RULES is not needed.
-
-### Impersonation rules
-
-`IMPERSONATE_SA_RULES` maps users - or wildcard of users - to impersonate a service account. This way you can set up RBAC for them, even if the identity does not have RBAC grants.
-
-The example bellow authorizes an external email and all emails in the company, then the company emails assume the `flux-system:capacitor-next-builtin-editor` service account when interacting with the cluster. The external email must have RBAC defined to be able to query the cluster.
-
-```
-AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
-IMPERSONATE_SA_RULES=*@mycompany.com=flux-system:capacitor-next-builtin-editor # for wildcard impersonation rules
-```
-
-## Definining clusters
+### Definining clusters
 
 ```
 clusters:
@@ -99,31 +51,42 @@ clusters:
         certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         serviceAccount:
           tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-      - id: remote-cluster
-        name: remote-cluster
-        apiServerURL: https://xxx.hcp.eastus.azmk8s.io:443
-        certificateAuthorityData: |
-        -----BEGIN CERTIFICATE-----
-        ...
-        -----END CERTIFICATE-----
-        serviceAccount:
-        token: "<bearer-token>"
+      - id: remote-cluster1
+        name: remote-cluster1
+        agent: true
+        agentSecret: < run `openssl rand -hex 32`> # use the same shared secret in the agent deployment
+      - id: remote-cluster2
+        name: remote-cluster2
+        agent: true
+        agentSecret: < run `openssl rand -hex 32`> # use the same shared secret in the agent deployment
 ```
 
-Where
-- you get apiServerURL and from your kube context
-```
-CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name == "'$(kubectl config current-context)'")].context.cluster}')
-kubectl config view --raw -o jsonpath="{.clusters[?(@.name == \"${CLUSTER_NAME}\" )].cluster.server}"
-```
-- certificateAuthorityData from kube context also, but base64 decode it first
-```
-CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name == "'$(kubectl config current-context)'")].context.cluster}')
-kubectl config view --raw -o jsonpath="{.clusters[?(@.name == \"${CLUSTER_NAME}\" )].cluster.certificate-authority-data}" | base64 -d
-```
-- you can generate a service account token with
-```
-kubectl -n default create token capacitor-next --duration=4320h # for 6 months
-```
+### Deploy the yamls to the flux-system namespace.
 
-Using workload identity to access a remote cluster is not explored at this point.
+```
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/gimlet-io/capacitor
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+spec:
+  interval: 1m
+  path: "./self-host/yaml"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: capacitor-next
+  targetNamespace: flux-system
+```

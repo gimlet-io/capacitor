@@ -87,8 +87,35 @@ export function FilterBar(props: {
   filters: Filter[];
   activeFilters: ActiveFilter[];
   onFilterChange: (filters: ActiveFilter[]) => void;
+  initialLoadComplete?: boolean;
+  loadingStage?: 'loading' | 'enhancing' | 'filtering' | null;
+  resourceCount?: number;
 }) {
   const filterStore = useFilterStore();
+  const [spinnerFrame, setSpinnerFrame] = createSignal(0);
+  const spinnerFrames = ["|", "/", "-", "\\"];
+  let spinnerTimer: number | undefined;
+  
+  // Update spinner animation
+  createEffect(() => {
+    const shouldSpin = props.loadingStage != null || props.initialLoadComplete === false;
+    if (shouldSpin) {
+      spinnerTimer = setInterval(() => {
+        setSpinnerFrame((prev) => (prev + 1) % spinnerFrames.length);
+      }, 80) as unknown as number;
+    } else {
+      if (spinnerTimer !== undefined) {
+        clearInterval(spinnerTimer);
+        spinnerTimer = undefined;
+      }
+    }
+  });
+  
+  onCleanup(() => {
+    if (spinnerTimer !== undefined) {
+      clearInterval(spinnerTimer);
+    }
+  });
   const [activeFilter, setActiveFilter] = createSignal<string | null>(null);
   const [textInputs, setTextInputs] = createSignal<Record<string, string>>({});
   const [pendingTextInputs, setPendingTextInputs] = createSignal<Record<string, string>>({});
@@ -747,6 +774,26 @@ export function FilterBar(props: {
             );
           }}
         </For>
+        
+      {/* Loading indicator with ANSI spinner and staged labels */}
+      <Show when={props.initialLoadComplete !== undefined || props.loadingStage !== undefined}>
+          <div class="filter-loading-indicator">
+          <Show when={props.loadingStage != null || props.initialLoadComplete === false}>
+            <span class="filter-spinner-text">
+              [{spinnerFrames[spinnerFrame()]}]
+              {" "}
+              {props.loadingStage ? props.loadingStage : 'loading'}
+              {" "}
+              ({props.resourceCount || 0})
+            </span>
+          </Show>
+          <Show when={(props.loadingStage == null) && props.initialLoadComplete === true && (props.resourceCount || 0) > 0}>
+              <span class="filter-resource-count">
+                {props.resourceCount} resources
+              </span>
+            </Show>
+          </div>
+        </Show>
       </div>
       
       {/* Filter history navigation */}

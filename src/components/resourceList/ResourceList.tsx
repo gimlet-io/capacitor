@@ -3,10 +3,9 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { useNavigate } from "@solidjs/router";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
-import { namespaceColumn } from "../../resourceTypeConfigs.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
@@ -290,6 +289,7 @@ export function ResourceList<T>(props: {
   resources: T[];
   resourceTypeConfig: ResourceTypeConfig;
   resetKey?: unknown;
+  columns: Column<any>[];
 }) {
   const navigate = useNavigate();
   const filterStore = useFilterStore();
@@ -301,6 +301,9 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
+  // Debounce and cache for permission checks
+  let permissionTimer: number | undefined;
+  const permissionCache = new Map<string, Record<string, boolean | undefined>>();
   // Virtualization state
   const rowHeight = 36;
   const [scrollTop, setScrollTop] = createSignal(0);
@@ -334,39 +337,6 @@ export function ResourceList<T>(props: {
     }
   });
 
-  // Get the selected namespace
-  const selectedNamespace = createMemo(() => {
-    return filterStore.getNamespace();
-  });
-
-  // Process columns with namespace column insertion
-  const visibleColumns = createMemo(() => {
-    const namespace = selectedNamespace();
-    const resourceColumns = props.resourceTypeConfig.columns;
-    
-    // If no specific namespace is selected or it's "all-namespaces", inject the namespace column
-    if (!namespace || namespace === 'all-namespaces') {
-      // Check if the resource has a namespace field (is namespaced)
-      const isNamespaced = props.resources.length > 0 && 
-                           props.resources[0] && 
-                           (props.resources[0] as any).metadata && 
-                           (props.resources[0] as any).metadata.namespace !== undefined;
-      
-      if (isNamespaced) {
-        // Create a new array with namespace column inserted as the second column
-        const result = [
-          resourceColumns[0],
-          namespaceColumn,
-          ...resourceColumns.slice(1)
-        ];
-        return result;
-      }
-      
-      return resourceColumns;
-    }
-    
-    return resourceColumns;
-  });
 
   // Apply sorting based on the current sort column and direction
   const sortedResources = createMemo(() => {
@@ -375,7 +345,7 @@ export function ResourceList<T>(props: {
     // Apply column-specific sorting
     const currentSortColumn = sortColumn();
     if (currentSortColumn) {
-      const columns = visibleColumns();
+      const columns = props.columns;
       const sortingColumn = columns.find(col => col.header === currentSortColumn);
       if (sortingColumn?.sortFunction) {
         resources = sortingColumn.sortFunction(resources, sortAscending());
@@ -476,24 +446,35 @@ export function ResourceList<T>(props: {
     return undefined;
   };
 
-  // Recompute all command permissions on selection change
+  // Recompute all command permissions on selection change (debounced + cached)
   createEffect(() => {
     const res = selectedResource() as unknown as MinimalK8sResource | null;
     if (!res) {
       setCommandPermissions({});
       return;
     }
-    const cmds = getAllCommands();
-    (async () => {
+    const key = `${res.kind}|${res.metadata?.namespace || ''}|${res.metadata?.name || ''}`;
+    if (permissionTimer !== undefined) {
+      clearTimeout(permissionTimer);
+      permissionTimer = undefined;
+    }
+    permissionTimer = setTimeout(async () => {
+      const cached = permissionCache.get(key);
+      if (cached) {
+        setCommandPermissions(cached);
+        return;
+      }
+      const cmds = getAllCommands();
       const entries = await Promise.all(cmds.map(async (c) => [commandId(c), await derivePermission(c, res)] as const));
       const map: Record<string, boolean | undefined> = {};
       for (const [id, allowed] of entries) map[id] = allowed;
+      permissionCache.set(key, map);
       setCommandPermissions(map);
-    })();
+    }, 80) as unknown as number;
   });
 
   const handleColumnHeaderClick = (columnHeader: string) => {
-    const columns = visibleColumns();
+    const columns = props.columns;
     const column = columns.find(col => col.header === columnHeader);
     
     if (!column?.sortable) return;
@@ -746,7 +727,7 @@ export function ResourceList<T>(props: {
         <table class="resource-table">
           <thead>
             <tr>
-              {visibleColumns().map(column => (
+              {props.columns.map(column => (
                 <th 
                   style={`width: ${column.width}; ${column.sortable ? 'cursor: pointer; user-select: none;' : ''}`}
                   onClick={() => handleColumnHeaderClick(column.header)}
@@ -771,12 +752,12 @@ export function ResourceList<T>(props: {
           <tbody>
             {canVirtualize() && totalCount() > 0 && (
               <tr aria-hidden="true">
-                <td colSpan={visibleColumns().length} style={`height: ${topSpacerHeight()}px; padding: 0; border: 0;`}></td>
+                <td colSpan={props.columns.length} style={`height: ${topSpacerHeight()}px; padding: 0; border: 0;`}></td>
               </tr>
             )}
             <For each={canVirtualize() ? visibleSlice() : sortedResources()} fallback={
               <tr>
-                <td colSpan={visibleColumns().length} class="no-results">
+                <td colSpan={props.columns.length} class="no-results">
                   {props.resources.length === 0 ? 'No resources found' : 'No resources match the current filters'}
                 </td>
               </tr>
@@ -794,17 +775,18 @@ export function ResourceList<T>(props: {
                       class={selectedIndex() === globalIndex() ? 'selected' : ''} 
                       onClick={handleClick}
                     >
-                      {visibleColumns().map(column => (
+                      {props.columns.map(column => (
                         <td title={column.title ? column.title(resource) : undefined}>
                           {column.accessor(resource)}
                         </td>
                       ))}
                     </tr>
                     {props.resourceTypeConfig.detailRowRenderer && (
-                      <tr class={selectedIndex() === globalIndex() ? 'selected' : ''}
+                      <tr 
+                        class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}
                         onClick={handleClick}
                       >
-                        {props.resourceTypeConfig.detailRowRenderer(resource, visibleColumns().length)}
+                        {props.resourceTypeConfig.detailRowRenderer(resource, props.columns.length)}
                       </tr>
                     )}
                   </>
@@ -813,7 +795,7 @@ export function ResourceList<T>(props: {
             </For>
             {canVirtualize() && totalCount() > 0 && (
               <tr aria-hidden="true">
-                <td colSpan={visibleColumns().length} style={`height: ${bottomSpacerHeight()}px; padding: 0; border: 0;`}></td>
+                <td colSpan={props.columns.length} style={`height: ${bottomSpacerHeight()}px; padding: 0; border: 0;`}></td>
               </tr>
             )}
           </tbody>

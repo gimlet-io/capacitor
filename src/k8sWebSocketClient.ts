@@ -5,6 +5,7 @@
 export class K8sWebSocketClient {
   private ws: WebSocket | null = null;
   private subscribers: Map<string, (event: any) => void> = new Map();
+  private subscribeParams: Map<string, Record<string, string> | undefined> = new Map();
   private connectionPromise: Promise<void> | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
@@ -99,6 +100,22 @@ export class K8sWebSocketClient {
               resolve();
               return;
             }
+
+            // Handle periodic stats messages
+            if (message.type === 'stats') {
+              try {
+                let stats: any = (message?.data && (message.data as any).object) ? (message.data as any).object : {};
+                if (typeof stats === 'string') {
+                  try { stats = JSON.parse(stats); } catch { stats = {}; }
+                }
+                const bytes = Number((stats as any).bytesSent) || 0;
+                const kb = Math.round(bytes / 1024);
+                console.log('[WS stats] objects=%s sent=%s KB interval=%ss', (stats as any).objects ?? 0, kb, (stats as any).intervalSeconds ?? 3);
+              } catch (_e) {
+                // noop
+              }
+              return;
+            }
             
             if (message.type === 'error') {
               console.error(`WebSocket error for path ${message.path}: ${message.error}`);
@@ -145,9 +162,11 @@ export class K8sWebSocketClient {
    * @param callback The callback function to call when events are received
    * @returns A function that unsubscribes from the watch
    */
-  async watchResource(path: string, callback: (event: any) => void): Promise<() => void> {    
+  async watchResource(path: string, callback: (event: any) => void, params?: Record<string, string>): Promise<() => void> {    
     // Store the callback
     this.subscribers.set(path, callback);
+    // Store optional subscribe params
+    this.subscribeParams.set(path, params);
     
     // Connect if not already connected
     try {
@@ -175,6 +194,7 @@ export class K8sWebSocketClient {
     // Return unsubscribe function
     return () => {
       this.subscribers.delete(path);
+      this.subscribeParams.delete(path);
       if (this.connected && this.ws) {
         this.sendUnsubscribeMessage(path);
       }
@@ -211,10 +231,12 @@ export class K8sWebSocketClient {
 
     try {
       const requestId = Math.random().toString(36).substring(2, 15);
+      const params = this.subscribeParams.get(path);
       const message = JSON.stringify({
         id: requestId,
         action: 'subscribe',
-        path
+        path,
+        params
       });
       
       this.ws.send(message);

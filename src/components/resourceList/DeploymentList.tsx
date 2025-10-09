@@ -15,7 +15,7 @@ export const deploymentReadinessFilter: Filter = {
   filterFunction: (deployment: DeploymentWithResources, value: string): boolean => {
     if (value === "notReady") {
       // Check if desired replicas don't match ready replicas
-      return (deployment.spec.replicas !== (deployment.status.readyReplicas || 0));
+      return (deployment.spec?.replicas !== (deployment.status?.readyReplicas || 0));
     }
     return true;
   },
@@ -143,7 +143,7 @@ export const deploymentColumns = [
     header: "READY",
     width: "10%",
     accessor: (deployment: DeploymentWithResources) => (
-      <>{deployment.status.readyReplicas || 0}/{deployment.spec.replicas}</>
+      <>{deployment.status?.readyReplicas || 0}/{deployment.spec?.replicas}</>
     ),
   },
   {
@@ -172,14 +172,14 @@ export const deploymentColumns = [
     header: "UP-TO-DATE",
     width: "10%",
     accessor: (deployment: DeploymentWithResources) => (
-      <>{deployment.status.updatedReplicas || 0}</>
+      <>{deployment.status?.updatedReplicas || 0}</>
     ),
   },
   {
     header: "AVAILABLE",
     width: "10%",
     accessor: (deployment: DeploymentWithResources) => (
-      <>{deployment.status.availableReplicas || 0}</>
+      <>{deployment.status?.availableReplicas || 0}</>
     ),
   },
   {

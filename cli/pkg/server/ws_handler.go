@@ -12,6 +12,7 @@ import (
 
 	"github.com/gimlet-io/capacitor/pkg/helm"
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
+	wsutil "github.com/gimlet-io/capacitor/pkg/wsutil"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 )
@@ -33,31 +34,10 @@ type ServerMessage struct {
 	Error string                 `json:"error,omitempty"`
 }
 
-// WebSocketConnection wraps a WebSocket connection with a mutex to prevent concurrent writes
-type WebSocketConnection struct {
-	conn  *websocket.Conn
-	mutex sync.Mutex
-}
-
-// WriteMessage sends a message to the WebSocket connection in a thread-safe way
-func (wsc *WebSocketConnection) WriteMessage(messageType int, data []byte) error {
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
-	return wsc.conn.WriteMessage(messageType, data)
-}
-
-// WriteControl sends a control message to the WebSocket connection in a thread-safe way
-func (wsc *WebSocketConnection) WriteControl(messageType int, data []byte, deadline time.Time) error {
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
-	return wsc.conn.WriteControl(messageType, data, deadline)
-}
-
-// Close closes the WebSocket connection
-func (wsc *WebSocketConnection) Close() error {
-	wsc.mutex.Lock()
-	defer wsc.mutex.Unlock()
-	return wsc.conn.Close()
+// watchCfg stores per-watch configuration for a connection
+type watchCfg struct {
+	cancel context.CancelFunc
+	fields []string
 }
 
 // WebSocketHandler handles WebSocket connections
@@ -99,15 +79,18 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	}
 
 	// Create our thread-safe wrapper
-	ws := &WebSocketConnection{conn: conn}
+	ws := wsutil.NewWebSocketConnection(conn)
 	defer ws.Close()
+
+	// Per-connection counters
+	var counters wsutil.Counters
 
 	// Create connection context that can be cancelled when the connection closes
 	connCtx, connCancel := context.WithCancel(context.Background())
 	defer connCancel()
 
-	// Create a map to store watch contexts for this connection
-	watchContextsForConn := make(map[string]context.CancelFunc)
+	// Create a map to store watch contexts and per-watch config for this connection
+	watchContextsForConn := make(map[string]watchCfg)
 	h.watchContexts.Store(ws, watchContextsForConn)
 	defer h.watchContexts.Delete(ws)
 
@@ -117,12 +100,22 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	})
 
 	// Send ready message to indicate the server is ready to receive messages
-	readyMsg := ServerMessage{
-		Type: "ready",
-	}
-	if data, err := json.Marshal(readyMsg); err == nil {
-		ws.WriteMessage(websocket.TextMessage, data)
-	}
+	readyMsg := ServerMessage{Type: "ready"}
+	_ = wsutil.MarshalAndWrite(ws, &readyMsg, &counters)
+
+	// Periodic stats emission
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	go func() {
+		for {
+			select {
+			case <-connCtx.Done():
+				return
+			case <-ticker.C:
+				h.sendStatsMessage(ws, &counters)
+			}
+		}
+	}()
 
 	// Handle incoming messages
 	for {
@@ -146,7 +139,7 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 		// Handle message based on action
 		switch clientMsg.Action {
 		case "subscribe":
-			h.handleSubscribe(connCtx, ws, &clientMsg, watchContextsForConn)
+			h.handleSubscribe(connCtx, ws, &clientMsg, watchContextsForConn, &counters)
 		case "unsubscribe":
 			h.handleUnsubscribe(ws, &clientMsg, watchContextsForConn)
 		default:
@@ -160,9 +153,10 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 // handleSubscribe handles a subscribe message
 func (h *WebSocketHandler) handleSubscribe(
 	connCtx context.Context,
-	ws *WebSocketConnection,
+	ws *wsutil.WebSocketConnection,
 	msg *ClientMessage,
-	watchContextsForConn map[string]context.CancelFunc,
+	watchContextsForConn map[string]watchCfg,
+	counters *wsutil.Counters,
 ) {
 	// Log the subscription request
 	log.Printf("Subscribe request for path: %s", msg.Path)
@@ -175,7 +169,9 @@ func (h *WebSocketHandler) handleSubscribe(
 
 	// Create context for this watch that can be cancelled
 	watchCtx, watchCancel := context.WithCancel(connCtx)
-	watchContextsForConn[msg.Path] = watchCancel
+	// Parse optional projection fields from params
+	projFields := wsutil.ParseProjectionFields(msg.Params)
+	watchContextsForConn[msg.Path] = watchCfg{cancel: watchCancel, fields: projFields}
 
 	// Check if this is a Helm release path
 	if strings.Contains(msg.Path, "/api/helm/releases") {
@@ -221,8 +217,8 @@ func (h *WebSocketHandler) handleSubscribe(
 					log.Printf("Event channel closed for path: %s", msg.Path)
 					return
 				}
-				// log.Printf("Sending event %s: %s", time.Now().Format(time.StampMilli), event.Type)
-				h.sendDataMessage(ws, msg.ID, msg.Path, event)
+				// Update counters and send
+				h.sendDataMessageWithCountersAndProject(ws, msg.ID, msg.Path, event, counters, projFields)
 			case <-watchCtx.Done():
 				log.Printf("Watch context done for path: %s", msg.Path)
 				return
@@ -236,19 +232,19 @@ func (h *WebSocketHandler) handleSubscribe(
 
 // handleUnsubscribe handles an unsubscribe message
 func (h *WebSocketHandler) handleUnsubscribe(
-	ws *WebSocketConnection,
+	ws *wsutil.WebSocketConnection,
 	msg *ClientMessage,
-	watchContextsForConn map[string]context.CancelFunc,
+	watchContextsForConn map[string]watchCfg,
 ) {
 	// Check if subscribed
-	watchCancel, exists := watchContextsForConn[msg.Path]
+	cfg, exists := watchContextsForConn[msg.Path]
 	if !exists {
 		h.sendErrorMessage(ws, msg.ID, msg.Path, "not subscribed to this path")
 		return
 	}
 
 	// Cancel the watch
-	watchCancel()
+	cfg.cancel()
 	delete(watchContextsForConn, msg.Path)
 
 	// Send success message
@@ -256,18 +252,46 @@ func (h *WebSocketHandler) handleUnsubscribe(
 }
 
 // sendDataMessage sends a data message to the client
-func (h *WebSocketHandler) sendDataMessage(ws *WebSocketConnection, id, path string, data *kubernetes.WatchEvent) {
+func (h *WebSocketHandler) sendDataMessage(ws *wsutil.WebSocketConnection, id, path string, data *kubernetes.WatchEvent) {
+	// Create a shallow copy to avoid mutating the original event
+	var event kubernetes.WatchEvent
+	if data != nil {
+		event = *data
+		// Remove metadata.managedFields to avoid streaming large, unnecessary payloads
+		if len(event.Object) > 0 {
+			event.Object = stripManagedFields(event.Object)
+		}
+	}
+
 	msg := ServerMessage{
 		ID:   id,
 		Type: "data",
 		Path: path,
-		Data: data,
+		Data: &event,
 	}
 	h.sendMessage(ws, &msg)
 }
 
+// sendDataMessageWithCounters is like sendDataMessage but updates counters
+
+// sendDataMessageWithCountersAndProject is like sendDataMessageWithCounters but also applies
+// frontend-provided JSONPath-style projections when provided.
+func (h *WebSocketHandler) sendDataMessageWithCountersAndProject(ws *wsutil.WebSocketConnection, id, path string, data *kubernetes.WatchEvent, counters *wsutil.Counters, fields []string) {
+	transformed, removed := wsutil.TransformWatchEvent(data, fields)
+	if transformed != nil {
+		counters.AddObjects(1)
+	}
+	if removed > 0 {
+		counters.AddManagedBytes(int64(removed))
+	}
+	msg := ServerMessage{ID: id, Type: "data", Path: path, Data: transformed}
+	if err := wsutil.MarshalAndWrite(ws, &msg, counters); err != nil {
+		log.Printf("error writing message: %v", err)
+	}
+}
+
 // sendErrorMessage sends an error message to the client
-func (h *WebSocketHandler) sendErrorMessage(ws *WebSocketConnection, id, path, errorMsg string) {
+func (h *WebSocketHandler) sendErrorMessage(ws *wsutil.WebSocketConnection, id, path, errorMsg string) {
 	msg := ServerMessage{
 		ID:    id,
 		Type:  "error",
@@ -278,7 +302,7 @@ func (h *WebSocketHandler) sendErrorMessage(ws *WebSocketConnection, id, path, e
 }
 
 // sendStatusMessage sends a status message to the client
-func (h *WebSocketHandler) sendStatusMessage(ws *WebSocketConnection, id, path, status string) {
+func (h *WebSocketHandler) sendStatusMessage(ws *wsutil.WebSocketConnection, id, path, status string) {
 	msg := ServerMessage{
 		ID:   id,
 		Type: "status",
@@ -291,21 +315,39 @@ func (h *WebSocketHandler) sendStatusMessage(ws *WebSocketConnection, id, path, 
 	h.sendMessage(ws, &msg)
 }
 
-// sendMessage sends a message to the client
-func (h *WebSocketHandler) sendMessage(ws *WebSocketConnection, msg *ServerMessage) {
-	data, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("error marshaling message: %v", err)
-		return
-	}
+// sendStatsMessage emits periodic stats for the connection
+func (h *WebSocketHandler) sendStatsMessage(ws *wsutil.WebSocketConnection, counters *wsutil.Counters) {
+	msg := ServerMessage{Type: "stats", Data: wsutil.StatsEvent(counters)}
+	_ = wsutil.MarshalAndWrite(ws, &msg, counters)
+}
 
-	if err := ws.WriteMessage(websocket.TextMessage, data); err != nil {
+// sendMessage sends a message to the client
+func (h *WebSocketHandler) sendMessage(ws *wsutil.WebSocketConnection, msg *ServerMessage) {
+	if err := wsutil.MarshalAndWrite(ws, msg, nil); err != nil {
 		log.Printf("error writing message: %v", err)
 	}
 }
 
+// stripManagedFields removes metadata.managedFields from a Kubernetes object represented as json.RawMessage.
+// It returns the original bytes if unmarshaling or marshaling fails.
+func stripManagedFields(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return raw
+	}
+	removeManagedFieldsFromAny(&v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return raw
+	}
+	return json.RawMessage(b)
+}
+
 // handleHelmReleaseWatch handles watching Helm releases with polling
-func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSocketConnection, msg *ClientMessage) {
+func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *wsutil.WebSocketConnection, msg *ClientMessage) {
 	// Extract namespace from the path if present
 	// Path format: "/api/helm/releases" (all namespaces) or "/api/helm/releases/namespaces/{namespace}"
 	namespace := ""
@@ -364,7 +406,7 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *WebSo
 }
 
 // handleHelmHistoryWatch handles watching Helm release history with polling
-func (h *WebSocketHandler) handleHelmHistoryWatch(ctx context.Context, ws *WebSocketConnection, msg *ClientMessage) {
+func (h *WebSocketHandler) handleHelmHistoryWatch(ctx context.Context, ws *wsutil.WebSocketConnection, msg *ClientMessage) {
 	// Extract namespace and release name from the path
 	// Path format: "/api/helm/history/{namespace}/{name}"
 	pathParts := strings.Split(msg.Path, "/")
@@ -455,7 +497,7 @@ func (h *WebSocketHandler) helmHistoryEqual(prev, curr []helm.HistoryRelease) bo
 }
 
 // sendHelmHistory sends a list of release history items to the client
-func (h *WebSocketHandler) sendHelmHistory(ws *WebSocketConnection, id, path string, history []helm.HistoryRelease) {
+func (h *WebSocketHandler) sendHelmHistory(ws *wsutil.WebSocketConnection, id, path string, history []helm.HistoryRelease) {
 	// Create a response structure
 	response := map[string]interface{}{
 		"releases": history,
@@ -484,7 +526,7 @@ func (h *WebSocketHandler) sendHelmHistory(ws *WebSocketConnection, id, path str
 }
 
 // compareAndSendHelmChanges compares release lists and sends appropriate events
-func (h *WebSocketHandler) compareAndSendHelmChanges(ws *WebSocketConnection, msg *ClientMessage, previous, current []*helm.Release) {
+func (h *WebSocketHandler) compareAndSendHelmChanges(ws *wsutil.WebSocketConnection, msg *ClientMessage, previous, current []*helm.Release) {
 	// Create maps for easier comparison
 	prevMap := make(map[string]*helm.Release)
 	for _, rel := range previous {

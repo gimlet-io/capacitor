@@ -29,7 +29,7 @@ export const podsStatusFilter: Filter = {
   multiSelect: true,
   filterFunction: (pod: Pod, value: string): boolean => {
     // For filtering, we'll use a simpler approach based primarily on phase
-    if (pod.status.phase === value) {
+    if (pod.status?.phase === value) {
       return true;
     }
     
@@ -54,8 +54,8 @@ export const podsReadinessFilter: Filter = {
   filterFunction: (pod: Pod, value: string): boolean => {
     if (value === "notReady") {
       // Check if any container is not ready
-      const containerStatuses = pod.status.containerStatuses || [];
-      const totalContainers = pod.spec.containers.length;
+      const containerStatuses = pod.status?.containerStatuses || [];
+      const totalContainers = pod.spec?.containers.length;
       const readyContainers = containerStatuses.filter(cs => cs.ready).length;
       
       return readyContainers < totalContainers;
@@ -74,7 +74,7 @@ export const podsNodeFilter: Filter = {
   multiSelect: true,
   searchable: true,
   filterFunction: (pod: Pod, value: string): boolean => {
-    return pod.spec.nodeName === value;
+    return pod.spec?.nodeName === value;
   },
 };
 
@@ -93,7 +93,7 @@ export const podColumns = [
     accessor: (pod: Pod) => (
       <>
         {pod.status.containerStatuses?.filter((cs) => cs.ready).length ||
-          0}/{pod.spec.containers.length}
+          0}/{pod.spec?.containers.length}
       </>
     ),
   },
@@ -230,7 +230,7 @@ export const podColumns = [
   {
     header: "AGE",
     width: "10%",
-    accessor: (pod: Pod) => useCalculateAge(pod.status.startTime || '')(),
+    accessor: (pod: Pod) => useCalculateAge(pod.metadata.creationTimestamp || '')(),
     sortable: true,
     sortFunction: (items: any[], ascending: boolean) => sortByAge(items, ascending),
   },
@@ -245,9 +245,9 @@ export const podColumns = [
     accessor: (pod: Pod) => (
       <span
         style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" 
-        title={pod.spec.nodeName}
+        title={pod.spec?.nodeName}
       >
-        {pod.spec.nodeName}
+        {pod.spec?.nodeName}
       </span>
     ),
   },

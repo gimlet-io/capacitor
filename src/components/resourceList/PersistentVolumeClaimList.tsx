@@ -112,7 +112,7 @@ export const pvcStorageClassFilter: Filter = {
   options: [], // Will be populated dynamically based on available storage classes
   multiSelect: true,
   filterFunction: (pvc: PersistentVolumeClaim, value: string) => {
-    const storageClass = pvc.spec.storageClassName || "";
+    const storageClass = pvc.spec?.storageClassName || "";
     return storageClass === value;
   },
 }; 
