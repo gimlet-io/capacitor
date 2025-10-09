@@ -6,8 +6,6 @@ export class K8sWebSocketClient {
   private ws: WebSocket | null = null;
   private subscribers: Map<string, (event: any) => void> = new Map();
   private subscribeParams: Map<string, Record<string, string> | undefined> = new Map();
-  // Tracks the most recent subscribe request id per path so we can ignore late/stale events
-  private subscribeIds: Map<string, string> = new Map();
   private connectionPromise: Promise<void> | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
@@ -123,9 +121,7 @@ export class K8sWebSocketClient {
               console.error(`WebSocket error for path ${message.path}: ${message.error}`);
               // Call the subscriber with error information if available
               const subscriber = this.subscribers.get(message.path);
-              // Drop stale errors that do not correspond to current subscription id
-              const expectedId = this.subscribeIds.get(message.path);
-              if (subscriber && (!expectedId || message.id === expectedId)) {
+              if (subscriber) {
                 // This will cause the error to be propagated to the watch function
                 subscriber({ type: 'ERROR', error: message.error, path: message.path });
               }
@@ -134,13 +130,7 @@ export class K8sWebSocketClient {
             
             const subscriber = this.subscribers.get(message.path);
             if (subscriber && message.type === 'data') {
-              // Only deliver data for the latest subscription id for this path
-              const expectedId = this.subscribeIds.get(message.path);
-              if (!expectedId || message.id === expectedId) {
-                subscriber(message.data);
-              } else {
-                // Stale event from a previous subscription; ignore
-              }
+              subscriber(message.data);
             }
           } catch (err) {
             console.error('Error processing WebSocket message:', err);
@@ -248,8 +238,6 @@ export class K8sWebSocketClient {
         path,
         params
       });
-      // Remember the latest subscribe id for this path so we can filter late events
-      this.subscribeIds.set(path, requestId);
       
       this.ws.send(message);
     } catch (error) {
@@ -272,8 +260,6 @@ export class K8sWebSocketClient {
       action: 'unsubscribe',
       path
     }));
-    // Remove subscriber id tracking; any late events with old ids will be dropped
-    this.subscribeIds.delete(path);
   }
   
   /**

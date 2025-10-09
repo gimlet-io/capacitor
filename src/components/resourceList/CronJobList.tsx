@@ -6,7 +6,7 @@ import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Helper function to determine if CronJob is suspended
 function getSuspendedComponent(cronJob: CronJob): { element: JSX.Element, title: string } {
-  const suspended = cronJob.spec?.suspend === true;
+  const suspended = cronJob.spec.suspend === true;
   
   const statusClass = suspended ? "text-warning" : "text-success";
   const status = suspended ? "Suspended" : "Active";
@@ -36,7 +36,7 @@ export const cronJobColumns = [
   {
     header: "SCHEDULE",
     width: "20%",
-    accessor: (cronJob: CronJob) => <>{cronJob.spec?.schedule}</>,
+    accessor: (cronJob: CronJob) => <>{cronJob.spec.schedule}</>,
     title: (cronJob: CronJob) => `Schedule: ${formatSchedule(cronJob.spec.schedule)}`
   },
   {
