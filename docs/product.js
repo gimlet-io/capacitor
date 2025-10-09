@@ -126,7 +126,8 @@
     }
 
     function route() {
-      const id = (location.hash || '#quickstart').replace('#', '');
+      const defaultId = docsOrder.length > 0 ? ('#' + docsOrder[0]) : '#quickstart';
+      const id = (location.hash || defaultId).replace('#', '');
       loadDoc(id);
     }
     window.addEventListener('hashchange', route);

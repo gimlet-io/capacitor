@@ -111,6 +111,11 @@ body {
   color: var(--magenta);
 }
 .btn-ghost:hover { background: rgba(192,107,166,0.12); }
+.btn-yellow {
+  background: transparent;
+  color: var(--yellow);
+}
+.btn-yellow:hover { background: rgba(209,182,109,0.12); }
 .btn.wide { width: 100%; }
 
 .terminal {
@@ -279,4 +284,24 @@ body {
   .sidebar { position: relative; top: 0; max-height: none; }
   .features { grid-template-columns: 1fr; }
 }
+
+/* Changelog scoped accent color overrides (yellow theme) */
+.changelog .btn-primary {
+  color: var(--yellow);
+}
+.changelog .btn-primary:hover { background: rgba(209,182,109,0.12); }
+.changelog .menu a:hover,
+.changelog .menu a.active {
+  background: rgba(209,182,109,0.12);
+  color: var(--yellow);
+}
+.changelog .content pre {
+  border-color: var(--yellow);
+}
+.changelog .terminal { border-color: var(--yellow); }
+.changelog .terminal .copy {
+  color: var(--yellow);
+  border-color: var(--yellow);
+}
+.changelog .terminal .copy:hover { background: rgba(209,182,109,0.12); }
 
