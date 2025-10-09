@@ -38,7 +38,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m
-  path: "./self-host/yaml/agent"
+  path: "./self-host/agent"
   prune: true
   sourceRef:
     kind: GitRepository
