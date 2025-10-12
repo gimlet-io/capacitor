@@ -1,5 +1,5 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createEffect, createSignal, onCleanup, untrack, Show } from "solid-js";
+import { createEffect, createSignal, on, onCleanup, untrack, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
@@ -90,75 +90,91 @@ export function TerraformDetails() {
   }
 
   // Keep jsonPlanText in sync when secret or mode changes
-  createEffect(() => {
-    const tf = terraform();
-    const sec = planSecret();
-    (async () => {
-      if (!tf || tf.spec?.storeReadablePlan !== 'json' || !sec) {
-        setJsonPlanText(null);
-        return;
-      }
-      // Expect gzipped JSON in data['tfplan'] when using json mode
-      const rawString = sec.stringData?.['tfplan'];
-      const rawB64 = sec.data?.['tfplan'];
-      if (rawString) {
-        // If controller ever writes stringData (unlikely), use it directly
-        setJsonPlanText(rawString);
-        return;
-      }
-      if (rawB64) {
-        const gunzipped = await tryGunzipBase64ToString(rawB64);
-        if (gunzipped !== null) {
-          setJsonPlanText(gunzipped);
-          return;
-        }
-        // Fallback: try base64 decode without gunzip
-        try {
-          setJsonPlanText(atob(rawB64));
-          return;
-        } catch (_e) {
+  createEffect(
+    on(
+      [
+        () => terraform()?.spec?.storeReadablePlan,
+        () => planSecret(),
+        () => terraform()?.status?.plan?.lastApplied,
+      ],
+      async ([_mode, sec, _lastApplied]) => {
+        const mode = _mode;
+        if (mode !== 'json' || !sec) {
           setJsonPlanText(null);
           return;
         }
-      }
-      setJsonPlanText(null);
-    })();
-  });
+        // Expect gzipped JSON in data['tfplan'] when using json mode
+        const rawString = sec.stringData?.['tfplan'];
+        const rawB64 = sec.data?.['tfplan'];
+        if (rawString) {
+          setJsonPlanText(rawString);
+          return;
+        }
+        if (rawB64) {
+          const gunzipped = await tryGunzipBase64ToString(rawB64);
+          if (gunzipped !== null) {
+            setJsonPlanText(gunzipped);
+            return;
+          }
+          try {
+            setJsonPlanText(atob(rawB64));
+            return;
+          } catch (_e) {
+            setJsonPlanText(null);
+            return;
+          }
+        }
+        setJsonPlanText(null);
+      },
+      { defer: true }
+    )
+  );
 
   // Initial fetch of plan object to avoid relying solely on watch events
-  createEffect(() => {
-    const tf = terraform();
-    const ns = params.namespace;
-    (async () => {
-      if (!tf || !ns) return;
-      const mode = tf.spec?.storeReadablePlan;
-      if (!mode || mode === 'none') return;
-      const expected = expectedPlanObjectName(tf).name;
-      const preferred = tf.status?.plan?.lastApplied || expected;
-      if (!preferred) return;
-      if (mode === 'human') {
-        try {
-          const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-          const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
-          const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/configmaps/${preferred}`);
-          if (resp.ok) {
-            const cm = await resp.json();
-            setPlanConfigMap({ data: cm.data, binaryData: cm.binaryData });
-          }
-        } catch (_e) { /* ignore */ }
-      } else if (mode === 'json') {
-        try {
-          const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-          const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
-          const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/secrets/${preferred}`);
-          if (resp.ok) {
-            const sec = await resp.json();
-            setPlanSecret({ data: sec.data, stringData: sec.stringData });
-          }
-        } catch (_e) { /* ignore */ }
-      }
-    })();
-  });
+  createEffect(
+    on(
+      [
+        () => params.namespace,
+        () => terraform()?.spec?.storeReadablePlan,
+        () => terraform()?.status?.plan?.lastApplied,
+        () => terraform()?.metadata?.name,
+        () => apiResourceStore.contextInfo?.current,
+      ],
+      async ([_ns, _mode, _lastApplied, _name, _ctx]) => {
+        const ns = _ns;
+        const mode = _mode;
+        const tf = untrack(() => terraform());
+        if (!tf || !ns) return;
+        if (!mode || mode === 'none') return;
+        const expected = expectedPlanObjectName(tf).name;
+        const preferred = _lastApplied || expected;
+        if (!preferred) return;
+
+        if (mode === 'human') {
+          try {
+            const ctxName = _ctx ? encodeURIComponent(_ctx) : '';
+            const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+            const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/configmaps/${preferred}`);
+            if (resp.ok) {
+              const cm = await resp.json();
+              setPlanConfigMap({ data: cm.data, binaryData: cm.binaryData });
+            }
+          } catch (_e) { /* ignore */ }
+        } else if (mode === 'json') {
+          try {
+            const ctxName = _ctx ? encodeURIComponent(_ctx) : '';
+            const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+            const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/secrets/${preferred}`);
+            if (resp.ok) {
+              const sec = await resp.json();
+              setPlanSecret({ data: sec.data, stringData: sec.stringData });
+            }
+          } catch (_e) { /* ignore */ }
+        }
+      },
+      { defer: true }
+    )
+  );
 
   // Compute permissions
   createEffect(() => {
