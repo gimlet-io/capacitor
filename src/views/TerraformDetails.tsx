@@ -27,6 +27,16 @@ export function TerraformDetails() {
 
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
+  // Debug: log the whole Terraform object on all changes
+  createEffect(() => {
+    const tf = terraform();
+    if (tf) {
+      console.log('[TerraformDetails] terraform changed:', tf);
+    } else {
+      console.log('[TerraformDetails] terraform cleared');
+    }
+  });
+
   // Diff drawer state
   const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
   type FluxDiffResult = { fileName: string; clusterYaml: string; appliedYaml: string; created: boolean; hasChanges: boolean; deleted: boolean };
@@ -111,8 +121,9 @@ export function TerraformDetails() {
     if (!tf) return { name: null, isJson: false };
     const mode = tf.spec?.storeReadablePlan;
     if (!mode || mode === 'none') return { name: null, isJson: false };
-    // Best-effort workspace name: controller defaults to "default" when unspecified
-    const workspace = 'default';
+    // Use the workspace from spec when provided; controller defaults to "default"
+    // deno-lint-ignore no-explicit-any
+    const workspace = (tf as any)?.spec?.workspace || 'default';
     const base = `tfplan-${workspace}-${tf.metadata.name}`;
     if (mode === 'json') return { name: `${base}.json`, isJson: true };
     return { name: base, isJson: false };
@@ -199,7 +210,7 @@ export function TerraformDetails() {
         if (!tf || !ns) return;
         if (!mode || mode === 'none') return;
         const expected = expectedPlanObjectName(tf).name;
-        const preferred = _lastApplied || expected;
+        const preferred = expected;
         if (!preferred) return;
 
         if (mode === 'human') {
@@ -284,7 +295,7 @@ export function TerraformDetails() {
 
     // Resolve API path and plural for Terraform dynamically
     const tfApi = (apiResourceStore.apiResources || []).find(r => r.group === 'infra.contrib.fluxcd.io' && r.kind === 'Terraform');
-    const baseApiPath = tfApi?.apiPath || '/k8s/apis/infra.contrib.fluxcd.io/v1alpha1';
+    const baseApiPath = tfApi?.apiPath || '/k8s/apis/infra.contrib.fluxcd.io/v1alpha2';
     const pluralName = tfApi?.name || 'terraforms';
 
     // Watch Terraform resources in namespace
@@ -359,8 +370,10 @@ export function TerraformDetails() {
         const obj = event.object;
         if (!obj || obj.metadata.namespace !== ns) return;
         const tfCurrent = terraform();
-        const outputsSecretName = tfCurrent?.spec?.writeOutputsToSecret?.name || tfCurrent?.status?.availableOutputs;
-        const planSecretName = tfCurrent?.status?.plan?.lastApplied || (expectedPlanObjectName(tfCurrent).isJson ? expectedPlanObjectName(tfCurrent).name || undefined : undefined);
+        const outputsField = tfCurrent?.status?.availableOutputs;
+        const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+        const outputsSecretName = tfCurrent?.spec?.writeOutputsToSecret?.name || outputsName;
+        const planSecretName = (expectedPlanObjectName(tfCurrent).isJson ? expectedPlanObjectName(tfCurrent).name || undefined : undefined);
 
         if (planSecretName && obj.metadata.name === planSecretName) {
           if (event.type === 'DELETED') {
@@ -536,10 +549,14 @@ export function TerraformDetails() {
                         <span class="value">Pending</span>
                       </div>
                     )}
-                    {(tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs) && (
+                    {(() => {
+                      const outputsField = tf().status?.availableOutputs;
+                      const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+                      return (tf().spec?.writeOutputsToSecret?.name || outputsName);
+                    })() && (
                       <div class="info-item">
                         <span class="label">Outputs Secret:</span>
-                        <span class="value">{tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs}</span>
+                        <span class="value">{tf().spec?.writeOutputsToSecret?.name || (Array.isArray(tf().status?.availableOutputs) ? tf().status?.availableOutputs?.[0] : tf().status?.availableOutputs)}</span>
                       </div>
                     )}
                     {(() => {
@@ -635,7 +652,9 @@ export function TerraformDetails() {
                       <span>
                         Output{(() => {
                           const t = terraform();
-                          const name = t?.spec?.writeOutputsToSecret?.name || t?.status?.availableOutputs;
+                          const outputsField = t?.status?.availableOutputs;
+                          const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+                          const name = t?.spec?.writeOutputsToSecret?.name || outputsName;
                           return name ? ` (Secret: ${name})` : '';
                         })()}
                       </span>
@@ -680,9 +699,14 @@ export function TerraformDetails() {
     return c?.message || '';
   })();
 
-  // If user has not enabled readable plan
+  // If user has not enabled readable plan, still surface pending info/ready message (e.g. S3 backend)
   if (!tf?.spec?.storeReadablePlan || tf.spec.storeReadablePlan === 'none') {
-    return `no readable plan available\nplease set spec.storeReadablePlan to either 'human' or 'json'`;
+    const pendingId = tf?.status?.plan?.pending;
+    if (pendingId) {
+      return `A plan is pending approval (ID: ${pendingId}).\nNo readable plan is stored because spec.storeReadablePlan is 'none'.\nUse the Approve button above to approve the plan.`;
+    }
+    if (readyMsg) return readyMsg || 'No plan information available';
+    return 'There is no readable plan stored (spec.storeReadablePlan is none).';
   }
 
   // Render based on mode
@@ -763,7 +787,9 @@ export function TerraformDetails() {
                         <pre class="conditions-yaml">
 {(() => {
   const sec = outputsSecret();
-  const secretName = tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs;
+  const outputsField = tf().status?.availableOutputs;
+  const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+  const secretName = tf().spec?.writeOutputsToSecret?.name || outputsName;
   if (!secretName) return 'No outputs secret configured';
   if (!sec || (!sec.data && !sec.stringData)) return `Secret ${secretName} not found`;
   const decoded: Record<string, string> = {};

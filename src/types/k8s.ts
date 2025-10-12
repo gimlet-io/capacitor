@@ -348,6 +348,8 @@ export interface Terraform {
     interval: string;
     path?: string;
     approvePlan?: string;
+    // Workspace name used by the controller; defaults to "default" if unspecified
+    workspace?: string;
     // When set to 'human' or 'json', controller stores a readable plan
     // 'human' -> ConfigMap text, 'json' -> Secret gzipped JSON
     storeReadablePlan?: string;
@@ -365,8 +367,8 @@ export interface Terraform {
     conditions?: Condition[];
     lastAppliedRevision?: string;
     lastAttemptedRevision?: string;
-    // Name of the Secret containing current outputs
-    availableOutputs?: string;
+    // Name(s) of the Secret(s) containing current outputs (controller v1alpha2 uses an array)
+    availableOutputs?: string | string[];
     // Plan related info
     plan?: {
       // Name of the Secret/ConfigMap containing the last applied plan
