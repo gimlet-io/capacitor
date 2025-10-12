@@ -13,3 +13,4 @@ cli/next-*
 cli/next
 cli/pkg/server/public/
 dist/
+tofu-controller/

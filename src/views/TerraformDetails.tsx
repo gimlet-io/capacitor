@@ -11,6 +11,7 @@ import { stringify as stringifyYAML } from "@std/yaml";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { Tabs } from "../components/Tabs.tsx";
+import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
 
 export function TerraformDetails() {
   const params = useParams();
@@ -35,7 +36,57 @@ export function TerraformDetails() {
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
 
   // Tabs state
-  const [activeTab, setActiveTab] = createSignal<"plan" | "output">("plan");
+  const [activeTab, setActiveTab] = createSignal<"plan" | "output" | "runner">("plan");
+
+  // Runner logs state
+  type K8sPod = { apiVersion: string; kind: string; metadata: { name: string; namespace: string }; spec?: Record<string, unknown>; status?: Record<string, unknown> };
+  const [runnerPod, setRunnerPod] = createSignal<K8sPod | null>(null);
+  const [runnerLoading, setRunnerLoading] = createSignal<boolean>(false);
+  const [runnerMessage, setRunnerMessage] = createSignal<string>("");
+  let runnerRetryHandle: number | null = null;
+
+  const clearRunnerRetry = () => {
+    if (runnerRetryHandle !== null) {
+      clearTimeout(runnerRetryHandle);
+      runnerRetryHandle = null;
+    }
+  };
+
+  const fetchRunnerPodOnce = async () => {
+    const tf = terraform();
+    if (!tf) return;
+    setRunnerLoading(true);
+    try {
+      const controllerNamespace = "flux-system"; // tfctl default
+      const podName = `${tf.metadata.name}-tf-runner`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+      const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${controllerNamespace}/pods/${podName}`);
+      if (resp.ok) {
+        const pod = await resp.json();
+        setRunnerPod(pod);
+        setRunnerMessage("");
+        clearRunnerRetry();
+      } else if (resp.status === 404) {
+        setRunnerPod(null);
+        setRunnerMessage(`${controllerNamespace}/${podName} runner pod is not running, waiting...`);
+        clearRunnerRetry();
+        runnerRetryHandle = setTimeout(() => { fetchRunnerPodOnce(); }, 30000) as unknown as number;
+      } else {
+        setRunnerPod(null);
+        setRunnerMessage(`Failed to fetch runner pod: ${resp.status} ${resp.statusText}`);
+        clearRunnerRetry();
+        runnerRetryHandle = setTimeout(() => { fetchRunnerPodOnce(); }, 30000) as unknown as number;
+      }
+    } catch (_e) {
+      setRunnerPod(null);
+      setRunnerMessage(`Error fetching runner pod`);
+      clearRunnerRetry();
+      runnerRetryHandle = setTimeout(() => { fetchRunnerPodOnce(); }, 30000) as unknown as number;
+    } finally {
+      setRunnerLoading(false);
+    }
+  };
 
   // Plan / Output state
   const [planConfigMap, setPlanConfigMap] = createSignal<{
@@ -218,6 +269,7 @@ export function TerraformDetails() {
     untrack(() => {
       watchControllers().forEach((c) => c.abort());
     });
+    clearRunnerRetry();
   });
 
   const setupWatches = (ns: string, name: string) => {
@@ -551,10 +603,22 @@ export function TerraformDetails() {
                           return name ? ` (Secret: ${name})` : '';
                         })()}
                       </span>
+                    ) },
+                    { key: 'runner', label: (
+                      <span>
+                        Runner logs
+                      </span>
                     ) }
                   ]}
                   activeKey={activeTab()}
-                  onChange={(k) => setActiveTab(k as 'plan' | 'output')}
+                  onChange={(k) => {
+                    setActiveTab(k as 'plan' | 'output' | 'runner');
+                    if (k === 'runner') {
+                      fetchRunnerPodOnce();
+                    } else {
+                      clearRunnerRetry();
+                    }
+                  }}
                   style={{ "margin-top": "12px" }}
                 />
 
@@ -676,6 +740,20 @@ export function TerraformDetails() {
   return stringifyYAML(decoded);
 })()}
                         </pre>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={activeTab() === 'runner'}>
+                  <div class="resource-tree-wrapper">
+                    <div class="info-grid">
+                      <div class="info-item full-width">
+                        <Show when={!runnerLoading()} fallback={<div class="drawer-loading">Loading...</div>}>
+                          <Show when={runnerPod()} fallback={<pre class="conditions-yaml">{runnerMessage() || 'Runner pod not found'}</pre>}>
+                            <LogsViewer resource={runnerPod()} isOpen={activeTab() === 'runner'} />
+                          </Show>
+                        </Show>
                       </div>
                     </div>
                   </div>
