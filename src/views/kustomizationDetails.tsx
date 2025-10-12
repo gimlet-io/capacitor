@@ -21,6 +21,8 @@ import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibi
 import { ExtraWatchConfig, resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { Tabs } from "../components/Tabs.tsx";
+import type { Event } from "../types/k8s.ts";
+import { EventList } from "../components/resourceList/EventList.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -266,7 +268,7 @@ export function KustomizationDetails() {
   const [graph, setGraph] = createSignal<graphlib.Graph>();
   const [dependenciesGraph, setDependenciesGraph] = createSignal<graphlib.Graph>();
   // Tab state for main content
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "dependencies">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "dependencies" | "events">("resource");
 
   // Keep a list of all kustomizations across namespaces (for dependency graph)
   const [allKustomizations, setAllKustomizations] = createSignal<Kustomization[]>([]);
@@ -503,6 +505,8 @@ export function KustomizationDetails() {
         }
       },
     }); 
+
+    // Events are provided via extraWatches (see resourceTypeConfigs 'core/Event')
 
     // Cluster-wide watch to maintain a full list of Kustomizations for dependency graph
     watches.push({
@@ -1222,7 +1226,31 @@ export function KustomizationDetails() {
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {k().events.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
-                          <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: <span>{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</span></li>
+                          <li>
+                            <span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: 
+                            <span>
+                              {(() => {
+                                const msg = (event.message || '').replace(/[\r\n]+/g, ' ');
+                                const truncated = msg.length > 300;
+                                const shown = truncated ? msg.slice(0, 300) + '…' : msg;
+                                return (
+                                  <>
+                                    {shown}
+                                    {truncated && (
+                                      <button
+                                        class="inline-open-events"
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMainTab('events'); }}
+                                        style={{ "margin-left": "6px", "font-size": "12px", "padding": "0", "border": "none", "background": "transparent", "text-decoration": "underline", "cursor": "pointer" }}
+                                        title="Open events"
+                                      >
+                                        open events..
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </span>
+                          </li>
                         ))} 
                       </ul>
                     </div>
@@ -1283,10 +1311,19 @@ export function KustomizationDetails() {
                 <Tabs
                   tabs={[
                     { key: 'resource', label: 'Resource Tree' },
-                    { key: 'dependencies', label: 'Dependencies' }
+                    { key: 'dependencies', label: 'Dependencies' },
+                    { key: 'events', label: (
+                      <span>
+                        Events{(() => {
+                          const t = k();
+                          const count = (t?.events || []).length;
+                          return count ? ` (${count})` : '';
+                        })()}
+                      </span>
+                    ) }
                   ]}
                   activeKey={activeMainTab()}
-                  onChange={(k) => setActiveMainTab(k as 'resource' | 'dependencies')}
+                  onChange={(k) => setActiveMainTab(k as 'resource' | 'dependencies' | 'events')}
                   style={{ "margin-top": "12px" }}
                 />
 
@@ -1301,6 +1338,15 @@ export function KustomizationDetails() {
                         setAllResourceTypesVisibility={setAllResourceTypesVisibility}
                       />}
                   />
+                </div>
+              </Show>
+              <Show when={activeMainTab() === 'events'}>
+                <div class="resource-tree-wrapper">
+                  <div class="info-grid">
+                    <div class="info-item full-width">
+                      <EventList events={(kustomization()?.events || []) as Event[]} />
+                    </div>
+                  </div>
                 </div>
               </Show>
                 <Show when={activeMainTab() === 'dependencies'}>

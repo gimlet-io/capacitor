@@ -17,6 +17,7 @@ import { createNodeWithCardRenderer, createNode, ResourceTree, createPaginationN
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 import * as graphlib from "graphlib";
 import { Tabs } from "../components/Tabs.tsx";
+import { EventList } from "../components/resourceList/EventList.tsx";
 import { HelmManifest } from "../components/resourceDetail/HelmManifest.tsx";
 import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.tsx";
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
@@ -47,7 +48,7 @@ export function HelmReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events">("resource");
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -621,7 +622,31 @@ export function HelmReleaseDetails() {
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {(hr().events || []).sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
-                          <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: <span>{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</span></li>
+                          <li>
+                            <span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: 
+                            <span>
+                              {(() => {
+                                const msg = (event.message || '').replace(/[\r\n]+/g, ' ');
+                                const truncated = msg.length > 300;
+                                const shown = truncated ? msg.slice(0, 300) + '…' : msg;
+                                return (
+                                  <>
+                                    {shown}
+                                    {truncated && (
+                                      <button
+                                        class="inline-open-events"
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMainTab('events'); }}
+                                        style={{ "margin-left": "6px", "font-size": "12px", "padding": "0", "border": "none", "background": "transparent", "text-decoration": "underline", "cursor": "pointer" }}
+                                        title="Open events"
+                                      >
+                                        open events..
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </span>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -678,9 +703,18 @@ export function HelmReleaseDetails() {
               { key: "values", label: "Values" },
               { key: "manifest", label: "Manifest" },
               { key: "diff", label: "Diff Helm Manifest with Cluster State" },
+              { key: "events", label: (
+                <span>
+                  Events{(() => {
+                    const h = helmRelease();
+                    const count = (h?.events || []).length;
+                    return count ? ` (${count})` : '';
+                  })()}
+                </span>
+              ) },
             ]}
             activeKey={activeMainTab()}
-            onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history" | "diff")}
+            onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history" | "diff" | "events")}
             class=""
             style={{ "margin-top": "12px" }}
         />
@@ -734,6 +768,17 @@ export function HelmReleaseDetails() {
           apiVersion={helmRelease()!.apiVersion}
           kind={helmRelease()!.kind}
         />
+      </Show>
+
+      {/* Events Tab */}
+      <Show when={activeMainTab() === "events" && !!helmRelease()}>
+        <div class="resource-tree-wrapper">
+          <div class="info-grid">
+            <div class="info-item full-width">
+              <EventList events={(helmRelease()?.events || []) as Event[]} />
+            </div>
+          </div>
+        </div>
       </Show>
       </div>
     </div>
