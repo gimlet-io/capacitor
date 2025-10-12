@@ -1,5 +1,5 @@
 // deno-lint-ignore-file jsx-button-has-type
-import { createEffect, createSignal, onCleanup, untrack, Show } from "solid-js";
+import { createEffect, createSignal, on, onCleanup, untrack, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
@@ -11,6 +11,8 @@ import { stringify as stringifyYAML } from "@std/yaml";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { Tabs } from "../components/Tabs.tsx";
+import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
+import { EventList } from "../components/resourceList/EventList.tsx";
 
 export function TerraformDetails() {
   const params = useParams();
@@ -25,6 +27,16 @@ export function TerraformDetails() {
 
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
+  // Debug: log the whole Terraform object on all changes
+  createEffect(() => {
+    const tf = terraform();
+    if (tf) {
+      console.log('[TerraformDetails] terraform changed:', tf);
+    } else {
+      console.log('[TerraformDetails] terraform cleared');
+    }
+  });
+
   // Diff drawer state
   const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
   type FluxDiffResult = { fileName: string; clusterYaml: string; appliedYaml: string; created: boolean; hasChanges: boolean; deleted: boolean };
@@ -35,7 +47,57 @@ export function TerraformDetails() {
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
 
   // Tabs state
-  const [activeTab, setActiveTab] = createSignal<"plan" | "output">("plan");
+  const [activeTab, setActiveTab] = createSignal<"plan" | "output" | "events" | "runner">("plan");
+
+  // Runner logs state
+  type K8sPod = { apiVersion: string; kind: string; metadata: { name: string; namespace: string }; spec?: Record<string, unknown>; status?: Record<string, unknown> };
+  const [runnerPod, setRunnerPod] = createSignal<K8sPod | null>(null);
+  const [runnerLoading, setRunnerLoading] = createSignal<boolean>(false);
+  const [runnerMessage, setRunnerMessage] = createSignal<string>("");
+  let runnerRetryHandle: number | null = null;
+
+  const clearRunnerRetry = () => {
+    if (runnerRetryHandle !== null) {
+      clearTimeout(runnerRetryHandle);
+      runnerRetryHandle = null;
+    }
+  };
+
+  const fetchRunnerPodOnce = async () => {
+    const tf = terraform();
+    if (!tf) return;
+    setRunnerLoading(true);
+    try {
+      const controllerNamespace = "flux-system"; // tfctl default
+      const podName = `${tf.metadata.name}-tf-runner`;
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+      const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${controllerNamespace}/pods/${podName}`);
+      if (resp.ok) {
+        const pod = await resp.json();
+        setRunnerPod(pod);
+        setRunnerMessage("");
+        clearRunnerRetry();
+      } else if (resp.status === 404) {
+        setRunnerPod(null);
+        setRunnerMessage(`${controllerNamespace}/${podName} runner pod is not running, waiting...`);
+        clearRunnerRetry();
+        runnerRetryHandle = setTimeout(() => { fetchRunnerPodOnce(); }, 30000) as unknown as number;
+      } else {
+        setRunnerPod(null);
+        setRunnerMessage(`Failed to fetch runner pod: ${resp.status} ${resp.statusText}`);
+        clearRunnerRetry();
+        runnerRetryHandle = setTimeout(() => { fetchRunnerPodOnce(); }, 30000) as unknown as number;
+      }
+    } catch (_e) {
+      setRunnerPod(null);
+      setRunnerMessage(`Error fetching runner pod`);
+      clearRunnerRetry();
+      runnerRetryHandle = setTimeout(() => { fetchRunnerPodOnce(); }, 30000) as unknown as number;
+    } finally {
+      setRunnerLoading(false);
+    }
+  };
 
   // Plan / Output state
   const [planConfigMap, setPlanConfigMap] = createSignal<{
@@ -59,8 +121,9 @@ export function TerraformDetails() {
     if (!tf) return { name: null, isJson: false };
     const mode = tf.spec?.storeReadablePlan;
     if (!mode || mode === 'none') return { name: null, isJson: false };
-    // Best-effort workspace name: controller defaults to "default" when unspecified
-    const workspace = 'default';
+    // Use the workspace from spec when provided; controller defaults to "default"
+    // deno-lint-ignore no-explicit-any
+    const workspace = (tf as any)?.spec?.workspace || 'default';
     const base = `tfplan-${workspace}-${tf.metadata.name}`;
     if (mode === 'json') return { name: `${base}.json`, isJson: true };
     return { name: base, isJson: false };
@@ -90,75 +153,91 @@ export function TerraformDetails() {
   }
 
   // Keep jsonPlanText in sync when secret or mode changes
-  createEffect(() => {
-    const tf = terraform();
-    const sec = planSecret();
-    (async () => {
-      if (!tf || tf.spec?.storeReadablePlan !== 'json' || !sec) {
-        setJsonPlanText(null);
-        return;
-      }
-      // Expect gzipped JSON in data['tfplan'] when using json mode
-      const rawString = sec.stringData?.['tfplan'];
-      const rawB64 = sec.data?.['tfplan'];
-      if (rawString) {
-        // If controller ever writes stringData (unlikely), use it directly
-        setJsonPlanText(rawString);
-        return;
-      }
-      if (rawB64) {
-        const gunzipped = await tryGunzipBase64ToString(rawB64);
-        if (gunzipped !== null) {
-          setJsonPlanText(gunzipped);
-          return;
-        }
-        // Fallback: try base64 decode without gunzip
-        try {
-          setJsonPlanText(atob(rawB64));
-          return;
-        } catch (_e) {
+  createEffect(
+    on(
+      [
+        () => terraform()?.spec?.storeReadablePlan,
+        () => planSecret(),
+        () => terraform()?.status?.plan?.lastApplied,
+      ],
+      async ([_mode, sec, _lastApplied]) => {
+        const mode = _mode;
+        if (mode !== 'json' || !sec) {
           setJsonPlanText(null);
           return;
         }
-      }
-      setJsonPlanText(null);
-    })();
-  });
+        // Expect gzipped JSON in data['tfplan'] when using json mode
+        const rawString = sec.stringData?.['tfplan'];
+        const rawB64 = sec.data?.['tfplan'];
+        if (rawString) {
+          setJsonPlanText(rawString);
+          return;
+        }
+        if (rawB64) {
+          const gunzipped = await tryGunzipBase64ToString(rawB64);
+          if (gunzipped !== null) {
+            setJsonPlanText(gunzipped);
+            return;
+          }
+          try {
+            setJsonPlanText(atob(rawB64));
+            return;
+          } catch (_e) {
+            setJsonPlanText(null);
+            return;
+          }
+        }
+        setJsonPlanText(null);
+      },
+      { defer: true }
+    )
+  );
 
   // Initial fetch of plan object to avoid relying solely on watch events
-  createEffect(() => {
-    const tf = terraform();
-    const ns = params.namespace;
-    (async () => {
-      if (!tf || !ns) return;
-      const mode = tf.spec?.storeReadablePlan;
-      if (!mode || mode === 'none') return;
-      const expected = expectedPlanObjectName(tf).name;
-      const preferred = tf.status?.plan?.lastApplied || expected;
-      if (!preferred) return;
-      if (mode === 'human') {
-        try {
-          const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-          const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
-          const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/configmaps/${preferred}`);
-          if (resp.ok) {
-            const cm = await resp.json();
-            setPlanConfigMap({ data: cm.data, binaryData: cm.binaryData });
-          }
-        } catch (_e) { /* ignore */ }
-      } else if (mode === 'json') {
-        try {
-          const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-          const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
-          const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/secrets/${preferred}`);
-          if (resp.ok) {
-            const sec = await resp.json();
-            setPlanSecret({ data: sec.data, stringData: sec.stringData });
-          }
-        } catch (_e) { /* ignore */ }
-      }
-    })();
-  });
+  createEffect(
+    on(
+      [
+        () => params.namespace,
+        () => terraform()?.spec?.storeReadablePlan,
+        () => terraform()?.status?.plan?.lastApplied,
+        () => terraform()?.metadata?.name,
+        () => apiResourceStore.contextInfo?.current,
+      ],
+      async ([_ns, _mode, _lastApplied, _name, _ctx]) => {
+        const ns = _ns;
+        const mode = _mode;
+        const tf = untrack(() => terraform());
+        if (!tf || !ns) return;
+        if (!mode || mode === 'none') return;
+        const expected = expectedPlanObjectName(tf).name;
+        const preferred = expected;
+        if (!preferred) return;
+
+        if (mode === 'human') {
+          try {
+            const ctxName = _ctx ? encodeURIComponent(_ctx) : '';
+            const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+            const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/configmaps/${preferred}`);
+            if (resp.ok) {
+              const cm = await resp.json();
+              setPlanConfigMap({ data: cm.data, binaryData: cm.binaryData });
+            }
+          } catch (_e) { /* ignore */ }
+        } else if (mode === 'json') {
+          try {
+            const ctxName = _ctx ? encodeURIComponent(_ctx) : '';
+            const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+            const resp = await fetch(`${k8sPrefix}/api/v1/namespaces/${ns}/secrets/${preferred}`);
+            if (resp.ok) {
+              const sec = await resp.json();
+              setPlanSecret({ data: sec.data, stringData: sec.stringData });
+            }
+          } catch (_e) { /* ignore */ }
+        }
+      },
+      { defer: true }
+    )
+  );
 
   // Compute permissions
   createEffect(() => {
@@ -202,6 +281,7 @@ export function TerraformDetails() {
     untrack(() => {
       watchControllers().forEach((c) => c.abort());
     });
+    clearRunnerRetry();
   });
 
   const setupWatches = (ns: string, name: string) => {
@@ -215,7 +295,7 @@ export function TerraformDetails() {
 
     // Resolve API path and plural for Terraform dynamically
     const tfApi = (apiResourceStore.apiResources || []).find(r => r.group === 'infra.contrib.fluxcd.io' && r.kind === 'Terraform');
-    const baseApiPath = tfApi?.apiPath || '/k8s/apis/infra.contrib.fluxcd.io/v1alpha1';
+    const baseApiPath = tfApi?.apiPath || '/k8s/apis/infra.contrib.fluxcd.io/v1alpha2';
     const pluralName = tfApi?.name || 'terraforms';
 
     // Watch Terraform resources in namespace
@@ -290,8 +370,10 @@ export function TerraformDetails() {
         const obj = event.object;
         if (!obj || obj.metadata.namespace !== ns) return;
         const tfCurrent = terraform();
-        const outputsSecretName = tfCurrent?.spec?.writeOutputsToSecret?.name || tfCurrent?.status?.availableOutputs;
-        const planSecretName = tfCurrent?.status?.plan?.lastApplied || (expectedPlanObjectName(tfCurrent).isJson ? expectedPlanObjectName(tfCurrent).name || undefined : undefined);
+        const outputsField = tfCurrent?.status?.availableOutputs;
+        const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+        const outputsSecretName = tfCurrent?.spec?.writeOutputsToSecret?.name || outputsName;
+        const planSecretName = (expectedPlanObjectName(tfCurrent).isJson ? expectedPlanObjectName(tfCurrent).name || undefined : undefined);
 
         if (planSecretName && obj.metadata.name === planSecretName) {
           if (event.type === 'DELETED') {
@@ -467,17 +549,56 @@ export function TerraformDetails() {
                         <span class="value">Pending</span>
                       </div>
                     )}
-                    {(tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs) && (
+                    {(() => {
+                      const outputsField = tf().status?.availableOutputs;
+                      const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+                      return (tf().spec?.writeOutputsToSecret?.name || outputsName);
+                    })() && (
                       <div class="info-item">
                         <span class="label">Outputs Secret:</span>
-                        <span class="value">{tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs}</span>
+                        <span class="value">{tf().spec?.writeOutputsToSecret?.name || (Array.isArray(tf().status?.availableOutputs) ? tf().status?.availableOutputs?.[0] : tf().status?.availableOutputs)}</span>
                       </div>
                     )}
-                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
+                    {(() => {
+                      const ready = tf().status?.conditions?.find((c) => c.type === 'Ready');
+                      const message = ready?.message || '';
+                      if (!message) return null;
+                      return (
+                        <div class="info-item" style={{ "grid-column": "4 / 10", "grid-row": "1 / 2" }} title={message}>
+                          <span class="label">Status:</span>
+                          <span class="value message-cell" style={{ "white-space": "pre-wrap" }}>{message}</span>
+                        </div>
+                      );
+                    })()}
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 2 / 5;">
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {(tf().events || []).sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
-                          <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: {event.message}</li>
+                          <li>
+                            <span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: 
+                            <span>
+                              {(() => {
+                                const msg = (event.message || '').replace(/[\r\n]+/g, ' ');
+                                const truncated = msg.length > 300;
+                                const shown = truncated ? msg.slice(0, 300) + '…' : msg;
+                                return (
+                                  <>
+                                    {shown}
+                                    {truncated && (
+                                      <button
+                                        class="inline-open-events"
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveTab('events'); }}
+                                        style={{ "margin-left": "6px", "font-size": "12px", "padding": "0", "border": "none", "background": "transparent", "text-decoration": "underline", "cursor": "pointer" }}
+                                        title="Open events"
+                                      >
+                                        open events..
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </span>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -531,14 +652,37 @@ export function TerraformDetails() {
                       <span>
                         Output{(() => {
                           const t = terraform();
-                          const name = t?.spec?.writeOutputsToSecret?.name || t?.status?.availableOutputs;
+                          const outputsField = t?.status?.availableOutputs;
+                          const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+                          const name = t?.spec?.writeOutputsToSecret?.name || outputsName;
                           return name ? ` (Secret: ${name})` : '';
                         })()}
+                      </span>
+                    ) },
+                    { key: 'events', label: (
+                      <span>
+                        Events{(() => {
+                          const t = terraform();
+                          const count = (t?.events || []).length;
+                          return count ? ` (${count})` : '';
+                        })()}
+                      </span>
+                    ) },
+                    { key: 'runner', label: (
+                      <span>
+                        Runner logs
                       </span>
                     ) }
                   ]}
                   activeKey={activeTab()}
-                  onChange={(k) => setActiveTab(k as 'plan' | 'output')}
+                  onChange={(k) => {
+                    setActiveTab(k as 'plan' | 'output' | 'events' | 'runner');
+                    if (k === 'runner') {
+                      fetchRunnerPodOnce();
+                    } else {
+                      clearRunnerRetry();
+                    }
+                  }}
                   style={{ "margin-top": "12px" }}
                 />
 
@@ -555,9 +699,14 @@ export function TerraformDetails() {
     return c?.message || '';
   })();
 
-  // If user has not enabled readable plan
+  // If user has not enabled readable plan, still surface pending info/ready message (e.g. S3 backend)
   if (!tf?.spec?.storeReadablePlan || tf.spec.storeReadablePlan === 'none') {
-    return `no readable plan available\nplease set spec.storeReadablePlan to either 'human' or 'json'`;
+    const pendingId = tf?.status?.plan?.pending;
+    if (pendingId) {
+      return `A plan is pending approval (ID: ${pendingId}).\nNo readable plan is stored because spec.storeReadablePlan is 'none'.\nUse the Approve button above to approve the plan.`;
+    }
+    if (readyMsg) return readyMsg || 'No plan information available';
+    return 'There is no readable plan stored (spec.storeReadablePlan is none).';
   }
 
   // Render based on mode
@@ -638,7 +787,9 @@ export function TerraformDetails() {
                         <pre class="conditions-yaml">
 {(() => {
   const sec = outputsSecret();
-  const secretName = tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs;
+  const outputsField = tf().status?.availableOutputs;
+  const outputsName = Array.isArray(outputsField) ? outputsField[0] : outputsField;
+  const secretName = tf().spec?.writeOutputsToSecret?.name || outputsName;
   if (!secretName) return 'No outputs secret configured';
   if (!sec || (!sec.data && !sec.stringData)) return `Secret ${secretName} not found`;
   const decoded: Record<string, string> = {};
@@ -660,6 +811,32 @@ export function TerraformDetails() {
   return stringifyYAML(decoded);
 })()}
                         </pre>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={activeTab() === 'events'}>
+                  <div class="resource-tree-wrapper">
+                    <div class="info-grid">
+                      <div class="info-item full-width">
+                        <div class="terraform-events-wrapper">
+                          <EventList events={(terraform()?.events || []) as Event[]} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={activeTab() === 'runner'}>
+                  <div class="resource-tree-wrapper">
+                    <div class="info-grid">
+                      <div class="info-item full-width">
+                        <Show when={!runnerLoading()} fallback={<div class="drawer-loading">Loading...</div>}>
+                          <Show when={runnerPod()} fallback={<pre class="conditions-yaml">{runnerMessage() || 'Runner pod not found'}</pre>}>
+                            <LogsViewer resource={runnerPod()} isOpen={activeTab() === 'runner'} />
+                          </Show>
+                        </Show>
                       </div>
                     </div>
                   </div>
