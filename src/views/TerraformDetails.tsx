@@ -12,6 +12,7 @@ import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { Tabs } from "../components/Tabs.tsx";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
+import { EventList } from "../components/resourceList/EventList.tsx";
 
 export function TerraformDetails() {
   const params = useParams();
@@ -36,7 +37,7 @@ export function TerraformDetails() {
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
 
   // Tabs state
-  const [activeTab, setActiveTab] = createSignal<"plan" | "output" | "runner">("plan");
+  const [activeTab, setActiveTab] = createSignal<"plan" | "output" | "events" | "runner">("plan");
 
   // Runner logs state
   type K8sPod = { apiVersion: string; kind: string; metadata: { name: string; namespace: string }; spec?: Record<string, unknown>; status?: Record<string, unknown> };
@@ -541,7 +542,18 @@ export function TerraformDetails() {
                         <span class="value">{tf().spec?.writeOutputsToSecret?.name || tf().status?.availableOutputs}</span>
                       </div>
                     )}
-                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
+                    {(() => {
+                      const ready = tf().status?.conditions?.find((c) => c.type === 'Ready');
+                      const message = ready?.message || '';
+                      if (!message) return null;
+                      return (
+                        <div class="info-item" style={{ "grid-column": "4 / 10", "grid-row": "1 / 2" }} title={message}>
+                          <span class="label">Status:</span>
+                          <span class="value message-cell">{message}</span>
+                        </div>
+                      );
+                    })()}
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 2 / 5;">
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {(tf().events || []).sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
@@ -604,6 +616,15 @@ export function TerraformDetails() {
                         })()}
                       </span>
                     ) },
+                    { key: 'events', label: (
+                      <span>
+                        Events{(() => {
+                          const t = terraform();
+                          const count = (t?.events || []).length;
+                          return count ? ` (${count})` : '';
+                        })()}
+                      </span>
+                    ) },
                     { key: 'runner', label: (
                       <span>
                         Runner logs
@@ -612,7 +633,7 @@ export function TerraformDetails() {
                   ]}
                   activeKey={activeTab()}
                   onChange={(k) => {
-                    setActiveTab(k as 'plan' | 'output' | 'runner');
+                    setActiveTab(k as 'plan' | 'output' | 'events' | 'runner');
                     if (k === 'runner') {
                       fetchRunnerPodOnce();
                     } else {
@@ -740,6 +761,18 @@ export function TerraformDetails() {
   return stringifyYAML(decoded);
 })()}
                         </pre>
+                      </div>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={activeTab() === 'events'}>
+                  <div class="resource-tree-wrapper">
+                    <div class="info-grid">
+                      <div class="info-item full-width">
+                        <div class="terraform-events-wrapper">
+                          <EventList events={(terraform()?.events || []) as Event[]} />
+                        </div>
                       </div>
                     </div>
                   </div>
