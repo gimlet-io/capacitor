@@ -32,7 +32,7 @@ export function EventList(props: { events: Event[] }) {
               <div class="event-object">
                 {event.involvedObject.kind}/{event.involvedObject.name}
               </div>
-              <div class="event-message">{(event.message || '').replace(/[\r\n]+/g, ' ').slice(0, 300)}</div>
+              <div class="event-message">{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</div>
               <div class="event-timestamp">
                 {new Date(event.lastTimestamp).toLocaleString()}
               </div>
@@ -128,8 +128,8 @@ export const eventColumns = [
   {
     header: "MESSAGE",
     width: "42%",
-    accessor: (event: Event) => <span>{(event.message || '').replace(/[\r\n]+/g, ' ').slice(0, 300)}</span>,
-    title: (event: Event) => (event.message || '').replace(/[\r\n]+/g, ' ').slice(0, 300),
+    accessor: (event: Event) => <span>{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</span>,
+    title: (event: Event) => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; },
   },
   {
     header: "SOURCE",
