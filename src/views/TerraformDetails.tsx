@@ -549,7 +549,7 @@ export function TerraformDetails() {
                       return (
                         <div class="info-item" style={{ "grid-column": "4 / 10", "grid-row": "1 / 2" }} title={message}>
                           <span class="label">Status:</span>
-                          <span class="value message-cell">{message}</span>
+                          <span class="value message-cell" style={{ "white-space": "pre-wrap" }}>{message}</span>
                         </div>
                       );
                     })()}
@@ -557,7 +557,31 @@ export function TerraformDetails() {
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {(tf().events || []).sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
-                          <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: <span>{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</span></li>
+                          <li>
+                            <span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: 
+                            <span>
+                              {(() => {
+                                const msg = (event.message || '').replace(/[\r\n]+/g, ' ');
+                                const truncated = msg.length > 300;
+                                const shown = truncated ? msg.slice(0, 300) + '…' : msg;
+                                return (
+                                  <>
+                                    {shown}
+                                    {truncated && (
+                                      <button
+                                        class="inline-open-events"
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveTab('events'); }}
+                                        style={{ "margin-left": "6px", "font-size": "12px", "padding": "0", "border": "none", "background": "transparent", "text-decoration": "underline", "cursor": "pointer" }}
+                                        title="Open events"
+                                      >
+                                        open events..
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </span>
+                          </li>
                         ))}
                       </ul>
                     </div>
