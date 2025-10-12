@@ -32,7 +32,7 @@ export function EventList(props: { events: Event[] }) {
               <div class="event-object">
                 {event.involvedObject.kind}/{event.involvedObject.name}
               </div>
-              <div class="event-message">{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</div>
+              <div class="event-message" style={{ "white-space": "pre-wrap" }}>{event.message || ''}</div>
               <div class="event-timestamp">
                 {new Date(event.lastTimestamp).toLocaleString()}
               </div>

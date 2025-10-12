@@ -215,8 +215,8 @@ h1 {
 }
 
 .events-container {
-  max-height: 400px;
-  overflow-y: auto;
+  max-height: none; /* let events grow */
+  overflow: visible; /* page scrolls instead of inner container */
 }
 
 .event-item {
@@ -269,7 +269,7 @@ h1 {
 }
 
 .event-message {
-  color: var(--linear-text-tertiary);
+  color: var(--linear-text-secondary);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }

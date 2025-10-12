@@ -6,7 +6,8 @@ export const enum ConditionType {
   Ready = "Ready",
   Healthy = "Healthy",
   Reconciling = "Reconciling",
-  Stalled = "Stalled"
+  Stalled = "Stalled",
+  Plan = "Plan"
 }
 
 export const enum ConditionStatus {
