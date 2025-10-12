@@ -296,6 +296,7 @@ export function ResourceList<T>(props: {
   const apiStore = useApiResourceStore();
 
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
+  const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
@@ -327,6 +328,7 @@ export function ResourceList<T>(props: {
     // Only used for reactive dependency
     void key;
     setSelectedIndex(-1);
+    setSelectedKey(null);
     setDrawerOpen(false);
     setSelectedResource(null);
     setActiveTab("describe");
@@ -379,8 +381,26 @@ export function ResourceList<T>(props: {
     return slice;
   });
 
+  type KeyableResource = {
+    kind?: string;
+    apiVersion?: string;
+    metadata?: { uid?: string; namespace?: string; name?: string };
+  };
+
+  const getResourceKey = (resource: KeyableResource): string => {
+    // Prefer UID if available; otherwise compose a stable key
+    const uid = resource?.metadata?.uid;
+    if (uid) return String(uid);
+    const kind = String(resource?.kind || "");
+    const apiVersion = String(resource?.apiVersion || "");
+    const namespace = String(resource?.metadata?.namespace || "");
+    const name = String(resource?.metadata?.name || "");
+    return `${apiVersion}|${kind}|${namespace}|${name}`;
+  };
+
   const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: T) => {
     setSelectedResource(() => resource);
+    setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
     setActiveTab(tab);
     setDrawerOpen(true);
   };
@@ -619,9 +639,28 @@ export function ResourceList<T>(props: {
 
   // Keep selectedResource in sync with selectedIndex for accurate permission checks
   createEffect(() => {
+    const resources = sortedResources();
+    const key = selectedKey();
+    if (key) {
+      const idx = resources.findIndex(r => getResourceKey(r as unknown as KeyableResource) === key);
+      if (idx !== -1) {
+        if (selectedIndex() !== idx) setSelectedIndex(idx);
+        setSelectedResource(() => resources[idx]);
+        return;
+      } else {
+        // Selected resource disappeared; clear key and fall back to index selection
+        setSelectedKey(null);
+      }
+    }
+
     const index = selectedIndex();
-    if (index >= 0 && index < sortedResources().length) {
-      setSelectedResource(() => sortedResources()[index]);
+    if (index >= 0 && index < resources.length) {
+      const res = resources[index];
+      setSelectedResource(() => res);
+      // Ensure key follows current selection when navigating by index
+      setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+    } else {
+      setSelectedResource(null);
     }
   });
 
@@ -767,6 +806,7 @@ export function ResourceList<T>(props: {
                 const handleClick = () => {
                   setSelectedIndex(globalIndex());
                   setSelectedResource(() => resource);
+                  setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
                 };
                 
                 return (
