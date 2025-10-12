@@ -506,8 +506,6 @@ export function KustomizationDetails() {
       },
     }); 
 
-    // Events are provided via extraWatches (see resourceTypeConfigs 'core/Event')
-
     // Cluster-wide watch to maintain a full list of Kustomizations for dependency graph
     watches.push({
       path: `/k8s/apis/kustomize.toolkit.fluxcd.io/v1/kustomizations?watch=true`,
