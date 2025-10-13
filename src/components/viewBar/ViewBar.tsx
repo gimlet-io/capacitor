@@ -97,6 +97,14 @@ export function ViewBar(props: ViewBarProps) {
   
   onMount(() => {
     loadViews();
+    try {
+      const handler: EventListener = () => loadViews();
+      // store handler on window for cleanup without using `any`
+      (globalThis as unknown as { __customViewsHandler?: EventListener }).__customViewsHandler = handler;
+      globalThis.addEventListener('custom-views-changed', handler);
+    } catch {
+      // ignore
+    }
   });
   
   const loadViews = () => {
@@ -233,6 +241,14 @@ export function ViewBar(props: ViewBarProps) {
 
   onCleanup(() => {
     globalThis.removeEventListener('keydown', handleKeyDown);
+    try {
+      const handler = (globalThis as unknown as { __customViewsHandler?: EventListener }).__customViewsHandler;
+      if (handler) {
+        globalThis.removeEventListener('custom-views-changed', handler);
+      }
+    } catch {
+      // ignore
+    }
   });
 
   // Unselect view when filters are manually changed and don't match the selected view
@@ -309,7 +325,24 @@ export function ViewBar(props: ViewBarProps) {
                 <button
                   class={`view-pill ${filterStore.selectedView === view.id ? 'selected' : ''}`}
                   onClick={() => selectView(view.id)}
+                  style={{ position: 'relative' }}
                 >
+                  {_index() < 9 && (
+                    <span
+                      class="view-shortcut-number"
+                      style={{
+                        position: 'absolute',
+                        right: '6px',
+                        bottom: '4px',
+                        opacity: 0.5,
+                        "font-size": '0.8em',
+                        "pointer-events": 'none'
+                      }}
+                      aria-hidden="true"
+                    >
+                      {_index() + 1}
+                    </span>
+                  )}
                   <span>{view.label}</span>
                   {filterStore.selectedView === view.id && !view.isSystem && (
                     <span 

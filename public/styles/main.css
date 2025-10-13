@@ -1090,7 +1090,7 @@ td.message-cell {
   display: flex;
   align-items: center; /* Center items vertically */
   justify-content: space-between; /* Space between label and delete icon */
-  padding: 0.3rem 1rem;
+  padding: 0.3rem calc(1rem + 2px);
   border-radius: 5px;
   background-color: var(--linear-bg);
   color: var(--linear-text-secondary);
