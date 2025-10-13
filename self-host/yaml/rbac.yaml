@@ -18,5 +18,5 @@ roleRef:
   name: impersonator
 subjects:
   - kind: ServiceAccount
-    name: capacitor-next
+    name: capacitor-next-builtin-editor
     namespace: flux-system
