@@ -7,6 +7,7 @@ import type { Event } from "../../types/k8s.ts";
 import { stringify } from "@std/yaml";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { Tabs } from "../Tabs.tsx";
+import hljs from "highlight.js";
 
 type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec";
 
@@ -19,6 +20,7 @@ export function ResourceDrawer(props: {
   const [activeTab, setActiveTab] = createSignal<DrawerTab>(props.initialTab || "describe");
   const [describeData, setDescribeData] = createSignal<string>("");
   const [yamlData, setYamlData] = createSignal<string>("");
+  const [yamlHtml, setYamlHtml] = createSignal<string>("");
   const [events, setEvents] = createSignal<Event[]>([]);
   const [loading, setLoading] = createSignal<boolean>(true);
   const apiResourceStore = useApiResourceStore();
@@ -124,10 +126,18 @@ export function ResourceDrawer(props: {
       }
       
       const data = await response.json();
-      setYamlData(stringify(data));
+      const yamlText = stringify(data);
+      setYamlData(yamlText);
+      try {
+        const { value } = hljs.highlight(yamlText, { language: "yaml" });
+        setYamlHtml(value);
+      } catch (_) {
+        setYamlHtml("");
+      }
     } catch (error) {
       console.error("Error fetching YAML data:", error);
       setYamlData(`Error fetching YAML data: ${error instanceof Error ? error.message : String(error)}`);
+      setYamlHtml("");
     } finally {
       setLoading(false);
       // Focus the yaml content after loading
@@ -323,7 +333,9 @@ export function ResourceDrawer(props: {
                 <div class="drawer-loading">Loading...</div>
               </Show>
               <Show when={!loading()}>
-                <pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;">{yamlData()}</pre>
+                <Show when={yamlHtml()} fallback={<pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;">{yamlData()}</pre>}>
+                  <pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;"><code class="hljs language-yaml" innerHTML={yamlHtml()!}></code></pre>
+                </Show>
               </Show>
             </Show>
             
