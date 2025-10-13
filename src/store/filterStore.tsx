@@ -200,7 +200,6 @@ export function FilterProvider(props: { children: JSX.Element }) {
   // Filter history management
   const addToHistory = (filters: ActiveFilter[], viewId: string) => {
     if (isNavigating()) return; // Don't add to history when navigating
-    if (filters.length === 0) return;
 
     untrack(() => {
       const current = filterHistory();
@@ -412,6 +411,9 @@ export function FilterProvider(props: { children: JSX.Element }) {
       setSortAscending(urlState.sortAscending);
     }
     setIsInitialized(true);
+    
+    // Add initial state to history
+    addToHistory(activeFilters(), selectedView());
 
     // Handle browser back/forward navigation
     const handlePopState = () => {
