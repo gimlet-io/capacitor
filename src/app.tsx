@@ -1,5 +1,6 @@
 import { render } from "solid-js/web";
 import { HashRouter, Route } from "@solidjs/router";
+import { onCleanup, onMount } from "solid-js";
 import { KustomizationDetails } from "./views/kustomizationDetails.tsx";
 import { HelmReleaseDetails } from "./views/helmReleaseDetails.tsx";
 import { TerraformDetails } from "./views/TerraformDetails.tsx";
@@ -12,8 +13,18 @@ import { ApiResourceProvider } from "./store/apiResourceStore.tsx";
 import { ErrorProvider } from "./store/errorStore.tsx";
 import { UpdateNotice } from "./components/UpdateNotice.tsx";
 import { applyTheme, fetchDefaultTheme, loadInitialTheme } from "./utils/theme.ts";
+import { keyboardManager } from "./utils/keyboardManager.ts";
 
 function App() {
+  // Initialize centralized keyboard manager
+  onMount(() => {
+    keyboardManager.setup();
+  });
+  
+  onCleanup(() => {
+    keyboardManager.cleanup();
+  });
+  
   // Apply theme early
   const storedTheme = loadInitialTheme();
   applyTheme(storedTheme);

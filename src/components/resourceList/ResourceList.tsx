@@ -1,7 +1,8 @@
-import { For, createSignal, onMount, onCleanup, createEffect, createMemo } from "solid-js";
+import { For, createSignal, onMount, onCleanup, createEffect, createMemo, untrack } from "solid-js";
 import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
+import { keyboardManager } from "../../utils/keyboardManager.ts";
 import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
@@ -551,32 +552,9 @@ export function ResourceList<T>(props: {
     }
   };
 
-  const shouldIgnoreKeyboardEvents = () => {
-    // Ignore keyboard events when:
-    // 1. Any input element is focused
-    // 2. Any .filter-options element is visible in the DOM
-    if (document.activeElement instanceof HTMLInputElement || 
-        document.activeElement instanceof HTMLTextAreaElement) {
-      return true;
-    }
-    
-    // Check if any filter dropdown is open
-    const openFilterOptions = document.querySelector('.filter-options');
-    if (openFilterOptions) {
-      return true;
-    }
-    
-    return false;
-  };
-
   // Generic function to handle keyboard shortcuts by mapping keys to commands and built-in actions
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (sortedResources().length === 0) return;
-    
-    // Don't process keyboard shortcuts if we should ignore them
-    if (shouldIgnoreKeyboardEvents()) {
-      return;
-    }
+  const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (sortedResources().length === 0) return false;
 
     // Handle navigation keys first (these don't need a selected resource)
     if (e.key === 'ArrowDown') {
@@ -585,28 +563,28 @@ export function ResourceList<T>(props: {
         const newIndex = prev === -1 ? 0 : Math.min(prev + 1, sortedResources().length - 1);
         return newIndex;
       });
-      return;
+      return true; // Stop propagation
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(prev => {
         const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
         return newIndex;
       });
-      return;
+      return true;
     } else if (e.key === 'PageDown') {
       e.preventDefault();
       setSelectedIndex(prev => {
         const newIndex = prev === -1 ? 0 : Math.min(prev + 20, sortedResources().length - 1);
         return newIndex;
       });
-      return;
+      return true;
     } else if (e.key === 'PageUp') {
       e.preventDefault();
       setSelectedIndex(prev => {
         const newIndex = prev === -1 ? 0 : Math.max(prev - 20, 0);
         return newIndex;
       });
-      return;
+      return true;
     } else if (e.key === 'Enter') {
       e.preventDefault();
       // Find the Enter command
@@ -614,18 +592,21 @@ export function ResourceList<T>(props: {
       if (enterCommand) {
         executeCommand(enterCommand);
       }
-      return;
+      return true;
     }
 
     // For all other keys, check if there's a resource selected
-    if (selectedIndex() === -1) return;
+    if (selectedIndex() === -1) return false;
 
     // Find and execute the command
     const command = findCommand(e);
     if (command) {
       e.preventDefault();
       executeCommand(command);
+      return true;
     }
+    
+    return false;
   };
 
   // Reset selectedIndex when filtered results change
@@ -640,27 +621,21 @@ export function ResourceList<T>(props: {
   // Keep selectedResource in sync with selectedIndex for accurate permission checks
   createEffect(() => {
     const resources = sortedResources();
-    const key = selectedKey();
-    if (key) {
-      const idx = resources.findIndex(r => getResourceKey(r as unknown as KeyableResource) === key);
-      if (idx !== -1) {
-        if (selectedIndex() !== idx) setSelectedIndex(idx);
-        setSelectedResource(() => resources[idx]);
-        return;
-      } else {
-        // Selected resource disappeared; clear key and fall back to index selection
-        setSelectedKey(null);
-      }
-    }
-
     const index = selectedIndex();
+    
     if (index >= 0 && index < resources.length) {
       const res = resources[index];
       setSelectedResource(() => res);
-      // Ensure key follows current selection when navigating by index
-      setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+      // Update key without triggering this effect again
+      untrack(() => {
+        const newKey = getResourceKey(res as unknown as KeyableResource);
+        if (selectedKey() !== newKey) {
+          setSelectedKey(newKey);
+        }
+      });
     } else {
       setSelectedResource(null);
+      untrack(() => setSelectedKey(null));
     }
   });
 
@@ -729,7 +704,14 @@ export function ResourceList<T>(props: {
   };
 
   onMount(() => {
-    globalThis.addEventListener('keydown', handleKeyDown);
+    // Register with centralized keyboard manager (priority 3 = resource navigation)
+    const unregister = keyboardManager.register({
+      id: 'resource-list',
+      priority: 3,
+      handler: handleKeyDown,
+      ignoreInInput: true
+    });
+    
     const container = listContainer();
     if (container) {
       const onScroll = () => {
@@ -742,15 +724,15 @@ export function ResourceList<T>(props: {
       // Save cleanup on element
       (container as any).__onScroll = onScroll;
     }
-  });
-
-  onCleanup(() => {
-    globalThis.removeEventListener('keydown', handleKeyDown);
-    const container = listContainer();
-    if (container && (container as any).__onScroll) {
-      container.removeEventListener('scroll', (container as any).__onScroll);
-      delete (container as any).__onScroll;
-    }
+    
+    onCleanup(() => {
+      unregister();
+      const container = listContainer();
+      if (container && (container as any).__onScroll) {
+        container.removeEventListener('scroll', (container as any).__onScroll);
+        delete (container as any).__onScroll;
+      }
+    });
   });
 
   return (

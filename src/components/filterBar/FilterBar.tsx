@@ -4,6 +4,7 @@ import { untrack } from "solid-js";
 import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { doesEventMatchShortcut, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
+import { keyboardManager } from "../../utils/keyboardManager.ts";
 
 export type FilterOption = {
   label: string;
@@ -318,32 +319,36 @@ export function FilterBar(props: {
   };
 
   // Global keyboard shortcuts handler
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent): boolean | void => {
     // Always allow history navigation regardless of focused element
     if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
       e.preventDefault();
       filterStore.goBack();
-      return;
+      return true;
     }
     if (doesEventMatchShortcut(e, 'mod+arrowright')) {
       e.preventDefault();
       filterStore.goForward();
-      return;
+      return true;
     }
 
     // Only handle other shortcuts when user is not typing in inputs
     if (e.target instanceof HTMLInputElement || 
         e.target instanceof HTMLTextAreaElement) {
-      return;
+      return false;
     }
     
     if (e.key === "n" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       openFilter("Namespace");
+      return true;
     } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       openFilter("ResourceType");
+      return true;
     }
+    
+    return false;
   };
 
   // Set up click outside handler
@@ -355,14 +360,18 @@ export function FilterBar(props: {
     }
   });
 
-  // Clean up event listener when component unmounts
-  onCleanup(() => {
-    document.removeEventListener('click', handleClickOutside);
-    window.removeEventListener('keydown', handleKeyDown);
-  });
-
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
+    // Register with centralized keyboard manager (priority 1 = filter navigation)
+    const unregister = keyboardManager.register({
+      id: 'filter-bar',
+      priority: 1,
+      handler: handleKeyDown
+    });
+    
+    onCleanup(() => {
+      unregister();
+      document.removeEventListener('click', handleClickOutside);
+    });
   });
 
   // Initialize text input values from active filters

@@ -2,6 +2,7 @@ import { onCleanup, createEffect, createSignal, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { ThemeName } from "../../utils/theme.ts";
 import { getShortcutPrefix, setShortcutPrefix } from "../../utils/shortcuts.ts";
+import { keyboardManager } from "../../utils/keyboardManager.ts";
 
 export function SettingsModal(props: {
   open: boolean;
@@ -35,24 +36,30 @@ export function SettingsModal(props: {
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!props.open) return;
+  const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (!props.open) return false;
+    
     if (e.key === 'Escape') {
       e.preventDefault();
       props.onClose();
+      return true;
     }
+    
+    return false;
   };
 
   createEffect(() => {
     if (props.open) {
-      globalThis.addEventListener('keydown', handleKeyDown);
-    } else {
-      globalThis.removeEventListener('keydown', handleKeyDown);
+      // Register with highest priority (0) when modal is open
+      const unregister = keyboardManager.register({
+        id: 'settings-modal',
+        priority: 0,
+        handler: handleKeyDown
+      });
+      onCleanup(() => {
+        unregister();
+      });
     }
-  });
-
-  onCleanup(() => {
-    globalThis.removeEventListener('keydown', handleKeyDown);
   });
 
   if (!props.open) return null;

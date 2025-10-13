@@ -14,7 +14,9 @@ export function isMacPlatform(): boolean {
 }
 
 export function getDefaultShortcutPrefix(): ShortcutPrefix {
-  return isMacPlatform() ? 'Ctrl+Shift' : 'Ctrl';
+  // Use Ctrl+Shift on all platforms - avoids browser conflicts
+  // (browser tabs, bookmarks, word navigation, etc.)
+  return 'Ctrl+Shift';
 }
 
 function normalizeToken(token: string): 'Ctrl' | 'Alt' | 'Meta' | 'Shift' | null {
@@ -101,12 +103,7 @@ export function doesEventMatchShortcut(e: KeyboardEvent, shortcutKey: string): b
   const keyPart = keyPartRaw;
   let modifierOk = false;
   if (prefix === 'mod') {
-    // Try the configured prefix first, then allow common platform variants
-    const configured = getShortcutPrefix();
-    const candidates: ShortcutPrefix[] = [configured];
-    if (!candidates.includes('Meta')) candidates.push('Meta');
-    if (!candidates.includes('Ctrl')) candidates.push('Ctrl');
-    modifierOk = candidates.some(c => eventMatchesPrefix(e, c));
+    modifierOk = eventMatchesPrefix(e, getShortcutPrefix());
   } else {
     const explicit = normalizePrefixString(prefix);
     modifierOk = eventMatchesPrefix(e, explicit);
