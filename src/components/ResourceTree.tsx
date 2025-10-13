@@ -7,6 +7,7 @@ import { KeyboardShortcuts, KeyboardShortcut } from "./keyboardShortcuts/Keyboar
 import { useNavigate } from "@solidjs/router";
 import { resourceTypeConfigs, ResourceCommand, ResourceTypeConfig, ResourceCardRenderer } from "../resourceTypeConfigs.tsx";
 import { builtInCommands, replaceHandlers } from "./resourceList/ResourceList.tsx";
+import { keyboardManager } from "../utils/keyboardManager.ts";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 
 // Helper function to determine resource type from resource object
@@ -309,7 +310,7 @@ export function ResourceTree(props: ResourceTreeProps) {
       }
     }
     if (!rootId) {
-      const firstResourceNodeId = allNodeIds.find(id => !!(graph.node(id) as NodeData)?.resource);
+      const firstResourceNodeId = allNodeIds.find((id: string) => !!(graph.node(id) as NodeData)?.resource);
       if (firstResourceNodeId) rootId = firstResourceNodeId;
     }
 
@@ -380,33 +381,10 @@ export function ResourceTree(props: ResourceTreeProps) {
     }
   };
 
-  const shouldIgnoreKeyboardEvents = () => {
-    // Ignore keyboard events when:
-    // 1. Any input element is focused
-    // 2. Any .filter-options element is visible in the DOM
-    if (document.activeElement instanceof HTMLInputElement || 
-        document.activeElement instanceof HTMLTextAreaElement) {
-      return true;
-    }
-    
-    // Check if any filter dropdown is open
-    const openFilterOptions = document.querySelector('.filter-options');
-    if (openFilterOptions) {
-      return true;
-    }
-    
-    return false;
-  };
-
   // Handle keyboard shortcuts
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent): boolean | void => {
     const nodes = resourceNodes();
-    if (nodes.length === 0) return;
-    
-    // Don't process keyboard shortcuts if we should ignore them
-    if (shouldIgnoreKeyboardEvents()) {
-      return;
-    }
+    if (nodes.length === 0) return false;
 
     // Handle navigation keys first
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
@@ -418,7 +396,7 @@ export function ResourceTree(props: ResourceTreeProps) {
         setSelectedNodeId(nextNode.id);
         setSelectedResource(nextNode.resource);
       }
-      return;
+      return true;
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
       e.preventDefault();
       const currentIndex = selectedNodeId() ? nodes.findIndex((n: ResourceNode) => n.id === selectedNodeId()) : -1;
@@ -428,7 +406,7 @@ export function ResourceTree(props: ResourceTreeProps) {
         setSelectedNodeId(prevNode.id);
         setSelectedResource(prevNode.resource);
       }
-      return;
+      return true;
     } else if (e.key === 'Enter') {
       e.preventDefault();
       // Find the Enter command
@@ -436,18 +414,21 @@ export function ResourceTree(props: ResourceTreeProps) {
       if (enterCommand) {
         executeCommand(enterCommand);
       }
-      return;
+      return true;
     }
 
     // For all other keys, check if there's a resource selected
-    if (!selectedNodeId()) return;
+    if (!selectedNodeId()) return false;
 
     // Find and execute the command
     const command = findCommand(e);
     if (command) {
       e.preventDefault();
       executeCommand(command);
+      return true;
     }
+    
+    return false;
   };
 
   // Handle click outside nodes to deselect
@@ -672,25 +653,32 @@ export function ResourceTree(props: ResourceTreeProps) {
   });
 
   onMount(() => {
-    globalThis.addEventListener('keydown', handleKeyDown);
+    // Register with centralized keyboard manager (priority 3 = resource navigation)
+    const unregister = keyboardManager.register({
+      id: 'resource-tree',
+      priority: 3,
+      handler: handleKeyDown,
+      ignoreInInput: true
+    });
+    
     if (svgRef) {
       svgRef.addEventListener('click', handleSvgClick);
       svgRef.addEventListener('mousedown', handleMouseDown);
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     }
-  });
-
-  onCleanup(() => {
-    globalThis.removeEventListener('keydown', handleKeyDown);
-    if (svgRef) {
-      svgRef.removeEventListener('click', handleSvgClick);
-      svgRef.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    }
-    // Make sure to restore scrolling in case component is unmounted while drawer is open
-    document.body.style.overflow = '';
+    
+    onCleanup(() => {
+      unregister();
+      if (svgRef) {
+        svgRef.removeEventListener('click', handleSvgClick);
+        svgRef.removeEventListener('mousedown', handleMouseDown);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      }
+      // Make sure to restore scrolling in case component is unmounted while drawer is open
+      document.body.style.overflow = '';
+    });
   });
 
   return (

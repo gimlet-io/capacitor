@@ -6,6 +6,7 @@ import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
 import { SettingsModal } from "../settings/SettingsModal.tsx";
 import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix } from "../../utils/shortcuts.ts";
+import { keyboardManager } from "../../utils/keyboardManager.ts";
 
 export interface View {
   id: string;
@@ -206,19 +207,13 @@ export function ViewBar(props: ViewBarProps) {
   };
 
   // Handle view keyboard shortcuts
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!doesEventMatchShortcut(e, 'mod+1') &&
-        !doesEventMatchShortcut(e, 'mod+2') &&
-        !doesEventMatchShortcut(e, 'mod+3') &&
-        !doesEventMatchShortcut(e, 'mod+4') &&
-        !doesEventMatchShortcut(e, 'mod+5') &&
-        !doesEventMatchShortcut(e, 'mod+6') &&
-        !doesEventMatchShortcut(e, 'mod+7') &&
-        !doesEventMatchShortcut(e, 'mod+8') &&
-        !doesEventMatchShortcut(e, 'mod+9')) {
-      return;
+  const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    // Early exit: if no modifiers are pressed, don't bother checking shortcuts
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      return false;
     }
-
+    
+    // Only check if it's a digit key
     const code = e.code || '';
     let num: number | undefined;
     if (code.startsWith('Digit')) {
@@ -229,26 +224,41 @@ export function ViewBar(props: ViewBarProps) {
       const parsed = parseInt(e.key);
       num = isNaN(parsed) ? undefined : parsed;
     }
-    if (num && num >= 1 && num <= 9) {
+    
+    if (!num || num < 1 || num > 9) {
+      return false;
+    }
+    
+    // Now check if it matches the configured shortcut
+    if (doesEventMatchShortcut(e, `mod+${num}`)) {
       e.preventDefault();
       selectViewByIndex(num - 1);
+      return true;
     }
+    
+    return false;
   };
 
   onMount(() => {
-    globalThis.addEventListener('keydown', handleKeyDown);
-  });
-
-  onCleanup(() => {
-    globalThis.removeEventListener('keydown', handleKeyDown);
-    try {
-      const handler = (globalThis as unknown as { __customViewsHandler?: EventListener }).__customViewsHandler;
-      if (handler) {
-        globalThis.removeEventListener('custom-views-changed', handler);
+    // Register with centralized keyboard manager (priority 2 = view switching)
+    const unregister = keyboardManager.register({
+      id: 'view-bar',
+      priority: 2,
+      handler: handleKeyDown,
+      ignoreInInput: true
+    });
+    
+    onCleanup(() => {
+      unregister();
+      try {
+        const handler = (globalThis as unknown as { __customViewsHandler?: EventListener }).__customViewsHandler;
+        if (handler) {
+          globalThis.removeEventListener('custom-views-changed', handler);
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
+    });
   });
 
   // Unselect view when filters are manually changed and don't match the selected view
