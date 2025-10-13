@@ -13,6 +13,7 @@
     "npm:esbuild-plugin-solid@0.6.0": "0.6.0_esbuild@0.25.9_solid-js@1.9.5__seroval@1.3.2_@babel+core@7.28.4",
     "npm:esbuild@0.25.9": "0.25.9",
     "npm:graphlib@2.1.8": "2.1.8",
+    "npm:highlight.js@11.9.0": "11.9.0",
     "npm:solid-js@1.9.5": "1.9.5_seroval@1.3.2",
     "npm:solid-js@1.9.9": "1.9.9_seroval@1.3.2",
     "npm:xterm-addon-fit@0.8.0": "0.8.0_xterm@5.3.0",
@@ -555,6 +556,9 @@
         "lodash"
       ]
     },
+    "highlight.js@11.9.0": {
+      "integrity": "sha512-fJ7cW7fQGCYAkgv4CPfwFHrfd/cLS4Hau96JuJ+ZTOWhjnhoeN1ub1tFmALm/+lW5z4WCAuAV9bm05AP0mS6Gw=="
+    },
     "html-entities@2.3.3": {
       "integrity": "sha512-DV5Ln36z34NNTDgnz0EWGBLZENelNAtkiFA4kyNOG2tDI6Mz1uSWiq1wAKdyjnJwyDiDO7Fa2SO1CTxPXL8VxA=="
     },
@@ -701,6 +705,7 @@
       "npm:@solidjs/router@0.10.0",
       "npm:dagre@0.8.5",
       "npm:graphlib@2.1.8",
+      "npm:highlight.js@11.9.0",
       "npm:solid-js@1.9.9",
       "npm:xterm-addon-fit@0.8.0",
       "npm:xterm@5.3.0"
