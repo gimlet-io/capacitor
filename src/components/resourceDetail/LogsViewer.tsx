@@ -73,6 +73,7 @@ export function LogsViewer(props: {
   const [wrapText, setWrapText] = createSignal<boolean>(true);
   const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
   const [showPodNames, setShowPodNames] = createSignal<boolean>(false);
+  const [jsonFormatUserOverride, setJsonFormatUserOverride] = createSignal<boolean>(false);
   
   // Search functionality
   const [searchQuery, setSearchQuery] = createSignal<string>("");
@@ -261,7 +262,9 @@ export function LogsViewer(props: {
       // Update the logs display with sorted lines
       const updateLogsDisplay = (containerLogEntries: LogEntry[]) => {
         containerLogEntries = sortLogEntriesByTimestamp(containerLogEntries);
-        setFormatJsonLogs(detectJsonLogs(containerLogEntries));
+        if (!jsonFormatUserOverride()) {
+          setFormatJsonLogs(detectJsonLogs(containerLogEntries));
+        }
         
         // Store for HTML rendering
         setFormattedLogEntries(containerLogEntries);
@@ -540,6 +543,7 @@ export function LogsViewer(props: {
 
   // Handle JSON formatting toggle
   const handleJsonFormattingToggle = () => {
+    setJsonFormatUserOverride(true);
     setFormatJsonLogs(!formatJsonLogs());
   };
 
@@ -1104,22 +1108,16 @@ const processLogLine = (
   
   // Try to detect and parse JSON in the log line
   try {
-    // First, try to find JSON object or array in the log line
-    const jsonMatch = logEntry.line.match(/(\{.*\}|\[.*\])/);
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[0];
+    // Only treat as JSON if the entire trimmed line is a JSON object or array
+    const trimmed = logEntry.line.trim();
+    const looksLikeWholeJson =
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"));
+
+    if (looksLikeWholeJson) {
       try {
-        logEntry.parsedJson = JSON.parse(jsonStr);
-      } catch (e) {
-        // Not valid JSON in the matched pattern
-      }
-    }
-    
-    // If no JSON found in pattern match, try parsing the entire line
-    if (!logEntry.parsedJson) {
-      try {
-        logEntry.parsedJson = JSON.parse(logEntry.line);
-      } catch (e) {
+        logEntry.parsedJson = JSON.parse(trimmed);
+      } catch (_e) {
         // Not valid JSON, continue without parsed content
       }
     }
