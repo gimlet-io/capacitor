@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { For } from "solid-js/web";
 import { createSignal } from "solid-js";
 import type { Event } from "../../types/k8s.ts";

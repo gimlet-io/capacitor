@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * K8sWebSocketClient handles communication with the Kubernetes proxy server
  * via WebSocket, allowing for efficient multiplexing of multiple resource watches.

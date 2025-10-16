@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Show, createEffect, createSignal } from "solid-js";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 

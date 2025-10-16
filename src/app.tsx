@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { render } from "solid-js/web";
 import { HashRouter, Route } from "@solidjs/router";
 import { onCleanup, onMount } from "solid-js";

@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { createSignal, onMount, onCleanup, Show, createEffect } from "solid-js";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";

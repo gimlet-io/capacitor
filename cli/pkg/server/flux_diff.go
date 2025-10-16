@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 /*
 Copyright 2025 The Capacitor authors
 Copyright 2022 The Flux authors

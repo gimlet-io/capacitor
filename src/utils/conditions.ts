@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 // Based on FluxCD's condition management from:
 // https://github.com/fluxcd/pkg/blob/main/runtime/conditions/getter.go
 // https://github.com/fluxcd/kustomize-controller/blob/main/api/v1beta2/condition_types.go

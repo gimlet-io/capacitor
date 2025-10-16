@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { getWebSocketClient } from './k8sWebSocketClient.ts';
 
 // WebSocket-based implementation for watching K8s resources

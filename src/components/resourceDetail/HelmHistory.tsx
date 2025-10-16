@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 // deno-lint-ignore-file jsx-button-has-type
 import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { getWebSocketClient } from "../../k8sWebSocketClient.ts";

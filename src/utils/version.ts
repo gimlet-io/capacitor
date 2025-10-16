@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 export function normalizeVersion(v: string): string {
   if (!v) return "0.0.0";
   const trimmed = v.trim();

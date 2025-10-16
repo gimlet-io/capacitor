@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 type KeyboardHandler = {
   id: string;
   priority: number; // Lower number = higher priority (0 = highest)

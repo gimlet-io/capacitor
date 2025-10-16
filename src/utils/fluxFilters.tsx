@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { ConditionStatus, ConditionType } from "./conditions.ts";
 import { Filter } from "../components/filterBar/FilterBar.tsx";
 

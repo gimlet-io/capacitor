@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { For, Show, createEffect, createSignal, type JSX } from "solid-js";
 import { parse as parseYAML, stringify as stringifyYAML } from "@std/yaml";
 import { useFilterStore } from "../../store/filterStore.tsx";

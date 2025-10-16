@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import type { Column } from "../../resourceTypeConfigs.tsx";

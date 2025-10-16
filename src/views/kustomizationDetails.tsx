@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 // deno-lint-ignore-file jsx-button-has-type
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";

@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 export type ThemeName = "light" | "dark" | "mallow";
 
 export async function fetchDefaultTheme(): Promise<ThemeName | null> {

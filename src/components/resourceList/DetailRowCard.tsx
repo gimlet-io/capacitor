@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { JSX } from "solid-js";
 
 export function DetailRowCard(props: {

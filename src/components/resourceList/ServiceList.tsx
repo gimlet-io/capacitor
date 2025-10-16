@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Service, ServiceWithResources, Ingress, Kustomization } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';

@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 // Common sorting functions
 export const sortByName = (items: any[], ascending: boolean) => {
   return [...items].sort((a, b) => {

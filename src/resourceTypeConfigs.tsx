@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { JSX } from "solid-js";
 import { podColumns } from "./components/resourceList/PodList.tsx";
 import { deploymentColumns } from "./components/resourceList/DeploymentList.tsx";

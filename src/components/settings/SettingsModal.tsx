@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { onCleanup, createEffect, createSignal, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { ThemeName } from "../../utils/theme.ts";

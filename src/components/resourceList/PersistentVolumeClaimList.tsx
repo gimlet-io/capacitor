@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { JSX } from "solid-js";
 import type { PersistentVolumeClaim } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";

@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack, onMount } from "solid-js";
 import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";

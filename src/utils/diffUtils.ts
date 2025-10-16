@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 // Interface for diff items
 export interface DiffItem {
   type: 'match' | 'add' | 'remove';

@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Accessor, Setter, createEffect, onMount, onCleanup, createSignal, createMemo, Show, JSX } from "solid-js";
 import { render } from "solid-js/web";
 import * as dagre from "dagre";

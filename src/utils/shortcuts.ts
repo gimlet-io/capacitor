@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { createSignal } from "solid-js";
 
 export type ShortcutPrefix = string; // e.g., "Ctrl", "Alt", "Meta", "Ctrl+Alt", "Meta+Shift"

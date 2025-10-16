@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";

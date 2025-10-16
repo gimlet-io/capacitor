@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Terraform } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";

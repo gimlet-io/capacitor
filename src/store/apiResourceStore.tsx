@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { createContext, createResource, useContext, JSX, createSignal, onMount } from "solid-js";
 import type { ApiResource, ApiResourceList, ApiGroupList } from "../types/k8s.ts";
 import { useErrorStore } from "./errorStore.tsx";

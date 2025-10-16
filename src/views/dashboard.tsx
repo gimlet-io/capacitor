@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { createSignal, createEffect, Show, onMount, createMemo, untrack } from "solid-js";
 import { ResourceList } from "../components/index.ts";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";

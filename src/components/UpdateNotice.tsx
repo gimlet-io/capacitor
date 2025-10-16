@@ -1,3 +1,6 @@
+// Copyright 2025 Laszlo Consulting Kft.
+// SPDX-License-Identifier: Apache-2.0
+
 import { createSignal, onMount, Show } from "solid-js";
 import { isNewerVersion } from "../utils/version.ts";
 
