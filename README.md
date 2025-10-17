@@ -70,12 +70,6 @@ You can install a specific version by supplying the version tag:
 wget -qO- https://gimlet.io/install-capacitor | bash -s -- v2025-09.2
 ```
 
-### Branching
-
-`main` is always the latest feature release. Late September 2025 that is `v2025-09.1` as `v2025-09.2` is not released yet. `main` carries patch and debug releases of the latest feature release.
-
-The next feature release is built on a branch named after it eg.: `v2025-09.2`. Rc and debug releases are built from this branch.
-
 ### Self-hosted versioning
 
 Versioning for the self-hosted release follows the versioning of the local-first app.
@@ -83,8 +77,6 @@ Versioning for the self-hosted release follows the versioning of the local-first
 The deployment yamls always point to the latest feture release or its latest patch release.
 
 - Self-hosted fixes are released in a patch version `v2025-09.1-patch1` even if the local-first app does not have any changes. The auto-update message ignores patch versions, therefor the self-hosted version does not interfere with the local-first experience.
-
-- The self-hosted version does not publish an image with rc tag of the next feature release. New features are meant to be tested in the local-first app.
 
 - The self-hosted version do publish images with the debug tag. It is crucial to grow robust support for all environments. These are meant to be installed on request and the contents are not publicly documented.
 
