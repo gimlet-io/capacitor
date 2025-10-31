@@ -1,0 +1,28 @@
+# Example values for local development setup (no auth)
+# Usage: helm install capacitor-server ./capacitor-server -f examples/values-local.yaml
+
+license:
+  key: "contact-laszlo@gimlet.io"
+
+auth:
+  method: noauth
+
+authorization:
+  impersonateSaRules: "noauth=flux-system:capacitor-server-builtin-editor"
+
+session:
+  # Generate these with: openssl rand -base64 32
+  hashKey: "base64:REPLACE_WITH_GENERATED_KEY"
+  blockKey: "base64:REPLACE_WITH_GENERATED_KEY"
+
+clusters:
+  - id: in-cluster
+    name: Local Cluster
+    apiServerURL: https://kubernetes.default.svc
+    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    serviceAccount:
+      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+# Optionally expose via port-forward instead of ingress
+# kubectl port-forward -n flux-system svc/capacitor-server 8080:80
+

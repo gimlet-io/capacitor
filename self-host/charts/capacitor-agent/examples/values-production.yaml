@@ -1,0 +1,34 @@
+# Example values for production agent deployment
+# Usage: helm install capacitor-agent ./capacitor-agent -f examples/values-production.yaml
+
+agent:
+  # WebSocket URL of the Capacitor server
+  backendWsUrl: "wss://capacitor.example.com/agent/connect"
+  
+  # Unique cluster identifier (must match server configuration)
+  clusterId: "production-east"
+  
+  # Shared secret (must match server's agentSecret for this cluster)
+  # Generate with: openssl rand -hex 32
+  agentSharedSecret: "REPLACE_WITH_SHARED_SECRET"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Deploy on specific nodes if needed
+nodeSelector: {}
+  # role: monitoring
+
+tolerations: []
+  # - key: "monitoring"
+  #   operator: "Equal"
+  #   value: "true"
+  #   effect: "NoSchedule"
+
+affinity: {}
+

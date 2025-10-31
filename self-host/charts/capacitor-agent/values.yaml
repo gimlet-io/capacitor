@@ -1,0 +1,53 @@
+# Default values for capacitor-agent
+
+# Container image configuration
+image:
+  repository: ghcr.io/gimlet-io/capacitor-next
+  tag: agent-v2025-10.1
+  pullPolicy: IfNotPresent
+
+# Number of replicas
+replicaCount: 1
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+# Service Account
+serviceAccount:
+  create: true
+  name: capacitor-next-agent
+
+# RBAC configuration
+rbac:
+  create: true
+  createImpersonatorRole: true
+
+# Agent configuration
+agent:
+  # WebSocket URL of the Capacitor server
+  # Format: wss://capacitor.example.com/agent/connect
+  backendWsUrl: ""  # Required
+  
+  # Cluster ID - must match the cluster ID configured in the server
+  clusterId: ""  # Required
+  
+  # Shared secret for agent authentication
+  # Must match the agentSecret in the server's cluster configuration
+  # Generate with: openssl rand -hex 32
+  agentSharedSecret: ""  # Required
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
