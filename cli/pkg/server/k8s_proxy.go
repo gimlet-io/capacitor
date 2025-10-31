@@ -112,23 +112,14 @@ func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) 
 
 // HandleAPIRequest handles a Kubernetes API request
 func (p *KubernetesProxy) HandleAPIRequest(c echo.Context) error {
-	// Get path from request
-	path := c.Request().URL.Path
-
-	// Strip /k8s/:context prefix
-	if after, ok := strings.CutPrefix(path, "/k8s/"); ok {
-		// Remove the context segment (up to next '/')
-		// Expect formats: /k8s/<context>/..., or /k8s
-		slash := strings.IndexByte(after, '/')
-		if slash >= 0 {
-			path = after[slash:]
-		} else {
-			// No trailing path; forward to root
-			path = "/"
-		}
-	}
-
-	// Update the path
+	// Echo's wildcard param (*) captures everything after /k8s/:context/
+	// This is the Kubernetes API path we want to proxy
+	apiPath := c.Param("*")
+	
+	// Prepend slash to make it an absolute path
+	path := "/" + apiPath
+	
+	// Update the request path
 	c.Request().URL.Path = path
 
 	// Log the proxied request (optional, might want to disable for production)
