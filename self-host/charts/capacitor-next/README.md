@@ -18,7 +18,7 @@ export GITHUB_TOKEN=<your-github-token>
 echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password-stdin
 
 # Install the chart
-helm install capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-server \
+helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
   --version 0.1.0 \
   --namespace flux-system \
   --create-namespace \
@@ -30,7 +30,7 @@ helm install capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-server \
 ### Installing from Local Chart
 
 ```bash
-helm install capacitor-next ./capacitor-server \
+helm upgrade -i capacitor-next ./capacitor-next \
   --namespace flux-system \
   --create-namespace \
   --set license.key="your-license-key" \
@@ -52,7 +52,7 @@ auth:
   method: noauth
 
 authorization:
-  impersonateSaRules: "noauth=flux-system:capacitor-server-builtin-editor"
+  impersonateSaRules: "noauth=flux-system:capacitor-next-builtin-editor"
 
 session:
   hashKey: "base64:YOUR_GENERATED_KEY"
@@ -83,7 +83,7 @@ auth:
     authorizedEmails: "*@yourcompany.com"
 
 authorization:
-  impersonateSaRules: "*@yourcompany.com=flux-system:capacitor-server-builtin-editor"
+  impersonateSaRules: "*@yourcompany.com=flux-system:capacitor-next-builtin-editor"
 
 session:
   hashKey: "base64:YOUR_GENERATED_KEY"
@@ -116,7 +116,7 @@ auth:
     users: "admin@example.com:$2y$12$..."
 
 authorization:
-  impersonateSaRules: "admin@example.com=flux-system:capacitor-server-builtin-editor"
+  impersonateSaRules: "admin@example.com=flux-system:capacitor-next-builtin-editor"
 
 session:
   hashKey: "base64:YOUR_GENERATED_KEY"
@@ -162,21 +162,6 @@ See [values.yaml](./values.yaml) for all available configuration options.
 | `session.blockKey` | Session block key (required) | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
 | `rbac.create` | Create RBAC resources | `true` |
-
-## Upgrading
-
-```bash
-helm upgrade capacitor-server oci://ghcr.io/gimlet-io/charts/capacitor-server \
-  --version 0.1.0 \
-  --namespace flux-system \
-  --reuse-values
-```
-
-## Uninstalling
-
-```bash
-helm uninstall capacitor-server --namespace flux-system
-```
 
 ## Support
 
