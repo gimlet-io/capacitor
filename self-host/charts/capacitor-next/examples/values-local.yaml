@@ -2,7 +2,7 @@
 # Usage: helm install capacitor-server ./capacitor-server -f examples/values-local.yaml
 
 license:
-  key: "contact-laszlo@gimlet.io"
+  key: "contact laszlo@gimlet.io"
 
 auth:
   method: noauth

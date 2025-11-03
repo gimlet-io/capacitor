@@ -18,7 +18,7 @@ export GITHUB_TOKEN=<your-github-token>
 echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password-stdin
 
 # Install the chart
-helm install capacitor-server oci://ghcr.io/gimlet-io/charts/capacitor-server \
+helm install capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-server \
   --version 0.1.0 \
   --namespace flux-system \
   --create-namespace \
@@ -30,7 +30,7 @@ helm install capacitor-server oci://ghcr.io/gimlet-io/charts/capacitor-server \
 ### Installing from Local Chart
 
 ```bash
-helm install capacitor-server ./capacitor-server \
+helm install capacitor-next ./capacitor-server \
   --namespace flux-system \
   --create-namespace \
   --set license.key="your-license-key" \
@@ -46,7 +46,7 @@ For local development or testing:
 
 ```yaml
 license:
-  key: "contact-laszlo@gimlet.io"
+  key: "contact laszlo@gimlet.io"
 
 auth:
   method: noauth
@@ -143,26 +143,6 @@ clusters:
     name: Staging
     agent: true
     agentSecret: "another-shared-secret-here"
-```
-
-## Publishing to GitHub Package Registry
-
-### Package the Chart
-
-```bash
-# From the self-host directory
-helm package capacitor-server
-```
-
-### Push to GitHub Container Registry
-
-```bash
-# Login to GitHub Container Registry
-export GITHUB_TOKEN=<your-github-token>
-echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password-stdin
-
-# Push the chart
-helm push capacitor-server-0.1.0.tgz oci://ghcr.io/gimlet-io/charts
 ```
 
 ## Values Reference

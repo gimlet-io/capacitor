@@ -151,26 +151,6 @@ kubectl logs -n flux-system -l app=capacitor-next-agent --tail=50
 
 You should see connection success messages.
 
-## Publishing to GitHub Package Registry
-
-### Package the Chart
-
-```bash
-# From the self-host directory
-helm package capacitor-agent
-```
-
-### Push to GitHub Container Registry
-
-```bash
-# Login to GitHub Container Registry
-export GITHUB_TOKEN=<your-github-token>
-echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password-stdin
-
-# Push the chart
-helm push capacitor-agent-0.1.0.tgz oci://ghcr.io/gimlet-io/charts
-```
-
 ## Values Reference
 
 See [values.yaml](./values.yaml) for all available configuration options.
