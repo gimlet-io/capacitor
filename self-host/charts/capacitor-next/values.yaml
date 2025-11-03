@@ -4,7 +4,7 @@
 image:
   repository: ghcr.io/gimlet-io/capacitor-next
   tag: v2025-10.1
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 # Number of replicas
 replicaCount: 1
