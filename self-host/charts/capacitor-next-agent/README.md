@@ -19,7 +19,6 @@ echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password
 
 # Install the chart
 helm install capacitor-agent oci://ghcr.io/gimlet-io/charts/capacitor-agent \
-  --version 0.1.0 \
   --namespace flux-system \
   --create-namespace \
   --set agent.backendWsUrl="wss://capacitor.example.com/agent/connect" \
@@ -133,7 +132,6 @@ In your remote cluster:
 
 ```bash
 helm install capacitor-agent oci://ghcr.io/gimlet-io/charts/capacitor-agent \
-  --version 0.1.0 \
   --namespace flux-system \
   --create-namespace \
   --set agent.backendWsUrl="wss://capacitor.example.com/agent/connect" \
@@ -194,24 +192,8 @@ The agent needs impersonation permissions. Verify RBAC is created:
 kubectl get clusterrole,clusterrolebinding -l app.kubernetes.io/name=capacitor-agent
 ```
 
-## Upgrading
-
-```bash
-helm upgrade capacitor-agent oci://ghcr.io/gimlet-io/charts/capacitor-agent \
-  --version 0.1.0 \
-  --namespace flux-system \
-  --reuse-values
-```
-
-## Uninstalling
-
-```bash
-helm uninstall capacitor-agent --namespace flux-system
-```
-
 ## Support
 
 For support and licensing inquiries, contact: laszlo@gimlet.io
 
 For more information, visit: https://github.com/gimlet-io/capacitor
-
