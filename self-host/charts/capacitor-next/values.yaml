@@ -1,0 +1,143 @@
+# Default values for capacitor-server
+
+# Container image configuration
+image:
+  repository: ghcr.io/gimlet-io/capacitor-next
+  tag: v2025-10.1
+  pullPolicy: Always
+
+# Number of replicas
+replicaCount: 1
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Probes configuration
+livenessProbe:
+  httpGet:
+    path: /
+    port: 8080
+  initialDelaySeconds: 1
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: 8080
+  initialDelaySeconds: 1
+  periodSeconds: 10
+
+# Service Account
+serviceAccount:
+  create: true
+  name: capacitor-next
+
+# Azure Workload Identity support
+azureWorkloadIdentity:
+  enabled: false
+
+# RBAC configuration
+rbac:
+  create: true
+  createImpersonatorRole: true
+  createBuiltinEditorRole: true
+
+# License configuration
+license:
+  key: ""  # Required: Contact laszlo@gimlet.io for a license key
+
+# Authentication configuration
+auth:
+  # Authentication method: oidc, noauth, or static
+  method: noauth
+  
+  # OIDC configuration (used when auth.method=oidc)
+  oidc:
+    issuer: ""
+    clientId: ""
+    clientSecret: ""
+    redirectUrl: ""
+    insecureSkipTlsVerify: false
+    scopes: "openid,profile,email"
+    groupsClaim: "groups"
+    authorizedEmails: ""
+    # Azure Entra ID specific
+    entraIdFederatedTokenAuth: false
+    # Debug flag: when set to true, logs impersonation headers for namespace listing (useful for OIDC debugging)
+    debug: false
+  
+  # Static user configuration (used when auth.method=static)
+  static:
+    # Format: "email:bcrypt_password[,email2:bcrypt_password]"
+    # Generate password with: htpasswd -bnBC 12 x 'mypassword' | cut -d: -f2
+    users: ""
+
+# Authorization configuration
+authorization:
+  # Impersonation rules to map users to service accounts
+  # Format: "user=namespace:serviceaccount[,user2=namespace:serviceaccount]"
+  # Example: "noauth=flux-system:capacitor-next-builtin-editor"
+  # Wildcards supported: "*@company.com=flux-system:capacitor-next-builtin-editor"
+  impersonateSaRules: "noauth=flux-system:capacitor-next-builtin-editor"
+
+# Session configuration
+session:
+  # Base64 encoded session keys
+  # Generate with: openssl rand -base64 32
+  hashKey: ""   # Required
+  blockKey: ""  # Required
+
+# Cluster registry configuration
+clusters:
+  # Example configuration for in-cluster access
+  - id: in-cluster
+    name: In-cluster
+    apiServerURL: https://kubernetes.default.svc
+    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    serviceAccount:
+      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  
+  # Example configuration for remote agent-based clusters
+  # - id: remote-cluster1
+  #   name: remote-cluster1
+  #   agent: true
+  #   agentSecret: ""  # Generate with: openssl rand -hex 32
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: capacitor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: capacitor-tls
+  #    hosts:
+  #      - capacitor.example.com
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+

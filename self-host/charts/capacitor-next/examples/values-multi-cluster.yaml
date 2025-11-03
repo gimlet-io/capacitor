@@ -1,0 +1,74 @@
+# Example values for multi-cluster setup with agents
+# Usage: helm install capacitor-server ./capacitor-server -f examples/values-multi-cluster.yaml
+
+license:
+  key: "YOUR_LICENSE_KEY"
+
+auth:
+  method: oidc
+  oidc:
+    issuer: "https://auth.example.com"
+    clientId: "capacitor"
+    clientSecret: "YOUR_OIDC_CLIENT_SECRET"
+    redirectUrl: "https://capacitor.example.com/auth/callback"
+    authorizedEmails: "*@example.com"
+
+authorization:
+  impersonateSaRules: "*@example.com=flux-system:capacitor-server-builtin-editor"
+
+session:
+  # Generate these with: openssl rand -base64 32
+  hashKey: "base64:REPLACE_WITH_GENERATED_KEY"
+  blockKey: "base64:REPLACE_WITH_GENERATED_KEY"
+
+clusters:
+  # Management cluster (in-cluster)
+  - id: in-cluster
+    name: Management Cluster
+    apiServerURL: https://kubernetes.default.svc
+    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    serviceAccount:
+      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  
+  # Remote clusters via agents
+  - id: production-east
+    name: Production East
+    agent: true
+    agentSecret: "REPLACE_WITH_GENERATED_SECRET_1"  # openssl rand -hex 32
+  
+  - id: production-west
+    name: Production West
+    agent: true
+    agentSecret: "REPLACE_WITH_GENERATED_SECRET_2"  # openssl rand -hex 32
+  
+  - id: staging
+    name: Staging
+    agent: true
+    agentSecret: "REPLACE_WITH_GENERATED_SECRET_3"  # openssl rand -hex 32
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Increase timeout for WebSocket connections
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: capacitor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: capacitor-tls
+      hosts:
+        - capacitor.example.com
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+

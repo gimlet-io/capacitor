@@ -1,0 +1,43 @@
+# Example values for static user authentication
+# Usage: helm install capacitor-server ./capacitor-server -f examples/values-static-auth.yaml
+
+license:
+  key: "YOUR_LICENSE_KEY"
+
+auth:
+  method: static
+  static:
+    # Format: "email:bcrypt_password[,email2:bcrypt_password]"
+    # Generate password with: htpasswd -bnBC 12 x 'mypassword' | cut -d: -f2
+    users: "admin@example.com:$2y$12$REPLACE_WITH_BCRYPT_HASH,user@example.com:$2y$12$REPLACE_WITH_BCRYPT_HASH"
+
+authorization:
+  # Map users to service accounts
+  impersonateSaRules: "admin@example.com=flux-system:capacitor-server-builtin-editor,user@example.com=flux-system:capacitor-server-builtin-editor"
+
+session:
+  # Generate these with: openssl rand -base64 32
+  hashKey: "base64:REPLACE_WITH_GENERATED_KEY"
+  blockKey: "base64:REPLACE_WITH_GENERATED_KEY"
+
+clusters:
+  - id: in-cluster
+    name: In-cluster
+    apiServerURL: https://kubernetes.default.svc
+    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    serviceAccount:
+      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: capacitor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: capacitor-tls
+      hosts:
+        - capacitor.example.com
+

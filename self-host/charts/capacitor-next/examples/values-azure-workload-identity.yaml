@@ -1,0 +1,68 @@
+# Example values for Azure AKS with Workload Identity
+# Usage: helm install capacitor-server ./capacitor-server -f examples/values-azure-workload-identity.yaml
+
+license:
+  key: "YOUR_LICENSE_KEY"
+
+auth:
+  method: oidc
+  oidc:
+    issuer: "https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0"
+    clientId: "YOUR_CLIENT_ID"
+    clientSecret: "YOUR_CLIENT_SECRET"
+    redirectUrl: "https://capacitor.example.com/auth/callback"
+    scopes: "openid,profile,email"
+    authorizedEmails: "*@example.com"
+    entraIdFederatedTokenAuth: true
+
+authorization:
+  impersonateSaRules: "*@example.com=flux-system:capacitor-server-builtin-editor"
+
+session:
+  # Generate these with: openssl rand -base64 32
+  hashKey: "base64:REPLACE_WITH_GENERATED_KEY"
+  blockKey: "base64:REPLACE_WITH_GENERATED_KEY"
+
+# Enable Azure Workload Identity
+azureWorkloadIdentity:
+  enabled: true
+
+# Configure service account with Azure annotations
+serviceAccount:
+  create: true
+  name: capacitor-next
+  # annotations:
+  #   azure.workload.identity/client-id: "YOUR_MANAGED_IDENTITY_CLIENT_ID"
+  #   azure.workload.identity/tenant-id: "YOUR_TENANT_ID"
+
+clusters:
+  - id: in-cluster
+    name: AKS Cluster
+    apiServerURL: https://kubernetes.default.svc
+    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    serviceAccount:
+      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+ingress:
+  enabled: true
+  className: azure-application-gateway  # or nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: capacitor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: capacitor-tls
+      hosts:
+        - capacitor.example.com
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+

@@ -1,0 +1,124 @@
+{{- if .Values.rbac.create }}
+{{- if .Values.rbac.createImpersonatorRole }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "capacitor-server.fullname" . }}-impersonator
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["users", "groups", "serviceaccounts"]
+    verbs: ["impersonate"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "capacitor-server.fullname" . }}-impersonator-binding
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "capacitor-server.fullname" . }}-impersonator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "capacitor-server.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.rbac.createBuiltinEditorRole }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capacitor-next-builtin-editor
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+rules:
+# Core API group (""), excluding secrets
+- apiGroups: [""]
+  resources: ["namespaces", "pods", "services", "configmaps", "secrets", "endpoints", "persistentvolumeclaims", "namespaces", "nodes", "replicationcontrollers", "events", "serviceaccounts", "pods/log" ]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Apps API group
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Batch API group
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Networking API group
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# RBAC API group
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Policy API group
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets", "podsecuritypolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Storage API group
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Source Controller API group
+- apiGroups: ["source.toolkit.fluxcd.io"]
+  resources: ["gitrepositories", "helmrepositories", "helmcharts", "ocirepositories", "buckets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Kustomize Controller API group
+- apiGroups: ["kustomize.toolkit.fluxcd.io"]
+  resources: ["kustomizations"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Helm Controller API group
+- apiGroups: ["helm.toolkit.fluxcd.io"]
+  resources: ["helmreleases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Notification Controller API group
+- apiGroups: ["notification.toolkit.fluxcd.io"]
+  resources: ["alerts", "providers", "receivers"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Image Controller API group
+- apiGroups: ["image.toolkit.fluxcd.io"]
+  resources: ["imagepolicies", "imagerepositories", "imageupdateautomations"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capacitor-next-builtin-editor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capacitor-next-builtin-editor
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capacitor-next-builtin-editor
+subjects:
+- kind: ServiceAccount
+  name: capacitor-next-builtin-editor
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

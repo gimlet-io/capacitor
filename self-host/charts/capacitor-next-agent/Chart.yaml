@@ -1,0 +1,18 @@
+apiVersion: v2
+name: capacitor-agent
+description: A Helm chart for Capacitor Next Agent - Remote cluster agent for Capacitor
+type: application
+version: 0.1.0
+appVersion: "agent-v2025-10.1"
+home: https://github.com/gimlet-io/capacitor
+maintainers:
+  - name: Gimlet
+    email: laszlo@gimlet.io
+keywords:
+  - kubernetes
+  - fluxcd
+  - agent
+  - remote-cluster
+sources:
+  - https://github.com/gimlet-io/capacitor
+

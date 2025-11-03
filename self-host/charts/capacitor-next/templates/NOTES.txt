@@ -1,0 +1,65 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+Capacitor Next has been deployed successfully!
+
+{{- if .Values.ingress.enabled }}
+
+You can access the Capacitor UI at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+
+Get the application URL by running these commands:
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "capacitor-server.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+
+Get the application URL by running these commands:
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        You can watch the status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "capacitor-server.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "capacitor-server.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+
+Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "capacitor-server.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+{{- end }}
+
+{{- if not .Values.license.key }}
+
+⚠️  WARNING: No license key has been configured!
+Please set .Values.license.key or contact laszlo@gimlet.io to obtain a license.
+{{- end }}
+
+{{- if not .Values.session.hashKey }}
+
+⚠️  WARNING: No session hash key has been configured!
+Please generate one with: openssl rand -base64 32
+And set both .Values.session.hashKey and .Values.session.blockKey
+{{- end }}
+
+Authentication Method: {{ .Values.auth.method }}
+
+{{- if eq .Values.auth.method "noauth" }}
+🔓 Running in no-auth mode. This is suitable for local development only.
+{{- else if eq .Values.auth.method "oidc" }}
+🔐 OIDC authentication is enabled.
+   Issuer: {{ .Values.auth.oidc.issuer }}
+{{- else if eq .Values.auth.method "static" }}
+🔑 Static user authentication is enabled.
+{{- end }}
+
+For more information, visit: https://github.com/gimlet-io/capacitor
+
