@@ -75,6 +75,8 @@ auth:
     authorizedEmails: ""
     # Azure Entra ID specific
     entraIdFederatedTokenAuth: false
+    # Debug flag: when set to true, logs impersonation headers for namespace listing (useful for OIDC debugging)
+    debug: false
   
   # Static user configuration (used when auth.method=static)
   static:

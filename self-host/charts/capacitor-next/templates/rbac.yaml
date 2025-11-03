@@ -39,7 +39,7 @@ metadata:
 rules:
 # Core API group (""), excluding secrets
 - apiGroups: [""]
-  resources: ["namespaces", "pods", "services", "configmaps", "secrets", "endpoints", "persistentvolumeclaims", "namespaces", "nodes", "replicationcontrollers", "events", "serviceaccounts"]
+  resources: ["namespaces", "pods", "services", "configmaps", "secrets", "endpoints", "persistentvolumeclaims", "namespaces", "nodes", "replicationcontrollers", "events", "serviceaccounts", "pods/log" ]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
 # Apps API group
