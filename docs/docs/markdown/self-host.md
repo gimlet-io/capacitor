@@ -2,7 +2,12 @@
 
 Self-host for your team. We are running a private beta on the self-hosted version. Please get in contact with laszlo at gimlet.io
 
-## Deployment
+## Deployment: Helm
+
+- [capacitor-next](https://github.com/gimlet-io/capacitor/tree/main/self-host/charts/capacitor-next)
+- [capacitor-next-agent](https://github.com/gimlet-io/capacitor/tree/main/self-host/charts/capacitor-next-agent)
+
+## Deployment: yaml
 
 ### Service Account
 
