@@ -190,6 +190,7 @@ export function ApiResourceProvider(props: { children: JSX.Element }) {
       // Filter to include only resources that support listing (have 'list' in verbs)
       // and aren't subresources (don't contain '/')
       const filteredResources = allApiResources.filter(resource => 
+        resource.verbs && // kubevirt subresources don't have verbs
         resource.verbs.includes('list') && 
         !resource.name.includes('/') &&
         resource.kind // Ensure it has a kind
