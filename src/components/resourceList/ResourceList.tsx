@@ -6,7 +6,6 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
-import { useNavigate } from "@solidjs/router";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
@@ -294,8 +293,8 @@ export function ResourceList<T>(props: {
   resourceTypeConfig: ResourceTypeConfig;
   resetKey?: unknown;
   columns: Column<any>[];
+  navigate?: (path: string) => void;
 }) {
-  const navigate = useNavigate();
   const filterStore = useFilterStore();
   const apiStore = useApiResourceStore();
 
@@ -519,7 +518,7 @@ export function ResourceList<T>(props: {
     const commands = [...(props.resourceTypeConfig.commands || builtInCommands)];
     replaceHandlers(commands, {
       openDrawer,
-      navigate: navigate,
+      navigate: props.navigate,
       updateFilters: (filters) => filterStore.setActiveFilters(filters),
       getContextName: () => apiStore.contextInfo?.current
     });
