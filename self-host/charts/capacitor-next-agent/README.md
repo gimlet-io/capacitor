@@ -19,6 +19,7 @@ echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password
 
 # Install the chart
 helm upgrade -i capacitor-next-agent oci://ghcr.io/gimlet-io/charts/capacitor-next-agent \
+  --version 2025-10.1 \
   --namespace flux-system \
   --create-namespace \
   --set agent.backendWsUrl="wss://capacitor.example.com/agent/connect" \
@@ -30,6 +31,7 @@ helm upgrade -i capacitor-next-agent oci://ghcr.io/gimlet-io/charts/capacitor-ne
 
 ```bash
 helm upgrade -i capacitor-next-agent ./capacitor-next-agent \
+  --version 2025-10.1 \
   --namespace flux-system \
   --create-namespace \
   --set agent.backendWsUrl="wss://capacitor.example.com/agent/connect" \
