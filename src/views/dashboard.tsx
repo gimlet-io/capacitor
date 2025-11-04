@@ -3,6 +3,7 @@
 
 import { createSignal, createEffect, Show, onMount, createMemo, untrack } from "solid-js";
 import { ResourceList } from "../components/index.ts";
+import { useNavigate } from "@solidjs/router";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
 import { watchResource } from "../watches.tsx";
@@ -16,6 +17,7 @@ import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 import { setJobNodeOptions } from "../components/resourceList/JobList.tsx";
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const filterStore = useFilterStore();
   const apiResourceStore = useApiResourceStore();
   const errorStore = useErrorStore();
@@ -706,6 +708,7 @@ export function Dashboard() {
                 resourceTypeConfig={(resourceTypeConfigs[filterStore.getResourceType() || ''] as any) || { columns: [] }}
                 resetKey={listResetKey()}
                 columns={effectiveColumns()}
+                navigate={navigate}
               />
             </Show>
           }>
