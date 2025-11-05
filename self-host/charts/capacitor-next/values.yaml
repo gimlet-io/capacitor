@@ -141,3 +141,18 @@ tolerations: []
 # Affinity
 affinity: {}
 
+# Security context configuration
+securityContext:
+  enabled: true
+  pod:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  container:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
