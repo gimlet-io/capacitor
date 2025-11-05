@@ -18,10 +18,22 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "capacitor-agent.serviceAccountName" . }}
+      {{- if .Values.securityContext.enabled }}
+      securityContext:
+        {{- with .Values.securityContext.pod }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
       containers:
         - name: agent
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.securityContext.enabled }}
+          securityContext:
+            {{- with .Values.securityContext.container }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
           envFrom:
             - secretRef:
                 name: {{ include "capacitor-agent.fullname" . }}
