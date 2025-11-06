@@ -51,6 +51,12 @@ tolerations: []
 # Affinity
 affinity: {}
 
+# Existing secret configuration
+# If specified, the deployment will use this secret in addition to the built-in secret
+# Both secrets will be loaded via envFrom, allowing you to override or supplement values
+existingSecret:
+  name: ""  # Name of the existing secret to use
+
 # Security context configuration
 securityContext:
   enabled: true

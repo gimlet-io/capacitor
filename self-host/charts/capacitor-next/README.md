@@ -146,6 +146,50 @@ clusters:
     agentSecret: "another-shared-secret-here"
 ```
 
+### Using an Existing Secret
+
+You can use an existing Kubernetes secret in addition to the built-in secret created by the chart. This is useful when:
+
+- Managing secrets with external secret operators (e.g., External Secrets Operator, Sealed Secrets)
+- Overriding specific environment variables from the built-in secret
+- Adding additional environment variables not managed by the chart
+
+When `existingSecret.name` is specified, both secrets are loaded via `envFrom`. The existing secret is loaded first, allowing it to override values from the built-in secret if they share the same keys.
+
+**Example: Using External Secrets Operator**
+
+```yaml
+# The chart will create its own secret with all configuration
+# AND use your existing secret for additional/override values
+existingSecret:
+  name: capacitor-secrets-from-external-secrets-operator
+
+# All other configuration remains the same
+license:
+  key: "your-license-key"
+auth:
+  method: oidc
+  # ... rest of config
+```
+
+**Example: Overriding Specific Values**
+
+If your existing secret contains keys that match the built-in secret (e.g., `OIDC_CLIENT_SECRET`), those values will take precedence:
+
+```yaml
+existingSecret:
+  name: my-custom-secrets
+
+# Built-in secret will still be created with these values,
+# but OIDC_CLIENT_SECRET from my-custom-secrets will override it
+auth:
+  method: oidc
+  oidc:
+    clientSecret: "default-value"  # Will be overridden by existingSecret
+```
+
+**Note:** The built-in secret is always created and contains the `registry.yaml` file required for cluster configuration. The existing secret is used for environment variables only.
+
 ## Values Reference
 
 See [values.yaml](./values.yaml) for all available configuration options.
@@ -161,6 +205,7 @@ See [values.yaml](./values.yaml) for all available configuration options.
 | `auth.method` | Authentication method: `oidc`, `noauth`, `static` | `noauth` |
 | `session.hashKey` | Session hash key (required) | `""` |
 | `session.blockKey` | Session block key (required) | `""` |
+| `existingSecret.name` | Name of existing secret to use in addition to built-in secret | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
 | `rbac.create` | Create RBAC resources | `true` |
 
