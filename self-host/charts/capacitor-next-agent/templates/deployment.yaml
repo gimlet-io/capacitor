@@ -35,6 +35,10 @@ spec:
             {{- end }}
           {{- end }}
           envFrom:
+            {{- if .Values.existingSecret.name }}
+            - secretRef:
+                name: {{ .Values.existingSecret.name }}
+            {{- end }}
             - secretRef:
                 name: {{ include "capacitor-agent.fullname" . }}
           resources:

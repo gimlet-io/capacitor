@@ -85,6 +85,47 @@ affinity:
           - monitoring
 ```
 
+### Using an Existing Secret
+
+You can use an existing Kubernetes secret in addition to the built-in secret created by the chart. This is useful when:
+
+- Managing secrets with external secret operators (e.g., External Secrets Operator, Sealed Secrets)
+- Overriding specific environment variables from the built-in secret
+- Adding additional environment variables not managed by the chart
+
+When `existingSecret.name` is specified, both secrets are loaded via `envFrom`. The existing secret is loaded first, allowing it to override values from the built-in secret if they share the same keys.
+
+**Example: Using External Secrets Operator**
+
+```yaml
+# The chart will create its own secret with agent configuration
+# AND use your existing secret for additional/override values
+existingSecret:
+  name: agent-secrets-from-external-secrets-operator
+
+# All other configuration remains the same
+agent:
+  backendWsUrl: "wss://capacitor.example.com/agent/connect"
+  clusterId: "production-cluster"
+  agentSharedSecret: "your-shared-secret-here"
+```
+
+**Example: Overriding Agent Configuration**
+
+If your existing secret contains keys that match the built-in secret (e.g., `AGENT_SHARED_SECRET`), those values will take precedence:
+
+```yaml
+existingSecret:
+  name: my-custom-agent-secrets
+
+# Built-in secret will still be created with these values,
+# but AGENT_SHARED_SECRET from my-custom-agent-secrets will override it
+agent:
+  agentSharedSecret: "default-value"  # Will be overridden by existingSecret
+```
+
+**Note:** The built-in secret is always created. The existing secret is used for environment variables only.
+
 ## Server Configuration
 
 Before deploying the agent, you must configure the cluster in your Capacitor server:
@@ -165,6 +206,7 @@ See [values.yaml](./values.yaml) for all available configuration options.
 | `agent.backendWsUrl` | WebSocket URL to server (required) | `""` |
 | `agent.clusterId` | Cluster identifier (required) | `""` |
 | `agent.agentSharedSecret` | Shared secret for authentication (required) | `""` |
+| `existingSecret.name` | Name of existing secret to use in addition to built-in secret | `""` |
 | `rbac.create` | Create RBAC resources | `true` |
 
 ## Troubleshooting
