@@ -5,16 +5,16 @@
     "serve": "deno run --allow-net --allow-read dev_server.ts"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1",
-    "@std/yaml": "jsr:@std/yaml@^1.0.7",
-    "solid-js": "npm:solid-js@1.9.9",
-    "solid-js/web": "npm:solid-js@1.9.9/web",
-    "@solidjs/router": "npm:@solidjs/router@0.10.0",
-    "dagre": "npm:dagre@0.8.5",
-    "graphlib": "npm:graphlib@2.1.8",
-    "xterm": "npm:xterm@5.3.0",
-    "xterm-addon-fit": "npm:xterm-addon-fit@0.8.0",
-    "highlight.js": "npm:highlight.js@11.9.0"
+    "@std/assert": "jsr:@std/assert@^1.0.15",
+    "@std/yaml": "jsr:@std/yaml@^1.0.10",
+    "solid-js": "npm:solid-js@^1.9.10",
+    "solid-js/web": "npm:solid-js@^1.9.10/web",
+    "@solidjs/router": "npm:@solidjs/router@^0.15.3",
+    "dagre": "npm:dagre@^0.8.5",
+    "graphlib": "npm:graphlib@^2.1.8",
+    "xterm": "npm:xterm@^5.3.0",
+    "xterm-addon-fit": "npm:xterm-addon-fit@^0.8.0",
+    "highlight.js": "npm:highlight.js@^11.11.1"
   },
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
