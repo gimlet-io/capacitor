@@ -2,22 +2,24 @@
   "version": "5",
   "specifiers": {
     "jsr:@luca/esbuild-deno-loader@~0.11.1": "0.11.1",
-    "jsr:@std/assert@1": "1.0.13",
+    "jsr:@std/assert@^1.0.15": "1.0.15",
     "jsr:@std/bytes@^1.0.2": "1.0.6",
     "jsr:@std/encoding@^1.0.5": "1.0.10",
     "jsr:@std/internal@^1.0.10": "1.0.10",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/internal@^1.0.6": "1.0.10",
     "jsr:@std/path@^1.0.6": "1.1.2",
-    "npm:@solidjs/router@0.10.0": "0.10.0_solid-js@1.9.5__seroval@1.3.2",
-    "npm:dagre@0.8.5": "0.8.5",
+    "jsr:@std/yaml@^1.0.10": "1.0.10",
+    "npm:@solidjs/router@~0.15.3": "0.15.3_solid-js@1.9.5__seroval@1.3.2",
+    "npm:dagre@~0.8.5": "0.8.5",
     "npm:esbuild-plugin-solid@0.6.0": "0.6.0_esbuild@0.25.9_solid-js@1.9.5__seroval@1.3.2_@babel+core@7.28.4",
     "npm:esbuild@0.25.9": "0.25.9",
-    "npm:graphlib@2.1.8": "2.1.8",
-    "npm:highlight.js@11.9.0": "11.9.0",
+    "npm:graphlib@^2.1.8": "2.1.8",
+    "npm:highlight.js@^11.11.1": "11.11.1",
     "npm:solid-js@1.9.5": "1.9.5_seroval@1.3.2",
-    "npm:solid-js@1.9.9": "1.9.9_seroval@1.3.2",
-    "npm:xterm-addon-fit@0.8.0": "0.8.0_xterm@5.3.0",
-    "npm:xterm@5.3.0": "5.3.0"
+    "npm:solid-js@^1.9.10": "1.9.10_seroval@1.3.2",
+    "npm:xterm-addon-fit@0.8": "0.8.0_xterm@5.3.0",
+    "npm:xterm@^5.3.0": "5.3.0"
   },
   "jsr": {
     "@luca/esbuild-deno-loader@0.11.1": {
@@ -28,10 +30,10 @@
         "jsr:@std/path"
       ]
     },
-    "@std/assert@1.0.13": {
-      "integrity": "ae0d31e41919b12c656c742b22522c32fb26ed0cba32975cb0de2a273cb68b29",
+    "@std/assert@1.0.15": {
+      "integrity": "d64018e951dbdfab9777335ecdb000c0b4e3df036984083be219ce5941e4703b",
       "dependencies": [
-        "jsr:@std/internal@^1.0.6"
+        "jsr:@std/internal@^1.0.12"
       ]
     },
     "@std/bytes@1.0.6": {
@@ -43,11 +45,17 @@
     "@std/internal@1.0.10": {
       "integrity": "e3be62ce42cab0e177c27698e5d9800122f67b766a0bea6ca4867886cbde8cf7"
     },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    },
     "@std/path@1.1.2": {
       "integrity": "c0b13b97dfe06546d5e16bf3966b1cadf92e1cc83e56ba5476ad8b498d9e3038",
       "dependencies": [
         "jsr:@std/internal@^1.0.10"
       ]
+    },
+    "@std/yaml@1.0.10": {
+      "integrity": "245706ea3511cc50c8c6d00339c23ea2ffa27bd2c7ea5445338f8feff31fa58e"
     }
   },
   "npm": {
@@ -429,8 +437,8 @@
         "@jridgewell/sourcemap-codec"
       ]
     },
-    "@solidjs/router@0.10.0_solid-js@1.9.5__seroval@1.3.2": {
-      "integrity": "sha512-aI6Qgh3Ds8r8WsWYv9Jlls6D5sr6qM0rtEF6FMnICaHRC1DIJU2Uo+GLcA7ClBz6jJ4bAWvaYreSy4HDfODyVw==",
+    "@solidjs/router@0.15.3_solid-js@1.9.5__seroval@1.3.2": {
+      "integrity": "sha512-iEbW8UKok2Oio7o6Y4VTzLj+KFCmQPGEpm1fS3xixwFBdclFVBvaQVeibl1jys4cujfAK5Kn6+uG2uBm3lxOMw==",
       "dependencies": [
         "solid-js@1.9.5_seroval@1.3.2"
       ]
@@ -556,8 +564,8 @@
         "lodash"
       ]
     },
-    "highlight.js@11.9.0": {
-      "integrity": "sha512-fJ7cW7fQGCYAkgv4CPfwFHrfd/cLS4Hau96JuJ+ZTOWhjnhoeN1ub1tFmALm/+lW5z4WCAuAV9bm05AP0mS6Gw=="
+    "highlight.js@11.11.1": {
+      "integrity": "sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w=="
     },
     "html-entities@2.3.3": {
       "integrity": "sha512-DV5Ln36z34NNTDgnz0EWGBLZENelNAtkiFA4kyNOG2tDI6Mz1uSWiq1wAKdyjnJwyDiDO7Fa2SO1CTxPXL8VxA=="
@@ -610,16 +618,16 @@
     "seroval@1.3.2": {
       "integrity": "sha512-RbcPH1n5cfwKrru7v7+zrZvjLurgHhGyso3HTyGtRivGWgYjbOmGuivCQaORNELjNONoK35nj28EoWul9sb1zQ=="
     },
-    "solid-js@1.9.5_seroval@1.3.2": {
-      "integrity": "sha512-ogI3DaFcyn6UhYhrgcyRAMbu/buBJitYQASZz5WzfQVPP10RD2AbCoRZ517psnezrasyCbWzIxZ6kVqet768xw==",
+    "solid-js@1.9.10_seroval@1.3.2": {
+      "integrity": "sha512-Coz956cos/EPDlhs6+jsdTxKuJDPT7B5SVIWgABwROyxjY7Xbr8wkzD68Et+NxnV7DLJ3nJdAC2r9InuV/4Jew==",
       "dependencies": [
         "csstype",
         "seroval",
         "seroval-plugins"
       ]
     },
-    "solid-js@1.9.9_seroval@1.3.2": {
-      "integrity": "sha512-A0ZBPJQldAeGCTW0YRYJmt7RCeh5rbFfPZ2aOttgYnctHE7HgKeHCBB/PVc2P7eOfmNXqMFFFoYYdm3S4dcbkA==",
+    "solid-js@1.9.5_seroval@1.3.2": {
+      "integrity": "sha512-ogI3DaFcyn6UhYhrgcyRAMbu/buBJitYQASZz5WzfQVPP10RD2AbCoRZ517psnezrasyCbWzIxZ6kVqet768xw==",
       "dependencies": [
         "csstype",
         "seroval",
@@ -700,15 +708,15 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@std/assert@1",
-      "jsr:@std/yaml@^1.0.7",
-      "npm:@solidjs/router@0.10.0",
-      "npm:dagre@0.8.5",
-      "npm:graphlib@2.1.8",
-      "npm:highlight.js@11.9.0",
-      "npm:solid-js@1.9.9",
-      "npm:xterm-addon-fit@0.8.0",
-      "npm:xterm@5.3.0"
+      "jsr:@std/assert@^1.0.15",
+      "jsr:@std/yaml@^1.0.10",
+      "npm:@solidjs/router@~0.15.3",
+      "npm:dagre@~0.8.5",
+      "npm:graphlib@^2.1.8",
+      "npm:highlight.js@^11.11.1",
+      "npm:solid-js@^1.9.10",
+      "npm:xterm-addon-fit@0.8",
+      "npm:xterm@^5.3.0"
     ]
   }
 }
