@@ -390,13 +390,13 @@ export function ViewBar(props: ViewBarProps) {
         </div>
         
         <div class="view-right-section">
-          <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
           <div class="keyboard-shortcut-container">
             <KeyboardShortcuts 
               shortcuts={[{ key: `Mod+1..9`, description: 'Switch view' }]}
               resourceSelected
             />
           </div>
+          <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
         </div>
       </div>
 

@@ -105,7 +105,7 @@ export const renderServiceDetails = (service: Service | ServiceWithResources, co
 
   return (
     <td colSpan={columnCount}>
-      <div class="second-row" style="display: flex; gap: 50px; padding: 16px 18px; margin: 6px 16px 12px 32px; background: var(--linear-bg-secondary); border: 1px solid var(--linear-border); border-radius: 8px;">
+      <div class="second-row">
         {/* Left column: Pods and Deployments */}
         <div style="flex: 1; min-width: 0;">
           <div style="font-weight: bold; margin-bottom: 8px;">Pods</div>

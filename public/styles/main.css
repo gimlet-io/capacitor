@@ -179,7 +179,7 @@ h1 {
 
 .main-content {
     flex: 1;
-    padding: 2rem;
+    padding: 1rem;
     overflow-y: auto;
 }
 
@@ -854,7 +854,7 @@ h1 {
 }
 
 .resource-table td {
-    padding: 0.25rem 0rem;
+    padding: 0.15rem 0rem;
     color: var(--linear-text-primary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     white-space: nowrap;
@@ -890,6 +890,13 @@ h1 {
   margin-left: 1rem;
   width: 100%;
   box-sizing: border-box;
+  display: flex;
+  gap: 50px;
+  padding: 8px 10px;
+  margin: 6px 16px 12px 16px;
+  background: var(--linear-bg-secondary);
+  border: 1px solid var(--linear-border);
+  border-radius: 8px;
 }
 
 .resource-detail-table {
