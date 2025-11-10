@@ -956,7 +956,6 @@ td.message-cell {
 .header-section {
   display: flex;
   align-items: center;
-  margin-bottom: 1rem;
   gap: 12px;
 }
 
@@ -1069,6 +1068,28 @@ td.message-cell {
 .views-container {
   flex-grow: 1; /* Take all available space */
   overflow: visible; /* Allow dropdowns to render outside the container */
+}
+
+/* View selector + FilterBar row */
+.view-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--linear-border);
+  margin-bottom: 1rem;
+  margin-top: 1rem;
+}
+
+.vertical-separator {
+  width: 1px;
+  height: 28px;
+  background-color: var(--linear-border);
+  flex-shrink: 0;
+}
+
+.filterbar-flex {
+  flex: 1;
+  min-width: 0;
 }
 
 .view-buttons {
@@ -1206,8 +1227,8 @@ td.message-cell {
   display: flex;
   gap: 8px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--linear-border);
-  margin-bottom: 16px;
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .filter-groups {
@@ -1391,7 +1412,6 @@ td.message-cell {
   overflow-y: auto;
   height: calc(100vh - 215px);
   width: 100%;
-  margin-top: 16px;
   position: relative; /* create stacking context for sticky header z-index */
 }
 

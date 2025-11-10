@@ -6,6 +6,10 @@ import { ResourceList } from "../components/index.ts";
 import { useNavigate } from "@solidjs/router";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar } from "../components/filterBar/FilterBar.tsx";
+import { SettingsModal } from "../components/settings/SettingsModal.tsx";
+import { applyTheme, loadInitialTheme, type ThemeName } from "../utils/theme.ts";
+import { KeyboardShortcuts } from "../components/keyboardShortcuts/KeyboardShortcuts.tsx";
+import { ShortcutPrefix, getShortcutPrefix, getDefaultShortcutPrefix, setShortcutPrefix, formatShortcutForDisplay } from "../utils/shortcuts.ts";
 import { watchResource } from "../watches.tsx";
 import { onCleanup } from "solid-js";
 import { useFilterStore } from "../store/filterStore.tsx";
@@ -29,6 +33,11 @@ export function Dashboard() {
   const [resourceCount, setResourceCount] = createSignal(0);
   const [loadingStage, setLoadingStage] = createSignal<'loading' | 'enhancing' | 'filtering' | null>(null);
   const [settleTimer, setSettleTimer] = createSignal<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [theme, setTheme] = createSignal<ThemeName>(loadInitialTheme());
+  const [viewShortcutModifier, setViewShortcutModifier] = createSignal<ShortcutPrefix>(
+    typeof globalThis !== 'undefined' ? getShortcutPrefix() : getDefaultShortcutPrefix()
+  );
   
   let contextDropdownRef: HTMLDivElement | undefined;
 
@@ -101,6 +110,7 @@ export function Dashboard() {
   
   onMount(() => {
     document.addEventListener('mousedown', handleOutsideClick);
+    applyTheme(theme());
   });
   
   onCleanup(() => {
@@ -113,6 +123,10 @@ export function Dashboard() {
       clearTimeout(timer);
       setSettleTimer(null);
     }
+  });
+
+  createEffect(() => {
+    setShortcutPrefix(viewShortcutModifier());
   });
 
   // Call setupWatches when namespace or resource filter changes
@@ -682,23 +696,76 @@ export function Dashboard() {
             </div>
           </Show>
           
-          {/* Views taking all horizontal space */}
-          <div class="views-container">
-            <ViewBar
+          {/* Right-aligned settings button */}
+        <div style={{ "flex-grow": 1 }} />
+          <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
+        </div>
+
+        {/* View selector and FilterBar side-by-side */}
+        <div class="view-filter-row">
+          <ViewBar
+            activeFilters={filterStore.activeFilters}
+            setActiveFilters={filterStore.setActiveFilters}
+          />
+          <div class="vertical-separator" />
+          <div class="filterbar-flex">
+            <FilterBar
+              filters={filterStore.filters}
               activeFilters={filterStore.activeFilters}
-              setActiveFilters={filterStore.setActiveFilters}
+              onFilterChange={filterStore.setActiveFilters}
+              initialLoadComplete={initialLoadComplete()}
+              loadingStage={loadingStage()}
+              resourceCount={resourceCount()}
             />
+          </div>
+          <div class="filter-history-nav">
+            <div class="keyboard-shortcut-container">
+              <KeyboardShortcuts 
+                shortcuts={[{ key: `Mod+1..9`, description: 'Switch view' }]}
+                resourceSelected
+              />
+            </div>
+            <div class="filter-group">
+              <button 
+                class="filter-group-button"
+                classList={{ "has-active-filters": false, "disabled": !filterStore.canGoBack }}
+                onClick={() => filterStore.goBack()}
+                disabled={!filterStore.canGoBack}
+                title="Go back in filter history"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+←')}</span>
+              </button>
+            </div>
+            <div class="filter-group">
+              <button 
+                class="filter-group-button"
+                classList={{ "has-active-filters": false, "disabled": !filterStore.canGoForward }}
+                onClick={() => filterStore.goForward()}
+                disabled={!filterStore.canGoForward}
+                title="Go forward in filter history"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+→')}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <FilterBar
-          filters={filterStore.filters}
-          activeFilters={filterStore.activeFilters}
-          onFilterChange={filterStore.setActiveFilters}
-          initialLoadComplete={initialLoadComplete()}
-          loadingStage={loadingStage()}
-          resourceCount={resourceCount()}
-        />
+        <Show when={settingsOpen()}>
+          <SettingsModal
+            open
+            onClose={() => setSettingsOpen(false)}
+            theme={theme()}
+            onChangeTheme={(t) => { setTheme(t); applyTheme(t); }}
+            viewShortcutModifier={viewShortcutModifier()}
+            onChangeViewShortcutModifier={(m) => setViewShortcutModifier(m as ShortcutPrefix)}
+          />
+        </Show>
 
         <section class="resource-section full-width">
           <Show when={errorStore.currentError} fallback={

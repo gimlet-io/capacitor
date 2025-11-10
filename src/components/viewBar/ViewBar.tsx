@@ -3,11 +3,8 @@
 
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show, createMemo } from "solid-js";
-import { applyTheme, loadInitialTheme, type ThemeName } from "../../utils/theme.ts";
-import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
-import { SettingsModal } from "../settings/SettingsModal.tsx";
 import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 
@@ -77,9 +74,7 @@ export interface ViewBarProps {
 export function ViewBar(props: ViewBarProps) {
   const [showNewViewForm, setShowNewViewForm] = createSignal(false);
   const [newViewName, setNewViewName] = createSignal("");
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
   const [views, setViews] = createSignal<View[]>([]);
-  const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
   let viewMenuRef: HTMLDivElement | undefined;
   let newViewNameInput: HTMLInputElement | undefined;
@@ -132,12 +127,8 @@ export function ViewBar(props: ViewBarProps) {
     }
   });
 
-  const [theme, setTheme] = createSignal<ThemeName>(loadInitialTheme());
-  createEffect(() => {
-    applyTheme(theme());
-  });
   // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal in shortcuts.ts
-  
+ 
   onMount(() => {
     loadViews();
     try {
@@ -369,80 +360,55 @@ export function ViewBar(props: ViewBarProps) {
 
   return (
     <>
-      <div class="views">
-        <div class="view-buttons">
-          <div 
-            class="filter-group"
-            ref={el => { viewMenuRef = el; }}
-          >
-            <button 
-              classList={{ "filter-group-button": true, "has-active-filters": !!selectedViewLabel() }}
-              onClick={(e) => { e.stopPropagation(); setViewMenuOpen(!viewMenuOpen()); }}
-              title="Select view"
-            >
-              <span>View: {selectedViewLabel() || "..."}</span>
-            </button>
-            <Show when={viewMenuOpen()}>
-              <div class="filter-options">
-                <div class="filter-options-scroll-container">
-                  <For each={views()}>
-                    {(view, _index) => (
-                      <button 
-                        class="filter-option"
-                        classList={{ "active": filterStore.selectedView === view.id }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          selectView(view.id);
-                          setViewMenuOpen(false);
-                        }}
-                      >
-                        <span>{view.label}</span>
-                        <Show when={_index() < 9}>
-                          <span class="shortcut-key" style={{ "margin-left": "auto" }}>
-                            {_index() + 1}
-                          </span>
-                        </Show>
-                      </button>
-                    )}
-                  </For>
+      <div 
+        class="filter-group"
+        ref={el => { viewMenuRef = el; }}
+      >
+        <button 
+          classList={{ "filter-group-button": true, "has-active-filters": !!selectedViewLabel() }}
+          onClick={(e) => { e.stopPropagation(); setViewMenuOpen(!viewMenuOpen()); }}
+          title="Select view"
+        >
+          <span>View: {selectedViewLabel() || "..."} </span>
+        </button>
+        <Show when={viewMenuOpen()}>
+          <div class="filter-options">
+            <div class="filter-options-scroll-container">
+              <For each={views()}>
+                {(view, _index) => (
                   <button 
                     class="filter-option"
+                    classList={{ "active": filterStore.selectedView === view.id }}
                     onClick={(e) => {
                       e.stopPropagation();
+                      selectView(view.id);
                       setViewMenuOpen(false);
-                      handleNewViewButtonClick();
                     }}
                   >
-                    New View...
+                    <span>{view.label}</span>
+                    <Show when={_index() < 9}>
+                      <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                        {_index() + 1}
+                      </span>
+                    </Show>
                   </button>
-                </div>
-              </div>
-            </Show>
+                )}
+              </For>
+              <button 
+                class="filter-option"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewMenuOpen(false);
+                  handleNewViewButtonClick();
+                }}
+              >
+                New View...
+              </button>
+            </div>
           </div>
-        </div>
-        
-        <div class="view-right-section">
-          <div class="keyboard-shortcut-container">
-            <KeyboardShortcuts 
-              shortcuts={[{ key: `Mod+1..9`, description: 'Switch view' }]}
-              resourceSelected
-            />
-          </div>
-          <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
-        </div>
+        </Show>
       </div>
 
-      <Show when={settingsOpen()}>
-        <SettingsModal
-          open
-          onClose={() => setSettingsOpen(false)}
-          theme={theme()}
-          onChangeTheme={(t) => setTheme(t)}
-          viewShortcutModifier={viewShortcutModifier()}
-          onChangeViewShortcutModifier={(m) => setViewShortcutModifier(m)}
-        />
-      </Show>
-      
       {showNewViewForm() && (
         <div class="new-view-form">
           <input
@@ -461,29 +427,6 @@ export function ViewBar(props: ViewBarProps) {
               disabled={!newViewName().trim()}
             >
               Save
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {showDeleteConfirmation() && (
-        <div class="delete-confirmation">
-          <p>Are you sure you want to delete this view?</p>
-          <div class="delete-actions">
-            <button 
-              class="delete-cancel" 
-              onClick={() => setShowDeleteConfirmation(null)}
-            >
-              Cancel
-            </button>
-            <button 
-              class="delete-confirm" 
-              onClick={() => {
-                handleViewDelete(showDeleteConfirmation()!);
-                setShowDeleteConfirmation(null);
-              }}
-            >
-              Delete
             </button>
           </div>
         </div>
