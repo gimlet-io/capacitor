@@ -69,6 +69,10 @@ const SYSTEM_VIEWS: View[] = [
 export interface ViewBarProps {
   activeFilters: ActiveFilter[];
   setActiveFilters: (filters: ActiveFilter[]) => void;
+  // When isolated, the ViewBar manages its own selected view id locally
+  isolated?: boolean;
+  // Enable/disable keyboard shortcuts handling (useful for multi-pane focus)
+  keyboardEnabled?: boolean;
 }
 
 export function ViewBar(props: ViewBarProps) {
@@ -76,10 +80,16 @@ export function ViewBar(props: ViewBarProps) {
   const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
   let viewMenuRef: HTMLDivElement | undefined;
   const filterStore = useFilterStore();
+  const isIsolated = () => !!props.isolated;
+  const isKeyboardEnabled = () => props.keyboardEnabled !== false;
+  // Local selected view id when isolated
+  const [localSelectedViewId, setLocalSelectedViewId] = createSignal<string>('');
   const [saveViewOpen, setSaveViewOpen] = createSignal(false);
   let saveViewButtonRef: HTMLDivElement | undefined;
   let saveViewInlineRef: HTMLDivElement | undefined;
   const [newViewName, setNewViewName] = createSignal<string>("");
+  // Unique keyboard handler id per instance
+  const handlerId = `view-bar-${Math.random().toString(36).slice(2)}`;
   
   const [viewShortcutModifier, setViewShortcutModifier] = createSignal<ShortcutPrefix>(
     typeof globalThis !== 'undefined'
@@ -93,7 +103,7 @@ export function ViewBar(props: ViewBarProps) {
 
   // Selected view label for dropdown button
   const selectedViewLabel = createMemo(() => {
-    const selectedId = filterStore.selectedView;
+    const selectedId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
     const all = views();
     if (selectedId) {
       const v = all.find(view => view.id === selectedId);
@@ -166,7 +176,8 @@ export function ViewBar(props: ViewBarProps) {
       document.addEventListener("keydown", handleViewMenuKeydown);
       // Set initial highlight to current selection or first item
       const list = views();
-      const currentIndex = list.findIndex(v => v.id === filterStore.selectedView);
+      const currentSelected = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+      const currentIndex = list.findIndex(v => v.id === currentSelected);
       setHighlightedViewIndex(currentIndex >= 0 ? currentIndex : (list.length > 0 ? 0 : -1));
       setTimeout(scrollHighlightedViewIntoView, 0);
     } else {
@@ -244,10 +255,10 @@ export function ViewBar(props: ViewBarProps) {
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
-      const currentViewId = filterStore.selectedView;
+      const currentViewId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
       const viewExists = allViews.some(v => v.id === currentViewId);
       // If filters are already active (e.g., loaded from URL), don't override them
-      const hasActiveFilters = Array.isArray(filterStore.activeFilters) && filterStore.activeFilters.length > 0;
+      const hasActiveFilters = Array.isArray(props.activeFilters) && props.activeFilters.length > 0;
 
       if (!viewExists && allViews.length > 0 && !hasActiveFilters) {
         selectView(allViews[0].id);
@@ -260,8 +271,13 @@ export function ViewBar(props: ViewBarProps) {
   };
   
   const selectView = (viewId: string) => {
-    if (viewId === filterStore.selectedView) return;
-    filterStore.setSelectedView(viewId);
+    const currentId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+    if (viewId === currentId) return;
+    if (isIsolated()) {
+      setLocalSelectedViewId(viewId);
+    } else {
+      filterStore.setSelectedView(viewId);
+    }
 
     untrack(() => {
         const view = views().find(v => v.id === viewId);
@@ -373,6 +389,7 @@ export function ViewBar(props: ViewBarProps) {
 
   // Handle view keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (!isKeyboardEnabled()) return false;
     // If no modifiers are pressed, handle single-key shortcuts
     if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
       // Open the Views dropdown with 'v' (mirrors ResourceType filter 'r')
@@ -413,7 +430,7 @@ export function ViewBar(props: ViewBarProps) {
   onMount(() => {
     // Register with centralized keyboard manager (priority 2 = view switching)
     const unregister = keyboardManager.register({
-      id: 'view-bar',
+      id: handlerId,
       priority: 2,
       handler: handleKeyDown,
       ignoreInInput: true
@@ -439,7 +456,7 @@ export function ViewBar(props: ViewBarProps) {
     let viewId: string | undefined;
     let view: View | undefined;
     untrack(() => {
-      viewId = filterStore.selectedView;
+      viewId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
       // Only proceed if we have a non-empty viewId
       if (!viewId) {
         return;
@@ -462,6 +479,7 @@ export function ViewBar(props: ViewBarProps) {
 
   // Update document title based on selected view
   createEffect(() => {
+    if (isIsolated()) return;
     const defaultTitle = "Capacitor";
     const selectedViewId = filterStore.selectedView;
     const currentView = selectedViewId ? views().find(view => view.id === selectedViewId) : undefined;
@@ -485,7 +503,7 @@ export function ViewBar(props: ViewBarProps) {
         <Show when={viewMenuOpen()}>
           <div class="filter-options">
             <div class="filter-options-scroll-container">
-              <Show when={!filterStore.selectedView}>
+              <Show when={isIsolated() ? !localSelectedViewId() : !filterStore.selectedView}>
                 <button
                   class="filter-option"
                   onClick={(e) => {
@@ -504,11 +522,11 @@ export function ViewBar(props: ViewBarProps) {
               </Show>
               <For each={views()}>
                 {(view, _index) => (
-                  <Show when={filterStore.selectedView === view.id} fallback={
+                  <Show when={(isIsolated() ? localSelectedViewId() : filterStore.selectedView) === view.id} fallback={
                     <button 
                       class="filter-option"
                       data-view-index={_index()}
-                      classList={{ "active": filterStore.selectedView === view.id, "highlighted": highlightedViewIndex() === _index() }}
+                      classList={{ "active": (isIsolated() ? localSelectedViewId() : filterStore.selectedView) === view.id, "highlighted": highlightedViewIndex() === _index() }}
                       onClick={(e) => {
                         e.stopPropagation();
                         selectView(view.id);
@@ -562,7 +580,7 @@ export function ViewBar(props: ViewBarProps) {
         </Show>
       </div>
       {/* Save as View inline panel (only when no view is selected) */}
-      <Show when={!filterStore.selectedView}>
+      <Show when={isIsolated() ? !localSelectedViewId() : !filterStore.selectedView}>
         <Show when={saveViewOpen()}>
           <div 
             class="filter-group"

@@ -294,6 +294,8 @@ export function ResourceList<T>(props: {
   resetKey?: unknown;
   columns: Column<any>[];
   navigate?: (path: string) => void;
+  keyboardEnabled?: boolean;
+  isActive?: boolean;
 }) {
   const filterStore = useFilterStore();
   const apiStore = useApiResourceStore();
@@ -305,6 +307,8 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
+  // If user activates pane via mouse, skip one auto-highlight of first row
+  let skipNextAutoHighlight = false;
   // Debounce and cache for permission checks
   let permissionTimer: number | undefined;
   const permissionCache = new Map<string, Record<string, boolean | undefined>>();
@@ -556,6 +560,7 @@ export function ResourceList<T>(props: {
 
   // Generic function to handle keyboard shortcuts by mapping keys to commands and built-in actions
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (props.keyboardEnabled === false) return false;
     if (sortedResources().length === 0) return false;
 
     // Handle navigation keys first (these don't need a selected resource)
@@ -617,6 +622,13 @@ export function ResourceList<T>(props: {
       setSelectedIndex(-1);
     } else if (selectedIndex() >= sortedResources().length) {
       setSelectedIndex(sortedResources().length - 1);
+    }
+  });
+
+  // Always preselect the first row when data is present and nothing is selected
+  createEffect(() => {
+    if (sortedResources().length > 0 && selectedIndex() === -1) {
+      setSelectedIndex(0);
     }
   });
 
@@ -705,10 +717,30 @@ export function ResourceList<T>(props: {
     });
   };
 
+  // When pane becomes active and nothing is selected, auto-highlight the first row
+  createEffect(() => {
+    const active = props.isActive === true;
+    if (!active) return;
+    if (sortedResources().length > 0 && selectedIndex() === -1) {
+      // Defer to allow click selection to run first when activating via click
+      setTimeout(() => {
+        // If activation was triggered by a mouse interaction, do not auto-select first row
+        if (skipNextAutoHighlight) {
+          skipNextAutoHighlight = false;
+          return;
+        }
+        if (props.isActive && selectedIndex() === -1 && sortedResources().length > 0) {
+          setSelectedIndex(0);
+        }
+      }, 0);
+    }
+  });
+
   onMount(() => {
     // Register with centralized keyboard manager (priority 3 = resource navigation)
+    const handlerId = `resource-list-${Math.random().toString(36).slice(2)}`;
     const unregister = keyboardManager.register({
-      id: 'resource-list',
+      id: handlerId,
       priority: 3,
       handler: handleKeyDown,
       ignoreInInput: true
@@ -738,7 +770,7 @@ export function ResourceList<T>(props: {
   });
 
   return (
-    <div class={`resource-list-container`}>      
+    <div class={`resource-list-container`} onMouseDown={() => { skipNextAutoHighlight = true; }}>      
       <div class="keyboard-shortcut-container">
         <KeyboardShortcuts
           shortcuts={getAvailableShortcuts()}
@@ -792,11 +824,18 @@ export function ResourceList<T>(props: {
                   setSelectedResource(() => resource);
                   setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
                 };
+                const handleMouseDown = () => {
+                  // Preselect on mouse down to ensure selection wins during activation
+                  setSelectedIndex(globalIndex());
+                  setSelectedResource(() => resource);
+                  setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
+                };
                 
                 return (
                   <>
                     <tr 
-                      class={selectedIndex() === globalIndex() ? 'selected' : ''} 
+                      class={selectedIndex() === globalIndex() ? (props.isActive ? 'selected' : 'selected-inactive') : ''} 
+                      onMouseDown={handleMouseDown}
                       onClick={handleClick}
                     >
                       {props.columns.map(column => (
@@ -807,7 +846,8 @@ export function ResourceList<T>(props: {
                     </tr>
                     {props.resourceTypeConfig.detailRowRenderer && (
                       <tr 
-                        class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}
+                        class={`detail-row ${selectedIndex() === globalIndex() ? (props.isActive ? 'selected' : 'selected-inactive') : ''}`}
+                        onMouseDown={handleMouseDown}
                         onClick={handleClick}
                       >
                         {props.resourceTypeConfig.detailRowRenderer(resource, props.columns.length)}

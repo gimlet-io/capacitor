@@ -94,11 +94,19 @@ export function FilterBar(props: {
   initialLoadComplete?: boolean;
   loadingStage?: 'loading' | 'enhancing' | 'filtering' | null;
   resourceCount?: number;
+  // Pane-scoped behavior
+  keyboardEnabled?: boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
 }) {
   const filterStore = useFilterStore();
   const [spinnerFrame, setSpinnerFrame] = createSignal(0);
   const spinnerFrames = ["|", "/", "-", "\\"];
   let spinnerTimer: number | undefined;
+  // Unique keyboard handler id per instance
+  const handlerId = `filter-bar-${Math.random().toString(36).slice(2)}`;
   
   // Update spinner animation
   createEffect(() => {
@@ -348,15 +356,16 @@ export function FilterBar(props: {
 
   // Global keyboard shortcuts handler
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (props.keyboardEnabled === false) return false;
     // Always allow history navigation regardless of focused element
     if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
       e.preventDefault();
-      filterStore.goBack();
+      if (props.onGoBack) props.onGoBack();
       return true;
     }
     if (doesEventMatchShortcut(e, 'mod+arrowright')) {
       e.preventDefault();
-      filterStore.goForward();
+      if (props.onGoForward) props.onGoForward();
       return true;
     }
 
@@ -434,7 +443,7 @@ export function FilterBar(props: {
   onMount(() => {
     // Register with centralized keyboard manager (priority 1 = filter navigation)
     const unregister = keyboardManager.register({
-      id: 'filter-bar',
+      id: handlerId,
       priority: 1,
       handler: handleKeyDown
     });
@@ -552,12 +561,12 @@ export function FilterBar(props: {
     // Ensure history navigation works even when typing in inputs
     if (doesEventMatchShortcut(event, 'mod+arrowleft')) {
       event.preventDefault();
-      filterStore.goBack();
+      if (props.onGoBack) props.onGoBack();
       return;
     }
     if (doesEventMatchShortcut(event, 'mod+arrowright')) {
       event.preventDefault();
-      filterStore.goForward();
+      if (props.onGoForward) props.onGoForward();
       return;
     }
     
