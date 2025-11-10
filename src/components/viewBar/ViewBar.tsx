@@ -375,14 +375,14 @@ export function ViewBar(props: ViewBarProps) {
           </For>
           {!showNewViewForm() ? (
             <button
-              class="view-pill new-view"
+              class="view-pill"
               onClick={handleNewViewButtonClick}
             >
               +
             </button>
           ) : (
             <button
-              class="view-pill new-view-creating"
+              class="view-pill"
             >
               {newViewName() || "New View"}
             </button>

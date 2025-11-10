@@ -1120,24 +1120,6 @@ td.message-cell {
   color: var(--linear-text-primary);
 }
 
-.view-pill.new-view {
-  background-color: var(--linear-bg);
-  color: var(--linear-text-secondary);
-  border: 1px dashed var(--linear-border);
-}
-
-.view-pill.new-view:hover {
-  background-color: var(--linear-bg-secondary);
-  color: var(--linear-text-primary);
-}
-
-.view-pill.new-view-creating {
-  background-color: var(--linear-bg);
-  color: var(--linear-text-secondary);
-  border: 1px dashed var(--linear-border);
-  font-style: italic;
-}
-
 .new-view-form {
   padding: 1rem;
   margin-bottom: 1rem;

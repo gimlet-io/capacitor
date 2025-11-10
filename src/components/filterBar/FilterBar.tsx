@@ -128,6 +128,30 @@ export function FilterBar(props: {
   const filtersRef = new Map<string, HTMLDivElement>();
   const textInputRefs = new Map<string, HTMLInputElement>();
   const optionSearchInputRefs = new Map<string, HTMLInputElement>();
+  const [visibleFilterNames, setVisibleFilterNames] = createSignal<Set<string>>(new Set());
+  const [addMenuOpen, setAddMenuOpen] = createSignal(false);
+  let addMenuContainerRef: HTMLDivElement | undefined;
+
+  // Compute visible filters (active or explicitly added)
+  const visibleFilters = createMemo(() => {
+    const activeNames = new Set(props.activeFilters.map(f => f.name));
+    const visible = visibleFilterNames();
+    return props.filters.filter(f => visible.has(f.name) || activeNames.has(f.name));
+  });
+
+  // Initialize and reset visible set from active filters
+  createEffect(() => {
+    const names = new Set(props.activeFilters.map(f => f.name));
+    setVisibleFilterNames(names);
+  });
+
+  // Reset extra visible filters when view changes (non-persistent)
+  createEffect(() => {
+    // Track selectedView for reactivity
+    const _v = filterStore.selectedView;
+    const names = new Set(props.activeFilters.map(f => f.name));
+    setVisibleFilterNames(names);
+  });
 
   const toggleFilter = (filter: string, value: string) => {
     let newFilters: ActiveFilter[] = [...props.activeFilters];
@@ -343,10 +367,24 @@ export function FilterBar(props: {
     
     if (e.key === "n" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
+      // Ensure Namespace is visible
+      setVisibleFilterNames(prev => {
+        const next = new Set(prev);
+        next.add("Namespace");
+        return next;
+      });
+      setAddMenuOpen(false);
       openFilter("Namespace");
       return true;
     } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
+      // Ensure ResourceType is visible
+      setVisibleFilterNames(prev => {
+        const next = new Set(prev);
+        next.add("ResourceType");
+        return next;
+      });
+      setAddMenuOpen(false);
       openFilter("ResourceType");
       return true;
     }
@@ -360,6 +398,31 @@ export function FilterBar(props: {
       document.addEventListener('click', handleClickOutside);
     } else {
       document.removeEventListener('click', handleClickOutside);
+    }
+  });
+
+  // Close Add menu on outside click and Escape
+  const handleAddMenuClickOutside = (event: MouseEvent) => {
+    if (!addMenuOpen()) return;
+    if (addMenuContainerRef && !addMenuContainerRef.contains(event.target as Node)) {
+      setAddMenuOpen(false);
+    }
+  };
+
+  const handleAddMenuKeydown = (event: KeyboardEvent) => {
+    if (!addMenuOpen()) return;
+    if (event.key === 'Escape') {
+      setAddMenuOpen(false);
+    }
+  };
+
+  createEffect(() => {
+    if (addMenuOpen()) {
+      document.addEventListener('click', handleAddMenuClickOutside);
+      document.addEventListener('keydown', handleAddMenuKeydown);
+    } else {
+      document.removeEventListener('click', handleAddMenuClickOutside);
+      document.removeEventListener('keydown', handleAddMenuKeydown);
     }
   });
 
@@ -641,7 +704,7 @@ export function FilterBar(props: {
   return (
     <div class="filter-bar">
       <div class="filter-groups">
-        <For each={props.filters}>
+        <For each={visibleFilters()}>
           {(filter) => {
             const hasActiveFilters = createMemo(() => 
               props.activeFilters.some(f => f.name === filter.name)
@@ -786,6 +849,50 @@ export function FilterBar(props: {
             );
           }}
         </For>
+        {/* Add Filter control */}
+        <div 
+          class="filter-group"
+          ref={el => { addMenuContainerRef = el; }}
+        >
+          <button 
+            class="filter-group-button"
+            onClick={(e) => { e.stopPropagation(); setAddMenuOpen(!addMenuOpen()); }}
+            title="Add filter"
+            aria-label="Add filter"
+          >
+            <span style="color: var(--linear-text-secondary);">+</span>
+          </button>
+          <Show when={addMenuOpen()}>
+            <div class="filter-options">
+              <div class="filter-options-scroll-container">
+                <For each={props.filters.filter(f => {
+                  const activeNames = new Set(props.activeFilters.map(af => af.name));
+                  const visible = visibleFilterNames();
+                  return !visible.has(f.name) && !activeNames.has(f.name);
+                })}>
+                  {(f) => (
+                    <button 
+                      class="filter-option"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVisibleFilterNames(prev => {
+                          const next = new Set(prev);
+                          next.add(f.name);
+                          return next;
+                        });
+                        setAddMenuOpen(false);
+                        // Open immediately after render
+                        setTimeout(() => openFilter(f.name), 0);
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
+        </div>
         
       {/* Loading indicator with ANSI spinner and staged labels */}
       <Show when={props.initialLoadComplete !== undefined || props.loadingStage !== undefined}>
