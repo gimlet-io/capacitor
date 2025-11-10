@@ -173,12 +173,26 @@ export function ViewBar(props: ViewBarProps) {
       // Load custom views from storage
       const storedViews = localStorage.getItem('customViews');
       let customViews: View[] = [];
+      // Load hidden system views ids
+      const hiddenSystem = localStorage.getItem('hiddenSystemViews');
+      let hiddenSystemViewIds: string[] = [];
       
       if (storedViews) {
         customViews = JSON.parse(storedViews) as View[];
       }
+      if (hiddenSystem) {
+        try {
+          const parsed = JSON.parse(hiddenSystem);
+          if (Array.isArray(parsed)) {
+            hiddenSystemViewIds = parsed.filter((v: unknown) => typeof v === 'string') as string[];
+          }
+        } catch {
+          hiddenSystemViewIds = [];
+        }
+      }
       
-      const allViews = [...SYSTEM_VIEWS, ...customViews];
+      const systemViewsFiltered = SYSTEM_VIEWS.filter(v => !hiddenSystemViewIds.includes(v.id));
+      const allViews = [...systemViewsFiltered, ...customViews];
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
@@ -256,21 +270,41 @@ export function ViewBar(props: ViewBarProps) {
         // If confirm is not available, proceed without blocking
       }
     }
-    // Persist deletion only for custom (non-system) views
-    if (target && !target.isSystem) {
+    // Persist deletion for both custom and system views
+    if (target) {
       try {
-        const stored = localStorage.getItem('customViews');
-        let customViews: any[] = [];
-        if (stored) {
-          try {
-            customViews = JSON.parse(stored);
-            if (!Array.isArray(customViews)) customViews = [];
-          } catch {
-            customViews = [];
+        if (target.isSystem) {
+          // Track hidden system views
+          const hiddenSystem = localStorage.getItem('hiddenSystemViews');
+          let hiddenSystemViewIds: string[] = [];
+          if (hiddenSystem) {
+            try {
+              const parsed = JSON.parse(hiddenSystem);
+              if (Array.isArray(parsed)) {
+                hiddenSystemViewIds = parsed.filter((v: unknown) => typeof v === 'string') as string[];
+              }
+            } catch {
+              hiddenSystemViewIds = [];
+            }
           }
+          const alreadyHidden = hiddenSystemViewIds.includes(viewId);
+          const updatedHidden = alreadyHidden ? hiddenSystemViewIds : [...hiddenSystemViewIds, viewId];
+          localStorage.setItem('hiddenSystemViews', JSON.stringify(updatedHidden));
+        } else {
+          // Remove from custom views
+          const stored = localStorage.getItem('customViews');
+          let customViews: any[] = [];
+          if (stored) {
+            try {
+              customViews = JSON.parse(stored);
+              if (!Array.isArray(customViews)) customViews = [];
+            } catch {
+              customViews = [];
+            }
+          }
+          const updatedCustom = customViews.filter((v: any) => v?.id !== viewId);
+          localStorage.setItem('customViews', JSON.stringify(updatedCustom));
         }
-        const updatedCustom = customViews.filter((v: any) => v?.id !== viewId);
-        localStorage.setItem('customViews', JSON.stringify(updatedCustom));
         try {
           const ev = new Event('custom-views-changed');
           (globalThis as unknown as { dispatchEvent?: (e: Event) => void }).dispatchEvent?.(ev);
@@ -282,7 +316,11 @@ export function ViewBar(props: ViewBarProps) {
     // Update local state and switch selection
     const updatedViews = views().filter(view => view.id !== viewId);
     setViews(updatedViews);
-    selectView(SYSTEM_VIEWS[0].id);
+    if (updatedViews.length > 0) {
+      selectView(updatedViews[0].id);
+    } else {
+      selectView('');
+    }
   };
 
   // Handle view keyboard shortcuts
@@ -411,7 +449,7 @@ export function ViewBar(props: ViewBarProps) {
               </Show>
               <For each={views()}>
                 {(view, _index) => (
-                  <Show when={filterStore.selectedView === view.id && !view.isSystem} fallback={
+                  <Show when={filterStore.selectedView === view.id} fallback={
                     <button 
                       class="filter-option"
                       classList={{ "active": filterStore.selectedView === view.id }}
