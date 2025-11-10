@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show } from "solid-js";
+import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show, createMemo } from "solid-js";
 import { applyTheme, loadInitialTheme, type ThemeName } from "../../utils/theme.ts";
 import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
@@ -80,6 +80,8 @@ export function ViewBar(props: ViewBarProps) {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
   const [views, setViews] = createSignal<View[]>([]);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
+  let viewMenuRef: HTMLDivElement | undefined;
   let newViewNameInput: HTMLInputElement | undefined;
   const filterStore = useFilterStore();
   
@@ -91,6 +93,43 @@ export function ViewBar(props: ViewBarProps) {
 
   createEffect(() => {
     setShortcutPrefix(viewShortcutModifier());
+  });
+
+  // Selected view label for dropdown button
+  const selectedViewLabel = createMemo(() => {
+    const selectedId = filterStore.selectedView;
+    const all = views();
+    if (selectedId) {
+      const v = all.find(view => view.id === selectedId);
+      if (v) return v.label;
+    }
+    // Fallback: infer by matching current filters
+    const currentFilters = props.activeFilters || [];
+    const matched = all.find(v => JSON.stringify(v.filters) === JSON.stringify(currentFilters));
+    return matched ? matched.label : "";
+  });
+
+  // Close dropdown on outside click or Escape
+  const handleViewMenuClickOutside = (event: MouseEvent) => {
+    if (!viewMenuOpen()) return;
+    if (viewMenuRef && !viewMenuRef.contains(event.target as Node)) {
+      setViewMenuOpen(false);
+    }
+  };
+  const handleViewMenuKeydown = (event: KeyboardEvent) => {
+    if (!viewMenuOpen()) return;
+    if (event.key === "Escape") {
+      setViewMenuOpen(false);
+    }
+  };
+  createEffect(() => {
+    if (viewMenuOpen()) {
+      document.addEventListener("click", handleViewMenuClickOutside);
+      document.addEventListener("keydown", handleViewMenuKeydown);
+    } else {
+      document.removeEventListener("click", handleViewMenuClickOutside);
+      document.removeEventListener("keydown", handleViewMenuKeydown);
+    }
   });
 
   const [theme, setTheme] = createSignal<ThemeName>(loadInitialTheme());
@@ -332,61 +371,54 @@ export function ViewBar(props: ViewBarProps) {
     <>
       <div class="views">
         <div class="view-buttons">
-          <For each={views()}>
-            {(view, _index) => (
-              <div class="view-pill-container">
-                <button
-                  class={`view-pill ${filterStore.selectedView === view.id ? 'selected' : ''}`}
-                  onClick={() => selectView(view.id)}
-                  style={{ position: 'relative' }}
-                >
-                  {_index() < 9 && (
-                    <span
-                      class="view-shortcut-number"
-                      style={{
-                        position: 'absolute',
-                        right: '6px',
-                        bottom: '4px',
-                        opacity: 0.5,
-                        "font-size": '0.8em',
-                        "pointer-events": 'none'
-                      }}
-                      aria-hidden="true"
-                    >
-                      {_index() + 1}
-                    </span>
-                  )}
-                  <span>{view.label}</span>
-                  {filterStore.selectedView === view.id && !view.isSystem && (
-                    <span 
-                      class="view-delete" 
-                      title="Delete view"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDeleteConfirmation(view.id);
-                      }}
-                    >
-                      ×
-                    </span>
-                  )}
-                </button>
+          <div 
+            class="filter-group"
+            ref={el => { viewMenuRef = el; }}
+          >
+            <button 
+              classList={{ "filter-group-button": true, "has-active-filters": !!selectedViewLabel() }}
+              onClick={(e) => { e.stopPropagation(); setViewMenuOpen(!viewMenuOpen()); }}
+              title="Select view"
+            >
+              <span>View: {selectedViewLabel() || "..."}</span>
+            </button>
+            <Show when={viewMenuOpen()}>
+              <div class="filter-options">
+                <div class="filter-options-scroll-container">
+                  <For each={views()}>
+                    {(view, _index) => (
+                      <button 
+                        class="filter-option"
+                        classList={{ "active": filterStore.selectedView === view.id }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectView(view.id);
+                          setViewMenuOpen(false);
+                        }}
+                      >
+                        <span>{view.label}</span>
+                        <Show when={_index() < 9}>
+                          <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                            {_index() + 1}
+                          </span>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
+                  <button 
+                    class="filter-option"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMenuOpen(false);
+                      handleNewViewButtonClick();
+                    }}
+                  >
+                    New View...
+                  </button>
+                </div>
               </div>
-            )}
-          </For>
-          {!showNewViewForm() ? (
-            <button
-              class="view-pill"
-              onClick={handleNewViewButtonClick}
-            >
-              +
-            </button>
-          ) : (
-            <button
-              class="view-pill"
-            >
-              {newViewName() || "New View"}
-            </button>
-          )}
+            </Show>
+          </div>
         </div>
         
         <div class="view-right-section">

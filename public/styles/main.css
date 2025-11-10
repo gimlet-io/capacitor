@@ -1068,7 +1068,7 @@ td.message-cell {
 /* Views container */
 .views-container {
   flex-grow: 1; /* Take all available space */
-  overflow: hidden;
+  overflow: visible; /* Allow dropdowns to render outside the container */
 }
 
 .view-buttons {
