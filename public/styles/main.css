@@ -1296,6 +1296,18 @@ td.message-cell {
   max-width: none;
 }
 
+/* Inline Save View controls in ViewBar */
+.filter-inline-controls .filter-text-input {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+.filter-inline-controls .filter-group-button {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .filter-options {
   position: absolute;
   top: 100%;

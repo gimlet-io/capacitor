@@ -72,13 +72,14 @@ export interface ViewBarProps {
 }
 
 export function ViewBar(props: ViewBarProps) {
-  const [showNewViewForm, setShowNewViewForm] = createSignal(false);
-  const [newViewName, setNewViewName] = createSignal("");
   const [views, setViews] = createSignal<View[]>([]);
   const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
   let viewMenuRef: HTMLDivElement | undefined;
-  let newViewNameInput: HTMLInputElement | undefined;
   const filterStore = useFilterStore();
+  const [saveViewOpen, setSaveViewOpen] = createSignal(false);
+  let saveViewButtonRef: HTMLDivElement | undefined;
+  let saveViewInlineRef: HTMLDivElement | undefined;
+  const [newViewName, setNewViewName] = createSignal<string>("");
   
   const [viewShortcutModifier, setViewShortcutModifier] = createSignal<ShortcutPrefix>(
     typeof globalThis !== 'undefined'
@@ -124,6 +125,32 @@ export function ViewBar(props: ViewBarProps) {
     } else {
       document.removeEventListener("click", handleViewMenuClickOutside);
       document.removeEventListener("keydown", handleViewMenuKeydown);
+    }
+  });
+
+  // Save View inline controls: outside click and Esc handling
+  const handleSaveViewClickOutside = (event: MouseEvent) => {
+    if (!saveViewOpen()) return;
+    const target = event.target as Node;
+    const insideButton = !!(saveViewButtonRef && saveViewButtonRef.contains(target));
+    const insideInline = !!(saveViewInlineRef && saveViewInlineRef.contains(target));
+    if (!insideButton && !insideInline) {
+      setSaveViewOpen(false);
+    }
+  };
+  const handleSaveViewKeydown = (event: KeyboardEvent) => {
+    if (!saveViewOpen()) return;
+    if (event.key === 'Escape') {
+      setSaveViewOpen(false);
+    }
+  };
+  createEffect(() => {
+    if (saveViewOpen()) {
+      document.addEventListener('click', handleSaveViewClickOutside);
+      document.addEventListener('keydown', handleSaveViewKeydown);
+    } else {
+      document.removeEventListener('click', handleSaveViewClickOutside);
+      document.removeEventListener('keydown', handleSaveViewKeydown);
     }
   });
 
@@ -182,36 +209,30 @@ export function ViewBar(props: ViewBarProps) {
     })
   };
 
-  const saveCustomViews = (viewsToSave: View[]) => {
+  // Persist a new view and select it
+  const saveCurrentFiltersAsView = (label: string) => {
     try {
-      const customViews = viewsToSave.filter(view => !view.isSystem);
-      
-      // Convert views to a serializable format
-      const serializableViews = customViews.map(view => {
-        // Process filters to make them serializable
-        const serializableFilters = view.filters?.map((activeFilter: ActiveFilter) => ({
-          name: activeFilter.name, // Store filter name as identifier
-          value: activeFilter.value
-        }));
-        
-        return {
-          ...view,
-          filters: serializableFilters
-        };
-      });
-      
-      localStorage.setItem('customViews', JSON.stringify(serializableViews));
-    } catch (error) {
-      console.error('Error saving custom views:', error);
+      const id = `custom-${Date.now()}`;
+      const newView = { id, label, filters: props.activeFilters.map(f => ({ name: f.name, value: f.value })) };
+      const stored = localStorage.getItem('customViews');
+      let customViews: any[] = [];
+      if (stored) {
+        try {
+          customViews = JSON.parse(stored);
+          if (!Array.isArray(customViews)) customViews = [];
+        } catch { customViews = []; }
+      }
+      const updated = [...customViews, newView];
+      localStorage.setItem('customViews', JSON.stringify(updated));
+      try {
+        const ev = new Event('custom-views-changed');
+        (globalThis as unknown as { dispatchEvent?: (e: Event) => void }).dispatchEvent?.(ev);
+      } catch { /* ignore */ }
+      // Select the newly created view
+      filterStore.setSelectedView(id);
+    } catch {
+      // Ignore persistence errors silently
     }
-  };
-  
-  const createView = (label: string, filters: ActiveFilter[]) => {
-  return {
-      id: `custom-${Date.now()}`,
-      label,
-      filters: filters
-    };
   };
 
   const selectViewByIndex = (index: number) => {
@@ -221,21 +242,46 @@ export function ViewBar(props: ViewBarProps) {
     }
   };
     
-  const handleViewCreate = (viewName: string) => {
-    if (!viewName.trim()) return;
-    
-    const newView = createView(viewName, props.activeFilters);
-    
-    const updatedViews = [...views(), newView];
-    setViews(updatedViews);
-    saveCustomViews(updatedViews);
-    selectView(newView.id);
-  };
-  
   const handleViewDelete = (viewId: string) => {
+    const target = views().find(v => v.id === viewId);
+    // Ask for user confirmation before deleting
+    if (target) {
+      try {
+        const viewName = target.label || target.id;
+        const confirmed =
+          (globalThis as unknown as { confirm?: (msg: string) => boolean })
+            .confirm?.(`Delete view "${viewName}"?`) ?? true;
+        if (!confirmed) return;
+      } catch {
+        // If confirm is not available, proceed without blocking
+      }
+    }
+    // Persist deletion only for custom (non-system) views
+    if (target && !target.isSystem) {
+      try {
+        const stored = localStorage.getItem('customViews');
+        let customViews: any[] = [];
+        if (stored) {
+          try {
+            customViews = JSON.parse(stored);
+            if (!Array.isArray(customViews)) customViews = [];
+          } catch {
+            customViews = [];
+          }
+        }
+        const updatedCustom = customViews.filter((v: any) => v?.id !== viewId);
+        localStorage.setItem('customViews', JSON.stringify(updatedCustom));
+        try {
+          const ev = new Event('custom-views-changed');
+          (globalThis as unknown as { dispatchEvent?: (e: Event) => void }).dispatchEvent?.(ev);
+        } catch { /* ignore */ }
+      } catch {
+        // ignore storage errors
+      }
+    }
+    // Update local state and switch selection
     const updatedViews = views().filter(view => view.id !== viewId);
     setViews(updatedViews);
-    saveCustomViews(updatedViews);
     selectView(SYSTEM_VIEWS[0].id);
   };
 
@@ -330,34 +376,6 @@ export function ViewBar(props: ViewBarProps) {
     document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
   });
 
-  const handleNewViewButtonClick = () => {
-    setShowNewViewForm(true);
-    setNewViewName("");
-    setTimeout(() => {
-      newViewNameInput?.focus();
-    }, 0);
-  };
-
-  const handleFormKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      createNewView();
-    }
-  };
-
-  const createNewView = () => {
-    if (!newViewName().trim()) return;
-    
-    handleViewCreate(newViewName());
-    
-    setShowNewViewForm(false);
-    setNewViewName("");
-  };
-
-  const cancelNewView = () => {
-    setShowNewViewForm(false);
-    setNewViewName("");
-  };
-
   return (
     <>
       <div 
@@ -374,63 +392,132 @@ export function ViewBar(props: ViewBarProps) {
         <Show when={viewMenuOpen()}>
           <div class="filter-options">
             <div class="filter-options-scroll-container">
+              <Show when={!filterStore.selectedView}>
+                <button
+                  class="filter-option"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewMenuOpen(false);
+                    setSaveViewOpen(true);
+                    setTimeout(() => {
+                      const input = (saveViewInlineRef?.querySelector('.filter-text-input input') as HTMLInputElement | undefined);
+                      input?.focus();
+                      input?.select?.();
+                    }, 0);
+                  }}
+                >
+                  <span>Save as View...</span>
+                </button>
+              </Show>
               <For each={views()}>
                 {(view, _index) => (
-                  <button 
-                    class="filter-option"
-                    classList={{ "active": filterStore.selectedView === view.id }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selectView(view.id);
-                      setViewMenuOpen(false);
-                    }}
-                  >
-                    <span>{view.label}</span>
-                    <Show when={_index() < 9}>
-                      <span class="shortcut-key" style={{ "margin-left": "auto" }}>
-                        {_index() + 1}
-                      </span>
-                    </Show>
-                  </button>
+                  <Show when={filterStore.selectedView === view.id && !view.isSystem} fallback={
+                    <button 
+                      class="filter-option"
+                      classList={{ "active": filterStore.selectedView === view.id }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectView(view.id);
+                        setViewMenuOpen(false);
+                      }}
+                    >
+                      <span>{view.label}</span>
+                      <Show when={_index() < 9}>
+                        <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                          {_index() + 1}
+                        </span>
+                      </Show>
+                    </button>
+                  }>
+                    <div style={{ display: "flex", "align-items": "stretch", gap: "6px", width: "100%" }}>
+                      <button 
+                        class="filter-option"
+                        classList={{ "active": true }}
+                        style={{ flex: "1 1 auto" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Keep current selection; just close the menu
+                          setViewMenuOpen(false);
+                        }}
+                      >
+                        <span>{view.label}</span>
+                        <Show when={_index() < 9}>
+                          <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                            {_index() + 1}
+                          </span>
+                        </Show>
+                      </button>
+                      <button
+                        class="filter-option"
+                        title="Delete view"
+                        style={{ "flex": "0 0 auto", "padding": "4px 8px" }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          handleViewDelete(view.id); 
+                        }}
+                      >
+                        x
+                      </button>
+                    </div>
+                  </Show>
                 )}
               </For>
-              <button 
-                class="filter-option"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewMenuOpen(false);
-                  handleNewViewButtonClick();
-                }}
-              >
-                New View...
-              </button>
             </div>
           </div>
         </Show>
       </div>
-
-      {showNewViewForm() && (
-        <div class="new-view-form">
-          <input
-            type="text"
-            placeholder="View name"
-            value={newViewName()}
-            onInput={(e) => setNewViewName(e.currentTarget.value)}
-            onKeyDown={handleFormKeyDown}
-            ref={el => newViewNameInput = el}
-          />
-          <div class="new-view-actions">
-            <button class="new-view-cancel" onClick={cancelNewView}>Cancel</button>
-            <button 
-              class="new-view-save" 
-              onClick={createNewView}
-              disabled={!newViewName().trim()}
-            >
-              Save
-            </button>
+      {/* Save as View inline panel (only when no view is selected) */}
+      <Show when={!filterStore.selectedView}>
+        <Show when={saveViewOpen()}>
+          <div 
+            class="filter-group"
+            ref={el => { saveViewInlineRef = el; }}
+          >
+            <div class="filter-inline-controls" style="display: flex; align-items: center; gap: 8px;">
+              <div class="filter-text-input">
+                <input
+                  type="text"
+                  placeholder="View name"
+                  value={newViewName()}
+                  onInput={(e) => setNewViewName(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const name = newViewName().trim();
+                      if (name) {
+                        saveCurrentFiltersAsView(name);
+                        setNewViewName("");
+                        setSaveViewOpen(false);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setSaveViewOpen(false);
+                    }
+                  }}
+                />
+              </div>
+              <button
+                class="filter-group-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const name = newViewName().trim();
+                  if (!name) return;
+                  saveCurrentFiltersAsView(name);
+                  setNewViewName("");
+                  setSaveViewOpen(false);
+                }}
+                disabled={!newViewName().trim()}
+              >
+                Save
+              </button>
+              <button
+                class="filter-group-button"
+                onClick={(e) => { e.stopPropagation(); setSaveViewOpen(false); }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        </Show>
+      </Show>
     </>
   );
 } 

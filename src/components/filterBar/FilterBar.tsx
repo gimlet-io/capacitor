@@ -131,6 +131,7 @@ export function FilterBar(props: {
   const [visibleFilterNames, setVisibleFilterNames] = createSignal<Set<string>>(new Set());
   const [addMenuOpen, setAddMenuOpen] = createSignal(false);
   let addMenuContainerRef: HTMLDivElement | undefined;
+  const [newViewName, setNewViewName] = createSignal<string>("");
 
   // Compute visible filters (active or explicitly added)
   const visibleFilters = createMemo(() => {
@@ -425,6 +426,10 @@ export function FilterBar(props: {
       document.removeEventListener('keydown', handleAddMenuKeydown);
     }
   });
+
+  // (Save View behavior moved to ViewBar)
+
+  // (Save View persistence moved to ViewBar)
 
   onMount(() => {
     // Register with centralized keyboard manager (priority 1 = filter navigation)
@@ -893,6 +898,8 @@ export function FilterBar(props: {
             </div>
           </Show>
         </div>
+
+        {/* Save as View controls moved to ViewBar */}
         
       {/* Loading indicator with ANSI spinner and staged labels */}
       <Show when={props.initialLoadComplete !== undefined || props.loadingStage !== undefined}>
