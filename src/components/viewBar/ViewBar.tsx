@@ -112,19 +112,67 @@ export function ViewBar(props: ViewBarProps) {
       setViewMenuOpen(false);
     }
   };
+  const [highlightedViewIndex, setHighlightedViewIndex] = createSignal<number>(-1);
+  const scrollHighlightedViewIntoView = () => {
+    if (!viewMenuRef) return;
+    const container = viewMenuRef.querySelector('.filter-options-scroll-container') as HTMLElement | null;
+    if (!container) return;
+    const index = highlightedViewIndex();
+    if (index < 0) return;
+    const el = container.querySelector(`.filter-option[data-view-index="${index}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: 'nearest' });
+  };
   const handleViewMenuKeydown = (event: KeyboardEvent) => {
     if (!viewMenuOpen()) return;
     if (event.key === "Escape") {
       setViewMenuOpen(false);
+      return;
+    }
+    const list = views();
+    if (!list || list.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedViewIndex(prev => {
+        const next = prev < 0 ? 0 : Math.min(prev + 1, list.length - 1);
+        return next;
+      });
+      setTimeout(scrollHighlightedViewIntoView, 0);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedViewIndex(prev => {
+        const next = prev <= 0 ? 0 : prev - 1;
+        return next;
+      });
+      setTimeout(scrollHighlightedViewIntoView, 0);
+      return;
+    }
+    if (event.key === "Enter") {
+      const index = highlightedViewIndex();
+      if (index >= 0 && index < list.length) {
+        event.preventDefault();
+        const v = list[index];
+        selectView(v.id);
+        setViewMenuOpen(false);
+        return;
+      }
     }
   };
   createEffect(() => {
     if (viewMenuOpen()) {
       document.addEventListener("click", handleViewMenuClickOutside);
       document.addEventListener("keydown", handleViewMenuKeydown);
+      // Set initial highlight to current selection or first item
+      const list = views();
+      const currentIndex = list.findIndex(v => v.id === filterStore.selectedView);
+      setHighlightedViewIndex(currentIndex >= 0 ? currentIndex : (list.length > 0 ? 0 : -1));
+      setTimeout(scrollHighlightedViewIntoView, 0);
     } else {
       document.removeEventListener("click", handleViewMenuClickOutside);
       document.removeEventListener("keydown", handleViewMenuKeydown);
+      setHighlightedViewIndex(-1);
     }
   });
 
@@ -325,8 +373,14 @@ export function ViewBar(props: ViewBarProps) {
 
   // Handle view keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
-    // Early exit: if no modifiers are pressed, don't bother checking shortcuts
+    // If no modifiers are pressed, handle single-key shortcuts
     if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      // Open the Views dropdown with 'v' (mirrors ResourceType filter 'r')
+      if (e.key === 'v') {
+        e.preventDefault();
+        setViewMenuOpen(true);
+        return true;
+      }
       return false;
     }
     
@@ -426,6 +480,7 @@ export function ViewBar(props: ViewBarProps) {
           title="Select view"
         >
           <span>View: {selectedViewLabel() || "..."} </span>
+          <span class="shortcut-key">v</span>
         </button>
         <Show when={viewMenuOpen()}>
           <div class="filter-options">
@@ -452,7 +507,8 @@ export function ViewBar(props: ViewBarProps) {
                   <Show when={filterStore.selectedView === view.id} fallback={
                     <button 
                       class="filter-option"
-                      classList={{ "active": filterStore.selectedView === view.id }}
+                      data-view-index={_index()}
+                      classList={{ "active": filterStore.selectedView === view.id, "highlighted": highlightedViewIndex() === _index() }}
                       onClick={(e) => {
                         e.stopPropagation();
                         selectView(view.id);
@@ -470,7 +526,8 @@ export function ViewBar(props: ViewBarProps) {
                     <div style={{ display: "flex", "align-items": "stretch", gap: "6px", width: "100%" }}>
                       <button 
                         class="filter-option"
-                        classList={{ "active": true }}
+                        data-view-index={_index()}
+                        classList={{ "active": true, "highlighted": highlightedViewIndex() === _index() }}
                         style={{ flex: "1 1 auto" }}
                         onClick={(e) => {
                           e.stopPropagation();
