@@ -497,7 +497,7 @@ export function ViewBar(props: ViewBarProps) {
           onClick={(e) => { e.stopPropagation(); setViewMenuOpen(!viewMenuOpen()); }}
           title="Select view"
         >
-          <span>View: {selectedViewLabel() || "..."} </span>
+          <span><span class="filter-label-prefix">View: </span>{selectedViewLabel() || "..."} </span>
           <span class="shortcut-key">v</span>
         </button>
         <Show when={viewMenuOpen()}>

@@ -239,26 +239,26 @@ export function FilterBar(props: {
     props.onFilterChange(newFilters);
   };
 
-  const getFilterButtonText = (filter: Filter): string => {
+  const getFilterButtonText = (filter: Filter): any => {
     const filterName = filter.name;
     const activeInFilter = props.activeFilters.filter(f => f.name === filterName);
 
     if (activeInFilter.length === 0) {
-      return `${filter.label}`;
+      return <span><span class="filter-label-prefix">{filter.label}</span></span>;
     } else if (filter?.type === "text") {
-      return `${filter.label}: ${activeInFilter[0].value}`;
+      return <span><span class="filter-label-prefix">{filter.label}: </span>{activeInFilter[0].value}</span>;
     } else if (activeInFilter.length === 1) {
       const option = filter?.options?.find(o => o.value === activeInFilter[0].value);
-      return `${filter.label} is ${option?.label || activeInFilter[0].value}`;
+      return <span><span class="filter-label-prefix">{filter.label} is </span>{option?.label || activeInFilter[0].value}</span>;
     } else {
       const totalOptions = filter?.options?.length || 0;
       if (activeInFilter.length === totalOptions - 1) {
         const remainingOption = filter?.options?.find(o =>
           !activeInFilter.some(active => active.value === o.value)
         );
-        return `${filter.label} is not ${remainingOption?.label || 'selected option'}`;
+        return <span><span class="filter-label-prefix">{filter.label} is not </span>{remainingOption?.label || 'selected option'}</span>;
       }
-      return `${filter.label} is any of ${activeInFilter.length} options`;
+      return <span><span class="filter-label-prefix">{filter.label} is any of </span>{activeInFilter.length} options</span>;
     }
   };
 

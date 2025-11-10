@@ -2509,6 +2509,13 @@ td.message-cell {
   }
 }
 
+/* Hide filter label prefixes when pane height is limited */
+@container pane (max-width: 800px) {
+  .filter-label-prefix {
+    display: none;
+  }
+}
+
 /* Also hide on very small vertical screens (viewport-based fallback) */
 @media (max-height: 600px) {
   .keyboard-shortcut-container {
@@ -3530,6 +3537,8 @@ select.pod-select[size]:not([size="1"]) {
   min-width: 0;  /* allow inner content to shrink horizontally */
   flex: 1;
   overflow: visible; /* allow dropdowns to show */
+  container-type: size; /* Enable container queries for responsive behavior */
+  container-name: pane;
 }
 
 .pane:focus {
