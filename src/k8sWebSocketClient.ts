@@ -7,8 +7,10 @@
  */
 export class K8sWebSocketClient {
   private ws: WebSocket | null = null;
-  private subscribers: Map<string, (event: any) => void> = new Map();
-  private subscribeParams: Map<string, Record<string, string> | undefined> = new Map();
+  // Track subscribers by server subscription id to allow multiple streams per path with different params
+  private callbacksById: Map<string, Set<(event: any) => void>> = new Map();
+  // Map composite key (path + canonical params) to subscription metadata
+  private subscriptionByKey: Map<string, { id: string; path: string; params?: Record<string, string> }> = new Map();
   private connectionPromise: Promise<void> | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
@@ -92,12 +94,12 @@ export class K8sWebSocketClient {
               console.log('Server ready signal received');
               this.serverReady = true;
               
-              console.log(`[onready] Resubscribing to ${this.subscribers.size} paths`);
+              console.log(`[onready] Resubscribing to ${this.subscriptionByKey.size} subscriptions`);
               
               // Resubscribe to all paths now that server is ready
-              for (const [path, _callback] of this.subscribers.entries()) {
-                console.log(`[onready] Resubscribing to: ${path}`);
-                this.sendSubscribeMessage(path);
+          for (const [, sub] of this.subscriptionByKey.entries()) {
+                console.log(`[onready] Resubscribing to: ${sub.path}`);
+                this.sendSubscribeMessage(sub.path, sub.id, sub.params);
               }
               
               resolve();
@@ -122,18 +124,29 @@ export class K8sWebSocketClient {
             
             if (message.type === 'error') {
               console.error(`WebSocket error for path ${message.path}: ${message.error}`);
-              // Call the subscriber with error information if available
-              const subscriber = this.subscribers.get(message.path);
-              if (subscriber) {
-                // This will cause the error to be propagated to the watch function
-                subscriber({ type: 'ERROR', error: message.error, path: message.path });
+              const callbacks = this.callbacksById.get(message.id);
+              if (callbacks) {
+                for (const cb of callbacks) {
+                  try {
+                    cb({ type: 'ERROR', error: message.error, path: message.path });
+                  } catch (e) {
+                    console.error('Subscriber callback error:', e);
+                  }
+                }
               }
               return;
             }
             
-            const subscriber = this.subscribers.get(message.path);
-            if (subscriber && message.type === 'data') {
-              subscriber(message.data);
+          if (message.type === 'data') {
+            const callbacks = this.callbacksById.get(message.id);
+            if (!callbacks) return;
+            for (const cb of callbacks) {
+              try {
+                cb(message.data);
+              } catch (e) {
+                console.error('Subscriber callback error:', e);
+              }
+            }
             }
           } catch (err) {
             console.error('Error processing WebSocket message:', err);
@@ -166,10 +179,37 @@ export class K8sWebSocketClient {
    * @returns A function that unsubscribes from the watch
    */
   async watchResource(path: string, callback: (event: any) => void, params?: Record<string, string>): Promise<() => void> {    
-    // Store the callback
-    this.subscribers.set(path, callback);
-    // Store optional subscribe params
-    this.subscribeParams.set(path, params);
+    const subKey = this.makeSubscriptionKey(path, params);
+    const existing = this.subscriptionByKey.get(subKey);
+    if (existing) {
+      let set = this.callbacksById.get(existing.id);
+      if (!set) {
+        set = new Set<(event: any) => void>();
+        this.callbacksById.set(existing.id, set);
+      }
+      set.add(callback);
+      return () => {
+        const cur = this.callbacksById.get(existing!.id);
+        if (!cur) return;
+        cur.delete(callback);
+        if (cur.size === 0) {
+          this.callbacksById.delete(existing!.id);
+          this.subscriptionByKey.delete(subKey);
+          if (this.connected && this.ws) {
+            this.sendUnsubscribeMessage(existing!.path, existing!.id, existing!.params);
+          }
+        }
+      };
+    }
+    // Create new subscription
+    const id = Math.random().toString(36).substring(2, 15);
+    this.subscriptionByKey.set(subKey, { id, path, params });
+    let set = this.callbacksById.get(id);
+    if (!set) {
+      set = new Set<(event: any) => void>();
+      this.callbacksById.set(id, set);
+    }
+    set.add(callback);
     
     // Connect if not already connected
     try {
@@ -177,7 +217,14 @@ export class K8sWebSocketClient {
     } catch (err) {
       console.error('Failed to connect to WebSocket server:', err);
       // Remove subscriber if connection failed
-      this.subscribers.delete(path);
+      const cur = this.callbacksById.get(id);
+      if (cur) {
+        cur.delete(callback);
+        if (cur.size === 0) {
+          this.callbacksById.delete(id);
+        }
+      }
+      this.subscriptionByKey.delete(subKey);
       
       // Enhanced error message for connection failures
       if (err instanceof Error) {
@@ -191,15 +238,20 @@ export class K8sWebSocketClient {
     
     // Send subscribe message if connected and server is ready
     if (this.connected && this.serverReady) {
-      this.sendSubscribeMessage(path);
+      this.sendSubscribeMessage(path, id, params);
     }
     
     // Return unsubscribe function
     return () => {
-      this.subscribers.delete(path);
-      this.subscribeParams.delete(path);
-      if (this.connected && this.ws) {
-        this.sendUnsubscribeMessage(path);
+      const current = this.callbacksById.get(id);
+      if (!current) return;
+      current.delete(callback);
+      if (current.size === 0) {
+        this.callbacksById.delete(id);
+        this.subscriptionByKey.delete(subKey);
+        if (this.connected && this.ws) {
+          this.sendUnsubscribeMessage(path, id, params);
+        }
       }
     };
   }
@@ -208,7 +260,7 @@ export class K8sWebSocketClient {
    * Sends a subscribe message to the server
    * @param path The path to subscribe to
    */
-  private sendSubscribeMessage(path: string): void {
+  private sendSubscribeMessage(path: string, id: string, params?: Record<string, string>): void {
     if (!this.ws) {
       console.error("[sendSubscribeMessage] WebSocket is null, cannot send message for path:", path);
       return;
@@ -233,8 +285,7 @@ export class K8sWebSocketClient {
     }
 
     try {
-      const requestId = Math.random().toString(36).substring(2, 15);
-      const params = this.subscribeParams.get(path);
+      const requestId = id;
       const message = JSON.stringify({
         id: requestId,
         action: 'subscribe',
@@ -249,19 +300,35 @@ export class K8sWebSocketClient {
   }
   
   /**
+   * Shallow equality check for params objects
+   */
+  private shallowEqualParams(a?: Record<string, string>, b?: Record<string, string>): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const k of aKeys) {
+      if (a[k] !== b[k]) return false;
+    }
+    return true;
+  }
+  
+  /**
    * Sends an unsubscribe message to the server
    * @param path The path to unsubscribe from
    */
-  private sendUnsubscribeMessage(path: string): void {
+  private sendUnsubscribeMessage(path: string, id: string, params?: Record<string, string>): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;
     }
     
-    const requestId = Math.random().toString(36).substring(2, 15);
+    const requestId = id;
     this.ws.send(JSON.stringify({
       id: requestId,
       action: 'unsubscribe',
-      path
+      path,
+      params
     }));
   }
   
@@ -283,6 +350,16 @@ export class K8sWebSocketClient {
     if (this.ws) {
       this.ws.close();
     }
+  }
+  
+  /**
+   * Build a stable subscription key from path and params
+   */
+  private makeSubscriptionKey(path: string, params?: Record<string, string>): string {
+    if (!params || Object.keys(params).length === 0) return path;
+    const keys = Object.keys(params).sort();
+    const enc = keys.map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k] ?? '')}`).join('&');
+    return `${path}?${enc}`;
   }
 }
 

@@ -182,7 +182,10 @@ h1 {
     padding: 1rem;
     display: flex;              /* lay out header + panes */
     flex-direction: column;
-    overflow: hidden;           /* no page-level scroll */
+    overflow-x: hidden;        /* prevent horizontal page scroll */
+    overflow-y: visible;       /* allow dropdowns to show */
+    min-height: 0;             /* allow children to shrink */
+    min-width: 0;              /* allow children to shrink */
 }
 
 .shortcut-key {
@@ -862,6 +865,7 @@ h1 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 0; /* Enable ellipsis for flexible column widths */
 }
 
 .resource-table tbody {
@@ -869,12 +873,7 @@ h1 {
   z-index: 1; /* keep rows below sticky header */
 }
 
-/* Specific styles for status column to ensure proper wrapping */
-.resource-table td:last-child {
-    white-space: normal;
-    overflow-wrap: break-word;
-    word-break: break-all;
-}
+/* All columns including last one use ellipsis - no wrapping */
 
 .resource-table tr.selected td {
     background-color: #262626; /* Almost black background */
@@ -943,6 +942,8 @@ h1 {
   overflow-y: hidden;
   overflow-x: hidden;
   position: relative;
+  container-type: size; /* Enable container queries */
+  container-name: resource-list;
 }
 
 
@@ -962,8 +963,8 @@ td.message-cell {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
   min-height: 30px; /* Ensure minimum height consistency */
+  flex-shrink: 0; /* don't shrink the view selector */
 }
 
 /* Header section with ViewBar and Context display */
@@ -972,6 +973,7 @@ td.message-cell {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+  flex: 0 0 auto; /* don't grow, take only needed space */
 }
 
 /* Context dropdown */
@@ -1091,6 +1093,10 @@ td.message-cell {
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid var(--linear-border);
+  flex: 0 0 auto; /* don't grow, take only needed space */
+  min-width: 0; /* allow shrinking */
+  flex-wrap: nowrap; /* never wrap to new line */
+  overflow: visible; /* allow dropdowns to show */
 }
 
 .vertical-separator {
@@ -1101,21 +1107,27 @@ td.message-cell {
 }
 
 .filterbar-flex {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: visible; /* Allow dropdowns to show */
+  display: flex; /* ensure flex layout */
 }
 
 .view-buttons {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* never wrap to new line */
   flex-grow: 1;
   align-items: center;
+  min-width: 0; /* allow shrinking */
+  overflow-x: clip; /* hide horizontal overflow */
+  overflow-y: visible; /* allow dropdowns to show vertically */
 }
 
 .view-pill-container {
   position: relative;
   display: flex;
+  flex-shrink: 0; /* don't shrink view pills */
 }
 
 .view-delete {
@@ -1141,6 +1153,8 @@ td.message-cell {
   transition: all 0.2s ease;
   height: 30px; /* Set consistent height */
   box-sizing: border-box;
+  white-space: nowrap; /* prevent text wrapping */
+  flex-shrink: 0; /* don't shrink */
 }
 
 .view-pill:hover {
@@ -1238,30 +1252,55 @@ td.message-cell {
 /* Filter Bar Styles */
 .filter-bar {
   display: flex;
+  flex-wrap: nowrap; /* never wrap to new line */
   gap: 8px;
   padding: 8px 0;
   border-bottom: none;
   margin-bottom: 0;
+  min-width: 0; /* allow shrinking */
+  overflow: visible; /* allow dropdowns to show */
 }
 
 .filter-groups {
   display: flex;
-  flex: 1;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap; /* never wrap to new line */
   gap: 8px;
+  min-width: 0; /* allow shrinking */
+  overflow-x: clip; /* hide horizontal overflow */
+  overflow-y: visible; /* allow dropdowns to show vertically */
 }
 
 .filter-history-nav {
   display: flex;
   gap: 4px;
-  margin-left: auto;
   align-items: center;
+  flex-shrink: 0; /* don't shrink by default (back/forward buttons) */
+}
+
+/* Only the keyboard shortcuts nav should collapse */
+.filter-history-nav:has(.keyboard-shortcut-container) {
+  margin-left: auto;
+  flex-shrink: 1; /* allow shrinking when space is tight */
+  min-width: 0; /* allow collapsing */
+  overflow: hidden; /* hide content when collapsed */
+  /* Hide completely if width becomes too small to show content properly */
+  container-type: inline-size;
+}
+
+/* Use container query to hide shortcuts when too narrow for full display */
+@container (max-width: 180px) {
+  .filter-history-nav .keyboard-shortcut-container {
+    display: none;
+  }
 }
 
 .filter-loading-indicator {
   display: flex;
   align-items: center;
   padding: 4px 8px;
+  flex-shrink: 0; /* don't shrink */
+  white-space: nowrap; /* prevent text wrapping */
 }
 
 .filter-spinner-text {
@@ -1269,6 +1308,7 @@ td.message-cell {
   font-size: 13px;
   color: var(--linear-text-secondary);
   font-weight: 500;
+  white-space: nowrap; /* prevent text wrapping */
 }
 
 .filter-resource-count {
@@ -1276,10 +1316,12 @@ td.message-cell {
   font-size: 12px;
   color: var(--linear-text-tertiary);
   font-weight: 500;
+  white-space: nowrap; /* prevent text wrapping */
 }
 
 .filter-group {
   position: relative;
+  flex-shrink: 0; /* don't shrink individual filter pills */
 }
 
 .filter-group-button {
@@ -2428,8 +2470,10 @@ td.message-cell {
   align-items: center;
   margin-left: auto;
   gap: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* don't wrap */
   margin-top: 4px;
+  flex-shrink: 0; /* don't shrink partially - hide completely via container query instead */
+  white-space: nowrap; /* prevent text wrapping */
 }
 
 .keyboard-shortcut {
@@ -2442,6 +2486,34 @@ td.message-cell {
 
 .shortcut-description {
   color: var(--linear-text-primary);
+}
+
+/* Hide shortcut descriptions on smaller screens */
+@media (max-width: 1400px) {
+  .filter-history-nav .keyboard-shortcut-container .shortcut-description {
+    display: none;
+  }
+}
+
+/* Hide entire keyboard shortcuts section on very small screens */
+@media (max-width: 1100px) {
+  .filter-history-nav .keyboard-shortcut-container {
+    display: none;
+  }
+}
+
+/* Hide resource action shortcuts when container height is limited */
+@container resource-list (max-height: 200px) {
+  .keyboard-shortcut-container {
+    display: none;
+  }
+}
+
+/* Also hide on very small vertical screens (viewport-based fallback) */
+@media (max-height: 600px) {
+  .keyboard-shortcut-container {
+    display: none;
+  }
 }
 
 /* Disabled shortcut styling */
@@ -3430,8 +3502,10 @@ select.pod-select[size]:not([size="1"]) {
   display: flex;
   width: 100%;
   height: 100%;
-  flex: 1 1 auto;    /* take remaining space */
+  flex: 1;           /* fill parent wrapper */
   min-height: 0;     /* allow children to shrink */
+  min-width: 0;      /* allow children to shrink horizontally */
+  overflow: visible; /* allow dropdowns to show */
 }
 .panes-container.horizontal {
   flex-direction: column;
@@ -3440,12 +3514,22 @@ select.pod-select[size]:not([size="1"]) {
   flex-direction: row;
 }
 
+.pane-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  /* flex is set inline via style attribute during resize */
+  overflow: visible;
+}
+
 .pane {
   display: flex;
   flex-direction: column;
   min-height: 0; /* allow inner content to shrink */
-  flex: 1 1 0;
-  overflow: hidden; /* prevent scrollbars per pane */
+  min-width: 0;  /* allow inner content to shrink horizontally */
+  flex: 1;
+  overflow: visible; /* allow dropdowns to show */
 }
 
 .pane:focus {
@@ -3458,23 +3542,32 @@ select.pod-select[size]:not([size="1"]) {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0; /* allow child to calculate height for scrolling */
+  min-width: 0; /* allow child to calculate width for scrolling */
+  overflow: hidden; /* contain scrolling content */
 }
 
 .pane-divider {
   background: var(--linear-border, rgba(255,255,255,0.08));
   flex: 0 0 auto;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.pane-divider:hover {
+  background: var(--linear-blue, rgba(59, 130, 246, 0.5));
 }
 .pane-divider-horizontal {
   height: 6px; /* small divider between horizontal panes */
   width: 100%;
   margin-top: 8px;
   margin-bottom: 8px;
+  cursor: row-resize;
 }
 .pane-divider-vertical {
   width: 6px; /* small divider between vertical panes */
   height: auto;
   margin-left: 8px;
   margin-right: 8px;
+  cursor: col-resize;
 }
 
 /* Ensure resource list area does not create inner scrollbars inside panes */

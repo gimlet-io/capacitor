@@ -1,7 +1,7 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createSignal, createEffect, Show, onMount, createMemo, untrack, For, onCleanup } from "solid-js";
+import { createSignal, createEffect, Show, onMount, createMemo, untrack, For, Index, onCleanup } from "solid-js";
 import { ResourceList } from "../components/index.ts";
 import { useNavigate } from "@solidjs/router";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
@@ -48,12 +48,40 @@ export function Dashboard() {
   const apiResourceStore = useApiResourceStore();
   const errorStore = useErrorStore();
   
-  // Pane management
+  // Pane management - tree structure for nested splits
   type Orientation = 'horizontal' | 'vertical';
-  const [orientation, setOrientation] = createSignal<Orientation>('horizontal'); // default horizontal split
-  const [panes, setPanes] = createSignal<Array<{ key: number }>>([{ key: 0 }, { key: 1 }]); // start with 2 panes
-  const [activePaneIndex, setActivePaneIndex] = createSignal(0);
+  type PaneNode = {
+    type: 'pane';
+    key: number;
+  } | {
+    type: 'split';
+    orientation: Orientation;
+    children: PaneNode[];
+  };
+  
+  const [paneTree, setPaneTree] = createSignal<PaneNode>({
+    type: 'split',
+    orientation: 'horizontal',
+    children: [
+      { type: 'pane', key: 0 },
+      { type: 'pane', key: 1 }
+    ]
+  });
+  const [activePaneKey, setActivePaneKey] = createSignal(0);
   const [paneStatuses, setPaneStatuses] = createSignal<Record<number, string>>({});
+  
+  // Separate store for pane sizes to avoid re-creating pane objects
+  // Key format: "path:orientation" e.g. "0,1:horizontal" for the split at path [0,1]
+  const [paneSizes, setPaneSizes] = createSignal<Record<string, number[]>>({});
+  
+  // Resize state
+  const [resizing, setResizing] = createSignal<{
+    startPos: number;
+    startSizes: number[];
+    resizeIndices: [number, number];
+    orientation: Orientation;
+    parentPath: number[];
+  } | null>(null);
 
   // Header / settings
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
@@ -67,7 +95,7 @@ export function Dashboard() {
 
   // Watch status in header reflects active pane
   const watchStatus = createMemo(() => {
-    const s = paneStatuses()[activePaneIndex()];
+    const s = paneStatuses()[activePaneKey()];
     return s || "●";
   });
 
@@ -99,7 +127,140 @@ export function Dashboard() {
     }
   };
   
+  // Helper functions for tree manipulation
+  const findAndReplacePaneWithSplit = (node: PaneNode, targetKey: number, orientation: Orientation, newKey: number): PaneNode => {
+    if (node.type === 'pane') {
+      if (node.key === targetKey) {
+        return {
+          type: 'split',
+          orientation,
+          children: [
+            { type: 'pane', key: node.key },
+            { type: 'pane', key: newKey }
+          ]
+        };
+      }
+      return node;
+    }
+    
+    return {
+      ...node,
+      children: node.children.map(child => findAndReplacePaneWithSplit(child, targetKey, orientation, newKey))
+    };
+  };
+  
+  const findAndRemovePane = (node: PaneNode, targetKey: number): PaneNode | null => {
+    if (node.type === 'pane') {
+      return node.key === targetKey ? null : node;
+    }
+    
+    const newChildren = node.children
+      .map(child => findAndRemovePane(child, targetKey))
+      .filter((child): child is PaneNode => child !== null);
+    
+    // If only one child left, collapse the split
+    if (newChildren.length === 1) {
+      return newChildren[0];
+    }
+    
+    // If no children left, remove this split
+    if (newChildren.length === 0) {
+      return null;
+    }
+    
+    return {
+      ...node,
+      children: newChildren
+    };
+  };
+  
+  const findFirstPaneKey = (node: PaneNode): number | null => {
+    if (node.type === 'pane') {
+      return node.key;
+    }
+    if (node.children.length > 0) {
+      return findFirstPaneKey(node.children[0]);
+    }
+    return null;
+  };
+  
+  const getAllPaneKeys = (node: PaneNode): number[] => {
+    if (node.type === 'pane') {
+      return [node.key];
+    }
+    return node.children.flatMap(child => getAllPaneKeys(child));
+  };
+  
+  // Get a stable key for a node (pane key or hash of children keys for splits)
+  const getNodeKey = (node: PaneNode): string => {
+    if (node.type === 'pane') {
+      return `pane-${node.key}`;
+    }
+    // For splits, create a stable key based on children keys
+    const childKeys = node.children.map(c => getNodeKey(c)).join('|');
+    return `split-${childKeys}`;
+  };
+  
+  // Resize handlers
+  const handleResizeStart = (e: MouseEvent, idx: number, orientation: Orientation, parentPath: number[]) => {
+    e.preventDefault();
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    if (!container) return;
+    
+    const children = Array.from(container.children).filter(el => 
+      el.classList.contains('pane-wrapper') || el.classList.contains('panes-container')
+    );
+    if (idx >= children.length - 1) return;
+    
+    // Capture ALL sibling sizes to lock the layout
+    const allSizes = children.map(child => {
+      const el = child as HTMLElement;
+      return orientation === 'horizontal' ? el.offsetHeight : el.offsetWidth;
+    });
+    
+    const startPos = orientation === 'horizontal' ? e.clientY : e.clientX;
+    
+    setResizing({
+      startPos,
+      startSizes: allSizes,
+      resizeIndices: [idx, idx + 1],
+      orientation,
+      parentPath
+    });
+  };
+  
+  const handleResizeMove = (e: MouseEvent) => {
+    const resize = resizing();
+    if (!resize) return;
+    
+    const currentPos = resize.orientation === 'horizontal' ? e.clientY : e.clientX;
+    const delta = currentPos - resize.startPos;
+    
+    const [idx1, idx2] = resize.resizeIndices;
+    const totalSizeOfPair = resize.startSizes[idx1] + resize.startSizes[idx2];
+    const newSize1 = Math.max(50, Math.min(totalSizeOfPair - 50, resize.startSizes[idx1] + delta));
+    const newSize2 = totalSizeOfPair - newSize1;
+    
+    // Build new sizes array with all siblings
+    const newSizes = [...resize.startSizes];
+    newSizes[idx1] = newSize1;
+    newSizes[idx2] = newSize2;
+    
+    // Store sizes separately to avoid re-creating pane objects
+    const pathKey = resize.parentPath.join(',');
+    setPaneSizes(prev => ({
+      ...prev,
+      [pathKey]: newSizes
+    }));
+  };
+  
+  const handleResizeEnd = () => {
+    setResizing(null);
+  };
+  
   onMount(() => {
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
     document.addEventListener('mousedown', handleOutsideClick);
     applyTheme(theme());
     // Register split/close shortcuts
@@ -110,46 +271,39 @@ export function Dashboard() {
       handler: (e: KeyboardEvent) => {
         // Split vertical: Mod + |
         if ((e.key === '|' || e.key === '\\') && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
-          // Use our Mod abstraction: rely on utils/shortcuts event matcher would require import; keep simple:
-          // We'll accept when any modifier combo matches user setting via shortcuts util in FilterBar; here accept generic modifier combo
-          // Only proceed if 'doesEventMatchShortcut' with 'mod+|' equivalent; simple heuristic:
-          const k = e.key;
           const hasAnyMod = e.ctrlKey || e.metaKey || e.altKey || e.shiftKey;
           if (hasAnyMod) {
             e.preventDefault();
-            setOrientation('vertical');
-            setPanes(prev => {
-              const newIdx = prev.length;
-              setActivePaneIndex(newIdx);
-              return [...prev, { key: Date.now() }];
-            });
+            const newKey = Date.now();
+            setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'vertical', newKey));
+            setActivePaneKey(newKey);
             return true;
           }
         }
         // Split horizontal: Mod + -
         if (e.key === '-' && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
           e.preventDefault();
-          setOrientation('horizontal');
-          setPanes(prev => {
-            const newIdx = prev.length;
-            setActivePaneIndex(newIdx);
-            return [...prev, { key: Date.now() }];
-          });
+          const newKey = Date.now();
+          setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'horizontal', newKey));
+          setActivePaneKey(newKey);
           return true;
         }
         // Close current pane: Mod + x
         if ((e.key === 'x' || e.key === 'X') && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
           e.preventDefault();
-          setPanes(prev => {
-            if (prev.length <= 1) return prev;
-            const idx = activePaneIndex();
-            const next = prev.slice();
-            next.splice(idx, 1);
-            // Adjust active index
-            const newIdx = Math.max(0, Math.min(idx, next.length - 1));
-            setActivePaneIndex(newIdx);
-            return next;
-          });
+          const currentKey = activePaneKey();
+          const allKeys = getAllPaneKeys(paneTree());
+          if (allKeys.length <= 1) return true; // Don't close last pane
+          
+          const newTree = findAndRemovePane(paneTree(), currentKey);
+          if (newTree) {
+            setPaneTree(newTree);
+            // Set active to first remaining pane
+            const firstKey = findFirstPaneKey(newTree);
+            if (firstKey !== null) {
+              setActivePaneKey(firstKey);
+            }
+          }
           return true;
         }
         return false;
@@ -161,6 +315,8 @@ export function Dashboard() {
   });
   
   onCleanup(() => {
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
     document.removeEventListener('mousedown', handleOutsideClick);
   });
 
@@ -824,6 +980,77 @@ export function Dashboard() {
     );
   }
 
+  // Component wrapper for a pane node to isolate reactivity
+  function PaneNodeWrapper(props: { node: PaneNode; path: number[]; childIndex: number }) {
+    // Memo to read size reactively only for this specific pane
+    const size = createMemo(() => {
+      if (props.path.length > 0) {
+        const parentPathKey = props.path.slice(0, -1).join(',');
+        const sizes = paneSizes()[parentPathKey];
+        return sizes?.[props.childIndex];
+      }
+      return undefined;
+    });
+    
+    const style = createMemo(() => {
+      const s = size();
+      return s !== undefined 
+        ? { 'flex': `0 0 ${s}px` } 
+        : { 'flex': '1 1 0px' };
+    });
+    
+    if (props.node.type === 'pane') {
+      return (
+        <div style={style()} class="pane-wrapper">
+          <DashboardPane
+            paneKey={props.node.key}
+            focused={props.node.key === activePaneKey()}
+            onFocus={() => setActivePaneKey(props.node.key)}
+            onWatchStatus={(s) => setPaneStatuses(prev => ({ ...prev, [props.node.key]: s }))}
+          />
+        </div>
+      );
+    }
+    
+    // It's a split container
+    return (
+      <div style={style()} class="pane-wrapper">
+        <div classList={{
+          "panes-container": true,
+          "horizontal": props.node.orientation === 'horizontal',
+          "vertical": props.node.orientation === 'vertical',
+        }}>
+          <Index each={props.node.children}>
+            {(child, idx) => (
+              <>
+                <PaneNodeWrapper
+                  node={child()}
+                  path={[...props.path, idx]}
+                  childIndex={idx}
+                />
+                <Show when={idx < props.node.children.length - 1}>
+                  <div 
+                    classList={{
+                      "pane-divider": true,
+                      "pane-divider-horizontal": props.node.orientation === 'horizontal',
+                      "pane-divider-vertical": props.node.orientation === 'vertical',
+                    }}
+                    onMouseDown={(e) => handleResizeStart(e, idx, props.node.orientation, props.path)}
+                  />
+                </Show>
+              </>
+            )}
+          </Index>
+        </div>
+      </div>
+    );
+  }
+  
+  // Recursive function to render pane tree
+  const renderPaneNode = (node: PaneNode): any => {
+    return <PaneNodeWrapper node={node} path={[]} childIndex={0} />;
+  };
+
   return (
     <div class="layout">
       <main class="main-content">
@@ -879,12 +1106,9 @@ export function Dashboard() {
               class="split-button"
               title={`Split horizontally (${formatShortcutForDisplay('Mod+-')})`}
               onClick={() => {
-                setOrientation('horizontal');
-                setPanes(prev => {
-                  const newIdx = prev.length;
-                  setActivePaneIndex(newIdx);
-                  return [...prev, { key: Date.now() }];
-                });
+                const newKey = Date.now();
+                setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'horizontal', newKey));
+                setActivePaneKey(newKey);
               }}
             >
               ⎯⎯
@@ -894,12 +1118,9 @@ export function Dashboard() {
               class="split-button"
               title={`Split vertically (${formatShortcutForDisplay('Mod+|')})`}
               onClick={() => {
-                setOrientation('vertical');
-                setPanes(prev => {
-                  const newIdx = prev.length;
-                  setActivePaneIndex(newIdx);
-                  return [...prev, { key: Date.now() }];
-                });
+                const newKey = Date.now();
+                setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'vertical', newKey));
+                setActivePaneKey(newKey);
               }}
             >
               ∥
@@ -920,31 +1141,7 @@ export function Dashboard() {
         </Show>
 
         {/* Panes container */}
-        <div classList={{
-          "panes-container": true,
-          "horizontal": orientation() === 'horizontal',
-          "vertical": orientation() === 'vertical',
-        }}>
-          <For each={panes()}>
-            {(p, idx) => (
-              <>
-                <DashboardPane
-                  paneKey={p.key}
-                  focused={idx() === activePaneIndex()}
-                  onFocus={() => setActivePaneIndex(idx())}
-                  onWatchStatus={(s) => setPaneStatuses(prev => ({ ...prev, [idx()]: s }))}
-                />
-                <Show when={idx() < panes().length - 1}>
-                  <div classList={{
-                    "pane-divider": true,
-                    "pane-divider-horizontal": orientation() === 'horizontal',
-                    "pane-divider-vertical": orientation() === 'vertical',
-                  }} />
-                </Show>
-              </>
-            )}
-          </For>
-        </div>
+        {renderPaneNode(paneTree())}
       </main>
     </div>
   );
