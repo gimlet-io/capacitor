@@ -191,6 +191,53 @@ export function Dashboard() {
     return node.children.flatMap(child => getAllPaneKeys(child));
   };
   
+  // Find the path (indices) to a pane by key. Returns array of child indexes or null.
+  const findPanePath = (node: PaneNode, targetKey: number, path: number[] = []): number[] | null => {
+    if (node.type === 'pane') {
+      return node.key === targetKey ? path : null;
+    }
+    for (let i = 0; i < node.children.length; i++) {
+      const child = node.children[i];
+      const found = findPanePath(child, targetKey, [...path, i]);
+      if (found) return found;
+    }
+    return null;
+  };
+  
+  // Get a node by path
+  const getNodeAtPath = (node: PaneNode, path: number[]): PaneNode | null => {
+    let current: PaneNode | null = node;
+    for (const idx of path) {
+      if (!current || current.type !== 'split') return null;
+      current = current.children[idx] ?? null;
+    }
+    return current;
+  };
+  
+  // Determine which pane key should become active when target pane is closed.
+  // Prefers the next sibling (first leaf), otherwise previous sibling (first leaf).
+  const chooseNextActivePaneKeyBeforeRemoval = (root: PaneNode, targetKey: number): number | null => {
+    const path = findPanePath(root, targetKey);
+    if (!path || path.length === 0) return null;
+    const parentPath = path.slice(0, -1);
+    const idx = path[path.length - 1];
+    const parent = getNodeAtPath(root, parentPath);
+    if (!parent || parent.type !== 'split') return null;
+    // Try next sibling
+    if (idx + 1 < parent.children.length) {
+      const nextSibling = parent.children[idx + 1];
+      const nextKey = findFirstPaneKey(nextSibling);
+      if (nextKey !== null) return nextKey;
+    }
+    // Fallback to previous sibling
+    if (idx - 1 >= 0) {
+      const prevSibling = parent.children[idx - 1];
+      const prevKey = findFirstPaneKey(prevSibling);
+      if (prevKey !== null) return prevKey;
+    }
+    return null;
+  };
+  
   // Get a stable key for a node (pane key or hash of children keys for splits)
   const getNodeKey = (node: PaneNode): string => {
     if (node.type === 'pane') {
@@ -199,6 +246,21 @@ export function Dashboard() {
     // For splits, create a stable key based on children keys
     const childKeys = node.children.map(c => getNodeKey(c)).join('|');
     return `split-${childKeys}`;
+  };
+  
+  // Unified pane close behavior used by keyboard and buttons
+  const closePane = (targetKey?: number) => {
+    const keyToClose = targetKey ?? activePaneKey();
+    const allKeys = getAllPaneKeys(paneTree());
+    if (allKeys.length <= 1) return; // Don't close last pane
+    const preferredNextKey = chooseNextActivePaneKeyBeforeRemoval(paneTree(), keyToClose);
+    const newTree = findAndRemovePane(paneTree(), keyToClose);
+    if (newTree) {
+      setPaneTree(newTree);
+      const fallbackKey = findFirstPaneKey(newTree);
+      const nextKey = preferredNextKey ?? fallbackKey;
+      if (nextKey !== null) setActivePaneKey(nextKey);
+    }
   };
   
   // Resize handlers
@@ -291,19 +353,7 @@ export function Dashboard() {
         // Close current pane: Mod + x
         if ((e.key === 'x' || e.key === 'X') && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
           e.preventDefault();
-          const currentKey = activePaneKey();
-          const allKeys = getAllPaneKeys(paneTree());
-          if (allKeys.length <= 1) return true; // Don't close last pane
-          
-          const newTree = findAndRemovePane(paneTree(), currentKey);
-          if (newTree) {
-            setPaneTree(newTree);
-            // Set active to first remaining pane
-            const firstKey = findFirstPaneKey(newTree);
-            if (firstKey !== null) {
-              setActivePaneKey(firstKey);
-            }
-          }
+          closePane(activePaneKey());
           return true;
         }
         return false;
@@ -954,6 +1004,16 @@ export function Dashboard() {
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
+              </button>
+            </div>
+            <div class="filter-group">
+              <button
+                class="filter-group-button"
+                onMouseDown={(e) => { e.stopPropagation(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); closePane(props.paneKey); }}
+                title={`Close pane (${formatShortcutForDisplay('Mod+X')})`}
+              >
+                ✕
               </button>
             </div>
           </div>
