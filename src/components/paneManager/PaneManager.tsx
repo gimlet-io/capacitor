@@ -215,13 +215,6 @@ export function PaneManager(props: PaneManagerProps) {
       const fallbackKey = findFirstPaneKey(newTree);
       const nextKey = preferredNextKey ?? fallbackKey;
       if (nextKey !== null) setActivePaneKey(nextKey);
-      
-      // Clean up pane state when closing
-      setPaneStates(prev => {
-        const newStates = { ...prev };
-        delete newStates[keyToClose];
-        return newStates;
-      });
     }
   };
   

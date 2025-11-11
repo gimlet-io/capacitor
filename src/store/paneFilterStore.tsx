@@ -1,7 +1,7 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, createSignal, useContext, JSX, createMemo, onMount, createEffect } from "solid-js";
+import { createContext, createSignal, useContext, JSX, createMemo, onMount, onCleanup, createEffect } from "solid-js";
 import type { ActiveFilter } from "../components/filterBar/FilterBar.tsx";
 
 interface PaneFilterState {
@@ -34,13 +34,35 @@ interface PaneFilterState {
 
 const PaneFilterContext = createContext<PaneFilterState>();
 
+// Default filters for new panes
+export const DEFAULT_PANE_FILTERS: ActiveFilter[] = [
+  { name: 'ResourceType', value: 'core/Pod' },
+  { name: 'Namespace', value: 'all-namespaces' }
+];
+
+// Registry to track pane filter states for split operations
+const paneFilterRegistry = new Map<number, () => ActiveFilter[]>();
+
+export function registerPaneFilters(paneId: number, getFilters: () => ActiveFilter[]) {
+  paneFilterRegistry.set(paneId, getFilters);
+}
+
+export function unregisterPaneFilters(paneId: number) {
+  paneFilterRegistry.delete(paneId);
+}
+
+export function getPaneFilters(paneId: number): ActiveFilter[] {
+  const getFilters = paneFilterRegistry.get(paneId);
+  return getFilters ? getFilters() : [];
+}
+
 export function PaneFilterProvider(props: { 
   paneId: number;
   initialFilters?: ActiveFilter[];
   onStateChange?: (filters: ActiveFilter[]) => void;
   children: JSX.Element;
 }) {
-  const [activeFilters, setActiveFiltersInternal] = createSignal<ActiveFilter[]>(props.initialFilters || []);
+  const [activeFilters, setActiveFiltersInternal] = createSignal<ActiveFilter[]>(props.initialFilters || DEFAULT_PANE_FILTERS);
   const [selectedView, setSelectedView] = createSignal<string>('');
   const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
@@ -48,12 +70,20 @@ export function PaneFilterProvider(props: {
   const [sortColumn, setSortColumn] = createSignal<string | null>(null);
   const [sortAscending, setSortAscending] = createSignal<boolean>(true);
 
-  // Sync state changes back to parent
+  // Register this pane's filter getter in the registry
+  onMount(() => {
+    registerPaneFilters(props.paneId, () => activeFilters());
+  });
+
+  // Clean up registry on unmount
+  onCleanup(() => {
+    unregisterPaneFilters(props.paneId);
+  });
+
+  // Notify parent of state changes
   createEffect(() => {
     const filters = activeFilters();
-    if (props.onStateChange) {
-      props.onStateChange(filters);
-    }
+    props.onStateChange?.(filters);
   });
 
   // Helper to get resource type from active filters

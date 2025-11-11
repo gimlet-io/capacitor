@@ -11,7 +11,7 @@ import { applyTheme, loadInitialTheme, type ThemeName } from "../utils/theme.ts"
 import { ShortcutPrefix, getShortcutPrefix, getDefaultShortcutPrefix, setShortcutPrefix, formatShortcutForDisplay } from "../utils/shortcuts.ts";
 import { watchResource } from "../watches.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
-import { PaneFilterProvider, usePaneFilterStore } from "../store/paneFilterStore.tsx";
+import { PaneFilterProvider, usePaneFilterStore, getPaneFilters } from "../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
@@ -39,35 +39,12 @@ export function Dashboard() {
   // Watch status in header - updated by PaneManager
   const [watchStatus, setWatchStatus] = createSignal("●");
   
-  // Pane filter states - managed by Dashboard
-  const [paneFilterStates, setPaneFilterStates] = createSignal<Record<number, ActiveFilter[]>>({
-    0: [
-      { name: 'ResourceType', value: 'core/Pod' },
-      { name: 'Namespace', value: 'all-namespaces' }
-    ],
-    1: [
-      { name: 'ResourceType', value: 'core/Pod' },
-      { name: 'Namespace', value: 'all-namespaces' }
-    ]
-  });
+  // Cache of pane filter states - updated by providers, used to restore state after tree changes
+  const paneFilterCache = new Map<number, ActiveFilter[]>();
   
-  // Handle pane split - copy filter state from original pane to new pane
-  const handlePaneSplit = (originalPaneKey: number, newPaneKey: number, _orientation: Orientation) => {
-    const originalFilters = paneFilterStates()[originalPaneKey];
-    if (originalFilters) {
-      setPaneFilterStates(prev => ({
-        ...prev,
-        [newPaneKey]: [...originalFilters] // Copy filters to new pane
-      }));
-    }
-  };
-  
-  // Update pane filter state when filters change
+  // Update cache when pane filters change
   const handlePaneFilterChange = (paneKey: number, filters: ActiveFilter[]) => {
-    setPaneFilterStates(prev => ({
-      ...prev,
-      [paneKey]: filters
-    }));
+    paneFilterCache.set(paneKey, filters);
   };
 
   // Function to switch to a new context
@@ -127,10 +104,20 @@ export function Dashboard() {
       <Show when={`pane-${props.paneKey}`} keyed>
         {(stringKey) => {
           const key = props.paneKey;
-          // Get initial filters for this pane from Dashboard's state
+          // Get initial filters for this pane from:
+          // 1. Cache (for existing panes after tree restructure)
+          // 2. Registry (for newly split panes)
+          // 3. Provider will use DEFAULT_PANE_FILTERS if undefined
           // Use untrack() to avoid creating reactive dependencies when reading initial state
-          // This runs each time the Show recreates due to key change
-          const initialFilters = untrack(() => paneFilterStates()[key] || []);
+          const initialFilters = untrack(() => {
+            const cached = paneFilterCache.get(key);
+            if (cached) return cached;
+            
+            const fromRegistry = getPaneFilters(key);
+            if (fromRegistry.length > 0) return fromRegistry;
+            
+            return undefined; // Let provider use its defaults
+          });
           
           return (
             <PaneFilterProvider 
@@ -771,7 +758,6 @@ export function Dashboard() {
 
         {/* Panes container */}
         <PaneManager
-          onPaneSplit={handlePaneSplit}
           onStatusChange={setWatchStatus}
           renderPane={(paneProps) => (
             <DashboardPaneWithProvider
