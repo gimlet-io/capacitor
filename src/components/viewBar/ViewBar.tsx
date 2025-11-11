@@ -101,6 +101,19 @@ export function ViewBar(props: ViewBarProps) {
     setShortcutPrefix(viewShortcutModifier());
   });
 
+  // Check if current filters match any existing view
+  const hasMatchingView = createMemo(() => {
+    const currentFilters = props.activeFilters || [];
+    const all = views();
+    return all.some(v => JSON.stringify(v.filters) === JSON.stringify(currentFilters));
+  });
+
+  // Helper to check if a specific view is currently active (by matching filters)
+  const isViewActive = (view: View) => {
+    const currentFilters = props.activeFilters || [];
+    return JSON.stringify(view.filters) === JSON.stringify(currentFilters);
+  };
+
   // Selected view label for dropdown button
   const selectedViewLabel = createMemo(() => {
     const selectedId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
@@ -503,7 +516,7 @@ export function ViewBar(props: ViewBarProps) {
         <Show when={viewMenuOpen()}>
           <div class="filter-options">
             <div class="filter-options-scroll-container">
-              <Show when={isIsolated() ? !localSelectedViewId() : !filterStore.selectedView}>
+              <Show when={!hasMatchingView()}>
                 <button
                   class="filter-option"
                   onClick={(e) => {
@@ -522,11 +535,11 @@ export function ViewBar(props: ViewBarProps) {
               </Show>
               <For each={views()}>
                 {(view, _index) => (
-                  <Show when={(isIsolated() ? localSelectedViewId() : filterStore.selectedView) === view.id} fallback={
+                  <Show when={isViewActive(view)} fallback={
                     <button 
                       class="filter-option"
                       data-view-index={_index()}
-                      classList={{ "active": (isIsolated() ? localSelectedViewId() : filterStore.selectedView) === view.id, "highlighted": highlightedViewIndex() === _index() }}
+                      classList={{ "active": false, "highlighted": highlightedViewIndex() === _index() }}
                       onClick={(e) => {
                         e.stopPropagation();
                         selectView(view.id);
@@ -579,8 +592,8 @@ export function ViewBar(props: ViewBarProps) {
           </div>
         </Show>
       </div>
-      {/* Save as View inline panel (only when no view is selected) */}
-      <Show when={isIsolated() ? !localSelectedViewId() : !filterStore.selectedView}>
+      {/* Save as View inline panel (only when filters don't match any existing view) */}
+      <Show when={!hasMatchingView()}>
         <Show when={saveViewOpen()}>
           <div 
             class="filter-group"
