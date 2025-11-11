@@ -124,9 +124,12 @@ export const updateServiceMatchingKustomizations = (service: Service | ServiceWi
 };
 
 export const updateDeploymentMatchingResources = (deployment: Deployment, allPods: Pod[], replicaSets = []): DeploymentWithResources => {
+  console.log('[updateDeploymentMatchingResources] called for:', deployment.metadata?.name, 'hasSpec:', !!deployment.spec, 'hasSelector:', !!deployment.spec?.selector, 'hasMatchLabels:', !!deployment.spec?.selector?.matchLabels);
+  const matchingPods = getDeploymentMatchingPods(deployment, allPods);
+  console.log('[updateDeploymentMatchingResources] matched pods:', matchingPods.length, 'out of', allPods.length);
   return {
     ...deployment,
-    pods: getDeploymentMatchingPods(deployment, allPods),
+    pods: matchingPods,
     replicaSets
   };
 };

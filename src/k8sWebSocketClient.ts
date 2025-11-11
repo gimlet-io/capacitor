@@ -182,21 +182,44 @@ export class K8sWebSocketClient {
     const subKey = this.makeSubscriptionKey(path, params);
     const existing = this.subscriptionByKey.get(subKey);
     if (existing) {
-      let set = this.callbacksById.get(existing.id);
-      if (!set) {
-        set = new Set<(event: any) => void>();
-        this.callbacksById.set(existing.id, set);
+      console.log(`[WS] Restarting existing subscription for key=${subKey} id=${existing.id} path=${existing.path} params=${JSON.stringify(existing.params || {})}`);
+      // Gather existing callbacks (if any) and add the new one
+      const oldId = existing.id;
+      const priorSet = this.callbacksById.get(oldId) || new Set<(event: any) => void>();
+      const combined = new Set<(event: any) => void>(priorSet);
+      combined.add(callback);
+      // Unsubscribe old server-side subscription if connected
+      if (this.connected && this.ws) {
+        console.log(`[WS] Unsubscribing old id=${oldId} before restart for path=${existing.path}`);
+        this.sendUnsubscribeMessage(existing.path, oldId, existing.params);
       }
-      set.add(callback);
+      // Remove old mapping
+      this.callbacksById.delete(oldId);
+      // Create new subscription id and replace mapping
+      const newId = Math.random().toString(36).substring(2, 15);
+      this.subscriptionByKey.set(subKey, { id: newId, path, params });
+      this.callbacksById.set(newId, combined);
+      console.log(`[WS] Created restarted subscription id=${newId} for key=${subKey}`);
+      // Send subscribe immediately if possible
+      if (this.connected && this.serverReady) {
+        console.log(`[WS] Sending subscribe (restart) id=${newId} path=${path} params=${JSON.stringify(params || {})}`);
+        this.sendSubscribeMessage(path, newId, params);
+      }
+      // Return unsubscribe that always targets the CURRENT id for this key
       return () => {
-        const cur = this.callbacksById.get(existing!.id);
-        if (!cur) return;
-        cur.delete(callback);
-        if (cur.size === 0) {
-          this.callbacksById.delete(existing!.id);
+        const current = this.subscriptionByKey.get(subKey);
+        const currentId = current?.id;
+        if (!currentId) return;
+        const set = this.callbacksById.get(currentId);
+        if (!set) return;
+        set.delete(callback);
+        console.log(`[WS] Removed callback from id=${currentId}. remaining=${set.size}`);
+        if (set.size === 0) {
+          this.callbacksById.delete(currentId);
           this.subscriptionByKey.delete(subKey);
           if (this.connected && this.ws) {
-            this.sendUnsubscribeMessage(existing!.path, existing!.id, existing!.params);
+            console.log(`[WS] No callbacks remain, unsubscribing id=${currentId} path=${(current as any).path}`);
+            this.sendUnsubscribeMessage((current as any).path, currentId, (current as any).params);
           }
         }
       };
@@ -204,6 +227,7 @@ export class K8sWebSocketClient {
     // Create new subscription
     const id = Math.random().toString(36).substring(2, 15);
     this.subscriptionByKey.set(subKey, { id, path, params });
+    console.log(`[WS] Creating new subscription key=${subKey} id=${id} path=${path} params=${JSON.stringify(params || {})}`);
     let set = this.callbacksById.get(id);
     if (!set) {
       set = new Set<(event: any) => void>();
@@ -238,19 +262,25 @@ export class K8sWebSocketClient {
     
     // Send subscribe message if connected and server is ready
     if (this.connected && this.serverReady) {
+      console.log(`[WS] Sending subscribe id=${id} path=${path} params=${JSON.stringify(params || {})}`);
       this.sendSubscribeMessage(path, id, params);
     }
     
-    // Return unsubscribe function
+    // Return unsubscribe that always targets the CURRENT id for this key
     return () => {
-      const current = this.callbacksById.get(id);
-      if (!current) return;
-      current.delete(callback);
-      if (current.size === 0) {
-        this.callbacksById.delete(id);
+      const current = this.subscriptionByKey.get(subKey);
+      const currentId = current?.id;
+      if (!currentId) return;
+      const set = this.callbacksById.get(currentId);
+      if (!set) return;
+      set.delete(callback);
+      console.log(`[WS] Removed callback from id=${currentId}. remaining=${set.size}`);
+      if (set.size === 0) {
+        this.callbacksById.delete(currentId);
         this.subscriptionByKey.delete(subKey);
         if (this.connected && this.ws) {
-          this.sendUnsubscribeMessage(path, id, params);
+          console.log(`[WS] No callbacks remain, unsubscribing id=${currentId} path=${(current as any).path}`);
+          this.sendUnsubscribeMessage((current as any).path, currentId, (current as any).params);
         }
       }
     };
@@ -286,14 +316,16 @@ export class K8sWebSocketClient {
 
     try {
       const requestId = id;
+      const paramsToSend = params ? Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'dedupeKey')) : undefined;
       const message = JSON.stringify({
         id: requestId,
         action: 'subscribe',
         path,
-        params
+        params: paramsToSend
       });
       
       this.ws.send(message);
+      console.log(`[WS] Subscribe sent id=${id} path=${path} params=${JSON.stringify(paramsToSend || {})}`);
     } catch (error) {
       console.error(`[sendSubscribeMessage] Error sending message for path ${path}:`, error);
     }
@@ -324,12 +356,14 @@ export class K8sWebSocketClient {
     }
     
     const requestId = id;
-    this.ws.send(JSON.stringify({
+    const paramsToSend = params ? Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'dedupeKey')) : undefined;
+    const payload = JSON.stringify({
       id: requestId,
       action: 'unsubscribe',
       path,
-      params
-    }));
+      params: paramsToSend
+    });
+    this.ws.send(payload);
   }
   
   /**

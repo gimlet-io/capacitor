@@ -316,7 +316,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     treeCardRenderer: deploymentCardRenderer,
     projectFields: [
       'spec.replicas',
-      'spec.selector',
+      'spec.selector.matchLabels',
       'spec.template.metadata.labels',
       'spec.template.spec.containers.[*].ports',
       'status.readyReplicas',
@@ -329,7 +329,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         updater: (deployment, pods) => updateDeploymentMatchingResources(deployment, pods),
         isParent: (resource: any, obj: any) => {return false},
         projectFields: [
-          'status.phase'
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.labels',
+          'spec.nodeName',
+          'spec.containers.[*].name',
+          'spec.containers.[*].ports',
+          'status.phase',
+          'status.podIP',
+          'status.containerStatuses',
+          'status.initContainerStatuses',
+          'status.conditions',
+          'metadata.deletionTimestamp'
         ]
       }
     ],
@@ -363,7 +374,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     abbreviations: ['sts'],
     projectFields: [
       'spec.replicas',
-      'spec.selector',
+      'spec.selector.matchLabels',
       'spec.template.metadata.labels',
       'spec.template.spec.containers.[*].ports',
       'status.readyReplicas'
@@ -374,7 +385,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         updater: (statefulSet, pods) => updateStatefulSetMatchingResources(statefulSet, pods),
         isParent: (resource: any, obj: any) => {return false},
         projectFields: [
-          'status.phase'
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.labels',
+          'spec.nodeName',
+          'spec.containers.[*].name',
+          'spec.containers.[*].ports',
+          'status.phase',
+          'status.podIP',
+          'status.containerStatuses',
+          'status.initContainerStatuses',
+          'status.conditions',
+          'metadata.deletionTimestamp'
         ]
       }
     ]
@@ -409,7 +431,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         updater: (service, pods) => updateServiceMatchingPods(service, pods),
         isParent: (_resource: any, _obj: any) => {return false},
         projectFields: [
-          'status.phase'
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.labels',
+          'spec.nodeName',
+          'spec.containers.[*].name',
+          'spec.containers.[*].ports',
+          'status.phase',
+          'status.podIP',
+          'status.containerStatuses',
+          'status.initContainerStatuses',
+          'status.conditions',
+          'metadata.deletionTimestamp'
         ]
       },
       {
@@ -528,7 +561,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     treeCardRenderer: daemonSetCardRenderer,
     abbreviations: ['ds'],
     projectFields: [
-      'spec.selector',
+      'spec.selector.matchLabels',
       'spec.template.metadata.labels',
       'status.desiredNumberScheduled',
       'status.numberReady',
@@ -540,7 +573,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         updater: (daemonSet, pods) => updateDaemonSetMatchingResources(daemonSet, pods),
         isParent: (resource: any, obj: any) => {return false},
         projectFields: [
-          'status.phase'
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.labels',
+          'spec.nodeName',
+          'spec.containers.[*].name',
+          'spec.containers.[*].ports',
+          'status.phase',
+          'status.podIP',
+          'status.containerStatuses',
+          'status.initContainerStatuses',
+          'status.conditions',
+          'metadata.deletionTimestamp'
         ]
       }
     ]
@@ -565,7 +609,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     abbreviations: ['rs'],
     projectFields: [
       'spec.replicas',
-      'spec.selector',
+      'spec.selector.matchLabels',
       'spec.template.metadata.labels',
       'status.readyReplicas'
     ],
@@ -575,7 +619,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         updater: (replicaSet, pods) => updateReplicaSetMatchingResources(replicaSet, pods),
         isParent: (resource: any, obj: any) => {return false},
         projectFields: [
-          'status.phase'
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.labels',
+          'spec.nodeName',
+          'spec.containers.[*].name',
+          'spec.containers.[*].ports',
+          'status.phase',
+          'status.podIP',
+          'status.containerStatuses',
+          'status.initContainerStatuses',
+          'status.conditions',
+          'metadata.deletionTimestamp'
         ]
       }
     ],
@@ -608,7 +663,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     defaultSortColumn: "NAME",
     treeCardRenderer: jobCardRenderer,
     projectFields: [
-      'spec.selector',
+      'spec.selector.matchLabels',
       'spec.template.metadata.labels',
       'status.active',
       'status.succeeded',
@@ -622,8 +677,18 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         updater: (job, pods) => updateJobMatchingResources(job, pods),
         isParent: (_resource: any, _obj: any) => {return false},
         projectFields: [
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.labels',
+          'spec.nodeName',
+          'spec.containers.[*].name',
+          'spec.containers.[*].ports',
           'status.phase',
-          'spec.nodeName'
+          'status.podIP',
+          'status.containerStatuses',
+          'status.initContainerStatuses',
+          'status.conditions',
+          'metadata.deletionTimestamp'
         ]
       }
     ]
