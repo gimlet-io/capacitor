@@ -10,7 +10,7 @@ import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 // Helper function to determine job completion status with appropriate styling
 function getJobCompletionComponent(job: Job): { element: JSX.Element, title: string } {
   const succeeded = job.status?.succeeded || 0;
-  const completions = job.spec.completions || 1;
+  const completions = job?.spec?.completions || 1;
   const failed = job.status?.failed || 0;
   const active = job.status?.active || 0;
   
@@ -53,7 +53,7 @@ export const jobColumns = [
     width: "15%",
     accessor: (job: Job) => {
       const succeeded = job.status?.succeeded || 0;
-      const completions = job.spec.completions || 1;
+      const completions = job?.spec?.completions || 1;
       return <>{succeeded}/{completions}</>;
     },
   },
@@ -137,7 +137,7 @@ export const jobStatusFilter: Filter = {
   ],
   filterFunction: (job: Job, value: string) => {
     const succeeded = job.status?.succeeded || 0;
-    const completions = job.spec?.completions || 1;
+    const completions = job?.spec?.completions || 1;
     const failed = job.status?.failed || 0;
     const active = job.status?.active || 0;
     
