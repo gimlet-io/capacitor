@@ -5,7 +5,7 @@ import { createSignal, createEffect, Show, onMount, createMemo, untrack, For, In
 import { ResourceList } from "../components/index.ts";
 import { useNavigate } from "@solidjs/router";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
-import { FilterBar } from "../components/filterBar/FilterBar.tsx";
+import { FilterBar, type ActiveFilter } from "../components/filterbar/FilterBar.tsx";
 import { SettingsModal } from "../components/settings/SettingsModal.tsx";
 import { applyTheme, loadInitialTheme, type ThemeName } from "../utils/theme.ts";
 import { KeyboardShortcuts } from "../components/keyboardShortcuts/KeyboardShortcuts.tsx";
@@ -20,28 +20,6 @@ import { resourceTypeConfigs, type Column, namespaceColumn, type ExtraWatchConfi
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 import { setJobNodeOptions } from "../components/resourceList/JobList.tsx";
 import { keyboardManager } from "../utils/keyboardManager.ts";
-// Minimal local replicas of filter types to avoid cross-file type-only import resolution issues
-type FilterOption = {
-  label: string;
-  value: string;
-  color?: string;
-};
-type FilterType = "select" | "text";
-type Filter = {
-  name: string;
-  label: string;
-  type?: FilterType;
-  options?: FilterOption[];
-  multiSelect?: boolean;
-  placeholder?: string;
-  filterFunction: (resource: any, value: string) => boolean;
-  renderOption?: (option: FilterOption) => any;
-  searchable?: boolean;
-};
-type ActiveFilter = {
-  name: string;
-  value: string;
-};
 
 export function Dashboard() {
   const navigate = useNavigate();
