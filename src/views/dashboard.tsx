@@ -972,14 +972,6 @@ export function Dashboard() {
             />
           </div>
           <div class="filter-history-nav">
-            <div class="keyboard-shortcut-container">
-              <KeyboardShortcuts 
-                shortcuts={[{ key: `Mod+1..9`, description: 'Switch view' }]}
-                resourceSelected
-              />
-            </div>
-          </div>
-          <div class="filter-history-nav">
             <div class="filter-group">
               <button 
                 class="filter-group-button"
@@ -991,6 +983,7 @@ export function Dashboard() {
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+ArrowLeft')}</span>
               </button>
             </div>
             <div class="filter-group">
@@ -1004,6 +997,7 @@ export function Dashboard() {
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+ArrowRight')}</span>
               </button>
             </div>
             <div class="filter-group">
@@ -1014,6 +1008,7 @@ export function Dashboard() {
                 title={`Close pane (${formatShortcutForDisplay('Mod+X')})`}
               >
                 ✕
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+X')}</span>
               </button>
             </div>
           </div>

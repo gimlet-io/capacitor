@@ -5,7 +5,7 @@
 import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show, createMemo } from "solid-js";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
-import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix } from "../../utils/shortcuts.ts";
+import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 
 export interface View {
@@ -536,7 +536,7 @@ export function ViewBar(props: ViewBarProps) {
                       <span>{view.label}</span>
                       <Show when={_index() < 9}>
                         <span class="shortcut-key" style={{ "margin-left": "auto" }}>
-                          {_index() + 1}
+                          {formatShortcutForDisplay(`mod+${_index() + 1}`)}
                         </span>
                       </Show>
                     </button>
@@ -556,7 +556,7 @@ export function ViewBar(props: ViewBarProps) {
                         <span>{view.label}</span>
                         <Show when={_index() < 9}>
                           <span class="shortcut-key" style={{ "margin-left": "auto" }}>
-                            {_index() + 1}
+                            {formatShortcutForDisplay(`mod+${_index() + 1}`)}
                           </span>
                         </Show>
                       </button>
