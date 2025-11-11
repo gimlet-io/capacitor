@@ -1002,6 +1002,38 @@ export function Dashboard() {
             </div>
             <div class="filter-group">
               <button
+                type="button"
+                class="filter-group-button split-button"
+                title={`Split horizontally (${formatShortcutForDisplay('Mod+-')})`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newKey = Date.now();
+                  setPaneTree(prev => findAndReplacePaneWithSplit(prev, props.paneKey, 'horizontal', newKey));
+                  setActivePaneKey(newKey);
+                }}
+              >
+                -
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+-')}</span>
+              </button>
+            </div>
+            <div class="filter-group">
+              <button
+                type="button"
+                class="filter-group-button split-button"
+                title={`Split vertically (${formatShortcutForDisplay('Mod+|')})`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newKey = Date.now();
+                  setPaneTree(prev => findAndReplacePaneWithSplit(prev, props.paneKey, 'vertical', newKey));
+                  setActivePaneKey(newKey);
+                }}
+              >
+                |
+                <span class="shortcut-key">{formatShortcutForDisplay('Mod+|')}</span>
+              </button>
+            </div>
+            <div class="filter-group">
+              <button
                 class="filter-group-button"
                 onMouseDown={(e) => { e.stopPropagation(); }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); closePane(props.paneKey); }}
@@ -1154,33 +1186,6 @@ export function Dashboard() {
           
           {/* Right-aligned settings button */}
         <div style={{ "flex-grow": 1 }} />
-          {/* Split controls */}
-          <div class="split-controls">
-            <button
-              type="button"
-              class="split-button"
-              title={`Split horizontally (${formatShortcutForDisplay('Mod+-')})`}
-              onClick={() => {
-                const newKey = Date.now();
-                setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'horizontal', newKey));
-                setActivePaneKey(newKey);
-              }}
-            >
-              ⎯⎯
-            </button>
-            <button
-              type="button"
-              class="split-button"
-              title={`Split vertically (${formatShortcutForDisplay('Mod+|')})`}
-              onClick={() => {
-                const newKey = Date.now();
-                setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'vertical', newKey));
-                setActivePaneKey(newKey);
-              }}
-            >
-              ∥
-            </button>
-          </div>
           <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
         </div>
 

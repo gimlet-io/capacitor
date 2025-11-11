@@ -3494,18 +3494,12 @@ select.pod-select[size]:not([size="1"]) {
 }
 
 /* Split controls and panes */
-.split-controls {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-right: 8px;
-}
 .split-button {
   background: var(--linear-bg, transparent);
   border: 1px solid var(--linear-border, rgba(255,255,255,0.1));
   color: var(--linear-text-primary, #fff);
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 4px 8px;
   cursor: pointer;
 }
 .split-button:hover {
