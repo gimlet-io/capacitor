@@ -1,14 +1,13 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createSignal, createEffect, Show, onMount, createMemo, untrack, For, Index, onCleanup } from "solid-js";
+import { createSignal, createEffect, Show, onMount, createMemo, untrack, onCleanup } from "solid-js";
 import { ResourceList } from "../components/index.ts";
 import { useNavigate } from "@solidjs/router";
 import { ViewBar } from "../components/viewBar/ViewBar.tsx";
 import { FilterBar, type ActiveFilter } from "../components/filterbar/FilterBar.tsx";
 import { SettingsModal } from "../components/settings/SettingsModal.tsx";
 import { applyTheme, loadInitialTheme, type ThemeName } from "../utils/theme.ts";
-import { KeyboardShortcuts } from "../components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { ShortcutPrefix, getShortcutPrefix, getDefaultShortcutPrefix, setShortcutPrefix, formatShortcutForDisplay } from "../utils/shortcuts.ts";
 import { watchResource } from "../watches.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
@@ -19,7 +18,7 @@ import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
 import { resourceTypeConfigs, type Column, namespaceColumn, type ExtraWatchConfig } from "../resourceTypeConfigs.tsx";
 import { setNodeOptions } from "../components/resourceList/PodList.tsx";
 import { setJobNodeOptions } from "../components/resourceList/JobList.tsx";
-import { keyboardManager } from "../utils/keyboardManager.ts";
+import { PaneManager, type Orientation } from "../components/paneManager/index.ts";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -27,53 +26,6 @@ export function Dashboard() {
   const apiResourceStore = useApiResourceStore();
   const errorStore = useErrorStore();
   
-  // Pane management - tree structure for nested splits
-  type Orientation = 'horizontal' | 'vertical';
-  type PaneNode = {
-    type: 'pane';
-    key: number;
-  } | {
-    type: 'split';
-    orientation: Orientation;
-    children: PaneNode[];
-  };
-  
-  const [paneTree, setPaneTree] = createSignal<PaneNode>({
-    type: 'split',
-    orientation: 'horizontal',
-    children: [
-      { type: 'pane', key: 0 },
-      { type: 'pane', key: 1 }
-    ]
-  });
-  const [activePaneKey, setActivePaneKey] = createSignal(0);
-  const [paneStatuses, setPaneStatuses] = createSignal<Record<number, string>>({});
-  
-  // Store per-pane filter state to persist across pane tree changes
-  const [paneStates, setPaneStates] = createSignal<Record<number, ActiveFilter[]>>({
-    0: [
-      { name: 'ResourceType', value: 'core/Pod' },
-      { name: 'Namespace', value: 'all-namespaces' }
-    ],
-    1: [
-      { name: 'ResourceType', value: 'core/Pod' },
-      { name: 'Namespace', value: 'all-namespaces' }
-    ]
-  });
-  
-  // Separate store for pane sizes to avoid re-creating pane objects
-  // Key format: "path:orientation" e.g. "0,1:horizontal" for the split at path [0,1]
-  const [paneSizes, setPaneSizes] = createSignal<Record<string, number[]>>({});
-  
-  // Resize state
-  const [resizing, setResizing] = createSignal<{
-    startPos: number;
-    startSizes: number[];
-    resizeIndices: [number, number];
-    orientation: Orientation;
-    parentPath: number[];
-  } | null>(null);
-
   // Header / settings
   const [contextMenuOpen, setContextMenuOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
@@ -84,11 +36,39 @@ export function Dashboard() {
   
   let contextDropdownRef: HTMLDivElement | undefined;
 
-  // Watch status in header reflects active pane
-  const watchStatus = createMemo(() => {
-    const s = paneStatuses()[activePaneKey()];
-    return s || "●";
+  // Watch status in header - updated by PaneManager
+  const [watchStatus, setWatchStatus] = createSignal("●");
+  
+  // Pane filter states - managed by Dashboard
+  const [paneFilterStates, setPaneFilterStates] = createSignal<Record<number, ActiveFilter[]>>({
+    0: [
+      { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }
+    ],
+    1: [
+      { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }
+    ]
   });
+  
+  // Handle pane split - copy filter state from original pane to new pane
+  const handlePaneSplit = (originalPaneKey: number, newPaneKey: number, _orientation: Orientation) => {
+    const originalFilters = paneFilterStates()[originalPaneKey];
+    if (originalFilters) {
+      setPaneFilterStates(prev => ({
+        ...prev,
+        [newPaneKey]: [...originalFilters] // Copy filters to new pane
+      }));
+    }
+  };
+  
+  // Update pane filter state when filters change
+  const handlePaneFilterChange = (paneKey: number, filters: ActiveFilter[]) => {
+    setPaneFilterStates(prev => ({
+      ...prev,
+      [paneKey]: filters
+    }));
+  };
 
   // Function to switch to a new context
   const handleContextSwitch = async (contextName: string) => {
@@ -118,265 +98,12 @@ export function Dashboard() {
     }
   };
   
-  // Helper functions for tree manipulation
-  const findAndReplacePaneWithSplit = (node: PaneNode, targetKey: number, orientation: Orientation, newKey: number): PaneNode => {
-    if (node.type === 'pane') {
-      if (node.key === targetKey) {
-        return {
-          type: 'split',
-          orientation,
-          children: [
-            { type: 'pane', key: node.key },
-            { type: 'pane', key: newKey }
-          ]
-        };
-      }
-      return node;
-    }
-    
-    return {
-      ...node,
-      children: node.children.map(child => findAndReplacePaneWithSplit(child, targetKey, orientation, newKey))
-    };
-  };
-  
-  const findAndRemovePane = (node: PaneNode, targetKey: number): PaneNode | null => {
-    if (node.type === 'pane') {
-      return node.key === targetKey ? null : node;
-    }
-    
-    const newChildren = node.children
-      .map(child => findAndRemovePane(child, targetKey))
-      .filter((child): child is PaneNode => child !== null);
-    
-    // If only one child left, collapse the split
-    if (newChildren.length === 1) {
-      return newChildren[0];
-    }
-    
-    // If no children left, remove this split
-    if (newChildren.length === 0) {
-      return null;
-    }
-    
-    return {
-      ...node,
-      children: newChildren
-    };
-  };
-  
-  const findFirstPaneKey = (node: PaneNode): number | null => {
-    if (node.type === 'pane') {
-      return node.key;
-    }
-    if (node.children.length > 0) {
-      return findFirstPaneKey(node.children[0]);
-    }
-    return null;
-  };
-  
-  const getAllPaneKeys = (node: PaneNode): number[] => {
-    if (node.type === 'pane') {
-      return [node.key];
-    }
-    return node.children.flatMap(child => getAllPaneKeys(child));
-  };
-  
-  // Find the path (indices) to a pane by key. Returns array of child indexes or null.
-  const findPanePath = (node: PaneNode, targetKey: number, path: number[] = []): number[] | null => {
-    if (node.type === 'pane') {
-      return node.key === targetKey ? path : null;
-    }
-    for (let i = 0; i < node.children.length; i++) {
-      const child = node.children[i];
-      const found = findPanePath(child, targetKey, [...path, i]);
-      if (found) return found;
-    }
-    return null;
-  };
-  
-  // Get a node by path
-  const getNodeAtPath = (node: PaneNode, path: number[]): PaneNode | null => {
-    let current: PaneNode | null = node;
-    for (const idx of path) {
-      if (!current || current.type !== 'split') return null;
-      current = current.children[idx] ?? null;
-    }
-    return current;
-  };
-  
-  // Determine which pane key should become active when target pane is closed.
-  // Prefers the next sibling (first leaf), otherwise previous sibling (first leaf).
-  const chooseNextActivePaneKeyBeforeRemoval = (root: PaneNode, targetKey: number): number | null => {
-    const path = findPanePath(root, targetKey);
-    if (!path || path.length === 0) return null;
-    const parentPath = path.slice(0, -1);
-    const idx = path[path.length - 1];
-    const parent = getNodeAtPath(root, parentPath);
-    if (!parent || parent.type !== 'split') return null;
-    // Try next sibling
-    if (idx + 1 < parent.children.length) {
-      const nextSibling = parent.children[idx + 1];
-      const nextKey = findFirstPaneKey(nextSibling);
-      if (nextKey !== null) return nextKey;
-    }
-    // Fallback to previous sibling
-    if (idx - 1 >= 0) {
-      const prevSibling = parent.children[idx - 1];
-      const prevKey = findFirstPaneKey(prevSibling);
-      if (prevKey !== null) return prevKey;
-    }
-    return null;
-  };
-  
-  // Get a stable key for a node (pane key or hash of children keys for splits)
-  const getNodeKey = (node: PaneNode): string => {
-    if (node.type === 'pane') {
-      return `pane-${node.key}`;
-    }
-    // For splits, create a stable key based on children keys
-    const childKeys = node.children.map(c => getNodeKey(c)).join('|');
-    return `split-${childKeys}`;
-  };
-  
-  // Unified pane close behavior used by keyboard and buttons
-  const closePane = (targetKey?: number) => {
-    const keyToClose = targetKey ?? activePaneKey();
-    const allKeys = getAllPaneKeys(paneTree());
-    if (allKeys.length <= 1) return; // Don't close last pane
-    const preferredNextKey = chooseNextActivePaneKeyBeforeRemoval(paneTree(), keyToClose);
-    const newTree = findAndRemovePane(paneTree(), keyToClose);
-    if (newTree) {
-      setPaneTree(newTree);
-      const fallbackKey = findFirstPaneKey(newTree);
-      const nextKey = preferredNextKey ?? fallbackKey;
-      if (nextKey !== null) setActivePaneKey(nextKey);
-      
-      // Clean up pane state when closing
-      setPaneStates(prev => {
-        const newStates = { ...prev };
-        delete newStates[keyToClose];
-        return newStates;
-      });
-    }
-  };
-  
-  // Resize handlers
-  const handleResizeStart = (e: MouseEvent, idx: number, orientation: Orientation, parentPath: number[]) => {
-    e.preventDefault();
-    const container = (e.currentTarget as HTMLElement).parentElement;
-    if (!container) return;
-    
-    const children = Array.from(container.children).filter(el => 
-      el.classList.contains('pane-wrapper') || el.classList.contains('panes-container')
-    );
-    if (idx >= children.length - 1) return;
-    
-    // Capture ALL sibling sizes to lock the layout
-    const allSizes = children.map(child => {
-      const el = child as HTMLElement;
-      return orientation === 'horizontal' ? el.offsetHeight : el.offsetWidth;
-    });
-    
-    const startPos = orientation === 'horizontal' ? e.clientY : e.clientX;
-    
-    setResizing({
-      startPos,
-      startSizes: allSizes,
-      resizeIndices: [idx, idx + 1],
-      orientation,
-      parentPath
-    });
-  };
-  
-  const handleResizeMove = (e: MouseEvent) => {
-    const resize = resizing();
-    if (!resize) return;
-    
-    const currentPos = resize.orientation === 'horizontal' ? e.clientY : e.clientX;
-    const delta = currentPos - resize.startPos;
-    
-    const [idx1, idx2] = resize.resizeIndices;
-    const totalSizeOfPair = resize.startSizes[idx1] + resize.startSizes[idx2];
-    const newSize1 = Math.max(50, Math.min(totalSizeOfPair - 50, resize.startSizes[idx1] + delta));
-    const newSize2 = totalSizeOfPair - newSize1;
-    
-    // Build new sizes array with all siblings
-    const newSizes = [...resize.startSizes];
-    newSizes[idx1] = newSize1;
-    newSizes[idx2] = newSize2;
-    
-    // Store sizes separately to avoid re-creating pane objects
-    const pathKey = resize.parentPath.join(',');
-    setPaneSizes(prev => ({
-      ...prev,
-      [pathKey]: newSizes
-    }));
-  };
-  
-  const handleResizeEnd = () => {
-    setResizing(null);
-  };
-  
   onMount(() => {
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
     document.addEventListener('mousedown', handleOutsideClick);
     applyTheme(theme());
-    // Register split/close shortcuts
-    const unregister = keyboardManager.register({
-      id: 'dashboard-pane-manager',
-      priority: 0,
-      ignoreInInput: true,
-      handler: (e: KeyboardEvent) => {
-        // Split vertical: Mod + |
-        if ((e.key === '|' || e.key === '\\') && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
-          const hasAnyMod = e.ctrlKey || e.metaKey || e.altKey || e.shiftKey;
-          if (hasAnyMod) {
-            e.preventDefault();
-            const newKey = Date.now();
-            const currentKey = activePaneKey();
-            // Copy current pane's state to new pane
-            setPaneStates(prev => ({
-              ...prev,
-              [newKey]: [...(prev[currentKey] || [])]
-            }));
-            setPaneTree(prev => findAndReplacePaneWithSplit(prev, currentKey, 'vertical', newKey));
-            setActivePaneKey(newKey);
-            return true;
-          }
-        }
-        // Split horizontal: Mod + -
-        if (e.key === '-' && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
-          e.preventDefault();
-          const newKey = Date.now();
-          const currentKey = activePaneKey();
-          // Copy current pane's state to new pane
-          setPaneStates(prev => ({
-            ...prev,
-            [newKey]: [...(prev[currentKey] || [])]
-          }));
-          setPaneTree(prev => findAndReplacePaneWithSplit(prev, currentKey, 'horizontal', newKey));
-          setActivePaneKey(newKey);
-          return true;
-        }
-        // Close current pane: Mod + x
-        if ((e.key === 'x' || e.key === 'X') && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
-          e.preventDefault();
-          closePane(activePaneKey());
-          return true;
-        }
-        return false;
-      }
-    });
-    onCleanup(() => {
-      unregister();
-    });
   });
   
   onCleanup(() => {
-    document.removeEventListener('mousemove', handleResizeMove);
-    document.removeEventListener('mouseup', handleResizeEnd);
     document.removeEventListener('mousedown', handleOutsideClick);
   });
 
@@ -385,34 +112,37 @@ export function Dashboard() {
   });
 
   // Pane wrapper with provider
+  // Use Show with keyed to force provider recreation when paneKey changes
   function DashboardPaneWithProvider(props: {
     paneKey: number;
     focused: boolean;
     onFocus: () => void;
-    onWatchStatus: (status: string) => void;
+    onStatusChange: (status: string) => void;
+    onSplit: (orientation: Orientation) => void;
+    onClose: () => void;
   }) {
-    // Get persisted state or use defaults
-    const initialFilters = paneStates()[props.paneKey] || [
-      { name: 'ResourceType', value: 'core/Pod' },
-      { name: 'Namespace', value: 'all-namespaces' }
-    ];
-    
-    // Sync state changes back to paneStates
-    const handleStateChange = (filters: ActiveFilter[]) => {
-      setPaneStates(prev => ({
-        ...prev,
-        [props.paneKey]: filters
-      }));
-    };
-    
+    // Use Show with keyed to ensure component is torn down and recreated when paneKey changes
+    // Use string key to avoid falsy 0 value
     return (
-      <PaneFilterProvider 
-        paneId={props.paneKey} 
-        initialFilters={initialFilters}
-        onStateChange={handleStateChange}
-      >
-        <DashboardPane {...props} />
-      </PaneFilterProvider>
+      <Show when={`pane-${props.paneKey}`} keyed>
+        {(stringKey) => {
+          const key = props.paneKey;
+          // Get initial filters for this pane from Dashboard's state
+          // Use untrack() to avoid creating reactive dependencies when reading initial state
+          // This runs each time the Show recreates due to key change
+          const initialFilters = untrack(() => paneFilterStates()[key] || []);
+          
+          return (
+            <PaneFilterProvider 
+              paneId={key} 
+              initialFilters={initialFilters}
+              onStateChange={(filters) => handlePaneFilterChange(key, filters)}
+            >
+              <DashboardPane {...props} />
+            </PaneFilterProvider>
+          );
+        }}
+      </Show>
     );
   }
 
@@ -421,7 +151,9 @@ export function Dashboard() {
     paneKey: number;
     focused: boolean;
     onFocus: () => void;
-    onWatchStatus: (status: string) => void;
+    onStatusChange: (status: string) => void;
+    onSplit: (orientation: Orientation) => void;
+    onClose: () => void;
   }) {
     // Use pane filter context
     const paneFilterStore = usePaneFilterStore();
@@ -680,7 +412,7 @@ export function Dashboard() {
           },
           controller,
           (s) => {
-            props.onWatchStatus(s);
+            props.onStatusChange(s);
           },
           (msg, path) => errorStore.setWatchError(msg, path),
           ctxName,
@@ -918,14 +650,7 @@ export function Dashboard() {
                 title={`Split horizontally (${formatShortcutForDisplay('Mod+-')})`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  const newKey = Date.now();
-                  // Copy current pane's state to new pane
-                  setPaneStates(prev => ({
-                    ...prev,
-                    [newKey]: [...(prev[props.paneKey] || [])]
-                  }));
-                  setPaneTree(prev => findAndReplacePaneWithSplit(prev, props.paneKey, 'horizontal', newKey));
-                  setActivePaneKey(newKey);
+                  props.onSplit('horizontal');
                 }}
               >
                 -
@@ -939,14 +664,7 @@ export function Dashboard() {
                 title={`Split vertically (${formatShortcutForDisplay('Mod+|')})`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  const newKey = Date.now();
-                  // Copy current pane's state to new pane
-                  setPaneStates(prev => ({
-                    ...prev,
-                    [newKey]: [...(prev[props.paneKey] || [])]
-                  }));
-                  setPaneTree(prev => findAndReplacePaneWithSplit(prev, props.paneKey, 'vertical', newKey));
-                  setActivePaneKey(newKey);
+                  props.onSplit('vertical');
                 }}
               >
                 |
@@ -957,7 +675,7 @@ export function Dashboard() {
               <button
                 class="filter-group-button"
                 onMouseDown={(e) => { e.stopPropagation(); }}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); closePane(props.paneKey); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); props.onClose(); }}
                 title={`Close pane (${formatShortcutForDisplay('Mod+X')})`}
               >
                 ✕
@@ -988,76 +706,6 @@ export function Dashboard() {
     );
   }
 
-  // Component wrapper for a pane node to isolate reactivity
-  function PaneNodeWrapper(props: { node: PaneNode; path: number[]; childIndex: number }) {
-    // Memo to read size reactively only for this specific pane
-    const size = createMemo(() => {
-      if (props.path.length > 0) {
-        const parentPathKey = props.path.slice(0, -1).join(',');
-        const sizes = paneSizes()[parentPathKey];
-        return sizes?.[props.childIndex];
-      }
-      return undefined;
-    });
-    
-    const style = createMemo(() => {
-      const s = size();
-      return s !== undefined 
-        ? { 'flex': `0 0 ${s}px` } 
-        : { 'flex': '1 1 0px' };
-    });
-    
-    if (props.node.type === 'pane') {
-      return (
-        <div style={style()} class="pane-wrapper">
-          <DashboardPaneWithProvider
-            paneKey={props.node.key}
-            focused={props.node.key === activePaneKey()}
-            onFocus={() => setActivePaneKey(props.node.key)}
-            onWatchStatus={(s) => setPaneStatuses(prev => ({ ...prev, [props.node.key]: s }))}
-          />
-        </div>
-      );
-    }
-    
-    // It's a split container
-    return (
-      <div style={style()} class="pane-wrapper">
-        <div classList={{
-          "panes-container": true,
-          "horizontal": props.node.orientation === 'horizontal',
-          "vertical": props.node.orientation === 'vertical',
-        }}>
-          <Index each={props.node.children}>
-            {(child, idx) => (
-              <>
-                <PaneNodeWrapper
-                  node={child()}
-                  path={[...props.path, idx]}
-                  childIndex={idx}
-                />
-                <Show when={idx < props.node.children.length - 1}>
-                  <div 
-                    classList={{
-                      "pane-divider": true,
-                      "pane-divider-horizontal": props.node.orientation === 'horizontal',
-                      "pane-divider-vertical": props.node.orientation === 'vertical',
-                    }}
-                    onMouseDown={(e) => handleResizeStart(e, idx, props.node.orientation, props.path)}
-                  />
-                </Show>
-              </>
-            )}
-          </Index>
-        </div>
-      </div>
-    );
-  }
-  
-  // Recursive function to render pane tree
-  const renderPaneNode = (node: PaneNode): any => {
-    return <PaneNodeWrapper node={node} path={[]} childIndex={0} />;
-  };
 
   return (
     <div class="layout">
@@ -1122,7 +770,20 @@ export function Dashboard() {
         </Show>
 
         {/* Panes container */}
-        {renderPaneNode(paneTree())}
+        <PaneManager
+          onPaneSplit={handlePaneSplit}
+          onStatusChange={setWatchStatus}
+          renderPane={(paneProps) => (
+            <DashboardPaneWithProvider
+              paneKey={paneProps.paneKey}
+              focused={paneProps.focused}
+              onFocus={paneProps.onFocus}
+              onStatusChange={paneProps.onStatusChange}
+              onSplit={paneProps.onSplit}
+              onClose={paneProps.onClose}
+            />
+          )}
+        />
       </main>
     </div>
   );
