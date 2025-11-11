@@ -21,7 +21,7 @@ export interface PaneManagerProps {
   // Render function for each pane
   renderPane: (props: {
     paneKey: number;
-    focused: boolean;
+    focused: () => boolean;
     onFocus: () => void;
     onStatusChange: (status: string) => void;
     onSplit: (orientation: Orientation) => void;
@@ -359,7 +359,7 @@ export function PaneManager(props: PaneManagerProps) {
         <div style={style()} class="pane-wrapper">
           {props.renderPane({
             paneKey,
-            focused: focused(),
+            focused,
             onFocus: () => setActivePaneKey(paneKey),
             onStatusChange: (status: string) => {
               setPaneStatuses(prev => ({ ...prev, [paneKey]: status }));

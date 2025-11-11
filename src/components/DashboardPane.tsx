@@ -20,7 +20,7 @@ import { type Orientation } from "./paneManager/index.ts";
 
 interface DashboardPaneProps {
   paneKey: number;
-  focused: boolean;
+  focused: () => boolean;
   onFocus: () => void;
   onStatusChange: (status: string) => void;
   onSplit: (orientation: Orientation) => void;
@@ -33,47 +33,38 @@ interface DashboardPaneWithProviderProps extends DashboardPaneProps {
 }
 
 // Pane wrapper with provider
-// Use Show with keyed to force provider recreation when paneKey changes
 export function DashboardPaneWithProvider(props: DashboardPaneWithProviderProps) {
-  // Use Show with keyed to ensure component is torn down and recreated when paneKey changes
-  // Use string key to avoid falsy 0 value
+  const key = props.paneKey;
+  // Get initial filters for this pane from:
+  // 1. Cache (for existing panes after tree restructure)
+  // 2. Registry (for newly split panes)
+  // 3. Provider will use DEFAULT_PANE_FILTERS if undefined
+  // Use untrack() to avoid creating reactive dependencies when reading initial state
+  const initialFilters = untrack(() => {
+    const cached = props.paneFilterCache.get(key);
+    if (cached) return cached;
+    
+    const fromRegistry = getPaneFilters(key);
+    if (fromRegistry.length > 0) return fromRegistry;
+    
+    return undefined; // Let provider use its defaults
+  });
+  
   return (
-    <Show when={`pane-${props.paneKey}`} keyed>
-      {(stringKey) => {
-        const key = props.paneKey;
-        // Get initial filters for this pane from:
-        // 1. Cache (for existing panes after tree restructure)
-        // 2. Registry (for newly split panes)
-        // 3. Provider will use DEFAULT_PANE_FILTERS if undefined
-        // Use untrack() to avoid creating reactive dependencies when reading initial state
-        const initialFilters = untrack(() => {
-          const cached = props.paneFilterCache.get(key);
-          if (cached) return cached;
-          
-          const fromRegistry = getPaneFilters(key);
-          if (fromRegistry.length > 0) return fromRegistry;
-          
-          return undefined; // Let provider use its defaults
-        });
-        
-        return (
-          <PaneFilterProvider 
-            paneId={key} 
-            initialFilters={initialFilters}
-            onStateChange={(filters) => props.onPaneFilterChange(key, filters)}
-          >
-            <DashboardPane 
-              paneKey={props.paneKey}
-              focused={props.focused}
-              onFocus={props.onFocus}
-              onStatusChange={props.onStatusChange}
-              onSplit={props.onSplit}
-              onClose={props.onClose}
-            />
-          </PaneFilterProvider>
-        );
-      }}
-    </Show>
+    <PaneFilterProvider 
+      paneId={key} 
+      initialFilters={initialFilters}
+      onStateChange={(filters) => props.onPaneFilterChange(key, filters)}
+    >
+      <DashboardPane 
+        paneKey={props.paneKey}
+        focused={props.focused}
+        onFocus={props.onFocus}
+        onStatusChange={props.onStatusChange}
+        onSplit={props.onSplit}
+        onClose={props.onClose}
+      />
+    </PaneFilterProvider>
   );
 }
 
@@ -532,7 +523,7 @@ function DashboardPane(props: DashboardPaneProps) {
     >
       <div class="view-filter-row">
         <ViewBar
-          keyboardEnabled={props.focused}
+          keyboardEnabled={props.focused()}
         />
         <div class="vertical-separator" />
         <div class="filterbar-flex">
@@ -540,7 +531,7 @@ function DashboardPane(props: DashboardPaneProps) {
             initialLoadComplete={initialLoadComplete()}
             loadingStage={loadingStage()}
             resourceCount={resourceCount()}
-            keyboardEnabled={props.focused}
+            keyboardEnabled={props.focused()}
           />
         </div>
         <div class="filter-history-nav">
@@ -623,8 +614,8 @@ function DashboardPane(props: DashboardPaneProps) {
               resetKey={listResetKey()}
               columns={effectiveColumns()}
               navigate={navigate}
-              keyboardEnabled={props.focused}
-              isActive={props.focused}
+              keyboardEnabled={props.focused()}
+              isActive={props.focused()}
             />
           </Show>
         }>
