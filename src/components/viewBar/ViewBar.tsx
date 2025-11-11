@@ -4,7 +4,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show, createMemo } from "solid-js";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
-import { useFilterStore } from "../../store/filterStore.tsx";
+import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 
@@ -67,10 +67,6 @@ const SYSTEM_VIEWS: View[] = [
 ];
 
 export interface ViewBarProps {
-  activeFilters: ActiveFilter[];
-  setActiveFilters: (filters: ActiveFilter[]) => void;
-  // When isolated, the ViewBar manages its own selected view id locally
-  isolated?: boolean;
   // Enable/disable keyboard shortcuts handling (useful for multi-pane focus)
   keyboardEnabled?: boolean;
 }
@@ -79,11 +75,8 @@ export function ViewBar(props: ViewBarProps) {
   const [views, setViews] = createSignal<View[]>([]);
   const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
   let viewMenuRef: HTMLDivElement | undefined;
-  const filterStore = useFilterStore();
-  const isIsolated = () => !!props.isolated;
+  const paneFilterStore = usePaneFilterStore();
   const isKeyboardEnabled = () => props.keyboardEnabled !== false;
-  // Local selected view id when isolated
-  const [localSelectedViewId, setLocalSelectedViewId] = createSignal<string>('');
   const [saveViewOpen, setSaveViewOpen] = createSignal(false);
   let saveViewButtonRef: HTMLDivElement | undefined;
   let saveViewInlineRef: HTMLDivElement | undefined;
@@ -103,27 +96,27 @@ export function ViewBar(props: ViewBarProps) {
 
   // Check if current filters match any existing view
   const hasMatchingView = createMemo(() => {
-    const currentFilters = props.activeFilters || [];
+    const currentFilters = paneFilterStore.activeFilters || [];
     const all = views();
     return all.some(v => JSON.stringify(v.filters) === JSON.stringify(currentFilters));
   });
 
   // Helper to check if a specific view is currently active (by matching filters)
   const isViewActive = (view: View) => {
-    const currentFilters = props.activeFilters || [];
+    const currentFilters = paneFilterStore.activeFilters || [];
     return JSON.stringify(view.filters) === JSON.stringify(currentFilters);
   };
 
   // Selected view label for dropdown button
   const selectedViewLabel = createMemo(() => {
-    const selectedId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+    const selectedId = paneFilterStore.selectedView;
     const all = views();
     if (selectedId) {
       const v = all.find(view => view.id === selectedId);
       if (v) return v.label;
     }
     // Fallback: infer by matching current filters
-    const currentFilters = props.activeFilters || [];
+    const currentFilters = paneFilterStore.activeFilters || [];
     const matched = all.find(v => JSON.stringify(v.filters) === JSON.stringify(currentFilters));
     return matched ? matched.label : "";
   });
@@ -189,7 +182,7 @@ export function ViewBar(props: ViewBarProps) {
       document.addEventListener("keydown", handleViewMenuKeydown);
       // Set initial highlight to current selection or first item
       const list = views();
-      const currentSelected = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+      const currentSelected = paneFilterStore.selectedView;
       const currentIndex = list.findIndex(v => v.id === currentSelected);
       setHighlightedViewIndex(currentIndex >= 0 ? currentIndex : (list.length > 0 ? 0 : -1));
       setTimeout(scrollHighlightedViewIntoView, 0);
@@ -268,10 +261,10 @@ export function ViewBar(props: ViewBarProps) {
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
-      const currentViewId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+      const currentViewId = paneFilterStore.selectedView;
       const viewExists = allViews.some(v => v.id === currentViewId);
       // If filters are already active (e.g., loaded from URL), don't override them
-      const hasActiveFilters = Array.isArray(props.activeFilters) && props.activeFilters.length > 0;
+      const hasActiveFilters = Array.isArray(paneFilterStore.activeFilters) && paneFilterStore.activeFilters.length > 0;
 
       if (!viewExists && allViews.length > 0 && !hasActiveFilters) {
         selectView(allViews[0].id);
@@ -284,18 +277,14 @@ export function ViewBar(props: ViewBarProps) {
   };
   
   const selectView = (viewId: string) => {
-    const currentId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+    const currentId = paneFilterStore.selectedView;
     if (viewId === currentId) return;
-    if (isIsolated()) {
-      setLocalSelectedViewId(viewId);
-    } else {
-      filterStore.setSelectedView(viewId);
-    }
+    paneFilterStore.setSelectedView(viewId);
 
     untrack(() => {
         const view = views().find(v => v.id === viewId);
         if (view) {
-          props.setActiveFilters(view.filters);
+          paneFilterStore.setActiveFilters(view.filters);
         }
     })
   };
@@ -304,7 +293,7 @@ export function ViewBar(props: ViewBarProps) {
   const saveCurrentFiltersAsView = (label: string) => {
     try {
       const id = `custom-${Date.now()}`;
-      const newView = { id, label, filters: props.activeFilters.map(f => ({ name: f.name, value: f.value })) };
+      const newView = { id, label, filters: paneFilterStore.activeFilters.map(f => ({ name: f.name, value: f.value })) };
       const stored = localStorage.getItem('customViews');
       let customViews: any[] = [];
       if (stored) {
@@ -320,7 +309,7 @@ export function ViewBar(props: ViewBarProps) {
         (globalThis as unknown as { dispatchEvent?: (e: Event) => void }).dispatchEvent?.(ev);
       } catch { /* ignore */ }
       // Select the newly created view
-      filterStore.setSelectedView(id);
+      paneFilterStore.setSelectedView(id);
     } catch {
       // Ignore persistence errors silently
     }
@@ -464,12 +453,12 @@ export function ViewBar(props: ViewBarProps) {
 
   // Unselect view when filters are manually changed and don't match the selected view
   createEffect(() => {
-    const currentFilters = props.activeFilters;
+    const currentFilters = paneFilterStore.activeFilters;
     
     let viewId: string | undefined;
     let view: View | undefined;
     untrack(() => {
-      viewId = isIsolated() ? localSelectedViewId() : filterStore.selectedView;
+      viewId = paneFilterStore.selectedView;
       // Only proceed if we have a non-empty viewId
       if (!viewId) {
         return;
@@ -488,15 +477,6 @@ export function ViewBar(props: ViewBarProps) {
     if (!filtersMatch && viewId) {
       selectView('');
     }
-  });
-
-  // Update document title based on selected view
-  createEffect(() => {
-    if (isIsolated()) return;
-    const defaultTitle = "Capacitor";
-    const selectedViewId = filterStore.selectedView;
-    const currentView = selectedViewId ? views().find(view => view.id === selectedViewId) : undefined;
-    document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
   });
 
   return (

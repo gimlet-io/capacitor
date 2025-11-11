@@ -12,6 +12,7 @@ import { KeyboardShortcuts } from "../components/keyboardShortcuts/KeyboardShort
 import { ShortcutPrefix, getShortcutPrefix, getDefaultShortcutPrefix, setShortcutPrefix, formatShortcutForDisplay } from "../utils/shortcuts.ts";
 import { watchResource } from "../watches.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
+import { PaneFilterProvider, usePaneFilterStore } from "../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { ErrorDisplay } from "../components/ErrorDisplay.tsx";
@@ -69,6 +70,18 @@ export function Dashboard() {
   });
   const [activePaneKey, setActivePaneKey] = createSignal(0);
   const [paneStatuses, setPaneStatuses] = createSignal<Record<number, string>>({});
+  
+  // Store per-pane filter state to persist across pane tree changes
+  const [paneStates, setPaneStates] = createSignal<Record<number, ActiveFilter[]>>({
+    0: [
+      { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }
+    ],
+    1: [
+      { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }
+    ]
+  });
   
   // Separate store for pane sizes to avoid re-creating pane objects
   // Key format: "path:orientation" e.g. "0,1:horizontal" for the split at path [0,1]
@@ -260,6 +273,13 @@ export function Dashboard() {
       const fallbackKey = findFirstPaneKey(newTree);
       const nextKey = preferredNextKey ?? fallbackKey;
       if (nextKey !== null) setActivePaneKey(nextKey);
+      
+      // Clean up pane state when closing
+      setPaneStates(prev => {
+        const newStates = { ...prev };
+        delete newStates[keyToClose];
+        return newStates;
+      });
     }
   };
   
@@ -337,7 +357,13 @@ export function Dashboard() {
           if (hasAnyMod) {
             e.preventDefault();
             const newKey = Date.now();
-            setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'vertical', newKey));
+            const currentKey = activePaneKey();
+            // Copy current pane's state to new pane
+            setPaneStates(prev => ({
+              ...prev,
+              [newKey]: [...(prev[currentKey] || [])]
+            }));
+            setPaneTree(prev => findAndReplacePaneWithSplit(prev, currentKey, 'vertical', newKey));
             setActivePaneKey(newKey);
             return true;
           }
@@ -346,7 +372,13 @@ export function Dashboard() {
         if (e.key === '-' && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
           e.preventDefault();
           const newKey = Date.now();
-          setPaneTree(prev => findAndReplacePaneWithSplit(prev, activePaneKey(), 'horizontal', newKey));
+          const currentKey = activePaneKey();
+          // Copy current pane's state to new pane
+          setPaneStates(prev => ({
+            ...prev,
+            [newKey]: [...(prev[currentKey] || [])]
+          }));
+          setPaneTree(prev => findAndReplacePaneWithSplit(prev, currentKey, 'horizontal', newKey));
           setActivePaneKey(newKey);
           return true;
         }
@@ -374,6 +406,38 @@ export function Dashboard() {
     setShortcutPrefix(viewShortcutModifier());
   });
 
+  // Pane wrapper with provider
+  function DashboardPaneWithProvider(props: {
+    paneKey: number;
+    focused: boolean;
+    onFocus: () => void;
+    onWatchStatus: (status: string) => void;
+  }) {
+    // Get persisted state or use defaults
+    const initialFilters = paneStates()[props.paneKey] || [
+      { name: 'ResourceType', value: 'core/Pod' },
+      { name: 'Namespace', value: 'all-namespaces' }
+    ];
+    
+    // Sync state changes back to paneStates
+    const handleStateChange = (filters: ActiveFilter[]) => {
+      setPaneStates(prev => ({
+        ...prev,
+        [props.paneKey]: filters
+      }));
+    };
+    
+    return (
+      <PaneFilterProvider 
+        paneId={props.paneKey} 
+        initialFilters={initialFilters}
+        onStateChange={handleStateChange}
+      >
+        <DashboardPane {...props} />
+      </PaneFilterProvider>
+    );
+  }
+
   // Pane subcomponent encapsulating resources, filters, list and watchers
   function DashboardPane(props: {
     paneKey: number;
@@ -381,54 +445,8 @@ export function Dashboard() {
     onFocus: () => void;
     onWatchStatus: (status: string) => void;
   }) {
-    // Local filter state for pane
-    // Initialize from top-level store if available (must pass value, not a function)
-    const [paneActiveFilters, setPaneActiveFilters] = createSignal<ActiveFilter[]>(
-      filterStore.activeFilters.length > 0 ? [...filterStore.activeFilters] : []
-    );
-    const getPaneResourceType = () => paneActiveFilters().find(f => f.name === "ResourceType")?.value;
-    const getPaneNamespace = () => paneActiveFilters().find(f => f.name === "Namespace")?.value;
-    const [selectedView, setSelectedView] = createSignal<string>('');
-    // Local filter history
-    const [paneHistory, setPaneHistory] = createSignal<ActiveFilter[][]>([]);
-    const [paneHistoryIndex, setPaneHistoryIndex] = createSignal<number>(-1);
-    const [isNavigatingHistory, setIsNavigatingHistory] = createSignal<boolean>(false);
-
-    // Wrapper for setting filters that also maintains local history
-    const updatePaneActiveFilters = (filters: ActiveFilter[]) => {
-      setPaneActiveFilters(filters);
-      if (!isNavigatingHistory()) {
-        const current = paneHistory();
-        const idx = paneHistoryIndex();
-        const newHist = current.slice(0, idx + 1);
-        newHist.push([...filters]);
-        // keep last 50
-        if (newHist.length > 50) newHist.shift();
-        setPaneHistory(newHist);
-        setPaneHistoryIndex(newHist.length - 1);
-      }
-    };
-
-    const paneCanGoBack = createMemo(() => paneHistoryIndex() >= 1);
-    const paneCanGoForward = createMemo(() => paneHistoryIndex() < paneHistory().length - 1);
-    const paneGoBack = () => {
-      if (!paneCanGoBack()) return;
-      setIsNavigatingHistory(true);
-      const newIdx = paneHistoryIndex() - 1;
-      setPaneHistoryIndex(newIdx);
-      const histFilters = paneHistory()[newIdx] || [];
-      setPaneActiveFilters([...histFilters]);
-      setIsNavigatingHistory(false);
-    };
-    const paneGoForward = () => {
-      if (!paneCanGoForward()) return;
-      setIsNavigatingHistory(true);
-      const newIdx = paneHistoryIndex() + 1;
-      setPaneHistoryIndex(newIdx);
-      const histFilters = paneHistory()[newIdx] || [];
-      setPaneActiveFilters([...histFilters]);
-      setIsNavigatingHistory(false);
-    };
+    // Use pane filter context
+    const paneFilterStore = usePaneFilterStore();
 
     // Resource state
     const [dynamicResources, setDynamicResources] = createSignal<Record<string, any[]>>({});
@@ -444,26 +462,8 @@ export function Dashboard() {
     const extraBatchQueue: Record<string, Array<{ type: 'ADDED' | 'MODIFIED' | 'DELETED'; object: any }>> = {};
     const extraBatchTimer: Record<string, number | undefined> = {};
 
-    // Preselect default "Pods in all namespaces" view filters if none provided
-    onMount(() => {
-      try {
-        const hasResourceType = paneActiveFilters().some(f => f.name === 'ResourceType');
-        if (!hasResourceType) {
-          updatePaneActiveFilters([
-            { name: 'ResourceType', value: 'core/Pod' },
-            { name: 'Namespace', value: 'all-namespaces' }
-          ]);
-        } else {
-          // seed history with initial filters
-          updatePaneActiveFilters(paneActiveFilters());
-        }
-      } catch {
-        // ignore
-      }
-    });
-
     const hasUserFilters = createMemo(() => {
-      return paneActiveFilters().some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
+      return paneFilterStore.activeFilters.some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
     });
 
     const bumpSettleTimer = () => {
@@ -483,67 +483,10 @@ export function Dashboard() {
       });
     };
 
-    // Local Filters list builder
-    const namespaceOptions = createMemo<FilterOption[]>(() => {
-      const namespaces = apiResourceStore.namespaces;
-      if (!namespaces) return [{ value: 'all-namespaces', label: 'All Namespaces' }];
-      return [{ value: 'all-namespaces', label: 'All Namespaces' }, ...namespaces.map((ns: string) => ({ value: ns, label: ns }))];
-    });
-    const nameFilter: Filter = {
-      name: "Name",
-      label: "Name",
-      type: "text" as FilterType,
-      placeholder: "glob support: *, ?, [abc], !pattern",
-      filterFunction: (resource: any, value: string) => {
-        // Basic contains for pane-local; advanced glob exists in store but not needed here
-        const v = String(value || '').toLowerCase();
-        return String(resource?.metadata?.name || '').toLowerCase().includes(v);
-      }
-    };
-    const labelSelectorFilter: Filter = {
-      name: "LabelSelector",
-      label: "Label",
-      type: "text" as FilterType,
-      placeholder: "app=web,tier=frontend or key!=val or key",
-      filterFunction: (_resource: any, _value: string) => true // noop filtering; server-side enrichment applies
-    };
-    const namespaceFilter = createMemo<Filter>(() => ({
-      name: "Namespace",
-      label: "Namespace",
-      type: "select" as FilterType,
-      get options() { return namespaceOptions(); },
-      multiSelect: false,
-      filterFunction: () => true
-    }));
-    const paneFilters = createMemo<Filter[]>(() => {
-      const rt = getPaneResourceType();
-      const base: Filter[] = [
-        {
-          name: "ResourceType",
-          label: "Resource Type",
-          type: "select",
-          options: filterStore.k8sResources.map(type => ({ value: type.id, label: type.kind })),
-          searchable: true,
-          multiSelect: false,
-          filterFunction: () => true
-        }
-      ];
-      const selectedResource = filterStore.k8sResources.find(r => r.id === rt);
-      if (!selectedResource) return base;
-      const specific: Filter[] = [];
-      if (selectedResource.namespaced) specific.push(namespaceFilter());
-      specific.push(nameFilter);
-      if (selectedResource.kind === 'Pod' || selectedResource.kind === 'Service') {
-        specific.push(labelSelectorFilter);
-      }
-      specific.push(...(resourceTypeConfigs[rt || '']?.filter || []));
-      return [...base, ...specific];
-    });
-
     // Fetch Table and stream
     createEffect(() => {
-      const ns = getPaneNamespace();
-      const rt = getPaneResourceType();
+      const ns = paneFilterStore.getNamespace();
+      const rt = paneFilterStore.getResourceType();
       const handleFetch = async () => {
         try {
           setInitialLoadComplete(false);
@@ -605,7 +548,7 @@ export function Dashboard() {
           clearTimeout(retryTimer()!);
           setRetryTimer(null);
         }
-        fetchResourceTable(getPaneNamespace(), getPaneResourceType()).catch(err => console.error('Error reloading after connection restoration:', err));
+        fetchResourceTable(paneFilterStore.getNamespace(), paneFilterStore.getResourceType()).catch(err => console.error('Error reloading after connection restoration:', err));
       }
     });
 
@@ -732,7 +675,7 @@ export function Dashboard() {
                 }
               }
               list.sort((a: any, b: any) => (a?.metadata?.name || '').localeCompare(b?.metadata?.name || ''));
-              if (resTypeId === getPaneResourceType()) {
+              if (resTypeId === paneFilterStore.getResourceType()) {
                 setResourceCount(list.length);
               }
               return { ...prev, [resTypeId]: list };
@@ -860,17 +803,17 @@ export function Dashboard() {
     };
 
     const filteredResources = createMemo(() => {
-      const resources = dynamicResources()[getPaneResourceType() || ''] || [];
-      const filters = paneActiveFilters().filter(filter => filter.name !== "ResourceType" && filter.name !== "Namespace");
+      const resources = dynamicResources()[paneFilterStore.getResourceType() || ''] || [];
+      const filters = paneFilterStore.activeFilters.filter(filter => filter.name !== "ResourceType" && filter.name !== "Namespace");
       if (filters.length === 0) { return resources; }
       return resources.filter(resource => filters.some(filter => filterStore.filterRegistry[filter.name]?.filterFunction(resource, filter.value)));
     });
 
     // Keep resourceCount in sync with settle
     createEffect(() => {
-      const hasFilters = paneActiveFilters().some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
+      const hasFilters = paneFilterStore.activeFilters.some(f => f.name !== 'ResourceType' && f.name !== 'Namespace');
       if (!hasFilters) {
-        const all = dynamicResources()[getPaneResourceType() || ''] || [];
+        const all = dynamicResources()[paneFilterStore.getResourceType() || ''] || [];
         setResourceCount(all.length);
         return;
       }
@@ -881,14 +824,14 @@ export function Dashboard() {
 
     // Restart settle when filters change
     createEffect(() => {
-      const _filters = paneActiveFilters();
+      const _filters = paneFilterStore.activeFilters;
       void _filters;
       untrack(() => bumpSettleTimer());
     });
 
     // Populate node filter options for pods
     createEffect(() => {
-      const resourceType = getPaneResourceType();
+      const resourceType = paneFilterStore.getResourceType();
       if (resourceType !== 'core/Pod') return;
       const allPods = dynamicResources()[resourceType] || [];
       const uniqueNodes = [...new Set(
@@ -898,7 +841,7 @@ export function Dashboard() {
     });
     // Populate node options for jobs
     createEffect(() => {
-      const resourceType = getPaneResourceType();
+      const resourceType = paneFilterStore.getResourceType();
       if (resourceType !== 'batch/Job') return;
       const allJobs = dynamicResources()[resourceType] || [];
       const uniqueNodes = [...new Set(
@@ -908,13 +851,13 @@ export function Dashboard() {
     });
 
     const effectiveColumns = createMemo<Column<any>[]>(() => {
-      const resourceType = getPaneResourceType();
+      const resourceType = paneFilterStore.getResourceType();
       const cfg = resourceType ? resourceTypeConfigs[resourceType] : undefined;
       const tblCols = tableColumns();
       const tblNames = Array.isArray(tblCols) ? tblCols.map(c => String((c as any)?.header || '').toLowerCase()) : [];
       const k8sResource = filterStore.k8sResources.find(res => res.id === resourceType);
       const namespaced = Boolean(k8sResource?.namespaced);
-      const ns = getPaneNamespace();
+      const ns = paneFilterStore.getNamespace();
       const viewingAllNamespaces = !ns || ns === 'all-namespaces';
       if (Array.isArray(cfg?.columns)) {
         const base = cfg.columns.map((col) => {
@@ -950,34 +893,24 @@ export function Dashboard() {
       >
         <div class="view-filter-row">
           <ViewBar
-            activeFilters={paneActiveFilters()}
-            setActiveFilters={updatePaneActiveFilters}
-            isolated
             keyboardEnabled={props.focused}
           />
           <div class="vertical-separator" />
           <div class="filterbar-flex">
             <FilterBar
-              filters={paneFilters()}
-              activeFilters={paneActiveFilters()}
-              onFilterChange={updatePaneActiveFilters}
               initialLoadComplete={initialLoadComplete()}
               loadingStage={loadingStage()}
               resourceCount={resourceCount()}
               keyboardEnabled={props.focused}
-              onGoBack={paneGoBack}
-              onGoForward={paneGoForward}
-              canGoBack={paneCanGoBack()}
-              canGoForward={paneCanGoForward()}
             />
           </div>
           <div class="filter-history-nav">
             <div class="filter-group">
               <button 
                 class="filter-group-button"
-                classList={{ "has-active-filters": false, "disabled": !paneCanGoBack() }}
-                onClick={() => paneGoBack()}
-                disabled={!paneCanGoBack()}
+                classList={{ "has-active-filters": false, "disabled": !paneFilterStore.canGoBack }}
+                onClick={() => paneFilterStore.goBack()}
+                disabled={!paneFilterStore.canGoBack}
                 title="Go back in filter history"
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -989,9 +922,9 @@ export function Dashboard() {
             <div class="filter-group">
               <button 
                 class="filter-group-button"
-                classList={{ "has-active-filters": false, "disabled": !paneCanGoForward() }}
-                onClick={() => paneGoForward()}
-                disabled={!paneCanGoForward()}
+                classList={{ "has-active-filters": false, "disabled": !paneFilterStore.canGoForward }}
+                onClick={() => paneFilterStore.goForward()}
+                disabled={!paneFilterStore.canGoForward}
                 title="Go forward in filter history"
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1008,6 +941,11 @@ export function Dashboard() {
                 onClick={(e) => {
                   e.stopPropagation();
                   const newKey = Date.now();
+                  // Copy current pane's state to new pane
+                  setPaneStates(prev => ({
+                    ...prev,
+                    [newKey]: [...(prev[props.paneKey] || [])]
+                  }));
                   setPaneTree(prev => findAndReplacePaneWithSplit(prev, props.paneKey, 'horizontal', newKey));
                   setActivePaneKey(newKey);
                 }}
@@ -1024,6 +962,11 @@ export function Dashboard() {
                 onClick={(e) => {
                   e.stopPropagation();
                   const newKey = Date.now();
+                  // Copy current pane's state to new pane
+                  setPaneStates(prev => ({
+                    ...prev,
+                    [newKey]: [...(prev[props.paneKey] || [])]
+                  }));
                   setPaneTree(prev => findAndReplacePaneWithSplit(prev, props.paneKey, 'vertical', newKey));
                   setActivePaneKey(newKey);
                 }}
@@ -1051,7 +994,7 @@ export function Dashboard() {
             <Show when={effectiveColumns().length > 0}>
               <ResourceList 
                 resources={filteredResources()}
-                resourceTypeConfig={(resourceTypeConfigs[getPaneResourceType() || ''] as any) || { columns: [] }}
+                resourceTypeConfig={(resourceTypeConfigs[paneFilterStore.getResourceType() || ''] as any) || { columns: [] }}
                 resetKey={listResetKey()}
                 columns={effectiveColumns()}
                 navigate={navigate}
@@ -1089,7 +1032,7 @@ export function Dashboard() {
     if (props.node.type === 'pane') {
       return (
         <div style={style()} class="pane-wrapper">
-          <DashboardPane
+          <DashboardPaneWithProvider
             paneKey={props.node.key}
             focused={props.node.key === activePaneKey()}
             onFocus={() => setActivePaneKey(props.node.key)}

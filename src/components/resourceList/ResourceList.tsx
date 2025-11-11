@@ -8,7 +8,7 @@ import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
-import { useFilterStore } from "../../store/filterStore.tsx";
+import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
@@ -297,7 +297,7 @@ export function ResourceList<T>(props: {
   keyboardEnabled?: boolean;
   isActive?: boolean;
 }) {
-  const filterStore = useFilterStore();
+  const paneFilterStore = usePaneFilterStore();
   const apiStore = useApiResourceStore();
 
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
@@ -316,16 +316,16 @@ export function ResourceList<T>(props: {
   const rowHeight = 36;
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewportHeight, setViewportHeight] = createSignal(600);
-  // Use filterStore for sorting state
-  const sortColumn = () => filterStore.sortColumn;
-  const sortAscending = () => filterStore.sortAscending;
-  const setSortColumn = (column: string | null) => filterStore.setSortColumn(column);
-  const setSortAscending = (ascending: boolean) => filterStore.setSortAscending(ascending);
+  // Use paneFilterStore for sorting state
+  const sortColumn = () => paneFilterStore.sortColumn;
+  const sortAscending = () => paneFilterStore.sortAscending;
+  const setSortColumn = (column: string | null) => paneFilterStore.setSortColumn(column);
+  const setSortAscending = (ascending: boolean) => paneFilterStore.setSortAscending(ascending);
 
   // Initialize sort column from config if not already set
   createEffect(() => {
-    if (!filterStore.sortColumn && props.resourceTypeConfig.defaultSortColumn) {
-      filterStore.setSortColumn(props.resourceTypeConfig.defaultSortColumn);
+    if (!paneFilterStore.sortColumn && props.resourceTypeConfig.defaultSortColumn) {
+      paneFilterStore.setSortColumn(props.resourceTypeConfig.defaultSortColumn);
     }
   });
 
@@ -523,7 +523,7 @@ export function ResourceList<T>(props: {
     replaceHandlers(commands, {
       openDrawer,
       navigate: props.navigate,
-      updateFilters: (filters) => filterStore.setActiveFilters(filters),
+      updateFilters: (filters) => paneFilterStore.setActiveFilters(filters),
       getContextName: () => apiStore.contextInfo?.current
     });
     return commands;

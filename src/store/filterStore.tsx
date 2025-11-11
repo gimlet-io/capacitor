@@ -1,121 +1,30 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, createSignal, useContext, JSX, createEffect, createMemo, untrack, onMount } from "solid-js";
-import type { ActiveFilter, Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
+import { createContext, createSignal, useContext, JSX, createEffect, createMemo } from "solid-js";
+import type { Filter, FilterOption, FilterType } from "../components/filterBar/FilterBar.tsx";
 import { useApiResourceStore } from "./apiResourceStore.tsx";
 import type { K8sResource } from "../types/k8s.ts";
 import { resourceTypeConfigs } from "../resourceTypeConfigs.tsx";
 import { parseGlobFilter, matchGlobPatterns } from "../utils/glob.ts";
+
+// Global filter store - manages cluster-wide resources and filter definitions
 interface FilterState {
-  filters: Filter[]; // all filters
+  // Global filter definitions and registry
   filterRegistry: Record<string, Filter>;
 
-  activeFilters: ActiveFilter[]; // filters that have set with a value
-  setActiveFilters: (filters: ActiveFilter[]) => void;
-
+  // Available K8s resources from cluster
   k8sResources: K8sResource[];
-
-  getResourceType: () => string | undefined;
-  getNamespace: () => string | undefined;
   
-  selectedView: string;
-  previousSelectedView: string | null;
-  setSelectedView: (viewId: string) => void;
-
-  // Filter history
-  filterHistory: { filters: ActiveFilter[]; viewId: string }[];
-  currentHistoryIndex: number;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  goBack: () => void;
-  goForward: () => void;
-
-  // Sorting
-  sortColumn: string | null;
-  setSortColumn: (column: string | null) => void;
-  sortAscending: boolean;
-  setSortAscending: (ascending: boolean) => void;
+  // Get filters for a specific resource type
+  getFiltersForResource: (resourceTypeId: string) => Filter[];
 }
 
 const FilterContext = createContext<FilterState>();
 
-// URL parameter utilities
-const getCtxFromUrl = (): string | undefined => {
-  try {
-    const url = new URL(globalThis.location.href);
-    const val = url.searchParams.get('ctx');
-    return val || undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-const serializeFilters = (filters: ActiveFilter[]): string => {
-  if (filters.length === 0) return '';
-  const filterParams = filters.map(f => `${f.name}=${encodeURIComponent(f.value)}`).join('&');
-  return filterParams;
-};
-
-const deserializeFilters = (searchParams: URLSearchParams): ActiveFilter[] => {
-  const filters: ActiveFilter[] = [];
-  for (const [name, value] of searchParams) {
-    if (name !== 'view' && name !== 'sortColumn' && name !== 'sortAscending' && name !== 'ctx') { // Skip view, sort, and ctx parameters
-      filters.push({ name, value: decodeURIComponent(value) });
-    }
-  }
-  return filters;
-};
-
-const updateURL = (filters: ActiveFilter[], view: string, sortColumn: string | null, sortAscending: boolean, ctx?: string) => {
-  const url = new URL(window.location.href);
-  url.search = '';
-  
-  // Ensure ctx is the first parameter when present
-  if (ctx) {
-    url.searchParams.set('ctx', ctx);
-  }
-  
-  // Add view parameter
-  if (view) {
-    url.searchParams.set('view', view);
-  }
-  
-  // Add sort parameters
-  if (sortColumn) {
-    url.searchParams.set('sortColumn', sortColumn);
-    url.searchParams.set('sortAscending', sortAscending.toString());
-  }
-  
-  // Add filter parameters
-  filters.forEach(filter => {
-    url.searchParams.set(filter.name, filter.value);
-  });
-  
-  window.history.replaceState(null, '', url.toString());
-};
-
-const loadFromURL = (): { filters: ActiveFilter[], view: string, sortColumn: string | null, sortAscending: boolean } => {
-  const url = new URL(window.location.href);
-  const view = url.searchParams.get('view') || '';
-  const sortColumn = url.searchParams.get('sortColumn') || null;
-  const sortAscending = url.searchParams.get('sortAscending') !== 'false'; // Default to true
-  const filters = deserializeFilters(url.searchParams);
-  return { filters, view, sortColumn, sortAscending };
-};
-
 export function FilterProvider(props: { children: JSX.Element }) {
-  const [activeFilters, setActiveFilters] = createSignal<ActiveFilter[]>([]);
-  const [selectedView, setSelectedView] = createSignal<string>('');
-  const [previousSelectedView, setPreviousSelectedView] = createSignal<string | null>(null);
   const [k8sResources, setK8sResources] = createSignal<K8sResource[]>([]);
   const [filterRegistry, setFilterRegistry] = createSignal<Record<string, Filter>>({});
-  const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
-  const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
-  const [isInitialized, setIsInitialized] = createSignal<boolean>(false);
-  const [sortColumn, setSortColumn] = createSignal<string | null>(null);
-  const [sortAscending, setSortAscending] = createSignal<boolean>(true);
   const apiResourceStore = useApiResourceStore();
 
   const nameFilter: Filter = {
@@ -192,75 +101,6 @@ export function FilterProvider(props: { children: JSX.Element }) {
     }
   };
 
-  const getResourceType = () => {
-   return activeFilters().find(f => f.name === "ResourceType")?.value;
-  };
-
-  const getNamespace = () => {
-    return activeFilters().find(f => f.name === "Namespace")?.value;
-  };
-
-  // Filter history management
-  const addToHistory = (filters: ActiveFilter[], viewId: string) => {
-    if (isNavigating()) return; // Don't add to history when navigating
-
-    untrack(() => {
-      const current = filterHistory();
-      const currentIndex = currentHistoryIndex();
-      
-      // Remove any history after current index (when branching from middle of history)
-      const newHistory = current.slice(0, currentIndex + 1);
-      
-      // Add new state to history
-      newHistory.push({ filters: [...filters], viewId });
-      
-      // Keep history size reasonable (last 50 states)
-      if (newHistory.length > 50) {
-        newHistory.shift();
-      } else {
-        setCurrentHistoryIndex(currentIndex + 1);
-      }
-    
-      setFilterHistory(newHistory);
-    });
-  };
-
-  const canGoBack = createMemo(() => currentHistoryIndex() >= 1);
-  const canGoForward = createMemo(() => currentHistoryIndex() < filterHistory().length - 1);
-
-  const goBack = () => {
-    if (!canGoBack()) return;
-
-    setIsNavigating(true);
-    const newIndex = currentHistoryIndex() - 1;
-    setCurrentHistoryIndex(newIndex);
-    const historyState = filterHistory()[newIndex];
-    setActiveFilters([...historyState.filters]);
-    setSelectedView(historyState.viewId);
-    setIsNavigating(false);
-  };
-
-  const goForward = () => {
-    if (!canGoForward()) return;
-
-    setIsNavigating(true);
-    const newIndex = currentHistoryIndex() + 1;
-    setCurrentHistoryIndex(newIndex);
-    const historyState = filterHistory()[newIndex];
-    setActiveFilters([...historyState.filters]);
-    setSelectedView(historyState.viewId);
-    setIsNavigating(false);
-  };
-
-  // Custom setActiveFilters that manages history and URL
-  const setActiveFiltersWithHistory = (filters: ActiveFilter[]) => {
-    setActiveFilters(filters);
-    if (isInitialized()) {
-      const ctx = apiResourceStore.contextInfo?.current || getCtxFromUrl();
-      updateURL(filters, selectedView(), sortColumn(), sortAscending(), ctx);
-    }
-    addToHistory(filters, selectedView());
-  };
 
   const namespaceOptions = createMemo<FilterOption[]>(() => {
     const namespaces = apiResourceStore.namespaces;
@@ -305,30 +145,6 @@ export function FilterProvider(props: { children: JSX.Element }) {
     }
   }));
 
-  // Update active filters when resourceType changes
-  createEffect(() => {
-    const currentResourceType = getResourceType();
-    if (!currentResourceType) return;
-    
-    const selectedResource = k8sResources().find(res => res.id === currentResourceType);
-    if (!selectedResource) return;
-    
-    // Only keep filters that are supported by the newly selected resource type
-    const allowedFilterNames = new Set<string>([
-      ...selectedResource.filters.map(f => f.name),
-    ]);
-
-    // Create a new filter set: ResourceType + applicable filters only
-    const newFilters = [
-      { name: resourceTypeFilter().name, value: currentResourceType },
-      ...activeFilters().filter(f => f.name !== "ResourceType" && allowedFilterNames.has(f.name))
-    ];
-    
-    // Only update if needed to avoid infinite loops
-    if (JSON.stringify(newFilters) !== JSON.stringify(activeFilters())) {
-      setActiveFilters(newFilters);
-    }
-  });
 
   // Setup k8sResources when apiResources changes
   createEffect(() => {        
@@ -382,10 +198,6 @@ export function FilterProvider(props: { children: JSX.Element }) {
     setK8sResources(resources);
   });
 
-  const filters = createMemo<Filter[]>(() => {
-    return [resourceTypeFilter(), ...(k8sResources().find(res => res.id === getResourceType())?.filters || [])];
-  });
-  
   // Create filterRegistry dynamically from Available Resources
   createEffect(() => {
     const registry: Record<string, Filter> = {
@@ -404,79 +216,17 @@ export function FilterProvider(props: { children: JSX.Element }) {
     setFilterRegistry(registry);
   });
 
-  // Initialize from URL on mount
-  onMount(() => {
-    const urlState = loadFromURL();
-    if (urlState.filters.length > 0 || urlState.view || urlState.sortColumn) {
-      setActiveFilters(urlState.filters);
-      setSelectedView(urlState.view);
-      setSortColumn(urlState.sortColumn);
-      setSortAscending(urlState.sortAscending);
-    }
-    setIsInitialized(true);
-    
-    // Add initial state to history
-    addToHistory(activeFilters(), selectedView());
-
-    // Handle browser back/forward navigation
-    const handlePopState = () => {
-      const urlState = loadFromURL();
-      setActiveFilters(urlState.filters);
-      setSelectedView(urlState.view);
-      setSortColumn(urlState.sortColumn);
-      setSortAscending(urlState.sortAscending);
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    
-    // Cleanup
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  });
-
-  // Sync URL when selectedView or sorting changes
-  createEffect(() => {
-    if (isInitialized()) {
-      const ctx = apiResourceStore.contextInfo?.current || getCtxFromUrl();
-      updateURL(activeFilters(), selectedView(), sortColumn(), sortAscending(), ctx);
-    }
-  });
-
-  // Handle view changes - keep this simple for integration with ViewBar
-  createEffect(() => {
-    const currentViewId = selectedView();
-    // Always update previousSelectedView when selectedView changes
-    // Removed the condition that was blocking tracking when reselecting a view
-    setPreviousSelectedView(currentViewId);
-  });
+  // Helper function to get filters for a specific resource type
+  const getFiltersForResource = (resourceTypeId: string): Filter[] => {
+    const resource = k8sResources().find(res => res.id === resourceTypeId);
+    if (!resource) return [];
+    return [resourceTypeFilter(), ...resource.filters];
+  };
 
   const store: FilterState = {
-    get filters() { return filters(); },
     get filterRegistry() { return filterRegistry(); },
-
-    get activeFilters() { return activeFilters(); },
-    setActiveFilters: setActiveFiltersWithHistory,
-    getResourceType,
-    getNamespace,
-
     get k8sResources() { return k8sResources(); },
-
-    
-    get selectedView() { return selectedView(); },
-    get previousSelectedView() { return previousSelectedView(); },
-    setSelectedView: setSelectedView,
-
-    get filterHistory() { return filterHistory(); },
-    get currentHistoryIndex() { return currentHistoryIndex(); },
-    get canGoBack() { return canGoBack(); },
-    get canGoForward() { return canGoForward(); },
-    goBack,
-    goForward,
-    get sortColumn() { return sortColumn(); },
-    setSortColumn: setSortColumn,
-    get sortAscending() { return sortAscending(); },
-    setSortAscending: setSortAscending,
+    getFiltersForResource,
   };
 
   return (
