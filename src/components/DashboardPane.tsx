@@ -5,7 +5,7 @@ import { createSignal, createEffect, Show, createMemo, untrack, onCleanup } from
 import { ResourceList } from "./index.ts";
 import { useNavigate } from "@solidjs/router";
 import { ViewBar } from "./viewBar/ViewBar.tsx";
-import { FilterBar, type ActiveFilter } from "./filterbar/FilterBar.tsx";
+import { FilterBar, type ActiveFilter } from "./filterBar/FilterBar.tsx";
 import { formatShortcutForDisplay } from "../utils/shortcuts.ts";
 import { watchResource } from "../watches.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";

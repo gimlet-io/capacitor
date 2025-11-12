@@ -3,7 +3,7 @@
 
 import { createSignal } from "solid-js";
 import type { PaneNode } from "../components/paneManager/PaneManager.tsx";
-import type { ActiveFilter } from "../components/filterbar/FilterBar.tsx";
+import type { ActiveFilter } from "../components/filterBar/FilterBar.tsx";
 
 // Persisted dashboard layout and pane-related state across route changes
 const [savedPaneTree, setSavedPaneTree] = createSignal<PaneNode | undefined>(undefined);

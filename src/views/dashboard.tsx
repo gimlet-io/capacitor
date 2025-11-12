@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
-import { type ActiveFilter } from "../components/filterbar/FilterBar.tsx";
+import { type ActiveFilter } from "../components/filterBar/FilterBar.tsx";
 import { SettingsModal } from "../components/settings/SettingsModal.tsx";
 import { applyTheme, loadInitialTheme, type ThemeName } from "../utils/theme.ts";
 import { ShortcutPrefix, getShortcutPrefix, getDefaultShortcutPrefix, setShortcutPrefix, formatShortcutForDisplay } from "../utils/shortcuts.ts";
