@@ -1277,7 +1277,7 @@ export function KustomizationDetails() {
                             {renderRevision(
                               k().status?.lastAttemptedRevision,
                               k().spec.sourceRef.kind,
-                              k().source?.kind === 'GitRepository' ? (k().source as GitRepository).spec.url : undefined
+                              k().source?.kind === 'GitRepository' ? (k().source as GitRepository)?.spec?.url : undefined
                             )}
                           </div>
                           <div class="info-item">
@@ -1289,7 +1289,7 @@ export function KustomizationDetails() {
                             {renderRevision(
                               k().status?.lastAppliedRevision,
                               k().spec.sourceRef.kind,
-                              k().source?.kind === 'GitRepository' ? (k().source as GitRepository).spec.url : undefined
+                              k().source?.kind === 'GitRepository' ? (k().source as GitRepository)?.spec?.url : undefined
                             )}
                           </div>
                         </div>

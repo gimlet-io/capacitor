@@ -10,16 +10,16 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 export const renderHelmRepositoryDetails = (helmRepository: HelmRepository, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
     <div style="display: contents;">
-      <strong>URL:</strong> {helmRepository.spec.url} <br />
-      {helmRepository.spec.secretRef && (
+      <strong>URL:</strong> {helmRepository?.spec?.url} <br />
+      {helmRepository?.spec?.secretRef && (
         <>
-          <strong>Secret:</strong> {helmRepository.spec.secretRef.name} <br />
+          <strong>Secret:</strong> {helmRepository.spec?.secretRef?.name} <br />
         </>
       )}
-      <strong>Pass Credentials:</strong> {helmRepository.spec.passCredentials ? "True" : "False"} <br />
-      <strong>Interval:</strong> {helmRepository.spec.interval} <br />
+      <strong>Pass Credentials:</strong> {helmRepository?.spec?.passCredentials ? "True" : "False"} <br />
+      <strong>Interval:</strong> {helmRepository?.spec?.interval} <br />
       <strong>Suspended:</strong>{" "}
-      {helmRepository.spec.suspend ? "True" : "False"}
+      {helmRepository?.spec?.suspend ? "True" : "False"}
     </div>
   </DetailRowCard>
 );
