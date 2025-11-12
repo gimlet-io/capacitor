@@ -4,7 +4,7 @@
 import { JSX } from "solid-js";
 import type { CronJob } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
-import { useCalculateAge } from "./timeUtils.ts";
+import { useCalculateAge, useCalculateTimeAgo } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Helper function to determine if CronJob is suspended
@@ -63,24 +63,8 @@ export const cronJobColumns = [
   {
     header: "LAST SCHEDULE",
     width: "20%",
-    accessor: (cronJob: CronJob) => {
-      if (!cronJob.status?.lastScheduleTime) return <>Never</>;
-      
-      const lastSchedule = new Date(cronJob.status.lastScheduleTime);
-      const now = new Date();
-      const diff = now.getTime() - lastSchedule.getTime();
-      
-      // Display time ago
-      if (diff < 60000) { // less than a minute
-        return <>{Math.floor(diff / 1000)}s ago</>;
-      } else if (diff < 3600000) { // less than an hour
-        return <>{Math.floor(diff / 60000)}m ago</>;
-      } else if (diff < 86400000) { // less than a day
-        return <>{Math.floor(diff / 3600000)}h ago</>;
-      } else { // days
-        return <>{Math.floor(diff / 86400000)}d ago</>;
-      }
-    },
+    accessor: (cronJob: CronJob) => 
+      useCalculateTimeAgo(cronJob.status?.lastScheduleTime)(),
     title: (cronJob: CronJob) => {
       return cronJob.status?.lastScheduleTime 
         ? `Last scheduled at: ${cronJob.status.lastScheduleTime}` 
