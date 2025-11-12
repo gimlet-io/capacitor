@@ -550,11 +550,10 @@ export function ResourceList<T>(props: {
 
   // Execute a command with the current selected resource
   const executeCommand = async (command: ResourceCommand) => {
-    const index = selectedIndex();
-    if (index === -1 || index >= sortedResources().length) return;
+    const resource = selectedResource();
+    if (!resource) return;
     
     try {
-      const resource = sortedResources()[index];
       const id = commandId(command);
       const allowed = commandPermissions()[id];
       if (allowed === false) return;
@@ -572,31 +571,51 @@ export function ResourceList<T>(props: {
     // Handle navigation keys first (these don't need a selected resource)
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, sortedResources().length - 1);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.min(current + 1, resources.length - 1);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+      }
       return true; // Stop propagation
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.max(current - 1, 0);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+      }
       return true;
     } else if (e.key === 'PageDown') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 20, sortedResources().length - 1);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.min(current + 20, resources.length - 1);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+      }
       return true;
     } else if (e.key === 'PageUp') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.max(prev - 20, 0);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.max(current - 20, 0);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+      }
       return true;
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -633,30 +652,31 @@ export function ResourceList<T>(props: {
 
   // Always preselect the first row when data is present and nothing is selected
   createEffect(() => {
-    if (sortedResources().length > 0 && selectedIndex() === -1) {
+    if (sortedResources().length > 0 && selectedIndex() === -1 && selectedKey() === null) {
+      const res = sortedResources()[0];
       setSelectedIndex(0);
+      setSelectedResource(() => res);
+      setSelectedKey(getResourceKey(res as unknown as KeyableResource));
     }
   });
 
-  // Keep selectedResource in sync with selectedIndex for accurate permission checks
+  // Keep selection anchored to the resource key when the list changes
   createEffect(() => {
     const resources = sortedResources();
-    const index = selectedIndex();
-    
-    if (index >= 0 && index < resources.length) {
-      const res = resources[index];
-      setSelectedResource(() => res);
-      // Update key without triggering this effect again
-      untrack(() => {
-        const newKey = getResourceKey(res as unknown as KeyableResource);
-        if (selectedKey() !== newKey) {
-          setSelectedKey(newKey);
-        }
-      });
-    } else {
-      setSelectedResource(null);
-      untrack(() => setSelectedKey(null));
+    const key = selectedKey();
+    if (key) {
+      const idx = resources.findIndex(r => getResourceKey(r as unknown as KeyableResource) === key);
+      if (idx !== -1) {
+        if (selectedIndex() !== idx) setSelectedIndex(idx);
+        const res = resources[idx];
+        setSelectedResource(() => res);
+        return;
+      }
     }
+    // If key not set or resource disappeared, clear selection gracefully
+    setSelectedResource(null);
+    untrack(() => setSelectedKey(null));
+    setSelectedIndex(-1);
   });
 
   // Scroll selected item into view whenever selectedIndex changes
