@@ -150,9 +150,9 @@ export function Dashboard() {
 
         {/* Panes container */}
         <PaneManager
-          initialTree={savedPaneTree}
+          initialTree={savedPaneTree ?? { type: 'pane', key: 0 }}
           initialSizes={savedPaneSizes}
-          initialActivePaneKey={savedActivePaneKey}
+          initialActivePaneKey={savedActivePaneKey ?? 0}
           onStatusChange={setWatchStatus}
           onTreeChange={(t) => { savedPaneTree = t; }}
           onSizesChange={(s) => { savedPaneSizes = s; }}
