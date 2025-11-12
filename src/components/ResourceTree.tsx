@@ -354,7 +354,7 @@ export function ResourceTree(props: ResourceTreeProps) {
       openDrawer: openDrawerWithExec,
       navigate,
       getContextName: () => apiStore.contextInfo?.current
-    });
+    }, apiStore.apiResources);
     return commands;
   };
 

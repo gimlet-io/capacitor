@@ -7,6 +7,7 @@ import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/Keyboa
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
+import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
@@ -36,8 +37,9 @@ export const builtInCommands = [
   },
 ]
 
+
 // Shared function to handle resource deletion
-export const handleDeleteResource = async (resource: any, contextName?: string) => {
+export const handleDeleteResource = async (resource: any, contextName?: string, apiResources?: any[]) => {
   if (!resource || !resource.metadata) return;
   
   const resourceName = resource.metadata.name;
@@ -65,12 +67,15 @@ export const handleDeleteResource = async (resource: any, contextName?: string) 
       apiPath = ctxName ? `/k8s/${ctxName}/apis/${group}/${version}` : `/k8s/apis/${group}/${version}`;
     }
     
+    // Get the correct plural resource name
+    const pluralResourceName = getResourceName(resourceKind, resource.apiVersion || 'v1', apiResources || []);
+    
     // Build the full delete URL
     let deleteUrl = '';
     if (resource.metadata.namespace) {
-      deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+      deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${pluralResourceName}/${resource.metadata.name}`;
     } else {
-      deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+      deleteUrl = `${apiPath}/${pluralResourceName}/${resource.metadata.name}`;
     }
     
     // Send delete request
@@ -142,7 +147,8 @@ export const replaceHandlers = (
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
     getContextName?: () => string | undefined;
-  }
+  },
+  apiResources?: any[]
 ) => {
   // Replace the null handlers with actual implementations for built-in commands
   for (let i = 0; i < commands.length; i++) {
@@ -178,7 +184,7 @@ export const replaceHandlers = (
       } else if (cmd.shortcut.description === 'Delete resource') {
         commands[i] = {
           ...cmd,
-          handler: (resource) => handleDeleteResource(resource, handlers.getContextName?.())
+          handler: (resource) => handleDeleteResource(resource, handlers.getContextName?.(), apiResources)
         };
       } else if (cmd === navigateToKustomization && handlers.navigate) {
         commands[i] = {
@@ -525,7 +531,7 @@ export function ResourceList<T>(props: {
       navigate: props.navigate,
       updateFilters: (filters) => paneFilterStore.setActiveFilters(filters),
       getContextName: () => apiStore.contextInfo?.current
-    });
+    }, apiStore.apiResources);
     return commands;
   };
 

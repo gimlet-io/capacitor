@@ -234,6 +234,30 @@ export const updateKustomizationMatchingGitRepositories = (kustomization: Extend
   };
 };
 
+// Get the correct plural resource name from API resources
+// This is needed because Kubernetes resource names don't always follow simple pluralization rules
+// (e.g., "OCIRepository" -> "ocirepositories", not "ocirepositorys")
+export const getResourceName = (kind: string, apiVersion: string, apiResources: any[]): string => {
+  // Find the matching API resource to get the correct plural form
+  const group = apiVersion?.includes('/') ? apiVersion.split('/')[0] : '';
+  const version = apiVersion?.includes('/') ? apiVersion.split('/')[1] : apiVersion || 'v1';
+  
+  const matchingResource = apiResources.find(resource => 
+    resource.kind.toLowerCase() === kind.toLowerCase() && 
+    (group ? resource.group === group : (!resource.group && version === 'v1')) &&
+    resource.version === version
+  );
+  
+  // If we found a matching resource, use its name (which is the plural form)
+  if (matchingResource) {
+    return matchingResource.name;
+  }
+  
+  // Fallback to adding 's' for plural if we can't find the resource
+  // This is not ideal but maintains backward compatibility
+  return `${kind.toLowerCase()}s`;
+};
+
 export const updateKustomizationMatchingOCIRepositories = (kustomization: ExtendedKustomization, allOCIRepositories: OCIRepository[]): ExtendedKustomization => {
   let namespace = kustomization.spec.sourceRef.namespace;
   if (namespace === undefined) {
