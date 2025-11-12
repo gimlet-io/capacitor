@@ -5,7 +5,7 @@
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
-import type { HelmRelease, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
+import type { HelmRelease, Event, Kustomization, ExtendedKustomization, OCIRepository } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
@@ -52,6 +52,7 @@ export function HelmReleaseDetails() {
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
   const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events">("resource");
+  const [chartRefVersion, setChartRefVersion] = createSignal<string | null>(null);
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -153,9 +154,10 @@ export function HelmReleaseDetails() {
       setCanReconcile(canPatchMain);
       setCanPatch(canPatchMain);
 
-      // Check source permission when available (HelmRepository or GitRepository)
+      // Check source permission when available (HelmRepository, GitRepository, OCIRepository, or HelmChart)
       type SourceRefLike = { apiVersion?: string; kind: string; name: string; namespace?: string };
-      const src = hr.spec?.chart?.spec?.sourceRef as SourceRefLike | undefined;
+      // Handle both chartRef and chart.spec.sourceRef
+      const src = (hr.spec?.chartRef || hr.spec?.chart?.spec?.sourceRef) as SourceRefLike | undefined;
       if (src?.kind && src?.name) {
         const srcRes: MinimalK8sResource = {
           apiVersion: src.apiVersion || '',
@@ -166,6 +168,39 @@ export function HelmReleaseDetails() {
         setCanReconcileWithSources(canPatchMain && canPatchSrc);
       } else {
         setCanReconcileWithSources(canPatchMain);
+      }
+    })();
+  });
+
+  // Fetch chart version from chartRef (OCIRepository)
+  createEffect(() => {
+    const hr = helmRelease();
+    if (!hr?.spec?.chartRef || hr.spec.chartRef.kind !== 'OCIRepository') {
+      setChartRefVersion(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const chartRef = hr.spec.chartRef;
+        const namespace = chartRef.namespace || hr.metadata.namespace;
+        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+        const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+        
+        // Fetch OCIRepository resource
+        const url = `${k8sPrefix}/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/${namespace}/ocirepositories/${chartRef.name}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          setChartRefVersion(null);
+          return;
+        }
+        
+        const ociRepo = await response.json() as OCIRepository;
+        const version = ociRepo.spec?.ref?.tag || ociRepo.spec?.ref?.semver || null;
+        setChartRefVersion(version);
+      } catch (error) {
+        console.error('Failed to fetch OCIRepository version:', error);
+        setChartRefVersion(null);
       }
     })();
   });
@@ -591,18 +626,26 @@ export function HelmReleaseDetails() {
 
                 <div class="header-info">
                   <div class="info-grid">
-                    <div class="info-item">
-                      <span class="label">Chart:</span>
-                      <span class="value">{hr().spec.chart.spec.chart}</span>
-                    </div>
+                    {hr().spec.chart?.spec?.chart && (
+                      <div class="info-item">
+                        <span class="label">Chart:</span>
+                        <span class="value">{hr().spec.chart.spec.chart}</span>
+                      </div>
+                    )}
                     <div class="info-item">
                       <span class="label">Source:</span>
-                      <span class="value">{hr().spec.chart.spec.sourceRef.kind}/{hr().spec.chart.spec.sourceRef.namespace ? `${hr().spec.chart.spec.sourceRef.namespace}/` : ''}{hr().spec.chart.spec.sourceRef.name}</span>
+                      <span class="value">
+                        {(() => {
+                          const src = hr().spec.chartRef || hr().spec.chart?.spec?.sourceRef;
+                          if (!src) return 'N/A';
+                          return `${src.kind}/${src.namespace ? `${src.namespace}/` : ''}${src.name}`;
+                        })()}
+                      </span>
                     </div>
-                    {hr().spec.chart.spec.version && (
+                    {(hr().spec.chart?.spec?.version || chartRefVersion()) && (
                       <div class="info-item">
                         <span class="label">Version:</span>
-                        <span class="value">{hr().spec.chart.spec.version}</span>
+                        <span class="value">{hr().spec.chart?.spec?.version || chartRefVersion()}</span>
                       </div>
                     )}
                     {hr().spec.releaseName && (
