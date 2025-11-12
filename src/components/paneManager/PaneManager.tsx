@@ -18,6 +18,10 @@ export type PaneNode = {
 export interface PaneManagerProps {
   // Initial pane tree structure
   initialTree?: PaneNode;
+  // Initial active pane key
+  initialActivePaneKey?: number;
+  // Initial pane sizes keyed by parent path
+  initialSizes?: Record<string, number[]>;
   // Render function for each pane
   renderPane: (props: {
     paneKey: number;
@@ -33,27 +37,40 @@ export interface PaneManagerProps {
   onActivePaneChange?: (paneKey: number) => void;
   // Callback to get aggregated status (e.g., for header display)
   onStatusChange?: (status: string) => void;
+  // Callback when pane tree changes (for persistence)
+  onTreeChange?: (tree: PaneNode) => void;
+  // Callback when pane sizes change (for persistence)
+  onSizesChange?: (sizes: Record<string, number[]>) => void;
 }
 
 export function PaneManager(props: PaneManagerProps) {
-  // Pane tree structure
-  const [paneTree, setPaneTree] = createSignal<PaneNode>(
-    props.initialTree || {
-      type: 'split',
-      orientation: 'horizontal',
-      children: [
-        { type: 'pane', key: 0 },
-        { type: 'pane', key: 1 }
-      ]
-    }
-  );
+  // Compute initial values once to avoid reactive churn during setup
+  const defaultTree: PaneNode = {
+    type: 'split',
+    orientation: 'horizontal',
+    children: [
+      { type: 'pane', key: 0 },
+      { type: 'pane', key: 1 }
+    ]
+  };
+  const initialTreeValue: PaneNode = props.initialTree || defaultTree;
+  const computeFirstPaneKey = (node: PaneNode): number => {
+    if (node.type === 'pane') return node.key;
+    // Fallback: if split has no children (shouldn't happen), use 0
+    return node.children.length > 0 ? computeFirstPaneKey(node.children[0]) : 0;
+  };
+  const initialActiveKeyValue = props.initialActivePaneKey ?? computeFirstPaneKey(initialTreeValue);
+  const initialSizesValue = props.initialSizes || {};
   
-  const [activePaneKey, setActivePaneKey] = createSignal(0);
+  // Pane tree structure
+  const [paneTree, setPaneTree] = createSignal<PaneNode>(initialTreeValue);
+  
+  const [activePaneKey, setActivePaneKey] = createSignal(initialActiveKeyValue);
   const [paneStatuses, setPaneStatuses] = createSignal<Record<number, string>>({});
   
   // Store pane sizes separately to avoid re-creating pane objects
   // Key format: "path:orientation" e.g. "0,1:horizontal"
-  const [paneSizes, setPaneSizes] = createSignal<Record<string, number[]>>({});
+  const [paneSizes, setPaneSizes] = createSignal<Record<string, number[]>>(initialSizesValue);
   
   // Resize state
   const [resizing, setResizing] = createSignal<{
@@ -74,6 +91,18 @@ export function PaneManager(props: PaneManagerProps) {
   createMemo(() => {
     const status = paneStatuses()[activePaneKey()] || "●";
     props.onStatusChange?.(status);
+  });
+  
+  // Notify parent when tree changes (for persistence)
+  createMemo(() => {
+    const tree = paneTree();
+    props.onTreeChange?.(tree);
+  });
+  
+  // Notify parent when sizes change (for persistence)
+  createMemo(() => {
+    const sizes = paneSizes();
+    props.onSizesChange?.(sizes);
   });
   
   // Helper functions for tree manipulation

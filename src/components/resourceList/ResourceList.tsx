@@ -401,9 +401,7 @@ export function ResourceList<T>(props: {
   };
 
   const getResourceKey = (resource: KeyableResource): string => {
-    // Prefer UID if available; otherwise compose a stable key
-    const uid = resource?.metadata?.uid;
-    if (uid) return String(uid);
+    // Compose a stable key independent of UID (UID may be absent in Table data)
     const kind = String(resource?.kind || "");
     const apiVersion = String(resource?.apiVersion || "");
     const namespace = String(resource?.metadata?.namespace || "");
@@ -578,7 +576,8 @@ export function ResourceList<T>(props: {
       if (newIndex >= 0 && newIndex < resources.length) {
         const res = resources[newIndex];
         setSelectedResource(() => res);
-        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
       }
       return true; // Stop propagation
     } else if (e.key === 'ArrowUp') {
@@ -590,7 +589,8 @@ export function ResourceList<T>(props: {
       if (newIndex >= 0 && newIndex < resources.length) {
         const res = resources[newIndex];
         setSelectedResource(() => res);
-        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
       }
       return true;
     } else if (e.key === 'PageDown') {
@@ -602,7 +602,8 @@ export function ResourceList<T>(props: {
       if (newIndex >= 0 && newIndex < resources.length) {
         const res = resources[newIndex];
         setSelectedResource(() => res);
-        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
       }
       return true;
     } else if (e.key === 'PageUp') {
@@ -614,7 +615,8 @@ export function ResourceList<T>(props: {
       if (newIndex >= 0 && newIndex < resources.length) {
         const res = resources[newIndex];
         setSelectedResource(() => res);
-        setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
       }
       return true;
     } else if (e.key === 'Enter') {
@@ -659,6 +661,8 @@ export function ResourceList<T>(props: {
       setSelectedKey(getResourceKey(res as unknown as KeyableResource));
     }
   });
+
+  // (no initial selection restoration)
 
   // Keep selection anchored to the resource key when the list changes
   createEffect(() => {
@@ -848,13 +852,15 @@ export function ResourceList<T>(props: {
                 const handleClick = () => {
                   setSelectedIndex(globalIndex());
                   setSelectedResource(() => resource);
-                  setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
+                  const key = getResourceKey(resource as unknown as KeyableResource);
+                  setSelectedKey(key);
                 };
                 const handleMouseDown = () => {
                   // Preselect on mouse down to ensure selection wins during activation
                   setSelectedIndex(globalIndex());
                   setSelectedResource(() => resource);
-                  setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
+                  const key = getResourceKey(resource as unknown as KeyableResource);
+                  setSelectedKey(key);
                 };
                 
                 return (

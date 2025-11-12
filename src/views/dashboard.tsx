@@ -10,6 +10,14 @@ import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useErrorStore } from "../store/errorStore.tsx";
 import { PaneManager } from "../components/paneManager/index.ts";
 import { DashboardPaneWithProvider } from "../components/DashboardPane.tsx";
+import type { PaneNode } from "../components/paneManager/PaneManager.tsx";
+import type { Orientation } from "../components/paneManager/PaneManager.tsx";
+
+// Persist within this module (component-local across route changes)
+let savedPaneTree: PaneNode | undefined = undefined;
+let savedPaneSizes: Record<string, number[]> = {};
+let savedActivePaneKey: number | undefined = undefined;
+const savedPaneFilters = new Map<number, ActiveFilter[]>();
 
 export function Dashboard() {
   const apiResourceStore = useApiResourceStore();
@@ -29,11 +37,12 @@ export function Dashboard() {
   const [watchStatus, setWatchStatus] = createSignal("●");
   
   // Cache of pane filter states - updated by providers, used to restore state after tree changes
-  const paneFilterCache = new Map<number, ActiveFilter[]>();
+  const paneFilterCache = new Map<number, ActiveFilter[]>(savedPaneFilters);
   
   // Update cache when pane filters change
   const handlePaneFilterChange = (paneKey: number, filters: ActiveFilter[]) => {
     paneFilterCache.set(paneKey, filters);
+    savedPaneFilters.set(paneKey, filters);
   };
 
   // Function to switch to a new context
@@ -141,7 +150,21 @@ export function Dashboard() {
 
         {/* Panes container */}
         <PaneManager
+          initialTree={savedPaneTree}
+          initialSizes={savedPaneSizes}
+          initialActivePaneKey={savedActivePaneKey}
           onStatusChange={setWatchStatus}
+          onTreeChange={(t) => { savedPaneTree = t; }}
+          onSizesChange={(s) => { savedPaneSizes = s; }}
+          onActivePaneChange={(k) => { savedActivePaneKey = k; }}
+          onPaneSplit={(originalPaneKey: number, newPaneKey: number, _orientation: Orientation) => {
+            const existing = paneFilterCache.get(originalPaneKey);
+            if (existing && Array.isArray(existing)) {
+              const copy = existing.map(f => ({ ...f }));
+              paneFilterCache.set(newPaneKey, copy);
+              savedPaneFilters.set(newPaneKey, copy);
+            }
+          }}
           renderPane={(paneProps) => (
             <DashboardPaneWithProvider
               paneKey={paneProps.paneKey}
