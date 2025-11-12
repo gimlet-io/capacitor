@@ -7,8 +7,9 @@ import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/Keyboa
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
+import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
-import { useFilterStore } from "../../store/filterStore.tsx";
+import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
@@ -36,8 +37,9 @@ export const builtInCommands = [
   },
 ]
 
+
 // Shared function to handle resource deletion
-export const handleDeleteResource = async (resource: any, contextName?: string) => {
+export const handleDeleteResource = async (resource: any, contextName?: string, apiResources?: any[]) => {
   if (!resource || !resource.metadata) return;
   
   const resourceName = resource.metadata.name;
@@ -65,12 +67,15 @@ export const handleDeleteResource = async (resource: any, contextName?: string) 
       apiPath = ctxName ? `/k8s/${ctxName}/apis/${group}/${version}` : `/k8s/apis/${group}/${version}`;
     }
     
+    // Get the correct plural resource name
+    const pluralResourceName = getResourceName(resourceKind, resource.apiVersion || 'v1', apiResources || []);
+    
     // Build the full delete URL
     let deleteUrl = '';
     if (resource.metadata.namespace) {
-      deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+      deleteUrl = `${apiPath}/namespaces/${resource.metadata.namespace}/${pluralResourceName}/${resource.metadata.name}`;
     } else {
-      deleteUrl = `${apiPath}/${resource.kind.toLowerCase()}s/${resource.metadata.name}`;
+      deleteUrl = `${apiPath}/${pluralResourceName}/${resource.metadata.name}`;
     }
     
     // Send delete request
@@ -142,7 +147,8 @@ export const replaceHandlers = (
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
     getContextName?: () => string | undefined;
-  }
+  },
+  apiResources?: any[]
 ) => {
   // Replace the null handlers with actual implementations for built-in commands
   for (let i = 0; i < commands.length; i++) {
@@ -178,7 +184,7 @@ export const replaceHandlers = (
       } else if (cmd.shortcut.description === 'Delete resource') {
         commands[i] = {
           ...cmd,
-          handler: (resource) => handleDeleteResource(resource, handlers.getContextName?.())
+          handler: (resource) => handleDeleteResource(resource, handlers.getContextName?.(), apiResources)
         };
       } else if (cmd === navigateToKustomization && handlers.navigate) {
         commands[i] = {
@@ -294,8 +300,10 @@ export function ResourceList<T>(props: {
   resetKey?: unknown;
   columns: Column<any>[];
   navigate?: (path: string) => void;
+  keyboardEnabled?: boolean;
+  isActive?: boolean;
 }) {
-  const filterStore = useFilterStore();
+  const paneFilterStore = usePaneFilterStore();
   const apiStore = useApiResourceStore();
 
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
@@ -305,6 +313,8 @@ export function ResourceList<T>(props: {
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
   const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
+  // If user activates pane via mouse, skip one auto-highlight of first row
+  let skipNextAutoHighlight = false;
   // Debounce and cache for permission checks
   let permissionTimer: number | undefined;
   const permissionCache = new Map<string, Record<string, boolean | undefined>>();
@@ -312,16 +322,16 @@ export function ResourceList<T>(props: {
   const rowHeight = 36;
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewportHeight, setViewportHeight] = createSignal(600);
-  // Use filterStore for sorting state
-  const sortColumn = () => filterStore.sortColumn;
-  const sortAscending = () => filterStore.sortAscending;
-  const setSortColumn = (column: string | null) => filterStore.setSortColumn(column);
-  const setSortAscending = (ascending: boolean) => filterStore.setSortAscending(ascending);
+  // Use paneFilterStore for sorting state
+  const sortColumn = () => paneFilterStore.sortColumn;
+  const sortAscending = () => paneFilterStore.sortAscending;
+  const setSortColumn = (column: string | null) => paneFilterStore.setSortColumn(column);
+  const setSortAscending = (ascending: boolean) => paneFilterStore.setSortAscending(ascending);
 
   // Initialize sort column from config if not already set
   createEffect(() => {
-    if (!filterStore.sortColumn && props.resourceTypeConfig.defaultSortColumn) {
-      filterStore.setSortColumn(props.resourceTypeConfig.defaultSortColumn);
+    if (!paneFilterStore.sortColumn && props.resourceTypeConfig.defaultSortColumn) {
+      paneFilterStore.setSortColumn(props.resourceTypeConfig.defaultSortColumn);
     }
   });
 
@@ -391,9 +401,7 @@ export function ResourceList<T>(props: {
   };
 
   const getResourceKey = (resource: KeyableResource): string => {
-    // Prefer UID if available; otherwise compose a stable key
-    const uid = resource?.metadata?.uid;
-    if (uid) return String(uid);
+    // Compose a stable key independent of UID (UID may be absent in Table data)
     const kind = String(resource?.kind || "");
     const apiVersion = String(resource?.apiVersion || "");
     const namespace = String(resource?.metadata?.namespace || "");
@@ -519,9 +527,9 @@ export function ResourceList<T>(props: {
     replaceHandlers(commands, {
       openDrawer,
       navigate: props.navigate,
-      updateFilters: (filters) => filterStore.setActiveFilters(filters),
+      updateFilters: (filters) => paneFilterStore.setActiveFilters(filters),
       getContextName: () => apiStore.contextInfo?.current
-    });
+    }, apiStore.apiResources);
     return commands;
   };
 
@@ -540,11 +548,10 @@ export function ResourceList<T>(props: {
 
   // Execute a command with the current selected resource
   const executeCommand = async (command: ResourceCommand) => {
-    const index = selectedIndex();
-    if (index === -1 || index >= sortedResources().length) return;
+    const resource = selectedResource();
+    if (!resource) return;
     
     try {
-      const resource = sortedResources()[index];
       const id = commandId(command);
       const allowed = commandPermissions()[id];
       if (allowed === false) return;
@@ -556,36 +563,61 @@ export function ResourceList<T>(props: {
 
   // Generic function to handle keyboard shortcuts by mapping keys to commands and built-in actions
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (props.keyboardEnabled === false) return false;
     if (sortedResources().length === 0) return false;
 
     // Handle navigation keys first (these don't need a selected resource)
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 1, sortedResources().length - 1);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.min(current + 1, resources.length - 1);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
+      }
       return true; // Stop propagation
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.max(prev - 1, 0);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.max(current - 1, 0);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
+      }
       return true;
     } else if (e.key === 'PageDown') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.min(prev + 20, sortedResources().length - 1);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.min(current + 20, resources.length - 1);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
+      }
       return true;
     } else if (e.key === 'PageUp') {
       e.preventDefault();
-      setSelectedIndex(prev => {
-        const newIndex = prev === -1 ? 0 : Math.max(prev - 20, 0);
-        return newIndex;
-      });
+      const resources = sortedResources();
+      const current = selectedIndex();
+      const newIndex = current === -1 ? 0 : Math.max(current - 20, 0);
+      setSelectedIndex(newIndex);
+      if (newIndex >= 0 && newIndex < resources.length) {
+        const res = resources[newIndex];
+        setSelectedResource(() => res);
+        const key = getResourceKey(res as unknown as KeyableResource);
+        setSelectedKey(key);
+      }
       return true;
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -620,25 +652,35 @@ export function ResourceList<T>(props: {
     }
   });
 
-  // Keep selectedResource in sync with selectedIndex for accurate permission checks
+  // Always preselect the first row when data is present and nothing is selected
+  createEffect(() => {
+    if (sortedResources().length > 0 && selectedIndex() === -1 && selectedKey() === null) {
+      const res = sortedResources()[0];
+      setSelectedIndex(0);
+      setSelectedResource(() => res);
+      setSelectedKey(getResourceKey(res as unknown as KeyableResource));
+    }
+  });
+
+  // (no initial selection restoration)
+
+  // Keep selection anchored to the resource key when the list changes
   createEffect(() => {
     const resources = sortedResources();
-    const index = selectedIndex();
-    
-    if (index >= 0 && index < resources.length) {
-      const res = resources[index];
-      setSelectedResource(() => res);
-      // Update key without triggering this effect again
-      untrack(() => {
-        const newKey = getResourceKey(res as unknown as KeyableResource);
-        if (selectedKey() !== newKey) {
-          setSelectedKey(newKey);
-        }
-      });
-    } else {
-      setSelectedResource(null);
-      untrack(() => setSelectedKey(null));
+    const key = selectedKey();
+    if (key) {
+      const idx = resources.findIndex(r => getResourceKey(r as unknown as KeyableResource) === key);
+      if (idx !== -1) {
+        if (selectedIndex() !== idx) setSelectedIndex(idx);
+        const res = resources[idx];
+        setSelectedResource(() => res);
+        return;
+      }
     }
+    // If key not set or resource disappeared, clear selection gracefully
+    setSelectedResource(null);
+    untrack(() => setSelectedKey(null));
+    setSelectedIndex(-1);
   });
 
   // Scroll selected item into view whenever selectedIndex changes
@@ -705,10 +747,30 @@ export function ResourceList<T>(props: {
     });
   };
 
+  // When pane becomes active and nothing is selected, auto-highlight the first row
+  createEffect(() => {
+    const active = props.isActive === true;
+    if (!active) return;
+    if (sortedResources().length > 0 && selectedIndex() === -1) {
+      // Defer to allow click selection to run first when activating via click
+      setTimeout(() => {
+        // If activation was triggered by a mouse interaction, do not auto-select first row
+        if (skipNextAutoHighlight) {
+          skipNextAutoHighlight = false;
+          return;
+        }
+        if (props.isActive && selectedIndex() === -1 && sortedResources().length > 0) {
+          setSelectedIndex(0);
+        }
+      }, 0);
+    }
+  });
+
   onMount(() => {
     // Register with centralized keyboard manager (priority 3 = resource navigation)
+    const handlerId = `resource-list-${Math.random().toString(36).slice(2)}`;
     const unregister = keyboardManager.register({
-      id: 'resource-list',
+      id: handlerId,
       priority: 3,
       handler: handleKeyDown,
       ignoreInInput: true
@@ -738,7 +800,7 @@ export function ResourceList<T>(props: {
   });
 
   return (
-    <div class={`resource-list-container`}>      
+    <div class={`resource-list-container`} onMouseDown={() => { skipNextAutoHighlight = true; }}>      
       <div class="keyboard-shortcut-container">
         <KeyboardShortcuts
           shortcuts={getAvailableShortcuts()}
@@ -790,13 +852,22 @@ export function ResourceList<T>(props: {
                 const handleClick = () => {
                   setSelectedIndex(globalIndex());
                   setSelectedResource(() => resource);
-                  setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
+                  const key = getResourceKey(resource as unknown as KeyableResource);
+                  setSelectedKey(key);
+                };
+                const handleMouseDown = () => {
+                  // Preselect on mouse down to ensure selection wins during activation
+                  setSelectedIndex(globalIndex());
+                  setSelectedResource(() => resource);
+                  const key = getResourceKey(resource as unknown as KeyableResource);
+                  setSelectedKey(key);
                 };
                 
                 return (
                   <>
                     <tr 
-                      class={selectedIndex() === globalIndex() ? 'selected' : ''} 
+                      class={selectedIndex() === globalIndex() ? (props.isActive ? 'selected' : 'selected-inactive') : ''} 
+                      onMouseDown={handleMouseDown}
                       onClick={handleClick}
                     >
                       {props.columns.map(column => (
@@ -807,7 +878,8 @@ export function ResourceList<T>(props: {
                     </tr>
                     {props.resourceTypeConfig.detailRowRenderer && (
                       <tr 
-                        class={`detail-row ${selectedIndex() === globalIndex() ? 'selected' : ''}`}
+                        class={`detail-row ${selectedIndex() === globalIndex() ? (props.isActive ? 'selected' : 'selected-inactive') : ''}`}
+                        onMouseDown={handleMouseDown}
                         onClick={handleClick}
                       >
                         {props.resourceTypeConfig.detailRowRenderer(resource, props.columns.length)}

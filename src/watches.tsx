@@ -67,7 +67,7 @@ export const watchResource = async (
     setTimeout(() => {
       // Only retry if the controller is not aborted
       if (!controller.signal.aborted) {
-        watchResource(path, callback, controller, setWatchStatus, onError, contextName);
+        watchResource(path, callback, controller, setWatchStatus, onError, contextName, params);
       }
     }, retryDelay);
   }

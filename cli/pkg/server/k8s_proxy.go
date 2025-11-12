@@ -115,10 +115,10 @@ func (p *KubernetesProxy) HandleAPIRequest(c echo.Context) error {
 	// Echo's wildcard param (*) captures everything after /k8s/:context/
 	// This is the Kubernetes API path we want to proxy
 	apiPath := c.Param("*")
-	
+
 	// Prepend slash to make it an absolute path
 	path := "/" + apiPath
-	
+
 	// Update the request path
 	c.Request().URL.Path = path
 

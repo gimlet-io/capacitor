@@ -275,6 +275,11 @@ export interface OCIRepository extends Source {
     };
     insecure?: boolean;
     interval: string;
+    ref?: {
+      tag?: string;
+      semver?: string;
+      digest?: string;
+    };
   };
 }
 
@@ -317,7 +322,7 @@ export interface HelmRelease {
   kind: string;
   metadata: ObjectMeta;
   spec: {
-    chart: {
+    chart?: {
       spec: {
         chart: string;
         version?: string;
@@ -327,6 +332,11 @@ export interface HelmRelease {
           namespace?: string;
         };
       };
+    };
+    chartRef?: {
+      kind: string;
+      name: string;
+      namespace?: string;
     };
     interval: string;
     suspend?: boolean;
@@ -339,6 +349,7 @@ export interface HelmRelease {
     lastAppliedRevision?: string;
     lastAttemptedRevision?: string;
     helmChart?: string;
+    storageNamespace?: string;
   };
 }
 

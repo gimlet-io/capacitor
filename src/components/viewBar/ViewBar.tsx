@@ -2,13 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show } from "solid-js";
-import { applyTheme, loadInitialTheme, type ThemeName } from "../../utils/theme.ts";
-import { KeyboardShortcuts } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
+import { createSignal, For, createEffect, untrack, onMount, onCleanup, Show, createMemo } from "solid-js";
 import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
-import { useFilterStore } from "../../store/filterStore.tsx";
-import { SettingsModal } from "../settings/SettingsModal.tsx";
-import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix } from "../../utils/shortcuts.ts";
+import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
+import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 
 export interface View {
@@ -70,18 +67,22 @@ const SYSTEM_VIEWS: View[] = [
 ];
 
 export interface ViewBarProps {
-  activeFilters: ActiveFilter[];
-  setActiveFilters: (filters: ActiveFilter[]) => void;
+  // Enable/disable keyboard shortcuts handling (useful for multi-pane focus)
+  keyboardEnabled?: boolean;
 }
 
 export function ViewBar(props: ViewBarProps) {
-  const [showNewViewForm, setShowNewViewForm] = createSignal(false);
-  const [newViewName, setNewViewName] = createSignal("");
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = createSignal<string | null>(null);
   const [views, setViews] = createSignal<View[]>([]);
-  const [settingsOpen, setSettingsOpen] = createSignal(false);
-  let newViewNameInput: HTMLInputElement | undefined;
-  const filterStore = useFilterStore();
+  const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
+  let viewMenuRef: HTMLDivElement | undefined;
+  const paneFilterStore = usePaneFilterStore();
+  const isKeyboardEnabled = () => props.keyboardEnabled !== false;
+  const [saveViewOpen, setSaveViewOpen] = createSignal(false);
+  let saveViewButtonRef: HTMLDivElement | undefined;
+  let saveViewInlineRef: HTMLDivElement | undefined;
+  const [newViewName, setNewViewName] = createSignal<string>("");
+  // Unique keyboard handler id per instance
+  const handlerId = `view-bar-${Math.random().toString(36).slice(2)}`;
   
   const [viewShortcutModifier, setViewShortcutModifier] = createSignal<ShortcutPrefix>(
     typeof globalThis !== 'undefined'
@@ -93,12 +94,133 @@ export function ViewBar(props: ViewBarProps) {
     setShortcutPrefix(viewShortcutModifier());
   });
 
-  const [theme, setTheme] = createSignal<ThemeName>(loadInitialTheme());
-  createEffect(() => {
-    applyTheme(theme());
+  // Check if current filters match any existing view
+  const hasMatchingView = createMemo(() => {
+    const currentFilters = paneFilterStore.activeFilters || [];
+    const all = views();
+    return all.some(v => JSON.stringify(v.filters) === JSON.stringify(currentFilters));
   });
+
+  // Helper to check if a specific view is currently active (by matching filters)
+  const isViewActive = (view: View) => {
+    const currentFilters = paneFilterStore.activeFilters || [];
+    return JSON.stringify(view.filters) === JSON.stringify(currentFilters);
+  };
+
+  // Selected view label for dropdown button
+  const selectedViewLabel = createMemo(() => {
+    const selectedId = paneFilterStore.selectedView;
+    const all = views();
+    if (selectedId) {
+      const v = all.find(view => view.id === selectedId);
+      if (v) return v.label;
+    }
+    // Fallback: infer by matching current filters
+    const currentFilters = paneFilterStore.activeFilters || [];
+    const matched = all.find(v => JSON.stringify(v.filters) === JSON.stringify(currentFilters));
+    return matched ? matched.label : "";
+  });
+
+  // Close dropdown on outside click or Escape
+  const handleViewMenuClickOutside = (event: MouseEvent) => {
+    if (!viewMenuOpen()) return;
+    if (viewMenuRef && !viewMenuRef.contains(event.target as Node)) {
+      setViewMenuOpen(false);
+    }
+  };
+  const [highlightedViewIndex, setHighlightedViewIndex] = createSignal<number>(-1);
+  const scrollHighlightedViewIntoView = () => {
+    if (!viewMenuRef) return;
+    const container = viewMenuRef.querySelector('.filter-options-scroll-container') as HTMLElement | null;
+    if (!container) return;
+    const index = highlightedViewIndex();
+    if (index < 0) return;
+    const el = container.querySelector(`.filter-option[data-view-index="${index}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: 'nearest' });
+  };
+  const handleViewMenuKeydown = (event: KeyboardEvent) => {
+    if (!viewMenuOpen()) return;
+    if (event.key === "Escape") {
+      setViewMenuOpen(false);
+      return;
+    }
+    const list = views();
+    if (!list || list.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedViewIndex(prev => {
+        const next = prev < 0 ? 0 : Math.min(prev + 1, list.length - 1);
+        return next;
+      });
+      setTimeout(scrollHighlightedViewIntoView, 0);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedViewIndex(prev => {
+        const next = prev <= 0 ? 0 : prev - 1;
+        return next;
+      });
+      setTimeout(scrollHighlightedViewIntoView, 0);
+      return;
+    }
+    if (event.key === "Enter") {
+      const index = highlightedViewIndex();
+      if (index >= 0 && index < list.length) {
+        event.preventDefault();
+        const v = list[index];
+        selectView(v.id);
+        setViewMenuOpen(false);
+        return;
+      }
+    }
+  };
+  createEffect(() => {
+    if (viewMenuOpen()) {
+      document.addEventListener("click", handleViewMenuClickOutside);
+      document.addEventListener("keydown", handleViewMenuKeydown);
+      // Set initial highlight to current selection or first item
+      const list = views();
+      const currentSelected = paneFilterStore.selectedView;
+      const currentIndex = list.findIndex(v => v.id === currentSelected);
+      setHighlightedViewIndex(currentIndex >= 0 ? currentIndex : (list.length > 0 ? 0 : -1));
+      setTimeout(scrollHighlightedViewIntoView, 0);
+    } else {
+      document.removeEventListener("click", handleViewMenuClickOutside);
+      document.removeEventListener("keydown", handleViewMenuKeydown);
+      setHighlightedViewIndex(-1);
+    }
+  });
+
+  // Save View inline controls: outside click and Esc handling
+  const handleSaveViewClickOutside = (event: MouseEvent) => {
+    if (!saveViewOpen()) return;
+    const target = event.target as Node;
+    const insideButton = !!(saveViewButtonRef && saveViewButtonRef.contains(target));
+    const insideInline = !!(saveViewInlineRef && saveViewInlineRef.contains(target));
+    if (!insideButton && !insideInline) {
+      setSaveViewOpen(false);
+    }
+  };
+  const handleSaveViewKeydown = (event: KeyboardEvent) => {
+    if (!saveViewOpen()) return;
+    if (event.key === 'Escape') {
+      setSaveViewOpen(false);
+    }
+  };
+  createEffect(() => {
+    if (saveViewOpen()) {
+      document.addEventListener('click', handleSaveViewClickOutside);
+      document.addEventListener('keydown', handleSaveViewKeydown);
+    } else {
+      document.removeEventListener('click', handleSaveViewClickOutside);
+      document.removeEventListener('keydown', handleSaveViewKeydown);
+    }
+  });
+
   // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal in shortcuts.ts
-  
+ 
   onMount(() => {
     loadViews();
     try {
@@ -116,19 +238,33 @@ export function ViewBar(props: ViewBarProps) {
       // Load custom views from storage
       const storedViews = localStorage.getItem('customViews');
       let customViews: View[] = [];
+      // Load hidden system views ids
+      const hiddenSystem = localStorage.getItem('hiddenSystemViews');
+      let hiddenSystemViewIds: string[] = [];
       
       if (storedViews) {
         customViews = JSON.parse(storedViews) as View[];
       }
+      if (hiddenSystem) {
+        try {
+          const parsed = JSON.parse(hiddenSystem);
+          if (Array.isArray(parsed)) {
+            hiddenSystemViewIds = parsed.filter((v: unknown) => typeof v === 'string') as string[];
+          }
+        } catch {
+          hiddenSystemViewIds = [];
+        }
+      }
       
-      const allViews = [...SYSTEM_VIEWS, ...customViews];
+      const systemViewsFiltered = SYSTEM_VIEWS.filter(v => !hiddenSystemViewIds.includes(v.id));
+      const allViews = [...systemViewsFiltered, ...customViews];
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
-      const currentViewId = filterStore.selectedView;
+      const currentViewId = paneFilterStore.selectedView;
       const viewExists = allViews.some(v => v.id === currentViewId);
       // If filters are already active (e.g., loaded from URL), don't override them
-      const hasActiveFilters = Array.isArray(filterStore.activeFilters) && filterStore.activeFilters.length > 0;
+      const hasActiveFilters = Array.isArray(paneFilterStore.activeFilters) && paneFilterStore.activeFilters.length > 0;
 
       if (!viewExists && allViews.length > 0 && !hasActiveFilters) {
         selectView(allViews[0].id);
@@ -141,47 +277,42 @@ export function ViewBar(props: ViewBarProps) {
   };
   
   const selectView = (viewId: string) => {
-    if (viewId === filterStore.selectedView) return;
-    filterStore.setSelectedView(viewId);
+    const currentId = paneFilterStore.selectedView;
+    if (viewId === currentId) return;
+    paneFilterStore.setSelectedView(viewId);
 
     untrack(() => {
         const view = views().find(v => v.id === viewId);
         if (view) {
-          props.setActiveFilters(view.filters);
+          paneFilterStore.setActiveFilters(view.filters);
         }
     })
   };
 
-  const saveCustomViews = (viewsToSave: View[]) => {
+  // Persist a new view and select it
+  const saveCurrentFiltersAsView = (label: string) => {
     try {
-      const customViews = viewsToSave.filter(view => !view.isSystem);
-      
-      // Convert views to a serializable format
-      const serializableViews = customViews.map(view => {
-        // Process filters to make them serializable
-        const serializableFilters = view.filters?.map((activeFilter: ActiveFilter) => ({
-          name: activeFilter.name, // Store filter name as identifier
-          value: activeFilter.value
-        }));
-        
-        return {
-          ...view,
-          filters: serializableFilters
-        };
-      });
-      
-      localStorage.setItem('customViews', JSON.stringify(serializableViews));
-    } catch (error) {
-      console.error('Error saving custom views:', error);
+      const id = `custom-${Date.now()}`;
+      const newView = { id, label, filters: paneFilterStore.activeFilters.map(f => ({ name: f.name, value: f.value })) };
+      const stored = localStorage.getItem('customViews');
+      let customViews: any[] = [];
+      if (stored) {
+        try {
+          customViews = JSON.parse(stored);
+          if (!Array.isArray(customViews)) customViews = [];
+        } catch { customViews = []; }
+      }
+      const updated = [...customViews, newView];
+      localStorage.setItem('customViews', JSON.stringify(updated));
+      try {
+        const ev = new Event('custom-views-changed');
+        (globalThis as unknown as { dispatchEvent?: (e: Event) => void }).dispatchEvent?.(ev);
+      } catch { /* ignore */ }
+      // Select the newly created view
+      paneFilterStore.setSelectedView(id);
+    } catch {
+      // Ignore persistence errors silently
     }
-  };
-  
-  const createView = (label: string, filters: ActiveFilter[]) => {
-  return {
-      id: `custom-${Date.now()}`,
-      label,
-      filters: filters
-    };
   };
 
   const selectViewByIndex = (index: number) => {
@@ -191,28 +322,84 @@ export function ViewBar(props: ViewBarProps) {
     }
   };
     
-  const handleViewCreate = (viewName: string) => {
-    if (!viewName.trim()) return;
-    
-    const newView = createView(viewName, props.activeFilters);
-    
-    const updatedViews = [...views(), newView];
-    setViews(updatedViews);
-    saveCustomViews(updatedViews);
-    selectView(newView.id);
-  };
-  
   const handleViewDelete = (viewId: string) => {
+    const target = views().find(v => v.id === viewId);
+    // Ask for user confirmation before deleting
+    if (target) {
+      try {
+        const viewName = target.label || target.id;
+        const confirmed =
+          (globalThis as unknown as { confirm?: (msg: string) => boolean })
+            .confirm?.(`Delete view "${viewName}"?`) ?? true;
+        if (!confirmed) return;
+      } catch {
+        // If confirm is not available, proceed without blocking
+      }
+    }
+    // Persist deletion for both custom and system views
+    if (target) {
+      try {
+        if (target.isSystem) {
+          // Track hidden system views
+          const hiddenSystem = localStorage.getItem('hiddenSystemViews');
+          let hiddenSystemViewIds: string[] = [];
+          if (hiddenSystem) {
+            try {
+              const parsed = JSON.parse(hiddenSystem);
+              if (Array.isArray(parsed)) {
+                hiddenSystemViewIds = parsed.filter((v: unknown) => typeof v === 'string') as string[];
+              }
+            } catch {
+              hiddenSystemViewIds = [];
+            }
+          }
+          const alreadyHidden = hiddenSystemViewIds.includes(viewId);
+          const updatedHidden = alreadyHidden ? hiddenSystemViewIds : [...hiddenSystemViewIds, viewId];
+          localStorage.setItem('hiddenSystemViews', JSON.stringify(updatedHidden));
+        } else {
+          // Remove from custom views
+          const stored = localStorage.getItem('customViews');
+          let customViews: any[] = [];
+          if (stored) {
+            try {
+              customViews = JSON.parse(stored);
+              if (!Array.isArray(customViews)) customViews = [];
+            } catch {
+              customViews = [];
+            }
+          }
+          const updatedCustom = customViews.filter((v: any) => v?.id !== viewId);
+          localStorage.setItem('customViews', JSON.stringify(updatedCustom));
+        }
+        try {
+          const ev = new Event('custom-views-changed');
+          (globalThis as unknown as { dispatchEvent?: (e: Event) => void }).dispatchEvent?.(ev);
+        } catch { /* ignore */ }
+      } catch {
+        // ignore storage errors
+      }
+    }
+    // Update local state and switch selection
     const updatedViews = views().filter(view => view.id !== viewId);
     setViews(updatedViews);
-    saveCustomViews(updatedViews);
-    selectView(SYSTEM_VIEWS[0].id);
+    if (updatedViews.length > 0) {
+      selectView(updatedViews[0].id);
+    } else {
+      selectView('');
+    }
   };
 
   // Handle view keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
-    // Early exit: if no modifiers are pressed, don't bother checking shortcuts
+    if (!isKeyboardEnabled()) return false;
+    // If no modifiers are pressed, handle single-key shortcuts
     if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      // Open the Views dropdown with 'v' (mirrors ResourceType filter 'r')
+      if (e.key === 'v') {
+        e.preventDefault();
+        setViewMenuOpen(true);
+        return true;
+      }
       return false;
     }
     
@@ -245,7 +432,7 @@ export function ViewBar(props: ViewBarProps) {
   onMount(() => {
     // Register with centralized keyboard manager (priority 2 = view switching)
     const unregister = keyboardManager.register({
-      id: 'view-bar',
+      id: handlerId,
       priority: 2,
       handler: handleKeyDown,
       ignoreInInput: true
@@ -266,12 +453,12 @@ export function ViewBar(props: ViewBarProps) {
 
   // Unselect view when filters are manually changed and don't match the selected view
   createEffect(() => {
-    const currentFilters = props.activeFilters;
+    const currentFilters = paneFilterStore.activeFilters;
     
     let viewId: string | undefined;
     let view: View | undefined;
     untrack(() => {
-      viewId = filterStore.selectedView;
+      viewId = paneFilterStore.selectedView;
       // Only proceed if we have a non-empty viewId
       if (!viewId) {
         return;
@@ -292,170 +479,151 @@ export function ViewBar(props: ViewBarProps) {
     }
   });
 
-  // Update document title based on selected view
-  createEffect(() => {
-    const defaultTitle = "Capacitor";
-    const selectedViewId = filterStore.selectedView;
-    const currentView = selectedViewId ? views().find(view => view.id === selectedViewId) : undefined;
-    document.title = currentView ? `${defaultTitle} › ${currentView.label}` : defaultTitle;
-  });
-
-  const handleNewViewButtonClick = () => {
-    setShowNewViewForm(true);
-    setNewViewName("");
-    setTimeout(() => {
-      newViewNameInput?.focus();
-    }, 0);
-  };
-
-  const handleFormKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      createNewView();
-    }
-  };
-
-  const createNewView = () => {
-    if (!newViewName().trim()) return;
-    
-    handleViewCreate(newViewName());
-    
-    setShowNewViewForm(false);
-    setNewViewName("");
-  };
-
-  const cancelNewView = () => {
-    setShowNewViewForm(false);
-    setNewViewName("");
-  };
-
   return (
     <>
-      <div class="views">
-        <div class="view-buttons">
-          <For each={views()}>
-            {(view, _index) => (
-              <div class="view-pill-container">
+      <div 
+        class="filter-group"
+        ref={el => { viewMenuRef = el; }}
+      >
+        <button 
+          classList={{ "filter-group-button": true, "has-active-filters": !!selectedViewLabel() }}
+          onClick={(e) => { e.stopPropagation(); setViewMenuOpen(!viewMenuOpen()); }}
+          title="Select view"
+        >
+          <span><span class="filter-label-prefix">View: </span>{selectedViewLabel() || "..."} </span>
+          <span class="shortcut-key">v</span>
+        </button>
+        <Show when={viewMenuOpen()}>
+          <div class="filter-options">
+            <div class="filter-options-scroll-container">
+              <Show when={!hasMatchingView()}>
                 <button
-                  class={`view-pill ${filterStore.selectedView === view.id ? 'selected' : ''}`}
-                  onClick={() => selectView(view.id)}
-                  style={{ position: 'relative' }}
+                  class="filter-option"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewMenuOpen(false);
+                    setSaveViewOpen(true);
+                    setTimeout(() => {
+                      const input = (saveViewInlineRef?.querySelector('.filter-text-input input') as HTMLInputElement | undefined);
+                      input?.focus();
+                      input?.select?.();
+                    }, 0);
+                  }}
                 >
-                  {_index() < 9 && (
-                    <span
-                      class="view-shortcut-number"
-                      style={{
-                        position: 'absolute',
-                        right: '6px',
-                        bottom: '4px',
-                        opacity: 0.5,
-                        "font-size": '0.8em',
-                        "pointer-events": 'none'
-                      }}
-                      aria-hidden="true"
-                    >
-                      {_index() + 1}
-                    </span>
-                  )}
-                  <span>{view.label}</span>
-                  {filterStore.selectedView === view.id && !view.isSystem && (
-                    <span 
-                      class="view-delete" 
-                      title="Delete view"
+                  <span>Save as View...</span>
+                </button>
+              </Show>
+              <For each={views()}>
+                {(view, _index) => (
+                  <Show when={isViewActive(view)} fallback={
+                    <button 
+                      class="filter-option"
+                      data-view-index={_index()}
+                      classList={{ "active": false, "highlighted": highlightedViewIndex() === _index() }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowDeleteConfirmation(view.id);
+                        selectView(view.id);
+                        setViewMenuOpen(false);
                       }}
                     >
-                      ×
-                    </span>
-                  )}
-                </button>
-              </div>
-            )}
-          </For>
-          {!showNewViewForm() ? (
-            <button
-              class="view-pill new-view"
-              onClick={handleNewViewButtonClick}
-            >
-              +
-            </button>
-          ) : (
-            <button
-              class="view-pill new-view-creating"
-            >
-              {newViewName() || "New View"}
-            </button>
-          )}
-        </div>
-        
-        <div class="view-right-section">
-          <button type="button" class="settings-button" title="Settings" onClick={() => setSettingsOpen(true)}>⚙︎</button>
-          <div class="keyboard-shortcut-container">
-            <KeyboardShortcuts 
-              shortcuts={[{ key: `Mod+1..9`, description: 'Switch view' }]}
-              resourceSelected
-            />
+                      <span>{view.label}</span>
+                      <Show when={_index() < 9}>
+                        <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                          {formatShortcutForDisplay(`mod+${_index() + 1}`)}
+                        </span>
+                      </Show>
+                    </button>
+                  }>
+                    <div style={{ display: "flex", "align-items": "stretch", gap: "6px", width: "100%" }}>
+                      <button 
+                        class="filter-option"
+                        data-view-index={_index()}
+                        classList={{ "active": true, "highlighted": highlightedViewIndex() === _index() }}
+                        style={{ flex: "1 1 auto" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Keep current selection; just close the menu
+                          setViewMenuOpen(false);
+                        }}
+                      >
+                        <span>{view.label}</span>
+                        <Show when={_index() < 9}>
+                          <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                            {formatShortcutForDisplay(`mod+${_index() + 1}`)}
+                          </span>
+                        </Show>
+                      </button>
+                      <button
+                        class="filter-option"
+                        title="Delete view"
+                        style={{ "flex": "0 0 auto", "padding": "4px 8px" }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          handleViewDelete(view.id); 
+                        }}
+                      >
+                        x
+                      </button>
+                    </div>
+                  </Show>
+                )}
+              </For>
+            </div>
           </div>
-        </div>
+        </Show>
       </div>
-
-      <Show when={settingsOpen()}>
-        <SettingsModal
-          open
-          onClose={() => setSettingsOpen(false)}
-          theme={theme()}
-          onChangeTheme={(t) => setTheme(t)}
-          viewShortcutModifier={viewShortcutModifier()}
-          onChangeViewShortcutModifier={(m) => setViewShortcutModifier(m)}
-        />
+      {/* Save as View inline panel (only when filters don't match any existing view) */}
+      <Show when={!hasMatchingView()}>
+        <Show when={saveViewOpen()}>
+          <div 
+            class="filter-group"
+            ref={el => { saveViewInlineRef = el; }}
+          >
+            <div class="filter-inline-controls" style="display: flex; align-items: center; gap: 8px;">
+              <div class="filter-text-input">
+                <input
+                  type="text"
+                  placeholder="View name"
+                  value={newViewName()}
+                  onInput={(e) => setNewViewName(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const name = newViewName().trim();
+                      if (name) {
+                        saveCurrentFiltersAsView(name);
+                        setNewViewName("");
+                        setSaveViewOpen(false);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setSaveViewOpen(false);
+                    }
+                  }}
+                />
+              </div>
+              <button
+                class="filter-group-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const name = newViewName().trim();
+                  if (!name) return;
+                  saveCurrentFiltersAsView(name);
+                  setNewViewName("");
+                  setSaveViewOpen(false);
+                }}
+                disabled={!newViewName().trim()}
+              >
+                Save
+              </button>
+              <button
+                class="filter-group-button"
+                onClick={(e) => { e.stopPropagation(); setSaveViewOpen(false); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Show>
       </Show>
-      
-      {showNewViewForm() && (
-        <div class="new-view-form">
-          <input
-            type="text"
-            placeholder="View name"
-            value={newViewName()}
-            onInput={(e) => setNewViewName(e.currentTarget.value)}
-            onKeyDown={handleFormKeyDown}
-            ref={el => newViewNameInput = el}
-          />
-          <div class="new-view-actions">
-            <button class="new-view-cancel" onClick={cancelNewView}>Cancel</button>
-            <button 
-              class="new-view-save" 
-              onClick={createNewView}
-              disabled={!newViewName().trim()}
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {showDeleteConfirmation() && (
-        <div class="delete-confirmation">
-          <p>Are you sure you want to delete this view?</p>
-          <div class="delete-actions">
-            <button 
-              class="delete-cancel" 
-              onClick={() => setShowDeleteConfirmation(null)}
-            >
-              Cancel
-            </button>
-            <button 
-              class="delete-confirm" 
-              onClick={() => {
-                handleViewDelete(showDeleteConfirmation()!);
-                setShowDeleteConfirmation(null);
-              }}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 } 

@@ -9,11 +9,11 @@ import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
 
 // Helper function to determine readiness status
 function getReadinessComponent(daemonSet: DaemonSet): { element: JSX.Element, title: string } {
-  const desiredScheduled = daemonSet.status.desiredNumberScheduled;
-  const currentScheduled = daemonSet.status.currentNumberScheduled;
-  const numberReady = daemonSet.status.numberReady;
-  const numberAvailable = daemonSet.status.numberAvailable || 0;
-  const numberUnavailable = daemonSet.status.numberUnavailable || 0;
+  const desiredScheduled = daemonSet?.status?.desiredNumberScheduled;
+  const currentScheduled = daemonSet?.status?.currentNumberScheduled;
+  const numberReady = daemonSet?.status?.numberReady;
+  const numberAvailable = daemonSet?.status?.numberAvailable || 0;
+  const numberUnavailable = daemonSet?.status?.numberUnavailable || 0;
   
   const isReady = numberReady === desiredScheduled && numberUnavailable === 0;
   const statusClass = isReady ? "text-success" : "text-warning";
@@ -54,12 +54,12 @@ export const daemonSetColumns = [
   {
     header: "DESIRED",
     width: "10%",
-    accessor: (daemonSet: DaemonSet) => <>{daemonSet.status.desiredNumberScheduled}</>,
+    accessor: (daemonSet: DaemonSet) => <>{daemonSet?.status?.desiredNumberScheduled}</>,
   },
   {
     header: "CURRENT",
     width: "10%",
-    accessor: (daemonSet: DaemonSet) => <>{daemonSet.status.currentNumberScheduled}</>,
+    accessor: (daemonSet: DaemonSet) => <>{daemonSet?.status?.currentNumberScheduled}</>,
   },
   {
     header: "READY",
@@ -72,7 +72,7 @@ export const daemonSetColumns = [
     width: "10%",
     accessor: (daemonSet: DaemonSetWithResources) => (
       <>
-        {daemonSet.pods?.map((pod) => (
+        {daemonSet?.pods?.map((pod) => (
           <span
             title={pod.metadata.name}
             style={{
@@ -92,12 +92,12 @@ export const daemonSetColumns = [
   {
     header: "UP-TO-DATE",
     width: "10%",
-    accessor: (daemonSet: DaemonSet) => <>{daemonSet.status.updatedNumberScheduled || 0}</>,
+    accessor: (daemonSet: DaemonSet) => <>{daemonSet?.status?.updatedNumberScheduled || 0}</>,
   },
   {
     header: "AVAILABLE",
     width: "10%",
-    accessor: (daemonSet: DaemonSet) => <>{daemonSet.status.numberAvailable || 0}</>,
+    accessor: (daemonSet: DaemonSet) => <>{daemonSet?.status?.numberAvailable || 0}</>,
   },
   {
     header: "AGE",

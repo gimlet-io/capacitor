@@ -343,12 +343,38 @@ func (s *Server) Setup() {
 				})
 			}
 
-			sourceRef, ok := spec["sourceRef"].(map[string]interface{})
-			if !ok {
-				log.Printf("Resource does not have a sourceRef field")
-				return c.JSON(http.StatusInternalServerError, map[string]string{
-					"error": "Resource does not have a sourceRef field",
-				})
+			// HelmRelease has sourceRef at spec.chart.spec.sourceRef, while Kustomization and Terraform have it at spec.sourceRef
+			var sourceRef map[string]interface{}
+			if kind == "HelmRelease" {
+				chart, ok := spec["chart"].(map[string]interface{})
+				if !ok {
+					log.Printf("HelmRelease does not have a chart field")
+					return c.JSON(http.StatusInternalServerError, map[string]string{
+						"error": "HelmRelease does not have a chart field",
+					})
+				}
+				chartSpec, ok := chart["spec"].(map[string]interface{})
+				if !ok {
+					log.Printf("HelmRelease chart does not have a spec field")
+					return c.JSON(http.StatusInternalServerError, map[string]string{
+						"error": "HelmRelease chart does not have a spec field",
+					})
+				}
+				sourceRef, ok = chartSpec["sourceRef"].(map[string]interface{})
+				if !ok {
+					log.Printf("HelmRelease does not have a sourceRef field in chart.spec")
+					return c.JSON(http.StatusInternalServerError, map[string]string{
+						"error": "HelmRelease does not have a sourceRef field in chart.spec",
+					})
+				}
+			} else {
+				sourceRef, ok = spec["sourceRef"].(map[string]interface{})
+				if !ok {
+					log.Printf("Resource does not have a sourceRef field")
+					return c.JSON(http.StatusInternalServerError, map[string]string{
+						"error": "Resource does not have a sourceRef field",
+					})
+				}
 			}
 
 			// Extract sourceRef details

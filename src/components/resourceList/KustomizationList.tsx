@@ -9,7 +9,7 @@ import { DetailRowCard } from "./DetailRowCard.tsx";
 
 export const renderKustomizationDetails = (kustomization: ExtendedKustomization, columnCount = 4) => {
   return (
-    <DetailRowCard columnCount={columnCount} style="display: flex; gap: 50px;">
+    <DetailRowCard columnCount={columnCount}>
       <div style="display: contents;">
         <div>
           <strong>Source:</strong> {kustomization.spec?.sourceRef.kind}/{kustomization.spec?.sourceRef.namespace ? kustomization.spec.sourceRef.namespace : kustomization.metadata.namespace}/{kustomization.spec?.sourceRef.name} <br />

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -96,6 +97,8 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 	watchContextsForConn := make(map[string]watchCfg)
 	h.watchContexts.Store(ws, watchContextsForConn)
 	defer h.watchContexts.Delete(ws)
+	// Track subscription IDs to composite keys for precise unsubscribe
+	watchIdsForConn := make(map[string]string)
 
 	// Handle ping/pong to keep connection alive
 	conn.SetPingHandler(func(string) error {
@@ -142,9 +145,9 @@ func (h *WebSocketHandler) HandleWebSocket(c echo.Context) error {
 		// Handle message based on action
 		switch clientMsg.Action {
 		case "subscribe":
-			h.handleSubscribe(connCtx, ws, &clientMsg, watchContextsForConn, &counters)
+			h.handleSubscribe(connCtx, ws, &clientMsg, watchContextsForConn, watchIdsForConn, &counters)
 		case "unsubscribe":
-			h.handleUnsubscribe(ws, &clientMsg, watchContextsForConn)
+			h.handleUnsubscribe(ws, &clientMsg, watchContextsForConn, watchIdsForConn)
 		default:
 			h.sendErrorMessage(ws, clientMsg.ID, clientMsg.Path, "unknown action")
 		}
@@ -159,22 +162,30 @@ func (h *WebSocketHandler) handleSubscribe(
 	ws *wsutil.WebSocketConnection,
 	msg *ClientMessage,
 	watchContextsForConn map[string]watchCfg,
+	watchIdsForConn map[string]string,
 	counters *wsutil.Counters,
 ) {
 	// Log the subscription request
 	log.Printf("Subscribe request for path: %s", msg.Path)
 
-	// Check if already subscribed
-	if _, exists := watchContextsForConn[msg.Path]; exists {
+	// Build composite key from path and projection fields (if any)
+	projFields := wsutil.ParseProjectionFields(msg.Params)
+	key := makeWatchKey(msg.Path, projFields)
+
+	// Check if already subscribed for this exact key
+	if _, exists := watchContextsForConn[key]; exists {
+		// Register this id to receive fan-out for the existing watch
+		if msg.ID != "" {
+			watchIdsForConn[msg.ID] = key
+		}
 		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
 		return
 	}
 
 	// Create context for this watch that can be cancelled
 	watchCtx, watchCancel := context.WithCancel(connCtx)
-	// Parse optional projection fields from params
-	projFields := wsutil.ParseProjectionFields(msg.Params)
-	watchContextsForConn[msg.Path] = watchCfg{cancel: watchCancel, fields: projFields}
+	watchContextsForConn[key] = watchCfg{cancel: watchCancel, fields: projFields}
+	watchIdsForConn[msg.ID] = key
 
 	// Check if this is a Helm release path
 	if strings.Contains(msg.Path, "/api/helm/releases") {
@@ -207,7 +218,8 @@ func (h *WebSocketHandler) handleSubscribe(
 			}
 			log.Printf("Error watching resource: %v", err)
 			h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("error watching resource: %v", err))
-			delete(watchContextsForConn, msg.Path)
+			delete(watchContextsForConn, key)
+			delete(watchIdsForConn, msg.ID)
 		}
 	}()
 
@@ -220,8 +232,12 @@ func (h *WebSocketHandler) handleSubscribe(
 					log.Printf("Event channel closed for path: %s", msg.Path)
 					return
 				}
-				// Update counters and send
-				h.sendDataMessageWithCountersAndProject(ws, msg.ID, msg.Path, event, counters, projFields)
+				// Update counters and send to all ids mapped to this key
+				for id, mappedKey := range watchIdsForConn {
+					if mappedKey == key {
+						h.sendDataMessageWithCountersAndProject(ws, id, msg.Path, event, counters, projFields)
+					}
+				}
 			case <-watchCtx.Done():
 				log.Printf("Watch context done for path: %s", msg.Path)
 				return
@@ -238,20 +254,52 @@ func (h *WebSocketHandler) handleUnsubscribe(
 	ws *wsutil.WebSocketConnection,
 	msg *ClientMessage,
 	watchContextsForConn map[string]watchCfg,
+	watchIdsForConn map[string]string,
 ) {
+	// Determine the composite key: prefer id mapping, fallback to path+params
+	key, ok := watchIdsForConn[msg.ID]
+	if !ok || key == "" {
+		fields := wsutil.ParseProjectionFields(msg.Params)
+		key = makeWatchKey(msg.Path, fields)
+	}
 	// Check if subscribed
-	cfg, exists := watchContextsForConn[msg.Path]
+	cfg, exists := watchContextsForConn[key]
 	if !exists {
 		h.sendErrorMessage(ws, msg.ID, msg.Path, "not subscribed to this path")
 		return
 	}
 
-	// Cancel the watch
-	cfg.cancel()
-	delete(watchContextsForConn, msg.Path)
+	// Remove this subscription id mapping
+	if msg.ID != "" {
+		delete(watchIdsForConn, msg.ID)
+	}
+	// Check if any other ids still reference this key
+	remaining := false
+	for _, k := range watchIdsForConn {
+		if k == key {
+			remaining = true
+			break
+		}
+	}
+	// Cancel and delete only if no more subscribers remain for this key
+	if !remaining {
+		cfg.cancel()
+		delete(watchContextsForConn, key)
+	}
 
 	// Send success message
 	h.sendStatusMessage(ws, msg.ID, msg.Path, "unsubscribed")
+}
+
+// makeWatchKey builds a stable composite key from path and projection fields
+func makeWatchKey(path string, fields []string) string {
+	if len(fields) == 0 {
+		return path
+	}
+	cp := make([]string, len(fields))
+	copy(cp, fields)
+	sort.Strings(cp)
+	return fmt.Sprintf("%s?fields=%s", path, strings.Join(cp, ","))
 }
 
 // sendDataMessage sends a data message to the client

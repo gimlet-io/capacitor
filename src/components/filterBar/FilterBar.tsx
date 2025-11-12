@@ -6,6 +6,7 @@ import { For, createSignal, Show, createEffect, onCleanup, createMemo, onMount }
 import { untrack } from "solid-js";
 import { resourceTypeConfigs } from "../../resourceTypeConfigs.tsx";
 import { useFilterStore } from "../../store/filterStore.tsx";
+import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { doesEventMatchShortcut, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 
@@ -88,17 +89,26 @@ const matchesAbbreviation = (resourceKind: string, searchTerm: string): boolean 
 };
 
 export function FilterBar(props: {
-  filters: Filter[];
-  activeFilters: ActiveFilter[];
-  onFilterChange: (filters: ActiveFilter[]) => void;
   initialLoadComplete?: boolean;
   loadingStage?: 'loading' | 'enhancing' | 'filtering' | null;
   resourceCount?: number;
+  // Pane-scoped behavior
+  keyboardEnabled?: boolean;
 }) {
   const filterStore = useFilterStore();
+  const paneFilterStore = usePaneFilterStore();
+  
+  // Get filters for the current resource type
+  const filters = createMemo(() => {
+    const resourceType = paneFilterStore.getResourceType();
+    if (!resourceType) return [];
+    return filterStore.getFiltersForResource(resourceType);
+  });
   const [spinnerFrame, setSpinnerFrame] = createSignal(0);
   const spinnerFrames = ["|", "/", "-", "\\"];
   let spinnerTimer: number | undefined;
+  // Unique keyboard handler id per instance
+  const handlerId = `filter-bar-${Math.random().toString(36).slice(2)}`;
   
   // Update spinner animation
   createEffect(() => {
@@ -128,14 +138,39 @@ export function FilterBar(props: {
   const filtersRef = new Map<string, HTMLDivElement>();
   const textInputRefs = new Map<string, HTMLInputElement>();
   const optionSearchInputRefs = new Map<string, HTMLInputElement>();
+  const [visibleFilterNames, setVisibleFilterNames] = createSignal<Set<string>>(new Set());
+  const [addMenuOpen, setAddMenuOpen] = createSignal(false);
+  let addMenuContainerRef: HTMLDivElement | undefined;
+  const [newViewName, setNewViewName] = createSignal<string>("");
+
+  // Compute visible filters (active or explicitly added)
+  const visibleFilters = createMemo(() => {
+    const activeNames = new Set(paneFilterStore.activeFilters.map(f => f.name));
+    const visible = visibleFilterNames();
+    return filters().filter(f => visible.has(f.name) || activeNames.has(f.name));
+  });
+
+  // Initialize and reset visible set from active filters
+  createEffect(() => {
+    const names = new Set(paneFilterStore.activeFilters.map(f => f.name));
+    setVisibleFilterNames(names);
+  });
+
+  // Reset extra visible filters when view changes (non-persistent)
+  createEffect(() => {
+    // Track selectedView for reactivity
+    const _v = paneFilterStore.selectedView;
+    const names = new Set(paneFilterStore.activeFilters.map(f => f.name));
+    setVisibleFilterNames(names);
+  });
 
   const toggleFilter = (filter: string, value: string) => {
-    let newFilters: ActiveFilter[] = [...props.activeFilters];
+    let newFilters: ActiveFilter[] = [...paneFilterStore.activeFilters];
     const existingIndex = newFilters.findIndex(
       (f) => f.name === filter && f.value === value
     );
 
-    const filterDef = props.filters.find(f => f.name === filter);
+    const filterDef = filters().find(f => f.name === filter);
     
     if (existingIndex >= 0) {
       // Only allow deselection for multi-select filters
@@ -152,14 +187,14 @@ export function FilterBar(props: {
       newFilters.push({ name: filterDef!.name, value });
     }
 
-    props.onFilterChange(newFilters);
+    paneFilterStore.setActiveFilters(newFilters);
   };
 
   const toggleAllOptions = (filter: string, selectAll: boolean) => {
-    const filterDef = props.filters.find(f => f.name === filter);
+    const filterDef = filters().find(f => f.name === filter);
     if (!filterDef || !filterDef.options) return;
     
-    let newFilters = [...props.activeFilters.filter(f => f.name !== filter)];
+    let newFilters = [...paneFilterStore.activeFilters.filter(f => f.name !== filter)];
     
     if (selectAll) {
       // Add all options for this filter
@@ -170,7 +205,7 @@ export function FilterBar(props: {
       newFilters = [...newFilters, ...allOptions];
     }
     
-    props.onFilterChange(newFilters);
+    paneFilterStore.setActiveFilters(newFilters);
   };
 
   // Update pending text input without applying filter
@@ -185,15 +220,15 @@ export function FilterBar(props: {
     
     // If value is empty, remove the filter
     if (!value.trim()) {
-      const newFilters = props.activeFilters.filter(f => f.name !== filter);
-      props.onFilterChange(newFilters);
+      const newFilters = paneFilterStore.activeFilters.filter(f => f.name !== filter);
+      paneFilterStore.setActiveFilters(newFilters);
       return;
     }
     
     // Update or add the text filter
-    const newFilters = [...props.activeFilters];
+    const newFilters = [...paneFilterStore.activeFilters];
     const existingIndex = newFilters.findIndex(f => f.name === filter);
-    const filterDef = props.filters.find(f => f.name === filter);
+    const filterDef = filters().find(f => f.name === filter);
     
     if (existingIndex >= 0) {
       // Replace existing filter
@@ -203,35 +238,35 @@ export function FilterBar(props: {
       newFilters.push({ name: filterDef!.name, value });
     }
     
-    props.onFilterChange(newFilters);
+    paneFilterStore.setActiveFilters(newFilters);
   };
 
-  const getFilterButtonText = (filter: Filter): string => {
+  const getFilterButtonText = (filter: Filter): any => {
     const filterName = filter.name;
-    const activeInFilter = props.activeFilters.filter(f => f.name === filterName);
+    const activeInFilter = paneFilterStore.activeFilters.filter(f => f.name === filterName);
 
     if (activeInFilter.length === 0) {
-      return `${filter.label}`;
+      return <span><span class="filter-label-prefix">{filter.label}</span></span>;
     } else if (filter?.type === "text") {
-      return `${filter.label}: ${activeInFilter[0].value}`;
+      return <span><span class="filter-label-prefix">{filter.label}: </span>{activeInFilter[0].value}</span>;
     } else if (activeInFilter.length === 1) {
       const option = filter?.options?.find(o => o.value === activeInFilter[0].value);
-      return `${filter.label} is ${option?.label || activeInFilter[0].value}`;
+      return <span><span class="filter-label-prefix">{filter.label} is </span>{option?.label || activeInFilter[0].value}</span>;
     } else {
       const totalOptions = filter?.options?.length || 0;
       if (activeInFilter.length === totalOptions - 1) {
         const remainingOption = filter?.options?.find(o =>
           !activeInFilter.some(active => active.value === o.value)
         );
-        return `${filter.label} is not ${remainingOption?.label || 'selected option'}`;
+        return <span><span class="filter-label-prefix">{filter.label} is not </span>{remainingOption?.label || 'selected option'}</span>;
       }
-      return `${filter.label} is any of ${activeInFilter.length} options`;
+      return <span><span class="filter-label-prefix">{filter.label} is any of </span>{activeInFilter.length} options</span>;
     }
   };
 
   // Helper function to focus the appropriate input for a filter
   const focusFilterInput = (filterName: string, retryOnFail = true) => {
-    const filter = props.filters.find(f => f.name === filterName);
+    const filter = filters().find(f => f.name === filterName);
     if (!filter) return;
 
     // Use setTimeout to ensure the DOM has updated before focusing
@@ -260,7 +295,7 @@ export function FilterBar(props: {
 
   // Open specific filter by name
   const openFilter = (filterName: string) => {
-    const filter = props.filters.find(f => f.name === filterName);
+    const filter = filters().find(f => f.name === filterName);
     if (filter) {
       // Clear any existing search for this filter
       if (filter.type !== 'text' && (filter.searchable || filterName === "Namespace")) {
@@ -281,7 +316,7 @@ export function FilterBar(props: {
       if (filter.type !== 'text' && filter.options) {
         // For multi-select, find the first selected option
         // For single-select, find the selected option
-        const activeFilterForType = props.activeFilters.find(f => f.name === filterName);
+        const activeFilterForType = paneFilterStore.activeFilters.find(f => f.name === filterName);
         
         if (activeFilterForType && filter.options) {
           const selectedOptionIndex = filter.options.findIndex(
@@ -323,15 +358,16 @@ export function FilterBar(props: {
 
   // Global keyboard shortcuts handler
   const handleKeyDown = (e: KeyboardEvent): boolean | void => {
+    if (props.keyboardEnabled === false) return false;
     // Always allow history navigation regardless of focused element
     if (doesEventMatchShortcut(e, 'mod+arrowleft')) {
       e.preventDefault();
-      filterStore.goBack();
+      if (paneFilterStore.canGoBack) paneFilterStore.goBack();
       return true;
     }
     if (doesEventMatchShortcut(e, 'mod+arrowright')) {
       e.preventDefault();
-      filterStore.goForward();
+      if (paneFilterStore.canGoForward) paneFilterStore.goForward();
       return true;
     }
 
@@ -343,10 +379,24 @@ export function FilterBar(props: {
     
     if (e.key === "n" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
+      // Ensure Namespace is visible
+      setVisibleFilterNames(prev => {
+        const next = new Set(prev);
+        next.add("Namespace");
+        return next;
+      });
+      setAddMenuOpen(false);
       openFilter("Namespace");
       return true;
     } else if (e.key === "r" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
+      // Ensure ResourceType is visible
+      setVisibleFilterNames(prev => {
+        const next = new Set(prev);
+        next.add("ResourceType");
+        return next;
+      });
+      setAddMenuOpen(false);
       openFilter("ResourceType");
       return true;
     }
@@ -363,10 +413,39 @@ export function FilterBar(props: {
     }
   });
 
+  // Close Add menu on outside click and Escape
+  const handleAddMenuClickOutside = (event: MouseEvent) => {
+    if (!addMenuOpen()) return;
+    if (addMenuContainerRef && !addMenuContainerRef.contains(event.target as Node)) {
+      setAddMenuOpen(false);
+    }
+  };
+
+  const handleAddMenuKeydown = (event: KeyboardEvent) => {
+    if (!addMenuOpen()) return;
+    if (event.key === 'Escape') {
+      setAddMenuOpen(false);
+    }
+  };
+
+  createEffect(() => {
+    if (addMenuOpen()) {
+      document.addEventListener('click', handleAddMenuClickOutside);
+      document.addEventListener('keydown', handleAddMenuKeydown);
+    } else {
+      document.removeEventListener('click', handleAddMenuClickOutside);
+      document.removeEventListener('keydown', handleAddMenuKeydown);
+    }
+  });
+
+  // (Save View behavior moved to ViewBar)
+
+  // (Save View persistence moved to ViewBar)
+
   onMount(() => {
     // Register with centralized keyboard manager (priority 1 = filter navigation)
     const unregister = keyboardManager.register({
-      id: 'filter-bar',
+      id: handlerId,
       priority: 1,
       handler: handleKeyDown
     });
@@ -379,8 +458,8 @@ export function FilterBar(props: {
 
   // Initialize text input values from active filters
   createEffect(() => {
-    const textFilters = props.activeFilters.filter(fl => {
-      const filter = props.filters.find(f => f.name === fl.name);
+    const textFilters = paneFilterStore.activeFilters.filter(fl => {
+      const filter = filters().find(f => f.name === fl.name);
       return filter?.type === "text";
     });
     
@@ -414,9 +493,9 @@ export function FilterBar(props: {
         }
         
         // Find and set the highlighted index based on active filter selection
-        const filter = props.filters.find(f => f.name === currentFilter);
+        const filter = filters().find(f => f.name === currentFilter);
         if (filter && filter.type !== 'text' && filter.options) {
-          const activeFilterForType = props.activeFilters.find(f => f.name === currentFilter);
+          const activeFilterForType = paneFilterStore.activeFilters.find(f => f.name === currentFilter);
           
           if (activeFilterForType) {
             const options = getFilteredOptions(filter);
@@ -443,7 +522,7 @@ export function FilterBar(props: {
     const currentFilter = activeFilter();
     if (!currentFilter) return;
     
-    const filter = props.filters.find(f => f.name === currentFilter);
+    const filter = filters().find(f => f.name === currentFilter);
     if (!filter || filter.type === "text" || !filter.options) return;
     
     const searchTerm = optionSearchInputs()[currentFilter]?.toLowerCase() || "";
@@ -484,12 +563,12 @@ export function FilterBar(props: {
     // Ensure history navigation works even when typing in inputs
     if (doesEventMatchShortcut(event, 'mod+arrowleft')) {
       event.preventDefault();
-      filterStore.goBack();
+      if (paneFilterStore.canGoBack) paneFilterStore.goBack();
       return;
     }
     if (doesEventMatchShortcut(event, 'mod+arrowright')) {
       event.preventDefault();
-      filterStore.goForward();
+      if (paneFilterStore.canGoForward) paneFilterStore.goForward();
       return;
     }
     
@@ -583,7 +662,7 @@ export function FilterBar(props: {
     if (activeFilterRef && !activeFilterRef.contains(event.target as Node)) {
       // If there's an active text filter, apply its pending value
       const currentFilter = activeFilter();
-      const filter = props.filters.find(f => f.name === currentFilter);
+      const filter = filters().find(f => f.name === currentFilter);
       
       if (filter && filter.type === "text") {
         const pendingValue = pendingTextInputs()[filter.name] || "";
@@ -641,17 +720,17 @@ export function FilterBar(props: {
   return (
     <div class="filter-bar">
       <div class="filter-groups">
-        <For each={props.filters}>
+        <For each={visibleFilters()}>
           {(filter) => {
             const hasActiveFilters = createMemo(() => 
-              props.activeFilters.some(f => f.name === filter.name)
+              paneFilterStore.activeFilters.some(f => f.name === filter.name)
             );
             
             const allOptionsSelected = createMemo(() => {
               if (!filter.options || !filter.multiSelect) return false;
               // Check if all regular options (not the "All" option) are selected
               return filter.options.every(option => 
-                props.activeFilters.some(f => 
+                paneFilterStore.activeFilters.some(f => 
                   f.name === filter.name && f.value === option.value
                 )
               );
@@ -740,7 +819,7 @@ export function FilterBar(props: {
                         <For each={getFilteredOptions(filter)}>
                           {(option, index) => {
                             const isActive = createMemo(() => 
-                              props.activeFilters.some(f => 
+                              paneFilterStore.activeFilters.some(f => 
                                 f.name === filter.name && f.value === option.value
                               )
                             );
@@ -786,6 +865,52 @@ export function FilterBar(props: {
             );
           }}
         </For>
+        {/* Add Filter control */}
+        <div 
+          class="filter-group"
+          ref={el => { addMenuContainerRef = el; }}
+        >
+          <button 
+            class="filter-group-button"
+            onClick={(e) => { e.stopPropagation(); setAddMenuOpen(!addMenuOpen()); }}
+            title="Add filter"
+            aria-label="Add filter"
+          >
+            <span style="color: var(--linear-text-secondary);">+</span>
+          </button>
+          <Show when={addMenuOpen()}>
+            <div class="filter-options">
+              <div class="filter-options-scroll-container">
+                <For each={filters().filter(f => {
+                  const activeNames = new Set(paneFilterStore.activeFilters.map(af => af.name));
+                  const visible = visibleFilterNames();
+                  return !visible.has(f.name) && !activeNames.has(f.name);
+                })}>
+                  {(f) => (
+                    <button 
+                      class="filter-option"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVisibleFilterNames(prev => {
+                          const next = new Set(prev);
+                          next.add(f.name);
+                          return next;
+                        });
+                        setAddMenuOpen(false);
+                        // Open immediately after render
+                        setTimeout(() => openFilter(f.name), 0);
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
+        </div>
+
+        {/* Save as View controls moved to ViewBar */}
         
       {/* Loading indicator with ANSI spinner and staged labels */}
       <Show when={props.initialLoadComplete !== undefined || props.loadingStage !== undefined}>
@@ -806,38 +931,6 @@ export function FilterBar(props: {
             </Show>
           </div>
         </Show>
-      </div>
-      
-      {/* Filter history navigation */}
-      <div class="filter-history-nav">
-        <div class="filter-group">
-          <button 
-            class="filter-group-button"
-            classList={{ "has-active-filters": false, "disabled": !filterStore.canGoBack }}
-            onClick={() => filterStore.goBack()}
-            disabled={!filterStore.canGoBack}
-            title="Go back in filter history"
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="shortcut-key">{formatShortcutForDisplay('Mod+←')}</span>
-          </button>
-        </div>
-        <div class="filter-group">
-          <button 
-            class="filter-group-button"
-            classList={{ "has-active-filters": false, "disabled": !filterStore.canGoForward }}
-            onClick={() => filterStore.goForward()}
-            disabled={!filterStore.canGoForward}
-            title="Go forward in filter history"
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="shortcut-key">{formatShortcutForDisplay('Mod+→')}</span>
-          </button>
-        </div>
       </div>
     </div>
   );
