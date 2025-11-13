@@ -27,6 +27,7 @@ import { Tabs } from "../components/Tabs.tsx";
 import type { Event } from "../types/k8s.ts";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
+import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -272,7 +273,7 @@ export function KustomizationDetails() {
   const [graph, setGraph] = createSignal<graphlib.Graph>();
   const [dependenciesGraph, setDependenciesGraph] = createSignal<graphlib.Graph>();
   // Tab state for main content
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "dependencies" | "events">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "dependencies" | "events" | "logs">("resource");
 
   // Keep a list of all kustomizations across namespaces (for dependency graph)
   const [allKustomizations, setAllKustomizations] = createSignal<Kustomization[]>([]);
@@ -1309,6 +1310,7 @@ export function KustomizationDetails() {
                   tabs={[
                     { key: 'resource', label: 'Resource Tree' },
                     { key: 'dependencies', label: 'Dependencies' },
+                    { key: 'logs', label: 'Kustomize Controller Logs' },
                     { key: 'events', label: (
                       <span>
                         Events{(() => {
@@ -1320,7 +1322,7 @@ export function KustomizationDetails() {
                     ) }
                   ]}
                   activeKey={activeMainTab()}
-                  onChange={(k) => setActiveMainTab(k as 'resource' | 'dependencies' | 'events')}
+                  onChange={(k) => setActiveMainTab(k as 'resource' | 'dependencies' | 'events' | 'logs')}
                   style={{ "margin-top": "12px" }}
                 />
 
@@ -1345,6 +1347,21 @@ export function KustomizationDetails() {
                     </div>
                   </div>
                 </div>
+              </Show>
+              <Show when={activeMainTab() === 'logs'}>
+                <LogsViewer
+                  resource={{
+                    apiVersion: "apps/v1",
+                    kind: "Deployment",
+                    metadata: { name: "kustomize-controller", namespace: "flux-system" },
+                    spec: { selector: { matchLabels: { "app": "kustomize-controller" } } }
+                  }}
+                  isOpen={activeMainTab() === "logs"}
+                  initialSearch={(kustomization()?.metadata.name) as string}
+                  autoDetectJson={false}
+                  defaultHideNonMatches={true}
+                  contentMaxHeightPx={250}
+                />
               </Show>
                 <Show when={activeMainTab() === 'dependencies'}>
                 <div class="resource-tree-wrapper">

@@ -54,6 +54,9 @@ export function LogsViewer(props: {
   resource: any;
   isOpen: boolean;
   initialSearch?: string;
+  autoDetectJson?: boolean;
+  contentMaxHeightPx?: number;
+  defaultHideNonMatches?: boolean;
 }) {
   const apiResourceStore = useApiResourceStore();
   const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
@@ -87,6 +90,7 @@ export function LogsViewer(props: {
   const [searchFocused, setSearchFocused] = createSignal<boolean>(false);
   const [searchExpanded, setSearchExpanded] = createSignal<boolean>(false);
   const [searchMode, setSearchMode] = createSignal<"text" | "regex" | "case-sensitive">("text");
+  const [hideNonMatching, setHideNonMatching] = createSignal<boolean>(false);
 
   let logsContentRef: HTMLPreElement | undefined;
   let searchInputRef: HTMLInputElement | undefined;
@@ -273,7 +277,7 @@ export function LogsViewer(props: {
       // Update the logs display with sorted lines
       const updateLogsDisplay = (containerLogEntries: LogEntry[]) => {
         containerLogEntries = sortLogEntriesByTimestamp(containerLogEntries);
-        if (!jsonFormatUserOverride()) {
+        if (props.autoDetectJson !== false && !jsonFormatUserOverride()) {
           setFormatJsonLogs(detectJsonLogs(containerLogEntries));
         }
         
@@ -676,8 +680,7 @@ export function LogsViewer(props: {
     if (matchIndex < 0 || matchIndex >= matches.length || !logsContentRef) return;
     
     const match = matches[matchIndex];
-    const logLines = logsContentRef.querySelectorAll('.log-line');
-    const targetLine = logLines[match.entryIndex];
+    const targetLine = logsContentRef.querySelector(`.log-line[data-entry-index="${match.entryIndex}"]`) as HTMLElement | null;
     
     if (targetLine) {
       targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -740,6 +743,8 @@ export function LogsViewer(props: {
   // Load data when viewer becomes visible
   createEffect(() => {
     if (props.isOpen) {
+      // Initialize hide-non-matching default when opened
+      setHideNonMatching(!!props.defaultHideNonMatches);
       // When switching to logs tab, update available containers first
       updateAvailableContainers().then(() => {
         fetchResourceLogs();
@@ -1043,6 +1048,16 @@ export function LogsViewer(props: {
                     .*
                   </button>
                 </div>
+                <div class="search-controls" style={{ "margin-left": "8px" }}>
+                  <label title="Show only lines that match the current search">
+                    <input
+                      type="checkbox"
+                      checked={hideNonMatching()}
+                      onChange={() => setHideNonMatching(!hideNonMatching())}
+                    />
+                    <span>Only matches</span>
+                  </label>
+                </div>
                 <div class="search-navigation">
                   <Show when={searchMatches().length > 0}>
                     <span class="search-results">
@@ -1086,15 +1101,22 @@ export function LogsViewer(props: {
             class="logs-content"
             ref={logsContentRef}
             tabIndex={0}
-            style="outline: none;"
+            style={{
+              "outline": "none",
+              ...(props.contentMaxHeightPx ? { "max-height": `${props.contentMaxHeightPx}px`, "overflow": "auto" } : {})
+            }}
           >
             <Show
               when={formattedLogEntries().length > 0}
               fallback={logs()}
             >
-              <For each={processedEntries()}>
+              <For each={(hideNonMatching() && searchQuery().trim() && searchMatches().length > 0) ? (() => {
+                const matchedIndexes = new Set(searchMatches().map(m => m.entryIndex));
+                const all = processedEntries();
+                return all.filter(e => matchedIndexes.has(all.indexOf(e)));
+              })() : processedEntries()}>
                 {(entry) => (
-                  <div class="log-line">
+                  <div class="log-line" data-entry-index={processedEntries().indexOf(entry)}>
                     <Show when={showMetadata()}>
                       <span class="log-timestamp">
                         {formatTimestamp(entry.timestamp, entry.rawTimestamp)}

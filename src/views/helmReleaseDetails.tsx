@@ -851,6 +851,9 @@ export function HelmReleaseDetails() {
           }}
           isOpen={activeMainTab() === "logs"}
           initialSearch={(helmRelease()?.spec?.releaseName || helmRelease()?.metadata.name) as string}
+          autoDetectJson={false}
+          defaultHideNonMatches={true}
+          contentMaxHeightPx={250}
         />
       </Show>
 
