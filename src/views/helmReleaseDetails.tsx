@@ -24,6 +24,7 @@ import { EventList } from "../components/resourceList/EventList.tsx";
 import { HelmManifest } from "../components/resourceDetail/HelmManifest.tsx";
 import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.tsx";
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
+import { ConditionType } from "../utils/conditions.ts";
 
 export function HelmReleaseDetails() {
   const params = useParams();
@@ -664,7 +665,16 @@ export function HelmReleaseDetails() {
                       <span class="label">Interval:</span>
                       <span class="value">{hr().spec.interval}</span>
                     </div>
-                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 2;">
+                      <span class="label">Status:</span>
+                      <span class="value">
+                        {(() => {
+                          const readyCondition = (hr().status?.conditions || []).find((c) => c.type === ConditionType.Ready);
+                          return readyCondition?.message || '—';
+                        })()}
+                      </span>
+                    </div>
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 2 / 5;">
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {(hr().events || []).sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
