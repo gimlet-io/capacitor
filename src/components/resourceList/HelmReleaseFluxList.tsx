@@ -1,30 +1,48 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { HelmRelease } from "../../types/k8s.ts";
+import type { HelmRelease, Event } from "../../types/k8s.ts";
 import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
 
-export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease, columnCount = 4) => (
-  <DetailRowCard columnCount={columnCount}>
-    <div style="display: contents;">
-      <strong>Chart:</strong> {helmRelease.spec?.chart.spec.chart} <br />
-      <strong>Source Ref:</strong> {helmRelease.spec?.chart.spec.sourceRef.kind}/{helmRelease.spec?.chart.spec.sourceRef.name} <br />
-      <strong>Version:</strong> {helmRelease.spec?.chart.spec.version} <br />
-      <strong>Release Name:</strong> {helmRelease.spec?.releaseName} <br />
-      <strong>Target Namespace:</strong> {helmRelease.spec?.targetNamespace} <br />
-      <strong>Interval:</strong> {helmRelease.spec?.interval} <br />
-      <strong>Suspended:</strong>
-      {helmRelease.spec && (
-        <>
-          {helmRelease.spec.suspend ? " True" : " False"} <br />
-        </>
-      )}
-    </div>
-  </DetailRowCard>
-);
+export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease & { events?: Event[] }, columnCount = 4) => {
+  const chartName = helmRelease.spec?.chart?.spec?.chart;
+  const src = helmRelease.spec?.chartRef || helmRelease.spec?.chart?.spec?.sourceRef;
+  const version = helmRelease.spec?.chart?.spec?.version;
+  
+  return (
+    <DetailRowCard columnCount={columnCount}>
+      <div style="display: contents;">
+        <div>
+          {chartName && (
+            <>
+              <strong>Chart:</strong> {chartName} <br />
+            </>
+          )}
+          <strong>Source Ref:</strong> {src ? `${src.kind}${src.namespace ? `/${src.namespace}` : ''}/${src.name}` : 'N/A'} <br />
+          {version && (
+            <>
+              <strong>Version:</strong> {version} <br />
+            </>
+          )}
+          <strong>Release Name:</strong> {helmRelease.spec?.releaseName} <br />
+          <strong>Target Namespace:</strong> {helmRelease.spec?.targetNamespace} <br />
+          <strong>Interval:</strong> {helmRelease.spec?.interval} <br />
+          <strong>Suspended:</strong> {helmRelease.spec?.suspend ? "True" : "False"}
+        </div>
+        <div>
+          <ul>
+            {helmRelease.events?.sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
+              <li><span title={event.lastTimestamp}>{useCalculateAge(event.lastTimestamp)()}</span> {event.involvedObject.kind}/{event.involvedObject.namespace}/{event.involvedObject.name}: <span>{(() => { const m = (event.message || '').replace(/[\r\n]+/g, ' '); return m.length > 300 ? m.slice(0, 300) + '…' : m; })()}</span></li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </DetailRowCard>
+  );
+};
 
 export const helmReleaseFluxColumns = [
   {
