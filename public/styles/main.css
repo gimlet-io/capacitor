@@ -954,13 +954,21 @@ h1 {
 }
 
 
-td.message-cell {
+td.message-cell,
+.message-cell {
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: normal;
   word-break: break-all;
-  max-width: 0; /* Force the cell to respect the table layout */
   line-height: 1.4;
+}
+
+td.message-cell {
+  max-width: 0; /* Force the cell to respect the table layout */
+  padding: 0.5rem 0.25rem;
+}
+
+.message-cell {
   padding: 0.5rem 0.25rem;
 }
 
@@ -1274,7 +1282,7 @@ td.message-cell {
   flex-wrap: nowrap; /* never wrap to new line */
   gap: 8px;
   min-width: 0; /* allow shrinking */
-  overflow-x: clip; /* hide horizontal overflow */
+  overflow-x: visible; /* hide horizontal overflow */
   overflow-y: visible; /* allow dropdowns to show vertically */
 }
 
@@ -1397,6 +1405,11 @@ td.message-cell {
   border-bottom: 1px solid var(--linear-border);
 }
 
+.filter-options-search-container .filter-text-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .filter-options-scroll-container {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1460,13 +1473,14 @@ td.message-cell {
 }
 
 .filter-text-input input {
-  width: 90%;
+  width: 100%;
   padding: 6px 8px;
   border: 1px solid var(--linear-border);
   border-radius: 4px;
   font-size: 13px;
   color: var(--linear-text-primary);
   background-color: var(--linear-bg);
+  box-sizing: border-box;
 }
 
 .filter-text-input input:focus {
@@ -3229,8 +3243,8 @@ select.pod-select[size]:not([size="1"]) {
 
 .filter-text-input {
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--linear-border);
+  /* padding: 6px 8px;
+  border: 1px solid var(--linear-border); */
   border-radius: 4px;
   font-size: 13px;
   color: var(--linear-text-primary);
