@@ -30,8 +30,6 @@ export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease & { events
           )}
           <strong>Release Name:</strong> {helmRelease.spec?.releaseName} <br />
           <strong>Target Namespace:</strong> {helmRelease.spec?.targetNamespace} <br />
-          <strong>Interval:</strong> {helmRelease.spec?.interval} <br />
-          <strong>Suspended:</strong> {helmRelease.spec?.suspend ? "True" : "False"}
         </div>
         <div>
           <ul>
