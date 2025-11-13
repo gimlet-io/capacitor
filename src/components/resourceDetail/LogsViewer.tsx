@@ -77,6 +77,7 @@ export function LogsViewer(props: {
   const [showMetadata, setShowMetadata] = createSignal<boolean>(true);
   const [showPodNames, setShowPodNames] = createSignal<boolean>(false);
   const [jsonFormatUserOverride, setJsonFormatUserOverride] = createSignal<boolean>(false);
+  const [sinceTimeOverride, setSinceTimeOverride] = createSignal<string | null>(null);
   
   // Search functionality
   const [searchQuery, setSearchQuery] = createSignal<string>("");
@@ -254,13 +255,19 @@ export function LogsViewer(props: {
       // Prepare query parameters
       const params = new URLSearchParams();
 
-      // Add log history option
-      const sinceSeconds = getLogSinceSeconds(logHistoryOption());
-      if (sinceSeconds) {
-        params.append("sinceSeconds", sinceSeconds.toString());
+      // Add log history option or sinceTime override
+      const sinceOverride = sinceTimeOverride();
+      if (sinceOverride) {
+        params.append("sinceTime", new Date(sinceOverride).toISOString());
+      } else {
+        const sinceSeconds = getLogSinceSeconds(logHistoryOption());
+        if (sinceSeconds) {
+          params.append("sinceSeconds", sinceSeconds.toString());
+        }
       }
 
       const containers = containerName === "all" ? [...availableContainers(), ...availableInitContainers()] : [containerName];
+      const usePrevious = sinceTimeOverride() ? false : logHistoryOption() === "previous";
         
       // Update the logs display with sorted lines
       const updateLogsDisplay = (containerLogEntries: LogEntry[]) => {
@@ -315,7 +322,7 @@ export function LogsViewer(props: {
               container, 
               params, 
               true,
-              logHistoryOption() === "previous",
+              usePrevious,
               k8sPrefix
             );
             
@@ -410,7 +417,7 @@ export function LogsViewer(props: {
                   container, 
                   params, 
                   false,
-                  logHistoryOption() === "previous",
+                  usePrevious,
                   k8sPrefix
                 );
                 
@@ -557,6 +564,28 @@ export function LogsViewer(props: {
 
   const toggleShowMetadata = () => {
     setShowMetadata(!showMetadata());
+  };
+
+  // Clear logs and restart streaming from current timestamp
+  const clearLogs = () => {
+    if (logsEventSource) {
+      logsEventSource.close();
+      logsEventSource = null;
+    }
+    setLogs("");
+    setFormattedLogEntries([]);
+    setProcessedEntries([]);
+    setSearchMatches([]);
+    setCurrentMatchIndex(-1);
+    setSinceTimeOverride(new Date().toISOString());
+    if (!followLogs()) {
+      setFollowLogs(true);
+    }
+    if (!loading()) {
+      fetchResourceLogs();
+    } else {
+      setTimeout(() => fetchResourceLogs(), 0);
+    }
   };
 
 
@@ -950,6 +979,13 @@ export function LogsViewer(props: {
                   class="json-filter-input"
                 />
               </Show>
+              <button
+                class="clear-logs-button"
+                onClick={clearLogs}
+                title="Clear logs and stream from current time"
+              >
+                Clear
+              </button>
               <button
                 class="search-toggle-button"
                 onClick={toggleSearch}
