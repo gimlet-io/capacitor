@@ -6,6 +6,7 @@ import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
+import { StatusBadges } from "./KustomizationList.tsx";
 
 export const renderHelmReleaseFluxDetails = (helmRelease: HelmRelease & { events?: Event[] }, columnCount = 4) => {
   const chartName = helmRelease.spec?.chart?.spec?.chart;
@@ -67,39 +68,24 @@ export const helmReleaseFluxColumns = [
     header: "READY",
     width: "20%",
     accessor: (helmRelease: HelmRelease) => {
-      const readyCondition = helmRelease.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      const reconcilingCondition = helmRelease.status?.conditions?.find((c) =>
-        c.type === ConditionType.Reconciling
-      );
-
-      return (
-        <div class="status-badges">
-          {readyCondition?.status === ConditionStatus.True && (
-            <span class="status-badge ready">Ready</span>
-          )}
-          {readyCondition?.status === ConditionStatus.False && (
-            <span class="status-badge not-ready">NotReady</span>
-          )}
-          {reconcilingCondition?.status === ConditionStatus.True && (
-            <span class="status-badge reconciling">Reconciling</span>
-          )}
-          {helmRelease.spec?.suspend && (
-            <span class="status-badge suspended">Suspended</span>
-          )}
-        </div>
-      );
+      return StatusBadges(helmRelease as unknown as any);
     },
   },
   {
     header: "STATUS",
     width: "55%",
     accessor: (helmRelease: HelmRelease) => {
-      const readyCondition = helmRelease.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      return <div class="message-cell">{readyCondition?.message}</div>;
+      const readyCondition = helmRelease.status?.conditions?.find((c) => c.type === ConditionType.Ready);
+      const stalledCondition = helmRelease.status?.conditions?.find((c) => c.type === ConditionType.Stalled);
+      const parts: string[] = [];
+      if (stalledCondition?.status === ConditionStatus.True && stalledCondition?.message) {
+        parts.push(stalledCondition.message);
+      }
+      if (readyCondition?.message) {
+        parts.push(readyCondition.message);
+      }
+      const combined = parts.join(" | ");
+      return <div class="message-cell">{combined}</div>;
     },
   },
 ];

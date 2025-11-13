@@ -53,6 +53,7 @@ function createContainerLogUrl(
 export function LogsViewer(props: {
   resource: any;
   isOpen: boolean;
+  initialSearch?: string;
 }) {
   const apiResourceStore = useApiResourceStore();
   const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
@@ -743,6 +744,16 @@ export function LogsViewer(props: {
       updateAvailableContainers().then(() => {
         fetchResourceLogs();
       });
+    }
+  });
+
+  // Initialize search from props when opened
+  createEffect(() => {
+    if (props.isOpen && (props.initialSearch || "").trim() !== "") {
+      setSearchExpanded(true);
+      setSearchQuery(props.initialSearch!.trim());
+      // Focus search input shortly after expansion
+      setTimeout(() => searchInputRef?.focus(), 50);
     }
   });
 
