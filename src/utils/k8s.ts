@@ -20,6 +20,7 @@ import type { Pod,
   DaemonSet,
   Ingress,
   Kustomization,
+  HelmRelease,
 } from '../types/k8s.ts';
 
 export const matchesServiceSelector = (labels: Record<string, string> | undefined, selector: Record<string, string> | undefined) => {
@@ -216,6 +217,17 @@ export const updateKustomizationMatchingEvents = (kustomization: ExtendedKustomi
       ((event.metadata.namespace === kustomization.spec.sourceRef.namespace || event.metadata.namespace === kustomization.metadata.namespace) && 
       event.involvedObject.kind === kustomization.spec.sourceRef.kind && 
       event.involvedObject.name === kustomization.spec.sourceRef.name)
+    )
+  };
+};
+
+export const updateHelmReleaseMatchingEvents = (helmRelease: HelmRelease, allEvents: Event[]): HelmRelease & { events?: Event[] } => {
+  return {
+    ...helmRelease,
+    events: allEvents.filter(event => 
+      event.metadata.namespace === helmRelease.metadata.namespace && 
+      event.involvedObject.kind === "HelmRelease" && 
+      event.involvedObject.name === helmRelease.metadata.name
     )
   };
 };

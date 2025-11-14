@@ -273,22 +273,13 @@ func (s *Server) Setup() {
 		// Normalize kind to lowercase for case-insensitive comparison
 		kind := req.Kind
 
-		// Map of supported Flux resource kinds to their API path
-		resourceAPIs := map[string]string{
-			"Kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
-			"HelmRelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
-			"GitRepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
-			"HelmRepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
-			"HelmChart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
-			"OCIRepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
-			"Bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
-			"Alert":           "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/alerts/%s",
-			"Provider":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/providers/%s",
-			"Receiver":        "/apis/notification.toolkit.fluxcd.io/v1beta2/namespaces/%s/receivers/%s",
-			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
-			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
-			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
-			"Terraform":       "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
+		// Discover Flux API paths dynamically
+		resourceAPIs, err := proxy.discoverFluxAPIPaths()
+		if err != nil {
+			log.Printf("Error discovering Flux API paths: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to discover Flux API paths: %v", err),
+			})
 		}
 
 		// Direct lookup with the exact kind name
@@ -301,14 +292,22 @@ func (s *Server) Setup() {
 		}
 
 		// Patch the resource to trigger reconciliation
-		_, err := clientset.
+		_, err = clientset.
 			RESTClient().
 			Patch(types.MergePatchType).
 			AbsPath(fmt.Sprintf(apiPath, resourceNamespace, resourceName)).
 			Body([]byte(patchData)).
 			DoRaw(ctx)
 
-		// err would have been handled earlier; keep block removed to avoid redundant check
+		if err != nil {
+			log.Printf("Error reconciling Flux resource: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error":     fmt.Sprintf("Failed to reconcile resource: %v", err),
+				"kind":      kind,
+				"name":      resourceName,
+				"namespace": resourceNamespace,
+			})
+		}
 
 		// If WithSources is true, we need to find and patch the source reference
 		if req.WithSources && (kind == "Kustomization" || kind == "HelmRelease" || kind == "Terraform") {
@@ -343,28 +342,69 @@ func (s *Server) Setup() {
 				})
 			}
 
-			// HelmRelease has sourceRef at spec.chart.spec.sourceRef, while Kustomization and Terraform have it at spec.sourceRef
+			// HelmRelease has sourceRef at spec.chart.spec.sourceRef or via spec.chartRef (HelmChart resource),
+			// while Kustomization and Terraform have it at spec.sourceRef
 			var sourceRef map[string]interface{}
 			if kind == "HelmRelease" {
-				chart, ok := spec["chart"].(map[string]interface{})
-				if !ok {
-					log.Printf("HelmRelease does not have a chart field")
-					return c.JSON(http.StatusInternalServerError, map[string]string{
-						"error": "HelmRelease does not have a chart field",
-					})
+				// Try inline chart first (spec.chart.spec.sourceRef)
+				if chart, ok := spec["chart"].(map[string]interface{}); ok {
+					if chartSpec, ok := chart["spec"].(map[string]interface{}); ok {
+						if srcRef, ok := chartSpec["sourceRef"].(map[string]interface{}); ok {
+							sourceRef = srcRef
+						}
+					}
 				}
-				chartSpec, ok := chart["spec"].(map[string]interface{})
-				if !ok {
-					log.Printf("HelmRelease chart does not have a spec field")
-					return c.JSON(http.StatusInternalServerError, map[string]string{
-						"error": "HelmRelease chart does not have a spec field",
-					})
+
+				// If no inline chart sourceRef, try chartRef (HelmChart resource)
+				if sourceRef == nil {
+					if chartRef, ok := spec["chartRef"].(map[string]interface{}); ok {
+						chartRefKind, _ := chartRef["kind"].(string)
+						chartRefName, _ := chartRef["name"].(string)
+						chartRefNamespace := resourceNamespace
+						if ns, ok := chartRef["namespace"].(string); ok && ns != "" {
+							chartRefNamespace = ns
+						}
+
+						// Get the HelmChart resource to find its sourceRef
+						if chartRefKind == "HelmChart" && chartRefName != "" {
+							helmChartAPIPath, err := proxy.getFluxAPIPath(ctx, "HelmChart")
+							if err != nil {
+								log.Printf("Error discovering HelmChart API path: %v", err)
+								return c.JSON(http.StatusInternalServerError, map[string]string{
+									"error": fmt.Sprintf("Failed to discover HelmChart API path: %v", err),
+								})
+							}
+
+							helmChartPath := fmt.Sprintf(helmChartAPIPath, chartRefNamespace, chartRefName)
+							helmChartData, err := clientset.RESTClient().Get().AbsPath(helmChartPath).DoRaw(ctx)
+							if err != nil {
+								log.Printf("Error getting HelmChart resource: %v", err)
+								return c.JSON(http.StatusInternalServerError, map[string]string{
+									"error": fmt.Sprintf("Failed to get HelmChart resource: %v", err),
+								})
+							}
+
+							var helmChartObj map[string]interface{}
+							if err := json.Unmarshal(helmChartData, &helmChartObj); err != nil {
+								log.Printf("Error parsing HelmChart data: %v", err)
+								return c.JSON(http.StatusInternalServerError, map[string]string{
+									"error": fmt.Sprintf("Failed to parse HelmChart data: %v", err),
+								})
+							}
+
+							if helmChartSpec, ok := helmChartObj["spec"].(map[string]interface{}); ok {
+								if srcRef, ok := helmChartSpec["sourceRef"].(map[string]interface{}); ok {
+									sourceRef = srcRef
+								}
+							}
+						}
+					}
 				}
-				sourceRef, ok = chartSpec["sourceRef"].(map[string]interface{})
-				if !ok {
-					log.Printf("HelmRelease does not have a sourceRef field in chart.spec")
+
+				if sourceRef == nil {
+					log.Printf("HelmRelease does not have a sourceRef (neither in chart.spec.sourceRef nor via chartRef)")
 					return c.JSON(http.StatusInternalServerError, map[string]string{
-						"error": "HelmRelease does not have a sourceRef field in chart.spec",
+						"error": "HelmRelease does not have a sourceRef field in chart.spec.sourceRef or via chartRef",
 					})
 				}
 			} else {
@@ -434,16 +474,6 @@ func (s *Server) Setup() {
 			output = fmt.Sprintf("%s %s/%s reconciliation requested", kind, resourceNamespace, resourceName)
 		}
 
-		if err != nil {
-			log.Printf("Error reconciling Flux resource: %v", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error":     fmt.Sprintf("Failed to reconcile resource: %v", err),
-				"kind":      kind,
-				"name":      resourceName,
-				"namespace": resourceNamespace,
-			})
-		}
-
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Successfully reconciled %s/%s", kind, resourceName),
 			"output":  output,
@@ -494,19 +524,13 @@ func (s *Server) Setup() {
 		// Normalize kind to lowercase for case-insensitive comparison
 		kind := req.Kind
 
-		// Map of supported Flux resource kinds to their API path
-		resourceAPIs := map[string]string{
-			"Kustomization":   "/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s",
-			"HelmRelease":     "/apis/helm.toolkit.fluxcd.io/v2beta1/namespaces/%s/helmreleases/%s",
-			"GitRepository":   "/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s",
-			"HelmRepository":  "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmrepositories/%s",
-			"HelmChart":       "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/helmcharts/%s",
-			"OCIRepository":   "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s",
-			"Bucket":          "/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s",
-			"ImagePolicy":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagepolicies/%s",
-			"ImageRepository": "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imagerepositories/%s",
-			"ImageUpdate":     "/apis/image.toolkit.fluxcd.io/v1beta1/namespaces/%s/imageupdateautomations/%s",
-			"Terraform":       "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
+		// Discover Flux API paths dynamically
+		resourceAPIs, err := proxy.discoverFluxAPIPaths()
+		if err != nil {
+			log.Printf("Error discovering Flux API paths: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to discover Flux API paths: %v", err),
+			})
 		}
 
 		// Direct lookup with the exact kind name
@@ -519,7 +543,7 @@ func (s *Server) Setup() {
 		}
 
 		// Patch the resource to suspend or resume it
-		_, err := clientset.
+		_, err = clientset.
 			RESTClient().
 			Patch(types.MergePatchType).
 			AbsPath(fmt.Sprintf(apiPath, req.Namespace, req.Name)).
@@ -587,9 +611,13 @@ func (s *Server) Setup() {
 		clientset := proxy.k8sClient.Clientset
 		ctx := context.Background()
 
-		// API paths for supported kinds
-		resourceAPIs := map[string]string{
-			"Terraform": "/apis/infra.contrib.fluxcd.io/v1alpha2/namespaces/%s/terraforms/%s",
+		// Discover Flux API paths dynamically
+		resourceAPIs, err := proxy.discoverFluxAPIPaths()
+		if err != nil {
+			log.Printf("Error discovering Flux API paths: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to discover Flux API paths: %v", err),
+			})
 		}
 
 		apiPath, found := resourceAPIs[req.Kind]
@@ -682,8 +710,17 @@ func (s *Server) Setup() {
 		clientset := proxy.k8sClient.Clientset
 		ctx := context.Background()
 
+		// Discover Flux API path for Kustomization
+		kustomizationAPIPath, err := proxy.getFluxAPIPath(ctx, "Kustomization")
+		if err != nil {
+			log.Printf("Error discovering Kustomization API path: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to discover Kustomization API path: %v", err),
+			})
+		}
+
 		// Get the Kustomization resource
-		kustomizationPath := fmt.Sprintf("/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/%s/kustomizations/%s", req.Namespace, req.Name)
+		kustomizationPath := fmt.Sprintf(kustomizationAPIPath, req.Namespace, req.Name)
 		kustomizationData, err := clientset.
 			RESTClient().
 			Get().
@@ -1499,9 +1536,23 @@ func (s *Server) extractTarGz(data []byte, destDir string) error {
 	return nil
 }
 
+// Helper function to discover Flux API path for a resource kind using a client
+func (s *Server) discoverFluxAPIPathForClient(ctx context.Context, client *kubernetes.Client, kind string) (string, error) {
+	// Create a temporary proxy for discovery (or we could extract discovery logic)
+	proxy, err := NewKubernetesProxy(client)
+	if err != nil {
+		return "", fmt.Errorf("failed to create proxy for discovery: %w", err)
+	}
+	return proxy.getFluxAPIPath(ctx, kind)
+}
+
 // Helper functions to get source resources
 func (s *Server) getGitRepository(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
-	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1/namespaces/%s/gitrepositories/%s", namespace, name)
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "GitRepository")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover GitRepository API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
 	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
 	if err != nil {
 		return nil, err
@@ -1513,7 +1564,11 @@ func (s *Server) getGitRepository(ctx context.Context, client *kubernetes.Client
 }
 
 func (s *Server) getOCIRepository(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
-	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/ocirepositories/%s", namespace, name)
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "OCIRepository")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover OCIRepository API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
 	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
 	if err != nil {
 		return nil, err
@@ -1525,7 +1580,11 @@ func (s *Server) getOCIRepository(ctx context.Context, client *kubernetes.Client
 }
 
 func (s *Server) getBucket(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
-	path := fmt.Sprintf("/apis/source.toolkit.fluxcd.io/v1beta2/namespaces/%s/buckets/%s", namespace, name)
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "Bucket")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover Bucket API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
 	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
 	if err != nil {
 		return nil, err

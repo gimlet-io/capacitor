@@ -49,7 +49,8 @@ import {
   updateReplicaSetMatchingResources,
   updateKustomizationMatchingGitRepositories,
   updateKustomizationMatchingBuckets,
-  updateKustomizationMatchingOCIRepositories
+  updateKustomizationMatchingOCIRepositories,
+  updateHelmReleaseMatchingEvents
 } from "./utils/k8s.ts";
 import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources, updateServiceMatchingPods, updateServiceMatchingIngresses, updateServiceMatchingKustomizations } from "./utils/k8s.ts";
 
@@ -1108,7 +1109,22 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       'spec.suspend',
       'status.conditions'
     ],
-    abbreviations: ['hr']
+    abbreviations: ['hr'],
+    extraWatches: [
+      {
+        resourceType: 'core/Event',
+        updater: (helmRelease, events) => updateHelmReleaseMatchingEvents(helmRelease, events),
+        isParent: (resource: any, obj: any) => {return false},
+        projectFields: [
+          'type',
+          'lastTimestamp',
+          'reason',
+          'involvedObject',
+          'message',
+          'source.component'
+        ]
+      }
+    ]
   },
   
   'infra.contrib.fluxcd.io/Terraform': {

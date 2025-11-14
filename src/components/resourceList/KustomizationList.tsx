@@ -69,6 +69,9 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
   const readyCondition = kustomization.status?.conditions?.find((c) =>
     c.type === ConditionType.Ready
   );
+  const stalledCondition = kustomization.status?.conditions?.find((c) =>
+    c.type === ConditionType.Stalled
+  );
   const reconcilingCondition = kustomization.status?.conditions?.find((c) =>
     c.type === ConditionType.Reconciling
   );
@@ -81,6 +84,9 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
 
   return (
     <div class="status-badges">
+      {stalledCondition?.status === ConditionStatus.True && (
+        <span class="status-badge stalled">Stalled</span>
+      )}
       {readyCondition?.status === ConditionStatus.True && (
         <span class="status-badge ready">Ready</span>
       )}

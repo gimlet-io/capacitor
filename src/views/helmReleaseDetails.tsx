@@ -24,6 +24,8 @@ import { EventList } from "../components/resourceList/EventList.tsx";
 import { HelmManifest } from "../components/resourceDetail/HelmManifest.tsx";
 import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.tsx";
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
+import { ConditionType } from "../utils/conditions.ts";
+import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
 
 export function HelmReleaseDetails() {
   const params = useParams();
@@ -51,7 +53,7 @@ export function HelmReleaseDetails() {
   const [paginationState, setPaginationState] = createSignal<Record<string, number>>({});
   const [dynamicResources, setDynamicResources] = createSignal<Record<string, Array<{ metadata: { name: string; namespace?: string } }>>>({});
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
-  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events">("resource");
+  const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events" | "logs">("resource");
   const [chartRefVersion, setChartRefVersion] = createSignal<string | null>(null);
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
@@ -664,7 +666,28 @@ export function HelmReleaseDetails() {
                       <span class="label">Interval:</span>
                       <span class="value">{hr().spec.interval}</span>
                     </div>
-                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 4;">
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 2;">
+                      <span class="label">Status:</span>
+                      {(() => {
+                        const readyCondition = (hr().status?.conditions || []).find((c) => c.type === ConditionType.Ready);
+                        const stalledCondition = (hr().status?.conditions || []).find((c) => c.type === ConditionType.Stalled);
+                        const parts: string[] = [];
+                        if (stalledCondition?.status === "True" && stalledCondition?.message) {
+                          parts.push(stalledCondition.message);
+                        }
+                        if (readyCondition?.message) {
+                          parts.push(readyCondition.message);
+                        }
+                        const combined = parts.join("\n");
+                        return (
+                          <span class="value" style={{ "white-space": "pre-wrap" }}>
+                            {combined || '—'}
+                          </span>
+                        );
+                      })()}
+                      
+                    </div>
+                    <div class="info-item" style="grid-column: 4 / 10; grid-row: 2 / 5;">
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
                         {(hr().events || []).sort((a, b) => new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()).slice(0, 5).map((event) => (
@@ -749,6 +772,7 @@ export function HelmReleaseDetails() {
               { key: "values", label: "Values" },
               { key: "manifest", label: "Manifest" },
               { key: "diff", label: "Diff Helm Manifest with Cluster State" },
+              { key: "logs", label: "Helm Controller Logs" },
               { key: "events", label: (
                 <span>
                   Events{(() => {
@@ -760,7 +784,7 @@ export function HelmReleaseDetails() {
               ) },
             ]}
             activeKey={activeMainTab()}
-            onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history" | "diff" | "events")}
+            onChange={(k) => setActiveMainTab(k as "resource" | "values" | "manifest" | "history" | "diff" | "events" | "logs")}
             class=""
             style={{ "margin-top": "12px" }}
         />
@@ -813,6 +837,23 @@ export function HelmReleaseDetails() {
           name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name}
           apiVersion={helmRelease()!.apiVersion}
           kind={helmRelease()!.kind}
+        />
+      </Show>
+
+      {/* Logs Tab - helm-controller in flux-system */}
+      <Show when={activeMainTab() === "logs"}>
+        <LogsViewer
+          resource={{
+            apiVersion: "apps/v1",
+            kind: "Deployment",
+            metadata: { name: "helm-controller", namespace: "flux-system" },
+            spec: { selector: { matchLabels: { "app": "helm-controller" } } }
+          }}
+          isOpen={activeMainTab() === "logs"}
+          initialSearch={(helmRelease()?.spec?.releaseName || helmRelease()?.metadata.name) as string}
+          autoDetectJson={false}
+          defaultHideNonMatches={true}
+          contentMaxHeightPx={250}
         />
       </Show>
 
