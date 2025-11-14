@@ -172,6 +172,15 @@ export function FilterBar(props: {
 
     const filterDef = filters().find(f => f.name === filter);
     
+    // Special handling: when ResourceType changes, reset all filters except Namespace
+    if (filter === "ResourceType") {
+      const namespaceFilter = paneFilterStore.activeFilters.find(f => f.name === "Namespace");
+      const next: ActiveFilter[] = [{ name: "ResourceType", value }];
+      if (namespaceFilter) next.push(namespaceFilter);
+      paneFilterStore.setActiveFilters(next);
+      return;
+    }
+    
     if (existingIndex >= 0) {
       // Only allow deselection for multi-select filters
       if (filterDef?.multiSelect) {
