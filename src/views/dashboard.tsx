@@ -19,6 +19,73 @@ let savedPaneSizes: Record<string, number[]> = {};
 let savedActivePaneKey: number | undefined = undefined;
 const savedPaneFilters = new Map<number, ActiveFilter[]>();
 
+// URL sync helpers for shareable multi-pane state
+type EncodedPaneState = {
+  t: PaneNode;
+  s: Record<string, number[]>;
+  a: number;
+  f: Array<{ k: number; fl: ActiveFilter[] }>;
+};
+
+function encodePaneStateForUrl(tree: PaneNode, sizes: Record<string, number[]>, activeKey: number, filters: Map<number, ActiveFilter[]>): string | undefined {
+  try {
+    const filterArray = Array.from(filters.entries()).map(([k, fl]) => ({ k, fl }));
+    const minimal: EncodedPaneState = { t: tree, s: sizes, a: activeKey, f: filterArray };
+    const json = JSON.stringify(minimal);
+    // Use base64 for compactness; safely encode UTF-8
+    const b64 = globalThis.btoa(unescape(encodeURIComponent(json)));
+    return b64;
+  } catch {
+    return undefined;
+  }
+}
+
+function decodePaneStateFromUrl(b64: string): EncodedPaneState | undefined {
+  try {
+    const json = decodeURIComponent(escape(globalThis.atob(b64)));
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    if (!parsed.t || !parsed.s || typeof parsed.a !== 'number' || !Array.isArray(parsed.f)) return undefined;
+    return parsed as EncodedPaneState;
+  } catch {
+    return undefined;
+  }
+}
+
+function tryReadPaneStateFromUrl(): void {
+  try {
+    const url = new URL(globalThis.location.href);
+    const encoded = url.searchParams.get('ps');
+    if (!encoded) return;
+    const state = decodePaneStateFromUrl(encoded);
+    if (!state) return;
+    savedPaneTree = state.t;
+    savedPaneSizes = state.s || {};
+    savedActivePaneKey = state.a;
+    savedPaneFilters.clear();
+    for (const entry of state.f) {
+      if (entry && typeof entry.k === 'number' && Array.isArray(entry.fl)) {
+        savedPaneFilters.set(entry.k, entry.fl);
+      }
+    }
+  } catch {
+    // ignore malformed URL state
+  }
+}
+
+function writePaneStateToUrl(): void {
+  try {
+    if (!savedPaneTree || savedActivePaneKey === undefined) return;
+    const encoded = encodePaneStateForUrl(savedPaneTree, savedPaneSizes, savedActivePaneKey, savedPaneFilters);
+    if (!encoded) return;
+    const url = new URL(globalThis.location.href);
+    url.searchParams.set('ps', encoded);
+    globalThis.history.replaceState(null, '', url.toString());
+  } catch {
+    // noop
+  }
+}
+
 export function Dashboard() {
   const apiResourceStore = useApiResourceStore();
   const errorStore = useErrorStore();
@@ -36,6 +103,9 @@ export function Dashboard() {
   // Watch status in header - updated by PaneManager
   const [watchStatus, setWatchStatus] = createSignal("●");
   
+  // Attempt to restore pane state from URL (only once per load)
+  tryReadPaneStateFromUrl();
+  
   // Cache of pane filter states - updated by providers, used to restore state after tree changes
   const paneFilterCache = new Map<number, ActiveFilter[]>(savedPaneFilters);
   
@@ -43,6 +113,7 @@ export function Dashboard() {
   const handlePaneFilterChange = (paneKey: number, filters: ActiveFilter[]) => {
     paneFilterCache.set(paneKey, filters);
     savedPaneFilters.set(paneKey, filters);
+    writePaneStateToUrl();
   };
 
   // Function to switch to a new context
@@ -154,15 +225,16 @@ export function Dashboard() {
           initialSizes={savedPaneSizes}
           initialActivePaneKey={savedActivePaneKey ?? 0}
           onStatusChange={setWatchStatus}
-          onTreeChange={(t) => { savedPaneTree = t; }}
-          onSizesChange={(s) => { savedPaneSizes = s; }}
-          onActivePaneChange={(k) => { savedActivePaneKey = k; }}
+          onTreeChange={(t) => { savedPaneTree = t; writePaneStateToUrl(); }}
+          onSizesChange={(s) => { savedPaneSizes = s; writePaneStateToUrl(); }}
+          onActivePaneChange={(k) => { savedActivePaneKey = k; writePaneStateToUrl(); }}
           onPaneSplit={(originalPaneKey: number, newPaneKey: number, _orientation: Orientation) => {
             const existing = paneFilterCache.get(originalPaneKey);
             if (existing && Array.isArray(existing)) {
               const copy = existing.map(f => ({ ...f }));
               paneFilterCache.set(newPaneKey, copy);
               savedPaneFilters.set(newPaneKey, copy);
+              writePaneStateToUrl();
             }
           }}
           renderPane={(paneProps) => (
