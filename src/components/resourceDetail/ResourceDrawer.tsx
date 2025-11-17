@@ -12,8 +12,9 @@ import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { getResourceName } from "../../utils/k8s.ts";
 import { Tabs } from "../Tabs.tsx";
 import hljs from "highlight.js";
+import { MetricsViewer } from "./MetricsViewer.tsx";
 
-type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec";
+type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec" | "metrics";
 
 export function ResourceDrawer(props: {
   resource: any;
@@ -246,6 +247,12 @@ export function ResourceDrawer(props: {
         e.preventDefault();
         setActiveTab("exec");
       }
+    } else if (e.key === "6" || e.key === "m") {
+      // m shortcut for metrics tab (available for common workload kinds)
+      if (["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet", "CronJob"].includes(props.resource?.kind)) {
+        e.preventDefault();
+        setActiveTab("metrics");
+      }
     }
   };
 
@@ -293,6 +300,9 @@ export function ResourceDrawer(props: {
               { key: "describe", label: <span>Describe <span class="shortcut-key">d</span></span> },
               { key: "yaml", label: <span>YAML <span class="shortcut-key">y</span></span> },
               { key: "events", label: <span>Events <span class="shortcut-key">e</span></span> },
+              ...( ["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet", "CronJob"].includes(props.resource?.kind)
+                ? [{ key: "metrics", label: <span>Metrics <span class="shortcut-key">m</span></span> }]
+                : []),
               ...( ["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)
                 ? [{ key: "logs", label: <span>Logs <span class="shortcut-key">l</span></span> }]
                 : []),
@@ -340,6 +350,10 @@ export function ResourceDrawer(props: {
             
             <Show when={activeTab() === "logs"}>
               <LogsViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "logs"} />
+            </Show>
+            
+            <Show when={activeTab() === "metrics"}>
+              <MetricsViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "metrics"} />
             </Show>
             
             <Show when={activeTab() === "exec"}>
