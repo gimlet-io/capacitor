@@ -48,12 +48,12 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           envFrom:
+            - secretRef:
+                name: {{ include "capacitor-server.fullname" . }}
             {{- if .Values.existingSecret.name }}
             - secretRef:
                 name: {{ .Values.existingSecret.name }}
             {{- end }}
-            - secretRef:
-                name: {{ include "capacitor-server.fullname" . }}
           volumeMounts:
             - name: registry
               mountPath: /app/backend/registry.yaml

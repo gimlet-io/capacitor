@@ -22,7 +22,7 @@ helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
   --version 2025-11.1 \
   --namespace flux-system \
   --create-namespace \
-  --set license.key="your-license-key" \
+  --set licenseKey="your-license-key" \
   --set session.hashKey="base64:$(openssl rand -base64 32)" \
   --set session.blockKey="base64:$(openssl rand -base64 32)"
 ```
@@ -34,7 +34,7 @@ helm upgrade -i capacitor-next ./capacitor-next \
   --version 2025-11.1 \
   --namespace flux-system \
   --create-namespace \
-  --set license.key="your-license-key" \
+  --set licenseKey="your-license-key" \
   --set session.hashKey="base64:$(openssl rand -base64 32)" \
   --set session.blockKey="base64:$(openssl rand -base64 32)"
 ```
@@ -46,11 +46,13 @@ helm upgrade -i capacitor-next ./capacitor-next \
 For local development or testing:
 
 ```yaml
-license:
-  key: "contact laszlo@gimlet.io"
+licenseKey: "contact laszlo@gimlet.io"
 
 auth:
   method: noauth
+
+rbac:
+  createBuiltinEditorRole: true
 
 authorization:
   impersonateSaRules: "noauth=flux-system:capacitor-next-builtin-editor"
@@ -71,8 +73,7 @@ clusters:
 ### OIDC Authentication
 
 ```yaml
-license:
-  key: "your-license-key"
+licenseKey: "contact laszlo@gimlet.io"
 
 auth:
   method: oidc
@@ -83,7 +84,10 @@ auth:
     redirectUrl: "https://capacitor.example.com/auth/callback"
     authorizedEmails: "*@yourcompany.com"
 
-authorization:
+rbac:
+  createBuiltinEditorRole: true
+
+authorization: # if you don't have RBAC role defined and need a catch-all
   impersonateSaRules: "*@yourcompany.com=flux-system:capacitor-next-builtin-editor"
 
 session:
@@ -107,14 +111,16 @@ ingress:
 ### Static User Authentication
 
 ```yaml
-license:
-  key: "your-license-key"
+licenseKey: "contact laszlo@gimlet.io"
 
 auth:
   method: static
   static:
     # Generate with: htpasswd -bnBC 12 x 'mypassword' | cut -d: -f2
     users: "admin@example.com:$2y$12$..."
+
+rbac:
+  createBuiltinEditorRole: true
 
 authorization:
   impersonateSaRules: "admin@example.com=flux-system:capacitor-next-builtin-editor"
@@ -154,7 +160,7 @@ You can use an existing Kubernetes secret in addition to the built-in secret cre
 - Overriding specific environment variables from the built-in secret
 - Adding additional environment variables not managed by the chart
 
-When `existingSecret.name` is specified, both secrets are loaded via `envFrom`. The existing secret is loaded first, allowing it to override values from the built-in secret if they share the same keys.
+When `existingSecret.name` is specified, both secrets are loaded via `envFrom`. The existing secret is loaded last, allowing it to override values from the built-in secret if they share the same keys.
 
 **Example: Using External Secrets Operator**
 
@@ -165,8 +171,7 @@ existingSecret:
   name: capacitor-secrets-from-external-secrets-operator
 
 # All other configuration remains the same
-license:
-  key: "your-license-key"
+licenseKey: "your-license-key"
 auth:
   method: oidc
   # ... rest of config
@@ -201,10 +206,10 @@ See [values.yaml](./values.yaml) for all available configuration options.
 | `image.repository` | Container image repository | `ghcr.io/gimlet-io/capacitor-next` |
 | `image.tag` | Container image tag | `v2025-10.1` |
 | `replicaCount` | Number of replicas | `1` |
-| `license.key` | License key (required) | `""` |
+| `licenseKey` | License key | `""` |
 | `auth.method` | Authentication method: `oidc`, `noauth`, `static` | `noauth` |
-| `session.hashKey` | Session hash key (required) | `""` |
-| `session.blockKey` | Session block key (required) | `""` |
+| `session.hashKey` | Session hash key | `""` |
+| `session.blockKey` | Session block key | `""` |
 | `existingSecret.name` | Name of existing secret to use in addition to built-in secret | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
 | `rbac.create` | Create RBAC resources | `true` |
