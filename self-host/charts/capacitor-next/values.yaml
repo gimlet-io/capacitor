@@ -136,6 +136,27 @@ tolerations: []
 # Affinity
 affinity: {}
 
+# Extra volumes
+extraVolumes: []
+  # - name: config-volume
+  #   configMap:
+  #     name: special-config
+  # - name: cache-volume
+  #   emptyDir: {}
+  # - name: data-volume
+  #   persistentVolumeClaim:
+  #     claimName: my-pvc
+
+# Extra volume mounts
+extraVolumeMounts: []
+  # - name: config-volume
+  #   mountPath: /etc/config
+  #   readOnly: true
+  # - name: cache-volume
+  #   mountPath: /var/cache
+  # - name: data-volume
+  #   mountPath: /data
+
 # Existing secret configuration
 # If specified, the deployment will use this secret in addition to the built-in secret
 # Both secrets will be loaded via envFrom, allowing you to override or supplement values

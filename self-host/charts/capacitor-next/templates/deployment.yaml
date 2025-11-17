@@ -58,6 +58,9 @@ spec:
             - name: registry
               mountPath: /app/backend/registry.yaml
               subPath: registry.yaml
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: registry
           secret:
@@ -65,6 +68,9 @@ spec:
             items:
               - key: registry.yaml
                 path: registry.yaml
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
