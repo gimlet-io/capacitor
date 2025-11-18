@@ -19,7 +19,7 @@ spec:
       serviceAccountName: capacitor-next
       containers:
         - name: capacitor-next
-          image: ghcr.io/gimlet-io/capacitor-next:v2025-11.1-patch2-patch2-patch1
+          image: ghcr.io/gimlet-io/capacitor-next:v2025-11.1-patch2
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
