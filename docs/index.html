@@ -18,12 +18,176 @@
   <meta name="twitter:description" content="Or ArgoCD UI, just lighter. With heavy FluxCD focus.">
   <meta name="twitter:image" content="https://gimlet.io/capacitor-next/social.svg">
   <link rel="stylesheet" href="product.css">
+  <link rel="stylesheet" href="synth.css">
 </head>
 <body>
   <div class="scanlines" aria-hidden="true"></div>
   <main class="container">
     <header class="hero">
       <div class="logo" aria-hidden="true"></div>
+      <section class="synth" aria-label="Mini synthesizer">
+        <div class="synth-module synth-module--oscillator">
+          <div class="synth-module-header">Flux</div>
+          <div class="synth-module-body">
+            <div class="synth-row">
+              <button class="synth-button synth-wave-button synth-wave-button--active" data-wave="sine" type="button">Sine</button>
+              <button class="synth-button synth-wave-button" data-wave="square" type="button">Square</button>
+              <button class="synth-button synth-wave-button" data-wave="sawtooth" type="button">Saw</button>
+            </div>
+            <button class="synth-button synth-play-button" data-synth-play type="button">Play</button>
+            <label class="synth-knob">
+              <span class="synth-knob-label">Pitch</span>
+              <input
+                class="synth-knob-input"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0.5"
+                id="synthPitch"
+                aria-label="Oscillator pitch"
+              />
+              <span class="synth-knob-value" id="synthPitchValue">220 Hz</span>
+            </label>
+          </div>
+        </div>
+        <div class="synth-module synth-module--filter">
+          <div class="synth-module-header">Capacitor</div>
+          <div class="synth-module-body">
+            <label class="synth-knob">
+              <span class="synth-knob-label">Cutoff</span>
+              <input
+                class="synth-knob-input"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="1"
+                id="synthFilterFrequency"
+                aria-label="Filter cutoff frequency"
+              />
+              <span class="synth-knob-value" id="synthFilterFrequencyValue">1.2 kHz</span>
+            </label>
+            <label class="synth-knob synth-knob--lfo">
+              <span class="synth-knob-label">LFO</span>
+              <input
+                class="synth-knob-input"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0"
+                id="synthLfoRate"
+                aria-label="LFO rate"
+              />
+              <span class="synth-knob-value" id="synthLfoRateValue">Off</span>
+              <span class="synth-lfo-indicator" data-synth-lfo-indicator aria-hidden="true"></span>
+            </label>
+            <label class="synth-knob">
+              <span class="synth-knob-label">LFO Depth</span>
+              <input
+                class="synth-knob-input"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0.45"
+                id="synthLfoDepth"
+                aria-label="LFO depth"
+              />
+              <span class="synth-knob-value" id="synthLfoDepthValue">45%</span>
+            </label>
+          </div>
+        </div>
+        <div class="synth-module synth-module--keyboard">
+          <div class="synth-module-header">Keyboard</div>
+          <div class="synth-module-body">
+            <div class="synth-keyboard" id="synthKeyboard">
+              <button class="synth-key" data-note="60">C</button>
+              <button class="synth-key" data-note="62">D</button>
+              <button class="synth-key" data-note="64">E</button>
+              <button class="synth-key" data-note="65">F</button>
+              <button class="synth-key" data-note="67">G</button>
+              <button class="synth-key" data-note="69">A</button>
+              <button class="synth-key" data-note="71">B</button>
+              <button class="synth-key" data-note="72">C</button>
+            </div>
+            <div class="synth-row">
+              <label class="synth-knob">
+                <span class="synth-knob-label">Attack</span>
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.05"
+                  id="synthEnvAttack"
+                  aria-label="Envelope attack"
+                />
+                <span class="synth-knob-value" id="synthEnvAttackValue">20 ms</span>
+              </label>
+              <label class="synth-knob">
+                <span class="synth-knob-label">Decay</span>
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.2"
+                  id="synthEnvDecay"
+                  aria-label="Envelope decay"
+                />
+                <span class="synth-knob-value" id="synthEnvDecayValue">120 ms</span>
+              </label>
+              <label class="synth-knob">
+                <span class="synth-knob-label">Sustain</span>
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.7"
+                  id="synthEnvSustain"
+                  aria-label="Envelope sustain"
+                />
+                <span class="synth-knob-value" id="synthEnvSustainValue">0.70</span>
+              </label>
+              <label class="synth-knob">
+                <span class="synth-knob-label">Release</span>
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.25"
+                  id="synthEnvRelease"
+                  aria-label="Envelope release"
+                />
+                <span class="synth-knob-value" id="synthEnvReleaseValue">250 ms</span>
+              </label>
+            </div>
+            <button class="synth-button synth-keyboard-toggle" id="synthKeyboardToggle" type="button">
+              Keyboard: On
+            </button>
+          </div>
+        </div>
+        <div class="synth-module synth-module--scope">
+          <div class="synth-module-header"></div>
+          <div class="synth-module-body">
+            <canvas
+              id="synthScope"
+              class="synth-scope-canvas"
+              width="360"
+              height="140"
+              aria-label="Waveform and harmonics oscilloscope"
+            ></canvas>
+          </div>
+        </div>
+      </section>
       <h1 class="glitch" data-text="Capacitor Next">Capacitor Next</h1>
       <p class="tagline">Think k9s, but in the browser. Or ArgoCD UI, just lighter. With heavy FluxCD focus.</p>
       <div class="cta">
@@ -93,6 +257,7 @@
   </main>
 
   <script src="product.js"></script>
+  <script src="synth.js"></script>
 </body>
 </html>
 
