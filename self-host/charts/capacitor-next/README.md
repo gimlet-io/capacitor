@@ -68,6 +68,20 @@ clusters:
     certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     serviceAccount:
       tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+# Optional: configure default system views shown in the UI
+# Multi-line JSON example using a literal block scalar
+systemViews: |
+  [
+    {
+      "id": "pods",
+      "label": "Pods",
+      "filters": [
+        { "name": "ResourceType", "value": "core/Pod" },
+        { "name": "Namespace", "value": "flux-system" }
+      ]
+    }
+  ]
 ```
 
 ### OIDC Authentication
@@ -210,6 +224,7 @@ See [values.yaml](./values.yaml) for all available configuration options.
 | `auth.method` | Authentication method: `oidc`, `noauth`, `static` | `noauth` |
 | `session.hashKey` | Session hash key | `""` |
 | `session.blockKey` | Session block key | `""` |
+| `systemViews` | JSON array configuring default system views exposed via `SYSTEM_VIEWS` env var | `""` |
 | `existingSecret.name` | Name of existing secret to use in addition to built-in secret | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
 | `rbac.create` | Create RBAC resources | `true` |
