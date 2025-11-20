@@ -3,22 +3,6 @@
 
 export type ThemeName = "light" | "dark" | "mallow";
 
-export async function fetchDefaultTheme(): Promise<ThemeName | null> {
-  try {
-    const res = await fetch("/api/config");
-    if (!res.ok) return null;
-    const data = await res.json();
-    const theme = (data?.theme ?? "light") as string;
-    if (theme === "light" || theme === "dark" || theme === "mallow") {
-      return theme;
-    }
-    return "light";
-  } catch {
-    // Ignore network errors; fall back to defaults
-    return null;
-  }
-}
-
 export function applyTheme(theme: ThemeName) {
   const root = document.documentElement;
   if (theme) {

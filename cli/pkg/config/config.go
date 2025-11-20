@@ -18,9 +18,6 @@ type Config struct {
 	Port                 int
 	StaticFilesDirectory string
 
-	// UI settings
-	Theme string
-
 	// Kubernetes settings
 	KubeConfigPath        string
 	InsecureSkipTLSVerify bool
@@ -34,7 +31,6 @@ func New() *Config {
 		StaticFilesDirectory:  "./web/static",
 		KubeConfigPath:        defaultKubeConfigPath(),
 		InsecureSkipTLSVerify: false,
-		Theme:                 "light",
 	}
 }
 
@@ -46,7 +42,6 @@ func (c *Config) Parse() {
 	pflag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve (dev purposes only)")
 	pflag.StringVar(&c.KubeConfigPath, "kubeconfig", c.KubeConfigPath, "Path to kubeconfig file (KUBECONFIG)")
 	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development) (KUBECONFIG_INSECURE_SKIP_TLS_VERIFY)")
-	pflag.StringVarP(&c.Theme, "theme", "t", c.Theme, "UI theme preset (light|dark|mallow) (CAPACITOR_NEXT_THEME)")
 
 	pflag.Parse()
 
@@ -58,9 +53,6 @@ func (c *Config) Parse() {
 		if port, err := strconv.Atoi(env); err == nil {
 			c.Port = port
 		}
-	}
-	if env := os.Getenv("CAPACITOR_NEXT_THEME"); env != "" {
-		c.Theme = env
 	}
 	if env := os.Getenv("CAPACITOR_NEXT_STATIC_DIR"); env != "" {
 		c.StaticFilesDirectory = env

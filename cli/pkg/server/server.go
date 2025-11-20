@@ -266,10 +266,9 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// App configuration endpoint (exposes UI options like theme)
+	// App configuration endpoint (exposes UI options like system views)
 	s.echo.GET("/api/config", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"theme":       s.config.Theme,
 			"systemViews": defaultSystemViews,
 		})
 	})
