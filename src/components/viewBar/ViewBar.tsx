@@ -15,57 +15,6 @@ export interface View {
   filters: ActiveFilter[];
 }
 
-const SYSTEM_VIEWS: View[] = [
-  { 
-    id: 'pods',
-    label: 'Pods',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'core/Pod' },
-      { name: 'Namespace', value: 'all-namespaces' }]
-  },
-  { 
-    id: 'services',
-    label: 'Services',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'core/Service' },
-      { name: 'Namespace', value: 'all-namespaces' }]
-  },
-  { 
-    id: 'helm',
-    label: 'Helm',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'helm.sh/Release' },
-      { name: 'Namespace', value: 'all-namespaces' }]
-  },
-  { 
-    id: 'fluxcd/kustomizations',
-    label: 'FluxCD/Kustomizations',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'kustomize.toolkit.fluxcd.io/Kustomization' },
-      { name: 'Namespace', value: 'all-namespaces' }]
-  },
-  { 
-    id: 'fluxcd/helmreleases',
-    label: 'FluxCD/HelmReleases',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'helm.toolkit.fluxcd.io/HelmRelease' },
-      { name: 'Namespace', value: 'all-namespaces' }]
-  },
-  { 
-    id: 'argocd',
-    label: 'ArgoCD',
-    isSystem: true,
-    filters: [
-      { name: 'ResourceType', value: 'argoproj.io/Application' },
-      { name: 'Namespace', value: 'argocd' }]
-  }
-];
-
 export interface ViewBarProps {
   // Enable/disable keyboard shortcuts handling (useful for multi-pane focus)
   keyboardEnabled?: boolean;
@@ -73,6 +22,7 @@ export interface ViewBarProps {
 
 export function ViewBar(props: ViewBarProps) {
   const [views, setViews] = createSignal<View[]>([]);
+  const [systemViews, setSystemViews] = createSignal<View[]>([]);
   const [viewMenuOpen, setViewMenuOpen] = createSignal(false);
   let viewMenuRef: HTMLDivElement | undefined;
   const paneFilterStore = usePaneFilterStore();
@@ -222,7 +172,48 @@ export function ViewBar(props: ViewBarProps) {
   // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal in shortcuts.ts
  
   onMount(() => {
-    loadViews();
+    // First, try to load system views from the backend config, then initialize the full list
+    (async () => {
+      try {
+        const res = await fetch("/api/config");
+        if (res.ok) {
+          const data = await res.json() as { systemViews?: unknown };
+          const rawViews = (data && (data as any).systemViews) as unknown;
+          if (Array.isArray(rawViews)) {
+            const parsed: View[] = rawViews
+              .map((raw: any): View | null => {
+                if (!raw || typeof raw !== "object") return null;
+                const id = String((raw as any).id ?? "").trim();
+                const label = String((raw as any).label ?? "").trim();
+                const rawFilters = (raw as any).filters;
+                const filters: ActiveFilter[] = Array.isArray(rawFilters)
+                  ? rawFilters
+                      .filter((f: any) => f && typeof f.name === "string" && typeof f.value === "string")
+                      .map((f: any) => ({ name: f.name as string, value: f.value as string }))
+                  : [];
+                if (!id || !label || filters.length === 0) {
+                  return null;
+                }
+                return {
+                  id,
+                  label,
+                  isSystem: (raw as any).isSystem !== false,
+                  filters,
+                };
+              })
+              .filter((v): v is View => v !== null);
+
+            if (parsed.length > 0) {
+              setSystemViews(parsed);
+            }
+          }
+        }
+      } catch {
+        // Ignore network or parsing errors; fall back to whatever systemViews already holds (possibly empty)
+      } finally {
+        loadViews();
+      }
+    })();
     try {
       const handler: EventListener = () => loadViews();
       // store handler on window for cleanup without using `any`
@@ -256,23 +247,29 @@ export function ViewBar(props: ViewBarProps) {
         }
       }
       
-      const systemViewsFiltered = SYSTEM_VIEWS.filter(v => !hiddenSystemViewIds.includes(v.id));
+      const baseSystemViews = systemViews();
+      const systemViewsFiltered = baseSystemViews.filter(v => !hiddenSystemViewIds.includes(v.id));
       const allViews = [...systemViewsFiltered, ...customViews];
       setViews(allViews);
       
       // Maintain the current selection if possible or select the first view
       const currentViewId = paneFilterStore.selectedView;
       const viewExists = allViews.some(v => v.id === currentViewId);
-      // If filters are already active (e.g., loaded from URL), don't override them
-      const hasActiveFilters = Array.isArray(paneFilterStore.activeFilters) && paneFilterStore.activeFilters.length > 0;
+      // If filters are already active (e.g., loaded from URL or user-changed), don't override them.
+      // However, if we're still on the store's DEFAULT_PANE_FILTERS, treat that as "no real filters yet"
+      // so the first configured view can become the true default.
+      const hasActiveFilters =
+        Array.isArray(paneFilterStore.activeFilters) &&
+        paneFilterStore.activeFilters.length > 0 &&
+        !paneFilterStore.isUsingDefaultFilters;
 
       if (!viewExists && allViews.length > 0 && !hasActiveFilters) {
         selectView(allViews[0].id);
       }
     } catch (error) {
       console.error('Error loading views:', error);
-      // Even if there's an error, we should still try to load system views
-      setViews(SYSTEM_VIEWS);
+      // Even if there's an error, we should still try to use whatever system views we currently have
+      setViews(systemViews());
     }
   };
   

@@ -66,6 +66,70 @@ type proxyContextKey struct{}
 
 var proxyCtxKey = &proxyContextKey{}
 
+// SystemViewFilter represents a single filter entry in a system view configuration
+type SystemViewFilter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// SystemView represents a single system view configuration exposed via /api/config
+type SystemView struct {
+	ID       string             `json:"id"`
+	Label    string             `json:"label"`
+	IsSystem bool               `json:"isSystem"`
+	Filters  []SystemViewFilter `json:"filters"`
+}
+
+// defaultSystemViews contains the built‑in system views that were previously hardcoded in ViewBar.tsx.
+// They are now served from the backend so they can be centrally controlled and customized.
+var defaultSystemViews = []SystemView{
+	{
+		ID:       "pods",
+		Label:    "Pods",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "core/Pod"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "services",
+		Label:    "Services",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "core/Service"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "helm",
+		Label:    "Helm",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "helm.sh/Release"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "fluxcd/kustomizations",
+		Label:    "FluxCD/Kustomizations",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "kustomize.toolkit.fluxcd.io/Kustomization"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "fluxcd/helmreleases",
+		Label:    "FluxCD/HelmReleases",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "helm.toolkit.fluxcd.io/HelmRelease"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+}
+
 // Removed per-route withK8sProxy wrapper; using global middleware to attach proxies
 
 // getProxyFromContext fetches the KubernetesProxy previously attached by middleware
@@ -202,10 +266,10 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// App configuration endpoint (exposes UI options like theme)
+	// App configuration endpoint (exposes UI options like system views)
 	s.echo.GET("/api/config", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"theme": s.config.Theme,
+			"systemViews": defaultSystemViews,
 		})
 	})
 

@@ -110,6 +110,22 @@ clusters:
   #   agent: true
   #   agentSecret: ""  # Generate with: openssl rand -hex 32
 
+# Optional JSON configuration for system views used by the UI.
+# When set, this value is exposed to the server as the SYSTEM_VIEWS environment variable.
+# Example (multi-line JSON using a literal block scalar):
+# systemViews: |
+#   [
+#     {
+#       "id": "pods",
+#       "label": "Pods",
+#       "filters": [
+#         { "name": "ResourceType", "value": "core/Pod" },
+#         { "name": "Namespace", "value": "flux-system" }
+#       ]
+#     }
+#   ]
+systemViews: ""
+
 # Ingress configuration
 ingress:
   enabled: false

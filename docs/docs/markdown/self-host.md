@@ -35,6 +35,19 @@ stringData:
   IMPERSONATE_SA_RULES: noauth=flux-system:capacitor-next-builtin-editor
   SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
   SESSION_BLOCK_KEY: "base64:< same value as the line before>"
+  # Optional: configure default system views shown in the UI
+  # The value must be valid JSON (can be multi-line). Using a literal block scalar is recommended:
+  SYSTEM_VIEWS: |
+    [
+      {
+        "id": "pods",
+        "label": "Pods",
+        "filters": [
+          { "name": "ResourceType", "value": "core/Pod" },
+          { "name": "Namespace", "value": "flux-system" }
+        ]
+      }
+    ]
   registry.yaml: |
     clusters:
       - id: in-cluster

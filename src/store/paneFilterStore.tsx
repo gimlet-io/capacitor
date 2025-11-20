@@ -8,6 +8,8 @@ interface PaneFilterState {
   // Active filters for this pane
   activeFilters: ActiveFilter[];
   setActiveFilters: (filters: ActiveFilter[]) => void;
+  // Whether the pane is still using its built-in default filters (no user/URL state yet)
+  isUsingDefaultFilters: boolean;
   
   // Selected view for this pane
   selectedView: string;
@@ -69,6 +71,8 @@ export function PaneFilterProvider(props: {
   const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
   const [sortColumn, setSortColumn] = createSignal<string | null>(null);
   const [sortAscending, setSortAscending] = createSignal<boolean>(true);
+  // Track whether we're still on the built-in defaults (no URL/cache/user interaction yet)
+  const [usingDefaultFilters, setUsingDefaultFilters] = createSignal<boolean>(!props.initialFilters);
 
   // Register this pane's filter getter in the registry
   onMount(() => {
@@ -122,6 +126,7 @@ export function PaneFilterProvider(props: {
   // Custom setActiveFilters that manages history
   const setActiveFilters = (filters: ActiveFilter[]) => {
     setActiveFiltersInternal(filters);
+    setUsingDefaultFilters(false);
     addToHistory(filters, selectedView());
   };
 
@@ -160,6 +165,7 @@ export function PaneFilterProvider(props: {
   const store: PaneFilterState = {
     get activeFilters() { return activeFilters(); },
     setActiveFilters,
+    get isUsingDefaultFilters() { return usingDefaultFilters(); },
     get selectedView() { return selectedView(); },
     setSelectedView,
     get filterHistory() { return filterHistory(); },
