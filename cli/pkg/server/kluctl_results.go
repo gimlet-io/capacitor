@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"time"
@@ -16,11 +19,33 @@ import (
 // for a single resource discriminator. It is rendered to a Kubernetes-style object
 // with apiVersion kluctl.io/v1, kind Deployment.
 type kluctlDeploymentPseudoResource struct {
-	APIVersion string                 `json:"apiVersion"`
-	Kind       string                 `json:"kind"`
-	Metadata   map[string]interface{} `json:"metadata"`
-	Spec       map[string]interface{} `json:"spec,omitempty"`
-	Status     map[string]interface{} `json:"status,omitempty"`
+	APIVersion string                   `json:"apiVersion"`
+	Kind       string                   `json:"kind"`
+	Metadata   KluctlDeploymentMetadata `json:"metadata"`
+	Spec       KluctlDeploymentSpec     `json:"spec,omitempty"`
+	Status     KluctlDeploymentStatus   `json:"status,omitempty"`
+}
+
+// KluctlDeploymentMetadata models standard Kubernetes metadata for the pseudo resource.
+type KluctlDeploymentMetadata struct {
+	Name              string `json:"name"`
+	Namespace         string `json:"namespace"`
+	CreationTimestamp string `json:"creationTimestamp"`
+}
+
+// KluctlDeploymentSpec describes the logical project/target pair this pseudo Deployment represents.
+type KluctlDeploymentSpec struct {
+	Project ProjectKey `json:"project"`
+	Target  TargetKey  `json:"target"`
+}
+
+// KluctlDeploymentStatus contains aggregated status and full command summaries.
+type KluctlDeploymentStatus struct {
+	AgeSeconds          int64                  `json:"ageSeconds"`
+	LatestResult        CommandResultSummary   `json:"latestResult"`
+	CommandSummaries    []CommandResultSummary `json:"commandSummaries"`
+	LatestReducedResult string                 `json:"latestReducedResult,omitempty"`
+	LatestCompactedJson string                 `json:"latestCompactedObjects,omitempty"`
 }
 
 // kluctlDeploymentKey is used to group CommandResultSummaries that belong
@@ -124,56 +149,21 @@ func buildKluctlDeploymentObject(g kluctlDeploymentGroup) kluctlDeploymentPseudo
 		}
 	}
 
-	// Basic status summary from latest result.
-	statusSummary := map[string]interface{}{
-		"id":             latest.Id,
-		"command":        latest.Command.Command,
-		"startTime":      latest.Command.StartTime.Format(time.RFC3339),
-		"endTime":        latest.Command.EndTime.Format(time.RFC3339),
-		"errors":         len(latest.Errors),
-		"warnings":       len(latest.Warnings),
-		"changedObjects": latest.ChangedObjects,
-		"newObjects":     latest.NewObjects,
-		"deletedObjects": latest.DeletedObjects,
-		"orphanObjects":  latest.OrphanObjects,
-		"appliedObjects": latest.AppliedObjects,
-		"totalChanges":   latest.TotalChanges,
+	meta := KluctlDeploymentMetadata{
+		Name:              sanitizeKluctlName(name),
+		Namespace:         namespace,
+		CreationTimestamp: latest.Command.StartTime.Format(time.RFC3339),
 	}
 
-	// Embed last few summaries for detailRowRenderer (the UI will slice to 5).
-	summaries := make([]map[string]interface{}, len(g.Summaries))
-	for i, s := range g.Summaries {
-		summaries[i] = map[string]interface{}{
-			"id":             s.Id,
-			"command":        s.Command.Command,
-			"startTime":      s.Command.StartTime.Format(time.RFC3339),
-			"endTime":        s.Command.EndTime.Format(time.RFC3339),
-			"errors":         len(s.Errors),
-			"warnings":       len(s.Warnings),
-			"changedObjects": s.ChangedObjects,
-			"newObjects":     s.NewObjects,
-			"deletedObjects": s.DeletedObjects,
-			"orphanObjects":  s.OrphanObjects,
-			"appliedObjects": s.AppliedObjects,
-			"totalChanges":   s.TotalChanges,
-		}
+	spec := KluctlDeploymentSpec{
+		Project: latest.ProjectKey,
+		Target:  latest.TargetKey,
 	}
 
-	meta := map[string]interface{}{
-		"name":              sanitizeKluctlName(name),
-		"namespace":         namespace,
-		"creationTimestamp": latest.Command.StartTime.Format(time.RFC3339),
-	}
-
-	spec := map[string]interface{}{
-		"project": latest.ProjectKey,
-		"target":  latest.TargetKey,
-	}
-
-	status := map[string]interface{}{
-		"ageSeconds":       ageSeconds,
-		"latestResult":     statusSummary,
-		"commandSummaries": summaries,
+	status := KluctlDeploymentStatus{
+		AgeSeconds:       ageSeconds,
+		LatestResult:     latest,
+		CommandSummaries: g.Summaries,
 	}
 
 	return kluctlDeploymentPseudoResource{
@@ -283,14 +273,35 @@ type CommandResultSummary struct {
 	TotalChanges int `json:"totalChanges"`
 }
 
-// listCommandResultSummaries lists command result summaries by reading the
-// summary annotation from Secrets in the given namespace.
-func listCommandResultSummaries(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, error) {
+// CommandResultPayload holds decoded JSON payloads from the result Secret.
+type CommandResultPayload struct {
+	ReducedResultJSON    string `json:"reducedResult,omitempty"`
+	CompactedObjectsJSON string `json:"compactedObjects,omitempty"`
+}
+
+// gunzipToString decompresses a gzip-compressed byte slice into a string.
+func gunzipToString(data []byte) (string, error) {
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// listCommandResultSummariesWithPayload lists command result summaries by reading the
+// summary annotation from Secrets in the given namespace and also returning decoded
+// JSON payloads from the Secret's data.
+func listCommandResultSummariesWithPayload(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, map[string]CommandResultPayload, error) {
 	if k8sClient == nil || k8sClient.Clientset == nil {
-		return nil, fmt.Errorf("kubernetes clientset not initialized")
+		return nil, nil, fmt.Errorf("kubernetes clientset not initialized")
 	}
 	if commandResultNamespace == "" {
-		return nil, fmt.Errorf("command result namespace is empty")
+		return nil, nil, fmt.Errorf("command result namespace is empty")
 	}
 
 	secretClient := k8sClient.Clientset.CoreV1().Secrets(commandResultNamespace)
@@ -298,21 +309,53 @@ func listCommandResultSummaries(ctx context.Context, k8sClient *kubernetes.Clien
 		LabelSelector: "kluctl.io/command-result-id",
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	summaries := make([]CommandResultSummary, 0, len(secretList.Items))
+	payloads := make(map[string]CommandResultPayload, len(secretList.Items))
 	for _, s := range secretList.Items {
 		ann := s.Annotations["kluctl.io/command-result-summary"]
 		if ann == "" {
 			continue
 		}
 		var summary CommandResultSummary
+		log.Printf("unmarshalling command result summary: %s", ann)
+		// Log secret data contents (decoded bytes as text, truncated) for debugging.
 		if err := json.Unmarshal([]byte(ann), &summary); err != nil {
 			log.Printf("failed to unmarshal command result summary: %v", err)
 			continue
 		}
+
+		var reducedJSON, compactedJSON string
+		if data, ok := s.Data["reducedResult"]; ok && len(data) > 0 {
+			if txt, err := gunzipToString(data); err != nil {
+				log.Printf("failed to gunzip reducedResult for %s/%s: %v", s.Namespace, s.Name, err)
+			} else {
+				reducedJSON = txt
+			}
+		}
+		if data, ok := s.Data["compactedObjects"]; ok && len(data) > 0 {
+			if txt, err := gunzipToString(data); err != nil {
+				log.Printf("failed to gunzip compactedObjects for %s/%s: %v", s.Namespace, s.Name, err)
+			} else {
+				compactedJSON = txt
+			}
+		}
+		if reducedJSON != "" || compactedJSON != "" {
+			payloads[summary.Id] = CommandResultPayload{
+				ReducedResultJSON:    reducedJSON,
+				CompactedObjectsJSON: compactedJSON,
+			}
+		}
+
 		summaries = append(summaries, summary)
 	}
-	return summaries, nil
+	return summaries, payloads, nil
+}
+
+// listCommandResultSummaries is a compatibility wrapper that returns only summaries.
+func listCommandResultSummaries(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, error) {
+	summaries, _, err := listCommandResultSummariesWithPayload(ctx, k8sClient, commandResultNamespace)
+	return summaries, err
 }

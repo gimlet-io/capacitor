@@ -1405,7 +1405,7 @@ func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesPr
 		commandResultNamespace = "kluctl-results"
 	}
 
-	summaries, err := listCommandResultSummaries(ctx, proxy.k8sClient, commandResultNamespace)
+	summaries, payloads, err := listCommandResultSummariesWithPayload(ctx, proxy.k8sClient, commandResultNamespace)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": fmt.Sprintf("failed to list kluctl command results: %v", err),
@@ -1416,42 +1416,42 @@ func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesPr
 
 	// Build pseudo Deployment objects, optionally filtering by namespace.
 	items := make([]map[string]interface{}, 0, len(groups))
+	rows := make([]map[string]interface{}, 0, len(groups))
 	for _, g := range groups {
 		obj := buildKluctlDeploymentObject(g)
+		// Attach decoded JSON payloads for the latest result, when available.
+		if p, ok := payloads[obj.Status.LatestResult.Id]; ok {
+			obj.Status.LatestReducedResult = p.ReducedResultJSON
+			obj.Status.LatestCompactedJson = p.CompactedObjectsJSON
+		}
 		// Ensure every pseudo Deployment has a namespace; default to the command result namespace
 		// when KluctlDeploymentInfo.Namespace is not available.
-		if ns, ok := obj.Metadata["namespace"].(string); !ok || ns == "" {
-			obj.Metadata["namespace"] = commandResultNamespace
+		if obj.Metadata.Namespace == "" {
+			obj.Metadata.Namespace = commandResultNamespace
 		}
-		if namespace != "" && obj.Metadata["namespace"] != namespace {
+		if namespace != "" && obj.Metadata.Namespace != namespace {
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		item := map[string]interface{}{
 			"apiVersion": obj.APIVersion,
 			"kind":       obj.Kind,
 			"metadata":   obj.Metadata,
 			"spec":       obj.Spec,
 			"status":     obj.Status,
+		}
+		items = append(items, item)
+		rows = append(rows, map[string]interface{}{
+			"cells": []interface{}{
+				obj.Metadata.Name,
+				obj.Metadata.Namespace,
+			},
+			"object": item,
 		})
 	}
 
 	accept := c.Request().Header.Get("Accept")
 	if strings.Contains(accept, "as=Table;g=meta.k8s.io;v1") {
 		// Minimal Table response; columns are resolved client-side, so we only need rows with object references.
-		rows := make([]map[string]interface{}, 0, len(items))
-		for _, it := range items {
-			metadata, _ := it["metadata"].(map[string]interface{})
-			name, _ := metadata["name"].(string)
-			ns, _ := metadata["namespace"].(string)
-			rows = append(rows, map[string]interface{}{
-				"cells": []interface{}{
-					name,
-					ns,
-				},
-				"object": it,
-			})
-		}
-
 		table := map[string]interface{}{
 			"kind":       "Table",
 			"apiVersion": "meta.k8s.io/v1",

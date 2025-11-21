@@ -665,7 +665,7 @@ func (h *WebSocketHandler) handleKluctlDeploymentWatch(ctx context.Context, ws *
 
 		// Helper to send a full snapshot of all Kluctl deployments once.
 		sendSnapshot := func() {
-			summaries, err := listCommandResultSummaries(ctx, h.k8sClient, commandResultNamespace)
+			summaries, payloads, err := listCommandResultSummariesWithPayload(ctx, h.k8sClient, commandResultNamespace)
 			if err != nil {
 				log.Printf("Error listing Kluctl command results: %v", err)
 				h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Kluctl command results: %v", err))
@@ -675,12 +675,17 @@ func (h *WebSocketHandler) handleKluctlDeploymentWatch(ctx context.Context, ws *
 			groups := groupCommandResultSummaries(summaries)
 			for _, g := range groups {
 				obj := buildKluctlDeploymentObject(g)
+				// Attach decoded JSON payloads for the latest result, when available.
+				if p, ok := payloads[obj.Status.LatestResult.Id]; ok {
+					obj.Status.LatestReducedResult = p.ReducedResultJSON
+					obj.Status.LatestCompactedJson = p.CompactedObjectsJSON
+				}
 				// Ensure a namespace is always present on the pseudo Deployment; fall back to
 				// the command result namespace when KluctlDeploymentInfo.Namespace is absent.
-				if ns, ok := obj.Metadata["namespace"].(string); !ok || ns == "" {
-					obj.Metadata["namespace"] = commandResultNamespace
+				if obj.Metadata.Namespace == "" {
+					obj.Metadata.Namespace = commandResultNamespace
 				}
-				if namespaceFilter != "" && obj.Metadata["namespace"] != namespaceFilter {
+				if namespaceFilter != "" && obj.Metadata.Namespace != namespaceFilter {
 					continue
 				}
 

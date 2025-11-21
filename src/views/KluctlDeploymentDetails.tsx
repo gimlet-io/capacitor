@@ -75,6 +75,7 @@ export function KluctlDeploymentDetails() {
               event.object?.metadata?.name === name &&
               (ns === "" || event.object?.metadata?.namespace === ns)) {
             setDeployment(event.object);
+            console.log("deployment set", event.object);
           }
         },
         controller,
@@ -209,34 +210,68 @@ export function KluctlDeploymentDetails() {
                         {summaries.length === 0 ? (
                           <div class="message-cell">No deploy history available.</div>
                         ) : (
-                          <table class="resource-table">
-                            <thead>
-                              <tr>
-                                <th>AGE</th>
-                                <th>COMMAND</th>
-                                <th>CHANGES</th>
-                                <th>ERRORS</th>
-                                <th>WARNINGS</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {summaries.map((s) => (
+                          <>
+                            <table class="resource-table">
+                              <thead>
                                 <tr>
-                                  <td>
-                                    {s.startTime ? useCalculateAge(s.startTime)() : "-"}
-                                  </td>
-                                  <td>
-                                    <code>{s.command}</code>
-                                  </td>
-                                  <td>
-                                    {s.totalChanges ?? s.changedObjects ?? 0}
-                                  </td>
-                                  <td>{s.errors ?? 0}</td>
-                                  <td>{s.warnings ?? 0}</td>
+                                  <th>AGE</th>
+                                  <th>COMMAND</th>
+                                  <th>CHANGES</th>
+                                  <th>ERRORS</th>
+                                  <th>WARNINGS</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {summaries.map((s) => (
+                                  <tr>
+                                    <td>
+                                      {s.startTime ? useCalculateAge(s.startTime)() : "-"}
+                                    </td>
+                                    <td>
+                                      <code>{s.command}</code>
+                                    </td>
+                                    <td>
+                                      {s.totalChanges ?? s.changedObjects ?? 0}
+                                    </td>
+                                    <td>{s.errors ?? 0}</td>
+                                    <td>{s.warnings ?? 0}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+
+                            <details style="margin-top: 12px;">
+                              <summary class="label">Latest reducedResult JSON</summary>
+                              <pre class="conditions-yaml">
+{(() => {
+  const txt = (dep.status?.latestReducedResult as string | undefined) || "";
+  if (!txt) return "No reducedResult payload available";
+  try {
+    const parsed = JSON.parse(txt);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return txt;
+  }
+})()}
+                              </pre>
+                            </details>
+
+                            <details style="margin-top: 12px;">
+                              <summary class="label">Latest compactedObjects JSON</summary>
+                              <pre class="conditions-yaml">
+{(() => {
+  const txt = (dep.status?.latestCompactedObjects as string | undefined) || "";
+  if (!txt) return "No compactedObjects payload available";
+  try {
+    const parsed = JSON.parse(txt);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return txt;
+  }
+})()}
+                              </pre>
+                            </details>
+                          </>
                         )}
                       </div>
                     </div>
