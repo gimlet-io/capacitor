@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -192,6 +193,14 @@ func (h *WebSocketHandler) handleSubscribe(
 		h.handleHelmReleaseWatch(watchCtx, ws, msg)
 		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
 		log.Printf("Successfully subscribed to Helm releases path: %s", msg.Path)
+		return
+	}
+
+	// Check if this is a Kluctl deployment pseudo-resource path
+	if strings.Contains(msg.Path, "/api/kluctl/deployments") {
+		h.handleKluctlDeploymentWatch(watchCtx, ws, msg)
+		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
+		log.Printf("Successfully subscribed to Kluctl deployments path: %s", msg.Path)
 		return
 	}
 
@@ -622,6 +631,81 @@ func (h *WebSocketHandler) compareAndSendHelmChanges(ws *wsutil.WebSocketConnect
 			h.sendDataMessage(ws, msg.ID, msg.Path, event)
 		}
 	}
+}
+
+// handleKluctlDeploymentWatch handles watching Kluctl pseudo Deployments backed by result secrets.
+// It polls the underlying Secrets via the Kubernetes client on a fixed interval and sends watch-style events.
+func (h *WebSocketHandler) handleKluctlDeploymentWatch(ctx context.Context, ws *wsutil.WebSocketConnection, msg *ClientMessage) {
+	// Determine namespace filter from the path, if present.
+	// Path formats:
+	// - /api/{context}/kluctl/deployments/deployments
+	// - /api/{context}/kluctl/deployments/namespaces/{namespace}/deployments
+	namespaceFilter := ""
+	parts := strings.Split(msg.Path, "/")
+	for i := 0; i+1 < len(parts); i++ {
+		if parts[i] == "namespaces" {
+			namespaceFilter = parts[i+1]
+			break
+		}
+	}
+	if strings.EqualFold(namespaceFilter, "all-namespaces") {
+		namespaceFilter = ""
+	}
+
+	// Determine the namespace where Kluctl stores result secrets.
+	commandResultNamespace := os.Getenv("CAPACITOR_KLUCTL_RESULTS_NAMESPACE")
+	if commandResultNamespace == "" {
+		commandResultNamespace = "kluctl-results"
+	}
+
+	// Poll in a goroutine similar to Helm releases.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("Context cancelled for Kluctl deployments watch: %s", msg.Path)
+				return
+			case <-ticker.C:
+				summaries, err := listCommandResultSummaries(ctx, h.k8sClient, commandResultNamespace)
+				if err != nil {
+					log.Printf("Error listing Kluctl command results: %v", err)
+					h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Kluctl command results: %v", err))
+					continue
+				}
+
+				groups := groupCommandResultSummaries(summaries)
+				for _, g := range groups {
+					obj := buildKluctlDeploymentObject(g)
+					if namespaceFilter != "" && obj.Metadata["namespace"] != namespaceFilter {
+						continue
+					}
+
+					wireObj := map[string]interface{}{
+						"apiVersion": obj.APIVersion,
+						"kind":       obj.Kind,
+						"metadata":   obj.Metadata,
+						"spec":       obj.Spec,
+						"status":     obj.Status,
+					}
+
+					data, err := json.Marshal(wireObj)
+					if err != nil {
+						log.Printf("Error marshaling Kluctl deployment object: %v", err)
+						continue
+					}
+
+					event := &kubernetes.WatchEvent{
+						Type:   "MODIFIED",
+						Object: json.RawMessage(data),
+					}
+					h.sendDataMessage(ws, msg.ID, msg.Path, event)
+				}
+			}
+		}
+	}()
 }
 
 // helmReleaseToRawMessage converts a Helm release to json.RawMessage

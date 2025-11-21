@@ -18,6 +18,7 @@ import { applicationColumns, renderApplicationDetails } from "./components/resou
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
 import { eventColumns, eventTypeFilter } from "./components/resourceList/EventList.tsx";
 import { kluctlDeploymentColumns, renderKluctlDeploymentDetails } from "./components/resourceList/KluctlDeploymentList.tsx";
+import { kluctlDeploymentResultColumns, renderKluctlDeploymentResultsDetails } from "./components/resourceList/KluctlDeploymentResultsList.tsx";
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale, handleRolloutRestart } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
@@ -1157,6 +1158,22 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       'status.conditions'
     ],
     abbreviations: ['tf']
+  },
+  
+  'kluctl.io/Deployment': {
+    columns: kluctlDeploymentResultColumns,
+    detailRowRenderer: renderKluctlDeploymentResultsDetails,
+    rowKeyField: "name",
+    commands: [
+      ...builtInCommands,
+    ],
+    defaultSortColumn: "NAME",
+    projectFields: [
+      'spec.project',
+      'spec.target',
+      'status.latestResult',
+      'status.commandSummaries'
+    ]
   },
   
   'gitops.kluctl.io/KluctlDeployment': {

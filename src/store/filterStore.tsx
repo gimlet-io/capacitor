@@ -195,6 +195,20 @@ export function FilterProvider(props: { children: JSX.Element }) {
 
     resources.push(helmReleaseResource);
 
+    // Add Kluctl Deployments as a special pseudo resource type backed by Kluctl result secrets
+    const kluctlDeploymentResource: K8sResource = {
+      id: 'kluctl.io/Deployment',
+      filters: [namespaceFilter(), nameFilter],
+      group: 'kluctl.io',
+      version: 'v1',
+      kind: 'Deployment',
+      apiPath: ctxName ? `/api/${ctxName}/kluctl/deployments` : '/api/kluctl/deployments',
+      name: 'deployments',
+      namespaced: true
+    };
+
+    resources.push(kluctlDeploymentResource);
+
     setK8sResources(resources);
   });
 
