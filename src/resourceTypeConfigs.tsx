@@ -17,6 +17,7 @@ import { bucketColumns, renderBucketDetails } from "./components/resourceList/Bu
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
 import { helmReleaseColumns, helmReleaseStatusFilter, helmReleaseChartFilter } from "./components/resourceList/HelmReleaseList.tsx";
 import { eventColumns, eventTypeFilter } from "./components/resourceList/EventList.tsx";
+import { kluctlDeploymentColumns, renderKluctlDeploymentDetails } from "./components/resourceList/KluctlDeploymentList.tsx";
 import { KeyboardShortcut } from "./components/keyboardShortcuts/KeyboardShortcuts.tsx";
 import { handleScale, handleRolloutRestart } from "./components/resourceList/DeploymentList.tsx";
 import { Filter } from "./components/filterBar/FilterBar.tsx";
@@ -50,7 +51,8 @@ import {
   updateKustomizationMatchingGitRepositories,
   updateKustomizationMatchingBuckets,
   updateKustomizationMatchingOCIRepositories,
-  updateHelmReleaseMatchingEvents
+  updateHelmReleaseMatchingEvents,
+  updateKluctlDeploymentMatchingEvents
 } from "./utils/k8s.ts";
 import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources, updateServiceMatchingPods, updateServiceMatchingIngresses, updateServiceMatchingKustomizations } from "./utils/k8s.ts";
 
@@ -1155,6 +1157,46 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       'status.conditions'
     ],
     abbreviations: ['tf']
+  },
+  
+  'gitops.kluctl.io/KluctlDeployment': {
+    columns: kluctlDeploymentColumns,
+    detailRowRenderer: renderKluctlDeploymentDetails,
+    rowKeyField: "name",
+    commands: [
+      ...builtInCommands,
+    ],
+    defaultSortColumn: "NAME",
+    projectFields: [
+      'spec.interval',
+      'spec.target',
+      'spec.source.git.url',
+      'spec.source.git.path',
+      'spec.args',
+      'spec.context',
+      'spec.prune',
+      'spec.delete',
+      'spec.suspend',
+      'status.conditions',
+      'status.lastDeployResult',
+      'status.lastAppliedRevision',
+      'status.lastAttemptedRevision'
+    ],
+    extraWatches: [
+      {
+        resourceType: 'core/Event',
+        updater: (deployment, events) => updateKluctlDeploymentMatchingEvents(deployment, events),
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'type',
+          'lastTimestamp',
+          'reason',
+          'involvedObject',
+          'message',
+          'source.component'
+        ]
+      }
+    ]
   },
   
   'core/Event': {
