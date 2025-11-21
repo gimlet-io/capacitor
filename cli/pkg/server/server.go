@@ -1418,6 +1418,11 @@ func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesPr
 	items := make([]map[string]interface{}, 0, len(groups))
 	for _, g := range groups {
 		obj := buildKluctlDeploymentObject(g)
+		// Ensure every pseudo Deployment has a namespace; default to the command result namespace
+		// when KluctlDeploymentInfo.Namespace is not available.
+		if ns, ok := obj.Metadata["namespace"].(string); !ok || ns == "" {
+			obj.Metadata["namespace"] = commandResultNamespace
+		}
 		if namespace != "" && obj.Metadata["namespace"] != namespace {
 			continue
 		}

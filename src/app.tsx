@@ -10,6 +10,7 @@ import { TerraformDetails } from "./views/TerraformDetails.tsx";
 import { HelmClassicReleaseDetails } from "./views/helmClassicReleaseDetails.tsx";
 import { ApplicationDetails } from "./views/applicationDetails.tsx";
 import { SecretDetails } from "./views/secretDetails.tsx";
+import { KluctlDeploymentDetails } from "./views/KluctlDeploymentDetails.tsx";
 import { Dashboard } from "./views/dashboard.tsx";
 import { FilterProvider } from "./store/filterStore.tsx";
 import { ApiResourceProvider } from "./store/apiResourceStore.tsx";
@@ -45,6 +46,7 @@ function App() {
             <Route path="/helmclassic/:namespace/:name" component={HelmClassicReleaseDetails} />
             <Route path="/application/:namespace/:name" component={ApplicationDetails} />
             <Route path="/secret/:namespace/:name" component={SecretDetails} />
+            <Route path="/kluctldeployment/:namespace/:name" component={KluctlDeploymentDetails} />
           </HashRouter>
         </FilterProvider>
       </ApiResourceProvider>

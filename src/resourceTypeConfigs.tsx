@@ -126,6 +126,11 @@ export const navigateToTerraform: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+export const navigateToKluctlDeployment: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View Kluctl deployment details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
 // Define a command to switch to viewing pods in a namespace
 export const showPodsInNamespace: ResourceCommand = {
   shortcut: { key: "Enter", description: "View pods in this namespace", isContextual: true },
@@ -1166,6 +1171,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
+      navigateToKluctlDeployment
     ],
     defaultSortColumn: "NAME",
     projectFields: [
@@ -1182,6 +1188,7 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     rowKeyField: "name",
     commands: [
       ...builtInCommands,
+      navigateToKluctlDeployment
     ],
     defaultSortColumn: "NAME",
     projectFields: [

@@ -663,46 +663,59 @@ func (h *WebSocketHandler) handleKluctlDeploymentWatch(ctx context.Context, ws *
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
+		// Helper to send a full snapshot of all Kluctl deployments once.
+		sendSnapshot := func() {
+			summaries, err := listCommandResultSummaries(ctx, h.k8sClient, commandResultNamespace)
+			if err != nil {
+				log.Printf("Error listing Kluctl command results: %v", err)
+				h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Kluctl command results: %v", err))
+				return
+			}
+
+			groups := groupCommandResultSummaries(summaries)
+			for _, g := range groups {
+				obj := buildKluctlDeploymentObject(g)
+				// Ensure a namespace is always present on the pseudo Deployment; fall back to
+				// the command result namespace when KluctlDeploymentInfo.Namespace is absent.
+				if ns, ok := obj.Metadata["namespace"].(string); !ok || ns == "" {
+					obj.Metadata["namespace"] = commandResultNamespace
+				}
+				if namespaceFilter != "" && obj.Metadata["namespace"] != namespaceFilter {
+					continue
+				}
+
+				wireObj := map[string]interface{}{
+					"apiVersion": obj.APIVersion,
+					"kind":       obj.Kind,
+					"metadata":   obj.Metadata,
+					"spec":       obj.Spec,
+					"status":     obj.Status,
+				}
+
+				data, err := json.Marshal(wireObj)
+				if err != nil {
+					log.Printf("Error marshaling Kluctl deployment object: %v", err)
+					continue
+				}
+
+				event := &kubernetes.WatchEvent{
+					Type:   "MODIFIED",
+					Object: json.RawMessage(data),
+				}
+				h.sendDataMessage(ws, msg.ID, msg.Path, event)
+			}
+		}
+
+		// Send an initial snapshot immediately so clients don't wait for the first tick.
+		sendSnapshot()
+
 		for {
 			select {
 			case <-ctx.Done():
 				log.Printf("Context cancelled for Kluctl deployments watch: %s", msg.Path)
 				return
 			case <-ticker.C:
-				summaries, err := listCommandResultSummaries(ctx, h.k8sClient, commandResultNamespace)
-				if err != nil {
-					log.Printf("Error listing Kluctl command results: %v", err)
-					h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Kluctl command results: %v", err))
-					continue
-				}
-
-				groups := groupCommandResultSummaries(summaries)
-				for _, g := range groups {
-					obj := buildKluctlDeploymentObject(g)
-					if namespaceFilter != "" && obj.Metadata["namespace"] != namespaceFilter {
-						continue
-					}
-
-					wireObj := map[string]interface{}{
-						"apiVersion": obj.APIVersion,
-						"kind":       obj.Kind,
-						"metadata":   obj.Metadata,
-						"spec":       obj.Spec,
-						"status":     obj.Status,
-					}
-
-					data, err := json.Marshal(wireObj)
-					if err != nil {
-						log.Printf("Error marshaling Kluctl deployment object: %v", err)
-						continue
-					}
-
-					event := &kubernetes.WatchEvent{
-						Type:   "MODIFIED",
-						Object: json.RawMessage(data),
-					}
-					h.sendDataMessage(ws, msg.ID, msg.Path, event)
-				}
+				sendSnapshot()
 			}
 		}
 	}()
