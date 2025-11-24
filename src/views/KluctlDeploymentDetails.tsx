@@ -13,19 +13,45 @@ import { stringify as stringifyYAML } from "@std/yaml";
 
 type KluctlDeploymentResult = any;
 
+type DeploymentIssue = {
+  message?: string;
+};
+
 type KluctlSummary = {
   id?: string;
   command?: string;
   startTime?: string;
   endTime?: string;
-  errors?: number;
-  warnings?: number;
+  errors?: number | DeploymentIssue[];
+  warnings?: number | DeploymentIssue[];
   changedObjects?: number;
   newObjects?: number;
   deletedObjects?: number;
   orphanObjects?: number;
   appliedObjects?: number;
   totalChanges?: number;
+};
+
+const countIssues = (value: KluctlSummary["errors"] | KluctlSummary["warnings"]): number => {
+  if (Array.isArray(value)) return value.length;
+  if (typeof value === "number") return value;
+  return 0;
+};
+
+const getIssueMessages = (value: KluctlSummary["errors"] | KluctlSummary["warnings"]): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((it) => {
+      if (!it) return "";
+      const msg = (it as DeploymentIssue).message;
+      if (typeof msg === "string" && msg.trim().length > 0) return msg.trim();
+      try {
+        return JSON.stringify(it);
+      } catch {
+        return "";
+      }
+    })
+    .filter((m) => m.length > 0);
 };
 
 export function KluctlDeploymentDetails() {
@@ -107,8 +133,8 @@ export function KluctlDeploymentDetails() {
 
   const formatStatusLine = (s: KluctlSummary | undefined): string => {
     if (!s) return "No deploy history available";
-    const errors = s.errors || 0;
-    const warnings = s.warnings || 0;
+    const errors = countIssues(s.errors);
+    const warnings = countIssues(s.warnings);
     const changed = s.changedObjects || 0;
     const total = s.totalChanges || 0;
     const parts: string[] = [];
@@ -233,8 +259,40 @@ export function KluctlDeploymentDetails() {
                                     <td>
                                       {s.totalChanges ?? s.changedObjects ?? 0}
                                     </td>
-                                    <td>{s.errors ?? 0}</td>
-                                    <td>{s.warnings ?? 0}</td>
+                                    <td>
+                                      {(() => {
+                                        const count = countIssues(s.errors);
+                                        const messages = getIssueMessages(s.errors);
+                                        if (messages.length === 0) return count;
+                                        return (
+                                          <div>
+                                            <div>{count}</div>
+                                            <ul>
+                                              {messages.map((m) => (
+                                                <li>{m}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+                                    <td>
+                                      {(() => {
+                                        const count = countIssues(s.warnings);
+                                        const messages = getIssueMessages(s.warnings);
+                                        if (messages.length === 0) return count;
+                                        return (
+                                          <div>
+                                            <div>{count}</div>
+                                            <ul>
+                                              {messages.map((m) => (
+                                                <li>{m}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
