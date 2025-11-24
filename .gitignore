@@ -15,3 +15,4 @@ cli/pkg/server/public/
 dist/
 tofu-controller/
 self-host/charts/*.tgz
+kluctl
