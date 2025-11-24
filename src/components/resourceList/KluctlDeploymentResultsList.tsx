@@ -45,8 +45,6 @@ const sortSummariesByStartTimeDesc = (summaries: any[]): any[] => {
 const formatSummaryStatus = (s: any): string => {
   if (!s) return "No changes";
 
-console.log(s);
-
   const errorMessages = getIssueMessages(s.errors);
   const warningMessages = getIssueMessages(s.warnings);
 
@@ -96,11 +94,13 @@ export const renderKluctlDeploymentResultsDetails = (deployment: KluctlDeploymen
   const summaries = (deployment.status?.commandSummaries as any[] | undefined) || [];
   const sorted = sortSummariesByStartTimeDesc(summaries).slice(0, 5);
 
+  console.log(deployment);
+
   return (
     <DetailRowCard columnCount={columnCount}>
       <div style="display: contents;">
         <div>
-          <strong>Project:</strong> {deployment.spec?.project?.RepoKey?.url || deployment.spec?.project?.RepoKey || "-"}<br />
+          <strong>Project:</strong> {deployment.spec?.project?.repoKey?.url || deployment.spec?.project?.repoKey || "-"}/{deployment.spec?.project?.subDir || "-"}<br />
           <strong>Target:</strong> {deployment.spec?.target?.name || "-"}
         </div>
         <div>
