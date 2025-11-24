@@ -1170,7 +1170,6 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     detailRowRenderer: renderKluctlDeploymentResultsDetails,
     rowKeyField: "name",
     commands: [
-      ...builtInCommands,
       navigateToKluctlDeployment
     ],
     defaultSortColumn: "NAME",

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // deno-lint-ignore-file jsx-button-has-type
-import { createEffect, createSignal, onCleanup, untrack, Show, createMemo } from "solid-js";
+import { createEffect, createSignal, onCleanup, untrack, Show, createMemo, For } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
@@ -13,6 +13,8 @@ import { stringify as stringifyYAML } from "@std/yaml";
 import * as graphlib from "graphlib";
 import { ResourceTree, createNodeWithCardRenderer } from "../components/ResourceTree.tsx";
 import { getDeploymentMatchingPods } from "../utils/k8s.ts";
+import type { DiffHunk, FileDiffSection } from "../utils/diffUtils.ts";
+import { generateDiffHunks } from "../utils/diffUtils.ts";
 
 type KluctlDeploymentResult = any;
 
@@ -38,6 +40,9 @@ type KluctlSummary = {
   errors?: number | DeploymentIssue[];
   warnings?: number | DeploymentIssue[];
   totalChanges?: number;
+  // Decoded JSON payloads attached per result by the server
+  reducedResult?: string;
+  compactedObjects?: string;
 };
 
 type KluctlRenderedObject = {
@@ -324,6 +329,11 @@ export function KluctlDeploymentDetails() {
   const [inventoryWatchesStarted, setInventoryWatchesStarted] = createSignal(false);
 
   const [activeTab, setActiveTab] = createSignal<"resources" | "history">("resources");
+  const [selectedSummaryIndex, setSelectedSummaryIndex] = createSignal<number>(-1);
+
+  // Deploy history diff state (between compactedObjects manifests of adjacent results)
+  const [expandedDiffs, setExpandedDiffs] = createSignal<{ [key: string]: boolean }>({});
+  const [diffSections, setDiffSections] = createSignal<{ [key: string]: { fileSections: FileDiffSection[] } }>({});
 
   const graph = createMemo(() =>
     buildKluctlResourceGraph(deployment(), clusterDeployments(), clusterPods()),
@@ -555,6 +565,358 @@ export function KluctlDeploymentDetails() {
     return formatSummaryStatus(s);
   };
 
+  // Initialize selected summary index (for row highlight) similarly to Helm history
+  createEffect(() => {
+    const dep = deployment();
+    if (!dep) return;
+    const list = getSummaries(dep);
+    if (selectedSummaryIndex() === -1 && list.length > 0) {
+      setSelectedSummaryIndex(0);
+    }
+  });
+
+  const buildPairKey = (newer: KluctlSummary, older: KluctlSummary): string => {
+    const a = newer.id || "";
+    const b = older.id || "";
+    return `${a}-${b}`;
+  };
+
+  type CompactedEntry = {
+    key: string;
+    displayName: string;
+    rendered?: string;
+    applied?: string;
+  };
+
+  const parseCompactedEntries = (raw?: string): CompactedEntry[] => {
+    if (!raw || !raw.trim()) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      let list: any[] = [];
+      if (Array.isArray(parsed)) {
+        list = parsed;
+      } else if (parsed && Array.isArray((parsed as any).compactedObjects)) {
+        list = (parsed as any).compactedObjects;
+      } else if (parsed && Array.isArray((parsed as any).objects)) {
+        list = (parsed as any).objects;
+      }
+      const out: CompactedEntry[] = [];
+      list.forEach((item) => {
+        if (!item) return;
+        const ref = item.ref || {};
+        const group = typeof ref.group === "string" ? ref.group : "";
+        const kind = typeof ref.kind === "string" ? ref.kind : "";
+        const name = typeof ref.name === "string" ? ref.name : "";
+        const namespace = typeof ref.namespace === "string" ? ref.namespace : "";
+        if (!kind || !name) return;
+        const groupPart = group || "core";
+        const resourceType = `${groupPart}/${kind}`;
+        const displayName = namespace ? `${resourceType}/${namespace}/${name}` : `${resourceType}/${name}`;
+        const key = `${resourceType}::${namespace}/${name}`;
+        out.push({
+          key,
+          displayName,
+          rendered: typeof item.rendered === "string" ? item.rendered : undefined,
+          applied: typeof item.applied === "string" ? item.applied : undefined,
+        });
+      });
+      return out;
+    } catch {
+      return [];
+    }
+  };
+
+  const prettyPrintJsonOrText = (txt: string): string => {
+    const trimmed = txt.trim();
+    if (!trimmed) return "";
+    try {
+      const parsed = JSON.parse(trimmed);
+      return stringifyYAML(parsed) as string;
+    } catch {
+      return txt;
+    }
+  };
+
+  const extractContent = (entry: CompactedEntry | undefined): string => {
+    if (!entry) return "";
+    const raw = entry.rendered;
+    if (!raw) return "";
+    if (raw.startsWith("full: ")) {
+      return prettyPrintJsonOrText(raw.slice(6));
+    }
+    if (raw.startsWith("delta: ")) {
+      // Delta-encoded payload; without diff-match-patch we can't reconstruct the full JSON,
+      // so expose the raw delta string.
+      return raw;
+    }
+    return prettyPrintJsonOrText(raw);
+  };
+
+  const ensureDiffSections = (pairKey: string, newer: KluctlSummary, older: KluctlSummary): string => {
+    const key = `${pairKey}-rendered`;
+    if (diffSections()[key]) return key;
+
+    const newerEntries = parseCompactedEntries(newer.compactedObjects);
+    const olderEntries = parseCompactedEntries(older.compactedObjects);
+
+    const newerMap = new Map<string, CompactedEntry>();
+    newerEntries.forEach((e) => newerMap.set(e.key, e));
+    const olderMap = new Map<string, CompactedEntry>();
+    olderEntries.forEach((e) => olderMap.set(e.key, e));
+
+    const allKeys = new Set<string>();
+    newerMap.forEach((_v, k) => allKeys.add(k));
+    olderMap.forEach((_v, k) => allKeys.add(k));
+
+    const fileSections: FileDiffSection[] = [];
+
+    allKeys.forEach((k) => {
+      const newerEntry = newerMap.get(k);
+      const olderEntry = olderMap.get(k);
+
+      const fromText = extractContent(olderEntry);
+      const toText = extractContent(newerEntry);
+
+      const fromLines = fromText.split("\n");
+      const toLines = toText.split("\n");
+      const hunks = generateDiffHunks(fromLines, toLines);
+      const addedLines = hunks.reduce((s, h) => s + h.changes.filter((c) => c.type === "add").length, 0);
+      const removedLines = hunks.reduce((s, h) => s + h.changes.filter((c) => c.type === "remove").length, 0);
+
+      let status: "created" | "modified" | "deleted";
+      if (!olderEntry && newerEntry) status = "created";
+      else if (olderEntry && !newerEntry) status = "deleted";
+      else status = "modified";
+
+      const isExpanded = addedLines > 0 || removedLines > 0;
+      fileSections.push({
+        fileName: (newerEntry || olderEntry)?.displayName || k,
+        status,
+        hunks,
+        isExpanded,
+        addedLines,
+        removedLines,
+        originalLines: fromLines,
+        newLines: toLines,
+      });
+    });
+
+    setDiffSections((prev) => ({ ...prev, [key]: { fileSections } }));
+    return key;
+  };
+
+  const toggleHistoryDiff = (newer: KluctlSummary, older: KluctlSummary) => {
+    const pairKey = buildPairKey(newer, older);
+    const isExpanded = expandedDiffs()[pairKey] || false;
+    const next = { ...expandedDiffs() };
+
+    if (!isExpanded) {
+      next[pairKey] = true;
+    } else {
+      delete next[pairKey];
+    }
+
+    setExpandedDiffs(next);
+
+    if (next[pairKey]) {
+      ensureDiffSections(pairKey, newer, older);
+    }
+  };
+
+  const toggleFileSection = (diffKey: string, fileIndex: number) => {
+    setDiffSections((prev) => {
+      const updated = { ...prev };
+      const section = { ...updated[diffKey] };
+      const fileSections = [...section.fileSections];
+      const fileSection = { ...fileSections[fileIndex] };
+      fileSection.isExpanded = !fileSection.isExpanded;
+      fileSections[fileIndex] = fileSection;
+      section.fileSections = fileSections;
+      updated[diffKey] = section;
+      return updated;
+    });
+  };
+
+  const expandContext = (diffKey: string, fileIndex: number, hunkIndex: number, direction: "before" | "after") => {
+    setDiffSections((prev) => {
+      const updated = { ...prev };
+      const section = { ...updated[diffKey] };
+      const fileSections = [...section.fileSections];
+      const fileSection = { ...fileSections[fileIndex] };
+      const hunks = [...fileSection.hunks];
+      if (direction === "before" && hunks[hunkIndex].canExpandBefore) {
+        const hunk = { ...hunks[hunkIndex] };
+        const newStart = Math.max(0, hunk.visibleStartOld - 10);
+        const newStartNew = Math.max(0, hunk.visibleStartNew - 10);
+        if (hunkIndex > 0) {
+          const prevHunk = hunks[hunkIndex - 1];
+          if (newStart <= prevHunk.visibleEndOld) {
+            const mergedHunk: DiffHunk = {
+              startOldLine: prevHunk.startOldLine,
+              startNewLine: prevHunk.startNewLine,
+              changes: [...prevHunk.changes],
+              visibleStartOld: prevHunk.visibleStartOld,
+              visibleStartNew: prevHunk.visibleStartNew,
+              visibleEndOld: hunk.visibleEndOld,
+              visibleEndNew: hunk.visibleEndNew,
+              canExpandBefore: prevHunk.canExpandBefore,
+              canExpandAfter: hunk.canExpandAfter,
+            };
+            for (let i = prevHunk.visibleEndOld; i < hunk.visibleStartOld; i++) {
+              if (i >= 0 && i < fileSection.originalLines.length) {
+                const newLineNum = prevHunk.visibleEndNew + (i - prevHunk.visibleEndOld);
+                mergedHunk.changes.push({
+                  type: "match",
+                  value: fileSection.originalLines[i],
+                  oldLineNumber: i + 1,
+                  newLineNumber: newLineNum + 1,
+                });
+              }
+            }
+            mergedHunk.changes.push(...hunk.changes);
+            hunks.splice(hunkIndex - 1, 2, mergedHunk);
+          } else {
+            hunk.visibleStartOld = newStart;
+            hunk.visibleStartNew = newStartNew;
+            hunk.canExpandBefore = newStart > 0;
+            hunks[hunkIndex] = hunk;
+          }
+        } else {
+          hunk.visibleStartOld = newStart;
+          hunk.visibleStartNew = newStartNew;
+          hunk.canExpandBefore = newStart > 0;
+          hunks[hunkIndex] = hunk;
+        }
+      } else if (direction === "after" && hunks[hunkIndex].canExpandAfter) {
+        const hunk = { ...hunks[hunkIndex] };
+        const newEnd = Math.min(fileSection.originalLines.length, hunk.visibleEndOld + 10);
+        const newEndNew = Math.min(fileSection.newLines.length, hunk.visibleEndNew + 10);
+        if (hunkIndex < hunks.length - 1) {
+          const nextHunk = hunks[hunkIndex + 1];
+          if (newEnd >= nextHunk.visibleStartOld) {
+            const mergedHunk: DiffHunk = {
+              startOldLine: hunk.startOldLine,
+              startNewLine: hunk.startNewLine,
+              changes: [...hunk.changes],
+              visibleStartOld: hunk.visibleStartOld,
+              visibleStartNew: hunk.visibleStartNew,
+              visibleEndOld: nextHunk.visibleEndOld,
+              visibleEndNew: nextHunk.visibleEndNew,
+              canExpandBefore: hunk.canExpandBefore,
+              canExpandAfter: nextHunk.canExpandAfter,
+            };
+            for (let i = hunk.visibleEndOld; i < nextHunk.visibleStartOld; i++) {
+              if (i >= 0 && i < fileSection.originalLines.length) {
+                const newLineNum = hunk.visibleEndNew + (i - hunk.visibleEndOld);
+                mergedHunk.changes.push({
+                  type: "match",
+                  value: fileSection.originalLines[i],
+                  oldLineNumber: i + 1,
+                  newLineNumber: newLineNum + 1,
+                });
+              }
+            }
+            mergedHunk.changes.push(...nextHunk.changes);
+            hunks.splice(hunkIndex, 2, mergedHunk);
+          } else {
+            hunk.visibleEndOld = newEnd;
+            hunk.visibleEndNew = newEndNew;
+            hunk.canExpandAfter = newEnd < fileSection.originalLines.length;
+            hunks[hunkIndex] = hunk;
+          }
+        } else {
+          hunk.visibleEndOld = newEnd;
+          hunk.visibleEndNew = newEndNew;
+          hunk.canExpandAfter = newEnd < fileSection.originalLines.length;
+          hunks[hunkIndex] = hunk;
+        }
+      }
+      fileSection.hunks = hunks;
+      fileSections[fileIndex] = fileSection;
+      section.fileSections = fileSections;
+      updated[diffKey] = section;
+      return updated;
+    });
+  };
+
+  const renderHunk = (hunk: DiffHunk, diffKey: string, fileIndex: number, hunkIndex: number, fileSection: FileDiffSection) => {
+    const lines: any[] = [];
+    if (hunk.canExpandBefore) {
+      lines.push(
+        <div class="diff-expand-line">
+          <button class="diff-expand-button" onClick={() => expandContext(diffKey, fileIndex, hunkIndex, "before")}>
+            ⋯ 10 more lines
+          </button>
+        </div>,
+      );
+    }
+    for (let i = hunk.visibleStartOld; i < hunk.startOldLine; i++) {
+      if (i >= 0 && i < fileSection.originalLines.length) {
+        const newLineNum = hunk.visibleStartNew + (i - hunk.visibleStartOld);
+        lines.push(
+          <div class="diff-line-context">
+            <span class="line-number old">{i + 1}</span>
+            <span class="line-number new">{newLineNum + 1}</span>
+            <span class="line-content"> {fileSection.originalLines[i]}</span>
+          </div>,
+        );
+      }
+    }
+    let oldLineNum = hunk.startOldLine + 1;
+    let newLineNum = hunk.startNewLine + 1;
+    hunk.changes.forEach((change) => {
+      let className = "";
+      let lineContent = "";
+      let oldNum = "";
+      let newNum = "";
+      if (change.type === "add") {
+        className = "diff-line-added";
+        lineContent = `+${change.value}`;
+        newNum = String(newLineNum++);
+      } else if (change.type === "remove") {
+        className = "diff-line-removed";
+        lineContent = `-${change.value}`;
+        oldNum = String(oldLineNum++);
+      } else {
+        className = "diff-line-context";
+        lineContent = ` ${change.value}`;
+        oldNum = String(oldLineNum++);
+        newNum = String(newLineNum++);
+      }
+      lines.push(
+        <div class={className}>
+          <span class="line-number old">{oldNum}</span>
+          <span class="line-number new">{newNum}</span>
+          <span class="line-content">{lineContent}</span>
+        </div>,
+      );
+    });
+    const originalHunkEnd = hunk.startOldLine + hunk.changes.filter((c) => c.type !== "add").length;
+    const originalHunkEndNew = hunk.startNewLine + hunk.changes.filter((c) => c.type !== "remove").length;
+    for (let i = originalHunkEnd; i < hunk.visibleEndOld; i++) {
+      if (i >= 0 && i < fileSection.originalLines.length) {
+        const n = originalHunkEndNew + (i - originalHunkEnd);
+        lines.push(
+          <div class="diff-line-context">
+            <span class="line-number old">{i + 1}</span>
+            <span class="line-number new">{n + 1}</span>
+            <span class="line-content"> {fileSection.originalLines[i]}</span>
+          </div>,
+        );
+      }
+    }
+    if (hunk.canExpandAfter) {
+      lines.push(
+        <div class="diff-expand-line">
+          <button class="diff-expand-button" onClick={() => expandContext(diffKey, fileIndex, hunkIndex, "after")}>
+            ⋯ 10 more lines
+          </button>
+        </div>,
+      );
+    }
+    return lines;
+  };
+
   return (
     <div class="kustomization-details">
       <Show when={deployment()} fallback={<div class="loading">Loading...</div>}>
@@ -562,6 +924,11 @@ export function KluctlDeploymentDetails() {
           const dep = d();
           const latest = getLatestSummary(dep);
           const summaries = getSummaries(dep);
+          const sortedSummaries = [...summaries].sort((a, b) => {
+            const sa = new Date(a.commandInfo?.startTime || "").getTime();
+            const sb = new Date(b.commandInfo?.startTime || "").getTime();
+            return sb - sa;
+          });
           return (
             <>
               <header class="kustomization-header">
@@ -614,26 +981,58 @@ export function KluctlDeploymentDetails() {
                     </div>
                     <div class="info-item" style="grid-column: 4 / 10; grid-row: 2 / 5;">
                       <div>
-                          <ul>
-                            {getRecentSummaries(dep).map((s) => (
-                              <li>
-                                <span title={s.commandInfo?.startTime}>
-                                  {s.commandInfo?.startTime
-                                    ? useCalculateAge(s.commandInfo.startTime)()
-                                    : "-"}
-                                </span>{" "}
-                                <strong>{s.commandInfo?.command}: </strong>{" "}
-                                {formatSummaryStatus(s)}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                        <ul>
+                          {getRecentSummaries(dep).map((s) => (
+                            <li>
+                              <span title={s.commandInfo?.startTime}>
+                                {s.commandInfo?.startTime
+                                  ? useCalculateAge(s.commandInfo.startTime)()
+                                  : "-"}
+                              </span>{" "}
+                              <strong>{s.commandInfo?.command}: </strong>{" "}
+                              {formatSummaryStatus(s)}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                     <div class="info-item full-width">
                       <details>
                         <summary class="label">Raw Status</summary>
                         <pre class="conditions-yaml">
                           {dep.status ? stringifyYAML(dep.status) : "No status available"}
+                        </pre>
+                      </details>
+                      <details>
+                        <summary class="label">Latest reducedResult JSON</summary>
+                        <pre class="conditions-yaml">
+                          {(() => {
+                            const txt =
+                              (dep.status?.latestReducedResult as string | undefined) || "";
+                            if (!txt) return "No reducedResult payload available";
+                            try {
+                              const parsed = JSON.parse(txt);
+                              return JSON.stringify(parsed, null, 2);
+                            } catch {
+                              return txt;
+                            }
+                          })()}
+                        </pre>
+                      </details>
+                      <details>
+                        <summary class="label">Latest compactedObjects JSON</summary>
+                        <pre class="conditions-yaml">
+                          {(() => {
+                            const txt =
+                              (dep.status?.latestCompactedObjects as string | undefined) || "";
+                            if (!txt) return "No compactedObjects payload available";
+                            try {
+                              const parsed = JSON.parse(txt);
+                              return JSON.stringify(parsed, null, 2);
+                            } catch {
+                              return txt;
+                            }
+                          })()}
                         </pre>
                       </details>
                     </div>
@@ -665,57 +1064,146 @@ export function KluctlDeploymentDetails() {
                   <div class="resource-tree-wrapper">
                     <div class="info-grid">
                       <div class="info-item full-width">
-                        {summaries.length === 0 ? (
+                        {sortedSummaries.length === 0 ? (
                           <div class="message-cell">No deploy history available.</div>
                         ) : (
                           <>
-                            <div class="message-cell">
-                              <ul>
-                                {summaries.map((s) => (
-                                  <li>
-                                    <span title={s.commandInfo?.startTime}>
-                                      {s.commandInfo?.startTime
-                                        ? useCalculateAge(s.commandInfo.startTime)()
-                                        : "-"}
-                                    </span>{" "}
-                                    <strong>{s.commandInfo?.command}: </strong>{" "}
-                                    {formatSummaryStatus(s)}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                            <table class="helm-history-table">
+                              <thead>
+                                <tr>
+                                  <th>Command</th>
+                                  <th>Started</th>
+                                  <th>Summary</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <For each={sortedSummaries}>
+                                  {(s, index) => (
+                                    <>
+                                      <tr
+                                        class={selectedSummaryIndex() === index() ? "selected-revision" : ""}
+                                        onClick={() => setSelectedSummaryIndex(index())}
+                                      >
+                                        <td>{s.commandInfo?.command || "-"}</td>
+                                        <td title={s.commandInfo?.startTime}>
+                                          {s.commandInfo?.startTime
+                                            ? useCalculateAge(s.commandInfo.startTime)()
+                                            : "-"}
+                                        </td>
+                                        <td>{formatSummaryStatus(s)}</td>
+                                      </tr>
+                                      {index() < sortedSummaries.length - 1 &&
+                                        (() => {
+                                          const newer = s;
+                                          const older = sortedSummaries[index() + 1];
+                                          const pairKey = buildPairKey(newer, older);
+                                          const expanded = expandedDiffs()[pairKey] || false;
+                                          const sectionKey = `${pairKey}-rendered`;
+                                          const section = diffSections()[sectionKey];
+                                          return (
+                                            <>
+                                              <tr class="diff-divider-row">
+                                                <td colSpan={3} class="diff-divider-cell">
+                                                  <div class="diff-button-container">
+                                                    <div class="diff-button-group">
+                                                      <button
+                                                        class={`diff-button ${expanded ? "active" : ""}`}
+                                                        onClick={() => toggleHistoryDiff(newer, older)}
+                                                        title={
+                                                          expanded
+                                                            ? `Hide rendered diff between ${newer.commandInfo?.command} and ${older.commandInfo?.command}`
+                                                            : `Show rendered diff between ${newer.commandInfo?.command} and ${older.commandInfo?.command}`
+                                                        }
+                                                      >
+                                                        Rendered Yaml Diff
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                </td>
+                                              </tr>
+                                              {expanded && (
+                                                <tr class="diff-content-row">
+                                                  <td colSpan={3} class="diff-content-cell">
+                                                    {section ? (
+                                                      <div class="diff-content">
+                                                        <For each={section.fileSections}>
+                                                          {(fileSection, fileIndex) => (
+                                                            <div class="diff-file-section">
+                                                              <div
+                                                                class="diff-file-header"
+                                                                onClick={() =>
+                                                                  toggleFileSection(sectionKey, fileIndex())
+                                                                }
+                                                              >
+                                                                <div class="diff-file-info">
+                                                                  <div class="diff-file-toggle">
+                                                                    {fileSection.isExpanded ? "▼" : "►"}
+                                                                  </div>
+                                                                  <span class="diff-file-name">
+                                                                    {fileSection.fileName}
+                                                                  </span>
+                                                                  {fileSection.addedLines === 0 &&
+                                                                  fileSection.removedLines === 0 ? (
+                                                                    <span class="diff-file-status status-unchanged">
+                                                                      Unchanged
+                                                                    </span>
+                                                                  ) : (
+                                                                    <span class="diff-file-status status-modified">
+                                                                      <span class="removed-count">
+                                                                        -{fileSection.removedLines}
+                                                                      </span>
+                                                                      <span class="added-count">
+                                                                        +{fileSection.addedLines}
+                                                                      </span>
+                                                                    </span>
+                                                                  )}
+                                                                </div>
+                                                              </div>
+                                                              {fileSection.isExpanded && (
+                                                                <div class="diff-file-content">
+                                                                  <div class="diff-hunks">
+                                                                    <For each={fileSection.hunks}>
+                                                                      {(hunk, hunkIndex) => (
+                                                                        <div class="diff-hunk">
+                                                                          {renderHunk(
+                                                                            hunk,
+                                                                            sectionKey,
+                                                                            fileIndex(),
+                                                                            hunkIndex(),
+                                                                            fileSection,
+                                                                          )}
+                                                                        </div>
+                                                                      )}
+                                                                    </For>
+                                                                  </div>
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                          )}
+                                                        </For>
+                                                      </div>
+                                                    ) : (
+                                                      <div class="drawer-loading">
+                                                        <div class="loading-spinner"></div>
+                                                        <div>
+                                                          Preparing diff between{" "}
+                                                          {newer.commandInfo?.command || "-"} and{" "}
+                                                          {older.commandInfo?.command || "-"}...
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </td>
+                                                </tr>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
+                                    </>
+                                  )}
+                                </For>
+                              </tbody>
+                            </table>
 
-                            <details style="margin-top: 12px;">
-                              <summary class="label">Latest reducedResult JSON</summary>
-                              <pre class="conditions-yaml">
-{(() => {
-  const txt = (dep.status?.latestReducedResult as string | undefined) || "";
-  if (!txt) return "No reducedResult payload available";
-  try {
-    const parsed = JSON.parse(txt);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return txt;
-  }
-})()}
-                              </pre>
-                            </details>
-
-                            <details style="margin-top: 12px;">
-                              <summary class="label">Latest compactedObjects JSON</summary>
-                              <pre class="conditions-yaml">
-{(() => {
-  const txt = (dep.status?.latestCompactedObjects as string | undefined) || "";
-  if (!txt) return "No compactedObjects payload available";
-  try {
-    const parsed = JSON.parse(txt);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return txt;
-  }
-})()}
-                              </pre>
-                            </details>
                           </>
                         )}
                       </div>

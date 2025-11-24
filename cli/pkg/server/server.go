@@ -1418,12 +1418,7 @@ func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesPr
 	items := make([]map[string]interface{}, 0, len(groups))
 	rows := make([]map[string]interface{}, 0, len(groups))
 	for _, g := range groups {
-		obj := buildKluctlDeploymentObject(g)
-		// Attach decoded JSON payloads for the latest result, when available.
-		if p, ok := payloads[obj.Status.LatestResult.Id]; ok {
-			obj.Status.LatestReducedResult = p.ReducedResultJSON
-			obj.Status.LatestCompactedJson = p.CompactedObjectsJSON
-		}
+		obj := buildKluctlDeploymentObject(g, payloads)
 		// Ensure every pseudo Deployment has a namespace; default to the command result namespace
 		// when KluctlDeploymentInfo.Namespace is not available.
 		if obj.Metadata.Namespace == "" {

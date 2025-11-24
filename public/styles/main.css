@@ -1652,6 +1652,8 @@ td.message-cell {
   text-align: left;
   padding: 0.75rem;
   font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.9rem;
   color: var(--linear-text-secondary);
   border-bottom: 1px solid var(--linear-border);
   position: sticky;
@@ -1663,6 +1665,8 @@ td.message-cell {
   border-bottom: 1px solid var(--linear-border);
   vertical-align: middle;
   line-height: 1.4;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.9rem;
   color: var(--linear-text-primary);
 }
 
@@ -2223,7 +2227,6 @@ td.message-cell {
   cursor: pointer;
   color: var(--linear-text-secondary);
   font-weight: 500;
-  padding: 8px 0;
   user-select: none;
 }
 

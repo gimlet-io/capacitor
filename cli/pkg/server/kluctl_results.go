@@ -125,8 +125,25 @@ func lessCommandSummaryForUI(a, b *CommandResultSummary) bool {
 
 // buildKluctlDeploymentObject converts a grouped deployment into a Kubernetes-like object.
 // NAME is derived from the resource discriminator; NAMESPACE from KluctlDeployment.Namespace when present.
-func buildKluctlDeploymentObject(g kluctlDeploymentGroup) kluctlDeploymentPseudoResource {
-	latest := g.Summaries[len(g.Summaries)-1]
+// The payloads map optionally contains decoded JSON payloads for each command result
+// (reducedResult and compactedObjects). When present, these are attached to every
+// CommandResultSummary so that the UI can compute manifest diffs per result.
+func buildKluctlDeploymentObject(g kluctlDeploymentGroup, payloads map[string]CommandResultPayload) kluctlDeploymentPseudoResource {
+	// Work on a copy of the summaries slice so we don't mutate shared data.
+	summaries := make([]CommandResultSummary, len(g.Summaries))
+	copy(summaries, g.Summaries)
+
+	// Attach decoded JSON payloads (if available) to each summary.
+	if payloads != nil {
+		for i := range summaries {
+			if p, ok := payloads[summaries[i].Id]; ok {
+				summaries[i].ReducedResultJSON = p.ReducedResultJSON
+				summaries[i].CompactedObjectsJSON = p.CompactedObjectsJSON
+			}
+		}
+	}
+
+	latest := summaries[len(summaries)-1]
 
 	// Derive name and namespace.
 	name := g.Key.KDName
@@ -163,7 +180,15 @@ func buildKluctlDeploymentObject(g kluctlDeploymentGroup) kluctlDeploymentPseudo
 	status := KluctlDeploymentStatus{
 		AgeSeconds:       ageSeconds,
 		LatestResult:     latest,
-		CommandSummaries: g.Summaries,
+		CommandSummaries: summaries,
+	}
+
+	// Also expose the latest decoded payloads on the status root for quick access.
+	if payloads != nil {
+		if p, ok := payloads[latest.Id]; ok {
+			status.LatestReducedResult = p.ReducedResultJSON
+			status.LatestCompactedJson = p.CompactedObjectsJSON
+		}
 	}
 
 	return kluctlDeploymentPseudoResource{
@@ -271,6 +296,13 @@ type CommandResultSummary struct {
 	Warnings []DeploymentError `json:"warnings"`
 
 	TotalChanges int `json:"totalChanges"`
+
+	// Decoded JSON payloads attached for UI consumers. These are populated
+	// from the Kluctl result Secret data (when available) so that the UI
+	// can compute manifest diffs per command result without additional API
+	// calls.
+	ReducedResultJSON    string `json:"reducedResult,omitempty"`
+	CompactedObjectsJSON string `json:"compactedObjects,omitempty"`
 }
 
 // CommandResultPayload holds decoded JSON payloads from the result Secret.
