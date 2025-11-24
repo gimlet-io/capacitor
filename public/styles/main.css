@@ -325,15 +325,6 @@ h1 {
   margin: 0.5rem 0;
 }
 
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-transform: capitalize;
-  user-select: none;
-}
-
 .status-badge.ready {
   background-color: var(--linear-green);
   color: #f0fdf4;
@@ -516,7 +507,6 @@ h1 {
 }
 
 .status-badge {
-  font-size: 13px;
   font-weight: 500;
   padding: 4px 8px;
   border-radius: 4px;

@@ -541,28 +541,58 @@ export function KluctlDeploymentDetails() {
     if (applied) addPart(`${applied} applied`);
 
     const changed = typeof s.changedObjects === "number" ? s.changedObjects : 0;
+    const deleted = typeof s.deletedObjects === "number" ? s.deletedObjects : 0;
+    const newly = typeof s.newObjects === "number" ? s.newObjects : 0;
+
+    let changedNames: string[] = [];
+    let newNames: string[] = [];
+    let deletedNames: string[] = [];
+    if (s.compactedObjects) {
+      const entries = parseCompactedEntries(s.compactedObjects);
+      if (entries.length > 0) {
+        changedNames = entries.filter((e) => e.changed).map((e) => e.displayName);
+        newNames = entries.filter((e) => e.newObject).map((e) => e.displayName);
+        deletedNames = entries.filter((e) => e.deletedObject).map((e) => e.displayName);
+      }
+    }
+
+    const formatNamesWithLimit = (names: string[]): string | undefined => {
+      if (!names.length) return undefined;
+      const maxToShow = 10;
+      const shown = names.slice(0, maxToShow);
+      const remaining = names.length - shown.length;
+      if (remaining > 0) {
+        return `${shown.join(", ")} (+${remaining} more)`;
+      }
+      return shown.join(", ");
+    };
+
     if (changed) {
+      const changedLabel = formatNamesWithLimit(changedNames);
       addPart(
         <span class="status-badge kluctl-status-badge kluctl-changed">
           {changed} changed
+          {changedLabel ? ` (${changedLabel})` : ""}
         </span>,
       );
     }
 
-    const deleted = typeof s.deletedObjects === "number" ? s.deletedObjects : 0;
     if (deleted) {
+      const deletedLabel = formatNamesWithLimit(deletedNames);
       addPart(
         <span class="status-badge kluctl-status-badge kluctl-deleted">
           {deleted} deleted
+          {deletedLabel ? ` (${deletedLabel})` : ""}
         </span>,
       );
     }
 
-    const newly = typeof s.newObjects === "number" ? s.newObjects : 0;
     if (newly) {
+      const newLabel = formatNamesWithLimit(newNames);
       addPart(
         <span class="status-badge kluctl-status-badge kluctl-new">
           {newly} new
+          {newLabel ? ` (${newLabel})` : ""}
         </span>,
       );
     }
@@ -573,9 +603,11 @@ export function KluctlDeploymentDetails() {
     const errorCount = countIssues(s.errors);
     if (errorCount) {
       const tooltip = errorMessages.length ? errorMessages.join(" | ") : "";
+      const errorLabel = formatNamesWithLimit(errorMessages);
       addPart(
         <span class="status-badge kluctl-status-badge kluctl-errors" title={tooltip || undefined}>
           {errorCount} errors
+          {errorLabel ? ` (${errorLabel})` : ""}
         </span>,
       );
     }
@@ -583,9 +615,11 @@ export function KluctlDeploymentDetails() {
     const warningCount = countIssues(s.warnings);
     if (warningCount) {
       const tooltip = warningMessages.length ? warningMessages.join(" | ") : "";
+      const warningLabel = formatNamesWithLimit(warningMessages);
       addPart(
         <span class="status-badge kluctl-status-badge kluctl-warnings" title={tooltip || undefined}>
           {warningCount} warnings
+          {warningLabel ? ` (${warningLabel})` : ""}
         </span>,
       );
     }
@@ -621,6 +655,9 @@ export function KluctlDeploymentDetails() {
     displayName: string;
     rendered?: string;
     applied?: string;
+    newObject?: boolean;
+    changed?: boolean;
+    deletedObject?: boolean;
   };
 
   const parseCompactedEntries = (raw?: string): CompactedEntry[] => {
@@ -648,11 +685,17 @@ export function KluctlDeploymentDetails() {
         const resourceType = `${groupPart}/${kind}`;
         const displayName = namespace ? `${resourceType}/${namespace}/${name}` : `${resourceType}/${name}`;
         const key = `${resourceType}::${namespace}/${name}`;
+        const newObject = item.new === true;
+        const changed = Array.isArray(item.changes) && item.changes.length > 0;
+        const deletedObject = item.deleted === true;
         out.push({
           key,
           displayName,
           rendered: typeof item.rendered === "string" ? item.rendered : undefined,
           applied: typeof item.applied === "string" ? item.applied : undefined,
+          newObject,
+          changed,
+          deletedObject,
         });
       });
       return out;
@@ -1018,7 +1061,7 @@ export function KluctlDeploymentDetails() {
                       <div>
                         <ul>
                           {getRecentSummaries(dep).map((s) => (
-                            <li>
+                            <li class="value">
                               <span title={s.commandInfo?.startTime}>
                                 {s.commandInfo?.startTime
                                   ? useCalculateAge(s.commandInfo.startTime)()
