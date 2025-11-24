@@ -428,6 +428,32 @@ h1 {
   color: white;
 }
 
+/* Kluctl deployment result summary badges */
+.status-badge.kluctl-new {
+  background-color: var(--linear-blue-light); /* Softer blue for new objects */
+  color: var(--linear-blue);
+}
+
+.status-badge.kluctl-changed {
+  background-color: var(--linear-blue-light); /* Softer blue for changed objects */
+  color: var(--linear-blue);
+}
+
+.status-badge.kluctl-deleted {
+  background-color: var(--linear-blue-light); /* Softer blue for deleted objects */
+  color: var(--linear-blue);
+}
+
+.status-badge.kluctl-errors {
+  background-color: var(--linear-red-light); /* Softer red for errors */
+  color: var(--linear-red);
+}
+
+.status-badge.kluctl-warnings {
+  background-color: var(--linear-yellow-light); /* Softer amber for warnings */
+  color: var(--linear-yellow);
+}
+
 /* Kustomization Details */
 .kustomization-details {
   display: flex;
@@ -496,6 +522,11 @@ h1 {
   border-radius: 4px;
   align-items: center;
   gap: 4px;
+}
+
+/* Kluctl-specific status badge layout */
+.kluctl-status-badge {
+  padding: 0.5px 2px; /* Adjust this to fine-tune Kluctl badge padding */
 }
 
 /* Health status badges (for kustomization reconciliation) */

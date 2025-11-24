@@ -42,45 +42,80 @@ const sortSummariesByStartTimeDesc = (summaries: any[]): any[] => {
   });
 };
 
-const formatSummaryStatus = (s: any): string => {
+const formatSummaryStatus = (s: any) => {
   if (!s) return "No changes";
 
   const errorMessages = getIssueMessages(s.errors);
   const warningMessages = getIssueMessages(s.warnings);
 
-  const parts: string[] = [];
+  const parts: any[] = [];
+
+  const addPart = (node: any) => {
+    if (parts.length > 0) {
+      parts.push(" | ");
+    }
+    parts.push(node);
+  };
 
   const rendered = typeof s.renderedObjects === "number" ? s.renderedObjects : 0;
-  if (rendered) parts.push(`${rendered} rendered`);
+  if (rendered) addPart(`${rendered} rendered`);
 
   const applied = typeof s.appliedObjects === "number" ? s.appliedObjects : 0;
-  if (applied) parts.push(`${applied} applied`);
+  if (applied) addPart(`${applied} applied`);
 
   const changed = typeof s.changedObjects === "number" ? s.changedObjects : 0;
-  if (changed) parts.push(`${changed} changed`);
+  if (changed) {
+    addPart(
+      <span class="status-badge kluctl-status-badge kluctl-changed">
+        {changed} changed
+      </span>,
+    );
+  }
 
   const deleted = typeof s.deletedObjects === "number" ? s.deletedObjects : 0;
-  if (deleted) parts.push(`${deleted} deleted`);
+  if (deleted) {
+    addPart(
+      <span class="status-badge kluctl-status-badge kluctl-deleted">
+        {deleted} deleted
+      </span>,
+    );
+  }
 
   const newly = typeof s.newObjects === "number" ? s.newObjects : 0;
-  if (newly) parts.push(`${newly} new`);
+  if (newly) {
+    addPart(
+      <span class="status-badge kluctl-status-badge kluctl-new">
+        {newly} new
+      </span>,
+    );
+  }
 
   const orphan = typeof s.orphanObjects === "number" ? s.orphanObjects : 0;
-  if (orphan) parts.push(`${orphan} orphan`);
+  if (orphan) addPart(`${orphan} orphan`);
 
   const errorCount = countIssues(s.errors);
   if (errorCount) {
-    const suffix = errorMessages.length ? `: ${errorMessages.join(" | ")}` : "";
-    parts.push(`${errorCount} errors${suffix}`);
+    const tooltip = errorMessages.length ? errorMessages.join(" | ") : "";
+    addPart(
+      <span class="status-badge kluctl-status-badge kluctl-errors" title={tooltip || undefined}>
+        {errorCount} errors
+      </span>,
+    );
   }
 
   const warningCount = countIssues(s.warnings);
   if (warningCount) {
-    const suffix = warningMessages.length ? `: ${warningMessages.join(" | ")}` : "";
-    parts.push(`${warningCount} warnings${suffix}`);
+    const tooltip = warningMessages.length ? warningMessages.join(" | ") : "";
+    addPart(
+      <span class="status-badge kluctl-status-badge kluctl-warnings" title={tooltip || undefined}>
+        {warningCount} warnings
+      </span>,
+    );
   }
 
-  return parts.length ? parts.join(" | ") : "No changes";
+  if (parts.length === 0) return "No changes";
+
+  return <>{parts}</>;
 };
 
 const getLatestSummary = (deployment: KluctlDeploymentResult) => {
