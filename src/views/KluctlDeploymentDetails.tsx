@@ -9,12 +9,13 @@ import { useFilterStore } from "../store/filterStore.tsx";
 import { watchResource } from "../watches.tsx";
 import { Tabs } from "../components/Tabs.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { stringify as stringifyYAML } from "@std/yaml";
+import { stringify as stringifyYAML, parse as parseYAML } from "@std/yaml";
 import * as graphlib from "graphlib";
 import { ResourceTree, createNodeWithCardRenderer } from "../components/ResourceTree.tsx";
 import { getDeploymentMatchingPods } from "../utils/k8s.ts";
 import type { DiffHunk, FileDiffSection } from "../utils/diffUtils.ts";
 import { generateDiffHunks } from "../utils/diffUtils.ts";
+import { ConditionStatus, ConditionType } from "../utils/conditions.ts";
 
 type KluctlDeploymentResult = any;
 
@@ -43,6 +44,10 @@ type KluctlSummary = {
   // Decoded JSON payloads attached per result by the server
   reducedResult?: string;
   compactedObjects?: string;
+};
+
+type DriftFileSection = FileDiffSection & {
+  driftSummaryLines?: string[];
 };
 
 type KluctlLatestResult = {
@@ -413,6 +418,133 @@ const getDeploymentOrigin = (d: KluctlDeploymentResult | null): string => {
   return "CLI";
 };
 
+const renderKluctlDeploymentStatusBadges = (kd: any | null) => {
+  if (!kd) return null;
+
+  const readyCondition = kd.status?.conditions?.find(
+    (c: any) => c.type === ConditionType.Ready,
+  );
+  const reconcilingCondition = kd.status?.conditions?.find(
+    (c: any) => c.type === ConditionType.Reconciling,
+  );
+  const stalledCondition = kd.status?.conditions?.find(
+    (c: any) => c.type === ConditionType.Stalled,
+  );
+
+  const driftMessage: string | undefined =
+    kd.status?.lastDriftDetectionResultMessage;
+  const hasDriftInfo =
+    typeof driftMessage === "string" && driftMessage.length > 0;
+
+  const validateEnabled =
+    kd.spec?.validate === undefined ? true : Boolean(kd.spec?.validate);
+  const validateResult = kd.status?.lastValidateResult;
+
+  const errorCount = validateResult?.errors
+    ? Array.isArray(validateResult.errors)
+      ? validateResult.errors.length
+      : Number(validateResult.errors) || 0
+    : 0;
+  const warningCount = validateResult?.warnings
+    ? Array.isArray(validateResult.warnings)
+      ? validateResult.warnings.length
+      : Number(validateResult.warnings) || 0
+    : 0;
+  const validationReady = Boolean(validateResult?.ready);
+
+  const driftResult = kd.status?.lastDriftDetectionResult as
+    | { startTime?: string; endTime?: string }
+    | undefined;
+  const driftCheckedAt: string | undefined =
+    (driftResult?.endTime as string | undefined) ||
+    (driftResult?.startTime as string | undefined);
+
+  const validationCheckedAt: string | undefined =
+    (validateResult?.endTime as string | undefined) ||
+    (validateResult?.startTime as string | undefined);
+
+  return (
+    <div class="status-badges">
+      {stalledCondition?.status === ConditionStatus.True && (
+        <span class="status-badge stalled">Stalled</span>
+      )}
+      {readyCondition?.status === ConditionStatus.True && (
+        <span class="status-badge ready">Ready</span>
+      )}
+      {readyCondition?.status === ConditionStatus.False && (
+        <span class="status-badge not-ready">NotReady</span>
+      )}
+      {reconcilingCondition?.status === ConditionStatus.True && (
+        <span class="status-badge reconciling">Reconciling</span>
+      )}
+      {kd.spec?.suspend && (
+        <span class="status-badge suspended">Suspended</span>
+      )}
+      {hasDriftInfo && (
+        <span
+          class={`status-badge ${
+            driftMessage === "no drift" ? "ready" : "sync-outofsync"
+          }`}
+          title={`Drift: ${driftMessage}`}
+        >
+          {driftMessage === "no drift"
+            ? "NoDrift"
+            : `Drift: ${driftMessage}`}
+          {driftCheckedAt &&
+            ` (${useCalculateAge(driftCheckedAt)()} ago)`}
+        </span>
+      )}
+      {validateEnabled && !validateResult && (
+        <span
+          class="status-badge health-unknown"
+          title="Validation has not run yet."
+        >
+          Validation: N/A
+        </span>
+      )}
+      {validateEnabled && validateResult && (
+        <>
+          {validationReady && errorCount === 0 && warningCount === 0 && (
+            <span
+              class="status-badge health-healthy"
+              title="Validation succeeded without warnings."
+            >
+              Validation: OK
+              {validationCheckedAt &&
+                ` (${useCalculateAge(validationCheckedAt)()} ago)`}
+            </span>
+          )}
+          {validationReady && errorCount === 0 && warningCount > 0 && (
+            <span
+              class="status-badge kluctl-warnings"
+              title={`Validation has ${warningCount} warning(s).`}
+            >
+              Validation: {warningCount} warning
+              {warningCount > 1 ? "s" : ""}
+            </span>
+          )}
+          {(!validationReady || errorCount > 0) && (
+            <span
+              class="status-badge kluctl-errors"
+              title={
+                errorCount > 0
+                  ? `Validation has ${errorCount} error(s).`
+                  : "Validation reported the target as not ready."
+              }
+            >
+              {errorCount > 0
+                ? `Validation: ${errorCount} error${
+                    errorCount > 1 ? "s" : ""
+                  }`
+                : "Validation: NotReady"}
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 export function KluctlDeploymentDetails() {
   const params = useParams();
   const navigate = useNavigate();
@@ -422,16 +554,21 @@ export function KluctlDeploymentDetails() {
   const [deployment, setDeployment] = createSignal<KluctlDeploymentResult | null>(null);
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
+  const [kluctlDeployment, setKluctlDeployment] = createSignal<any | null>(null);
+  const [kluctlWatchStarted, setKluctlWatchStarted] = createSignal(false);
+
   const [clusterDeployments, setClusterDeployments] = createSignal<any[]>([]);
   const [clusterPods, setClusterPods] = createSignal<any[]>([]);
   const [inventoryWatchesStarted, setInventoryWatchesStarted] = createSignal(false);
 
-  const [activeTab, setActiveTab] = createSignal<"resources" | "history">("resources");
+  const [activeTab, setActiveTab] = createSignal<"resources" | "history" | "drift">(
+    "resources",
+  );
   const [selectedSummaryIndex, setSelectedSummaryIndex] = createSignal<number>(-1);
 
   // Deploy history diff state (between compactedObjects manifests of adjacent results)
   const [expandedDiffs, setExpandedDiffs] = createSignal<{ [key: string]: boolean }>({});
-  const [diffSections, setDiffSections] = createSignal<{ [key: string]: { fileSections: FileDiffSection[] } }>({});
+  const [diffSections, setDiffSections] = createSignal<{ [key: string]: { fileSections: DriftFileSection[] } }>({});
 
   const graph = createMemo(() =>
     buildKluctlResourceGraph(deployment(), clusterDeployments(), clusterPods()),
@@ -445,6 +582,62 @@ export function KluctlDeploymentDetails() {
     if (params.name && filterStore.k8sResources.length > 0) {
       // Allow empty namespace for cluster-wide pseudo deployments
       setupWatches(params.namespace || "", params.name);
+    }
+  });
+
+  createEffect(() => {
+    const dep = deployment();
+    if (!dep) {
+      setKluctlDeployment(null);
+      setKluctlWatchStarted(false);
+      return;
+    }
+
+    const latestResult = dep.status?.latestResult as KluctlLatestResult | undefined;
+    const kdRef = latestResult?.kluctlDeployment;
+    if (!kdRef || !kdRef.name) {
+      setKluctlDeployment(null);
+      return;
+    }
+
+    const ns = kdRef.namespace || dep.metadata?.namespace || "";
+    if (!kluctlWatchStarted()) {
+      const kdName = kdRef.name;
+      const kdRes = filterStore.k8sResources.find(
+        (r) => r.id === "gitops.kluctl.io/KluctlDeployment",
+      );
+      if (!kdRes) return;
+
+      const controller = new AbortController();
+      let path = `${kdRes.apiPath}/${kdRes.name}?watch=true`;
+      if (kdRes.namespaced && ns && ns !== "all-namespaces") {
+        path = `${kdRes.apiPath}/namespaces/${ns}/${kdRes.name}?watch=true`;
+      }
+
+      watchResource(
+        path,
+        (event: { type: string; object: any }) => {
+          const obj = event.object;
+          if (!obj) return;
+          const objName = obj?.metadata?.name;
+          const objNs = obj?.metadata?.namespace || "";
+          if (objName !== kdName || (ns && objNs !== ns)) {
+            return;
+          }
+          if (event.type === "DELETED") {
+            setKluctlDeployment(null);
+          } else if (event.type === "ADDED" || event.type === "MODIFIED") {
+            setKluctlDeployment(obj);
+          }
+        },
+        controller,
+        () => {},
+        undefined,
+        apiResourceStore.contextInfo?.current,
+      );
+
+      setWatchControllers((prev) => [...prev, controller]);
+      setKluctlWatchStarted(true);
     }
   });
 
@@ -748,6 +941,353 @@ export function KluctlDeploymentDetails() {
     return `${a}-${b}`;
   };
 
+  const latestDriftDiffKey = "kluctl-latest-drift";
+
+  const parseRenderedJson = (entry: CompactedEntry | undefined): any | null => {
+    if (!entry || !entry.rendered) return null;
+    let raw = entry.rendered.trim();
+    if (!raw) return null;
+    if (raw.startsWith("full: ")) {
+      raw = raw.slice(6);
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      try {
+        return parseYAML(raw) as any;
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  const parseJsonPathToSegments = (path: string): (string | number)[] => {
+    let p = typeof path === "string" ? path.trim() : "";
+    if (!p) return [];
+    if (p.startsWith("$")) p = p.slice(1);
+    if (p.startsWith(".")) p = p.slice(1);
+    if (p.startsWith("/")) p = p.slice(1);
+    p = p.replace(/\[(\d+)\]/g, ".$1");
+    p = p.replace(/\["([^"]+)"\]/g, ".$1").replace(/\['([^']+)'\]/g, ".$1");
+    const parts = p.split(/[./]/).filter((seg) => seg.length > 0);
+    return parts.map((seg) => (/^\d+$/.test(seg) ? Number(seg) : seg));
+  };
+
+  const getValueAtPath = (root: any, path: string): any => {
+    const segments = parseJsonPathToSegments(path);
+    if (!segments.length) return undefined;
+    let current: any = root;
+    for (let i = 0; i < segments.length; i += 1) {
+      const seg = segments[i];
+      if (typeof seg === "number") {
+        if (!Array.isArray(current)) return undefined;
+        current = current[seg];
+      } else {
+        if (!current || typeof current !== "object" || !(seg in current)) {
+          return undefined;
+        }
+        current = (current as any)[seg];
+      }
+      if (current === undefined) return undefined;
+    }
+    return current;
+  };
+
+  const valuesEqual = (a: any, b: any): boolean => {
+    if (a === b) return true;
+    if (
+      a &&
+      b &&
+      typeof a === "object" &&
+      typeof b === "object"
+    ) {
+      try {
+        return JSON.stringify(a) === JSON.stringify(b);
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const applyChangeAtPath = (root: any, path: string, change: any): void => {
+    const segments = parseJsonPathToSegments(path);
+    // Debug: understand how jsonPath is interpreted and applied
+    // eslint-disable-next-line no-console
+    console.log("[kluctl drift] applyChangeAtPath", {
+      path,
+      segments,
+      hasNewValue: Object.prototype.hasOwnProperty.call(change, "newValue"),
+      hasOldValue: Object.prototype.hasOwnProperty.call(change, "oldValue"),
+      changeType: change?.type,
+    });
+    if (!segments.length) return;
+    let current = root;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const seg = segments[i];
+      if (typeof seg === "number") {
+        if (!Array.isArray(current)) {
+          // eslint-disable-next-line no-console
+          console.log(
+            "[kluctl drift] expected array segment but current is not array",
+            { path, segments, current },
+          );
+          return;
+        }
+        if (current[seg] === undefined) {
+          current[seg] = {};
+        }
+        current = current[seg];
+      } else {
+        if (
+          current[seg] === undefined ||
+          current[seg] === null ||
+          typeof current[seg] !== "object"
+        ) {
+          current[seg] = {};
+        }
+        current = current[seg];
+      }
+    }
+    const last = segments[segments.length - 1];
+    const hasNewValue = Object.prototype.hasOwnProperty.call(change, "newValue");
+    const hasOldValue = Object.prototype.hasOwnProperty.call(change, "oldValue");
+
+    if (hasNewValue) {
+      const newValue = change.newValue;
+      if (newValue === undefined) {
+        if (typeof last === "number") {
+          if (Array.isArray(current)) {
+            current.splice(last, 1);
+          }
+        } else {
+          delete current[last];
+        }
+      } else {
+        current[last] = newValue;
+      }
+    } else if (hasOldValue) {
+      if (typeof last === "number") {
+        if (Array.isArray(current)) {
+          current.splice(last, 1);
+        }
+      } else {
+        delete current[last];
+      }
+    }
+  };
+
+  const applyDriftToObject = (base: any, drift: any): void => {
+    if (!base || !drift) return;
+    const changes = Array.isArray(drift.changes) ? drift.changes : [];
+
+    // eslint-disable-next-line no-console
+    console.log("[kluctl drift] applyDriftToObject", {
+      ref: drift.ref,
+      changesCount: changes.length,
+    });
+
+    changes.forEach((ch: any, idx: number) => {
+      if (!ch) return;
+      const path = typeof ch.jsonPath === "string" ? ch.jsonPath : "";
+      if (!path) {
+        // eslint-disable-next-line no-console
+        console.log("[kluctl drift] change without jsonPath", {
+          index: idx,
+          change: ch,
+        });
+        return;
+      }
+      const hasNew = Object.prototype.hasOwnProperty.call(ch, "newValue");
+      const hasOld = Object.prototype.hasOwnProperty.call(ch, "oldValue");
+      const currentValue = getValueAtPath(base, path);
+
+      let effectiveChange = ch;
+
+      if (hasNew && hasOld) {
+        const sameAsOld = valuesEqual(currentValue, ch.oldValue);
+        const sameAsNew = valuesEqual(currentValue, ch.newValue);
+
+        let targetNewValue = ch.newValue;
+
+        if (sameAsOld && !sameAsNew) {
+          // from old -> new (normal direction)
+          targetNewValue = ch.newValue;
+        } else if (sameAsNew && !sameAsOld) {
+          // rendered already matches "new", so flip to old to get a visible diff
+          targetNewValue = ch.oldValue;
+        } else {
+          // ambiguous, keep newValue as best guess
+          targetNewValue = ch.newValue;
+        }
+
+        effectiveChange = {
+          ...ch,
+          newValue: targetNewValue,
+        };
+      }
+
+      // eslint-disable-next-line no-console
+      console.log("[kluctl drift] applying change", {
+        index: idx,
+        path,
+        type: ch.type,
+        hasNewValue: Object.prototype.hasOwnProperty.call(effectiveChange, "newValue"),
+        hasOldValue: Object.prototype.hasOwnProperty.call(effectiveChange, "oldValue"),
+        currentValue,
+        oldValue: hasOld ? ch.oldValue : "<none>",
+        newValue: hasNew ? ch.newValue : "<none>",
+        effectiveNewValue: Object.prototype.hasOwnProperty.call(effectiveChange, "newValue")
+          ? effectiveChange.newValue
+          : "<none>",
+      });
+
+      applyChangeAtPath(base, path, effectiveChange);
+    });
+  };
+
+  const ensureLatestDriftDiffSections = (dep: KluctlDeploymentResult | null): string | null => {
+    if (!dep) return null;
+
+    const latest = getLatestSummary(dep);
+    if (!latest || !latest.compactedObjects) return null;
+
+    const entries = parseCompactedEntries(latest.compactedObjects);
+    if (entries.length === 0) return null;
+
+    const kd = kluctlDeployment();
+    const driftResult = kd?.status?.lastDriftDetectionResult as
+      | { objects?: any[] }
+      | undefined;
+
+    const driftMap = new Map<string, any>();
+    if (driftResult?.objects && Array.isArray(driftResult.objects)) {
+      driftResult.objects.forEach((o) => {
+        if (!o) return;
+        const ref = o.ref || {};
+        const group = typeof ref.group === "string" ? ref.group : "";
+        const kind = typeof ref.kind === "string" ? ref.kind : "";
+        const name = typeof ref.name === "string" ? ref.name : "";
+        const namespace = typeof ref.namespace === "string" ? ref.namespace : "";
+        if (!kind || !name) return;
+
+        const candidates: string[] = [];
+        const groupPart = group || "core";
+        const resourceTypeWithGroup = `${groupPart}/${kind}`;
+        const resourceTypeCore = `core/${kind}`;
+        const bareType = kind;
+
+        candidates.push(`${resourceTypeWithGroup}::${namespace}/${name}`);
+        candidates.push(`${resourceTypeCore}::${namespace}/${name}`);
+        candidates.push(`${bareType}::${namespace}/${name}`);
+
+        candidates.forEach((k) => {
+          if (!driftMap.has(k)) {
+            driftMap.set(k, o);
+          }
+        });
+      });
+
+      // eslint-disable-next-line no-console
+      console.log("[kluctl drift] driftMap keys", Array.from(driftMap.keys()));
+    }
+
+    const fileSections: DriftFileSection[] = [];
+
+    entries.forEach((entry) => {
+      const fromText = extractContent(entry, "rendered");
+      if (!fromText.trim()) return;
+
+      let toText = fromText;
+      // Take the rendered YAML we actually show and apply the drift diff on that.
+      // This ensures the second document we diff against is exactly the drift-applied manifest.
+      let baseJson: any | null = null;
+      try {
+        baseJson = parseYAML(fromText) as any;
+      } catch {
+        try {
+          baseJson = JSON.parse(fromText);
+        } catch {
+          baseJson = null;
+        }
+      }
+      const driftObj = driftMap.get(entry.key);
+
+      if (baseJson && driftObj) {
+        const updatedJson = JSON.parse(JSON.stringify(baseJson));
+        applyDriftToObject(updatedJson, driftObj);
+        try {
+          toText = stringifyYAML(updatedJson) as string;
+        } catch {
+          toText = fromText;
+        }
+      }
+
+      const fromLines = fromText.split("\n");
+      const toLines = toText.split("\n");
+      const hunks = generateDiffHunks(fromLines, toLines);
+      const addedLines = hunks.reduce(
+        (s, h) => s + h.changes.filter((c) => c.type === "add").length,
+        0,
+      );
+      const removedLines = hunks.reduce(
+        (s, h) => s + h.changes.filter((c) => c.type === "remove").length,
+        0,
+      );
+
+      let status: "created" | "modified" | "deleted" = "modified";
+      const driftMeta = driftMap.get(entry.key);
+      if (driftMeta?.new === true) status = "created";
+      else if (driftMeta?.deleted === true) status = "deleted";
+
+      let driftSummaryLines: string[] | undefined;
+      if (driftMeta && Array.isArray(driftMeta.changes) && driftMeta.changes.length > 0) {
+        driftSummaryLines = (driftMeta.changes as any[]).map((ch) => {
+          const path = typeof ch.jsonPath === "string" && ch.jsonPath.length > 0 ? ch.jsonPath : "<unknown path>";
+          const hasNew = Object.prototype.hasOwnProperty.call(ch, "newValue");
+          const hasOld = Object.prototype.hasOwnProperty.call(ch, "oldValue");
+          const oldVal =
+            hasOld && ch.oldValue !== undefined ? JSON.stringify(ch.oldValue) : hasOld ? "undefined" : "n/a";
+          const newVal =
+            hasNew && ch.newValue !== undefined ? JSON.stringify(ch.newValue) : hasNew ? "undefined" : "n/a";
+          if (hasOld && hasNew) {
+            return `${path}: ${oldVal} -> ${newVal}`;
+          }
+          if (hasNew && !hasOld) {
+            return `${path}: set to ${newVal}`;
+          }
+          if (!hasNew && hasOld) {
+            return `${path}: removed (was ${oldVal})`;
+          }
+          return `${path}: changed`;
+        });
+      }
+
+      fileSections.push({
+        fileName: entry.displayName,
+        status,
+        hunks,
+        isExpanded: true,
+        addedLines,
+        removedLines,
+        originalLines: fromLines,
+        newLines: toLines,
+        driftSummaryLines,
+      });
+    });
+
+    if (fileSections.length === 0) return null;
+
+    setDiffSections((prev) => ({ ...prev, [latestDriftDiffKey]: { fileSections } }));
+    return latestDriftDiffKey;
+  };
+
+  createEffect(() => {
+    const dep = deployment();
+    if (!dep) return;
+    ensureLatestDriftDiffSections(dep);
+  });
+
   type CompactedEntry = {
     key: string;
     displayName: string;
@@ -813,9 +1353,12 @@ export function KluctlDeploymentDetails() {
     }
   };
 
-  const extractContent = (entry: CompactedEntry | undefined): string => {
+  const extractContent = (
+    entry: CompactedEntry | undefined,
+    source: "rendered" | "applied" = "rendered",
+  ): string => {
     if (!entry) return "";
-    const raw = entry.rendered;
+    const raw = source === "rendered" ? entry.rendered : entry.applied;
     if (!raw) return "";
     if (raw.startsWith("full: ")) {
       return prettyPrintJsonOrText(raw.slice(6));
@@ -850,8 +1393,8 @@ export function KluctlDeploymentDetails() {
       const newerEntry = newerMap.get(k);
       const olderEntry = olderMap.get(k);
 
-      const fromText = extractContent(olderEntry);
-      const toText = extractContent(newerEntry);
+      const fromText = extractContent(olderEntry, "rendered");
+      const toText = extractContent(newerEntry, "rendered");
 
       const fromLines = fromText.split("\n");
       const toLines = toText.split("\n");
@@ -1143,6 +1686,14 @@ export function KluctlDeploymentDetails() {
                         {dep.spec?.target?.targetName || dep.spec?.target?.name || "-"}
                       </span>
                     </div>
+                    {kluctlDeployment() && (
+                      <div class="info-item">
+                        <span class="label">KluctlDeployment Status:</span>
+                        <span class="value">
+                          {renderKluctlDeploymentStatusBadges(kluctlDeployment())}
+                        </span>
+                      </div>
+                    )}
                     <div class="info-item">
                       <span class="label">Origin:</span>
                       <span class="value">
@@ -1185,6 +1736,37 @@ export function KluctlDeploymentDetails() {
                           {dep.status ? stringifyYAML(dep.status) : "No status available"}
                         </pre>
                       </details>
+                      {kluctlDeployment() && (
+                        <>
+                          <details>
+                            <summary class="label">KluctlDeployment Status</summary>
+                            <pre class="conditions-yaml">
+                              {(() => {
+                                const kd = kluctlDeployment();
+                                if (!kd?.status) {
+                                  return "No KluctlDeployment status available";
+                                }
+                                return stringifyYAML(kd.status);
+                              })()}
+                            </pre>
+                          </details>
+                          <details>
+                            <summary class="label">KluctlDeployment Conditions</summary>
+                            <pre class="conditions-yaml">
+                              {(() => {
+                                const kd = kluctlDeployment();
+                                if (
+                                  !kd?.status?.conditions ||
+                                  !kd.status.conditions.length
+                                ) {
+                                  return "No KluctlDeployment conditions available";
+                                }
+                                return stringifyYAML(kd.status.conditions);
+                              })()}
+                            </pre>
+                          </details>
+                        </>
+                      )}
                       <details>
                         <summary class="label">Latest reducedResult JSON</summary>
                         <pre class="conditions-yaml">
@@ -1227,9 +1809,12 @@ export function KluctlDeploymentDetails() {
                   tabs={[
                     { key: "resources", label: "Resource Tree" },
                     { key: "history", label: "Deploy History" },
+                    { key: "drift", label: "Drift Diff" },
                   ]}
                   activeKey={activeTab()}
-                  onChange={(k) => setActiveTab(k as "resources" | "history")}
+                  onChange={(k) =>
+                    setActiveTab(k as "resources" | "history" | "drift")
+                  }
                   style={{ "margin-top": "12px" }}
                 />
 
@@ -1390,6 +1975,89 @@ export function KluctlDeploymentDetails() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </Show>
+
+                <Show when={activeTab() === "drift"}>
+                  <div class="resource-tree-wrapper">
+                    {(() => {
+                      const dep = deployment();
+                      if (!dep) {
+                        return <div class="message-cell">No deployment loaded.</div>;
+                      }
+                      const latestSummary = getLatestSummary(dep);
+                      if (!latestSummary || !latestSummary.compactedObjects) {
+                        return (
+                          <div class="message-cell">
+                            No compactedObjects payload available on the latest command
+                            summary to render manifests.
+                          </div>
+                        );
+                      }
+
+                      const section = diffSections()[latestDriftDiffKey];
+                      if (!section) {
+                        return (
+                          <div class="drawer-loading">
+                            <div class="loading-spinner"></div>
+                            <div>Preparing rendered manifests view...</div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div class="diff-content">
+                          <For each={section.fileSections}>
+                            {(fileSection, fileIndex) => (
+                              <div class="diff-file-section">
+                                <div
+                                  class="diff-file-header"
+                                  onClick={() =>
+                                    toggleFileSection(latestDriftDiffKey, fileIndex())
+                                  }
+                                >
+                                  <div class="diff-file-info">
+                                    <div class="diff-file-toggle">
+                                      {fileSection.isExpanded ? "▼" : "►"}
+                                    </div>
+                                    <span class="diff-file-name">
+                                      {fileSection.fileName}
+                                    </span>
+                                    <span class="diff-file-status status-modified">
+                                      <span class="removed-count">
+                                        -{fileSection.removedLines}
+                                      </span>
+                                      <span class="added-count">
+                                        +{fileSection.addedLines}
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+                                {fileSection.isExpanded && (
+                                  <div class="diff-file-content">
+                                    <div class="diff-hunks">
+                                      <For each={fileSection.hunks}>
+                                        {(hunk, hunkIndex) => (
+                                          <div class="diff-hunk">
+                                            {renderHunk(
+                                              hunk,
+                                              latestDriftDiffKey,
+                                              fileIndex(),
+                                              hunkIndex(),
+                                              fileSection,
+                                            )}
+                                          </div>
+                                        )}
+                                      </For>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </For>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Show>
               </div>

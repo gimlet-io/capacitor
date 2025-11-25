@@ -93,6 +93,29 @@ export const kluctlDeploymentColumns: Column<KluctlDeployment>[] = [
         (c: any) => c.type === ConditionType.Stalled,
       );
 
+      const driftMessage: string | undefined =
+        deployment.status?.lastDriftDetectionResultMessage;
+      const hasDriftInfo =
+        typeof driftMessage === "string" && driftMessage.length > 0;
+
+      const validateEnabled =
+        deployment.spec?.validate === undefined
+          ? true
+          : Boolean(deployment.spec?.validate);
+      const validateResult = deployment.status?.lastValidateResult;
+
+      const errorCount = validateResult?.errors
+        ? Array.isArray(validateResult.errors)
+          ? validateResult.errors.length
+          : Number(validateResult.errors) || 0
+        : 0;
+      const warningCount = validateResult?.warnings
+        ? Array.isArray(validateResult.warnings)
+          ? validateResult.warnings.length
+          : Number(validateResult.warnings) || 0
+        : 0;
+      const validationReady = Boolean(validateResult?.ready);
+
       return (
         <div class="status-badges">
           {stalledCondition?.status === ConditionStatus.True && (
@@ -109,6 +132,63 @@ export const kluctlDeploymentColumns: Column<KluctlDeployment>[] = [
           )}
           {deployment.spec?.suspend && (
             <span class="status-badge suspended">Suspended</span>
+          )}
+          {hasDriftInfo && (
+            <span
+              class={`status-badge ${
+                driftMessage === "no drift" ? "ready" : "sync-outofsync"
+              }`}
+              title={`Drift: ${driftMessage}`}
+            >
+              {driftMessage === "no drift"
+                ? "NoDrift"
+                : `Drift: ${driftMessage}`}
+            </span>
+          )}
+          {validateEnabled && !validateResult && (
+            <span
+              class="status-badge health-unknown"
+              title="Validation has not run yet."
+            >
+              Validation: N/A
+            </span>
+          )}
+          {validateEnabled && validateResult && (
+            <>
+              {validationReady && errorCount === 0 && warningCount === 0 && (
+                <span
+                  class="status-badge health-healthy"
+                  title="Validation succeeded without warnings."
+                >
+                  Validation: OK
+                </span>
+              )}
+              {validationReady && errorCount === 0 && warningCount > 0 && (
+                <span
+                  class="status-badge kluctl-warnings"
+                  title={`Validation has ${warningCount} warning(s).`}
+                >
+                  Validation: {warningCount} warning
+                  {warningCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {(!validationReady || errorCount > 0) && (
+                <span
+                  class="status-badge kluctl-errors"
+                  title={
+                    errorCount > 0
+                      ? `Validation has ${errorCount} error(s).`
+                      : "Validation reported the target as not ready."
+                  }
+                >
+                  {errorCount > 0
+                    ? `Validation: ${errorCount} error${
+                        errorCount > 1 ? "s" : ""
+                      }`
+                    : "Validation: NotReady"}
+                </span>
+              )}
+            </>
           )}
         </div>
       );
