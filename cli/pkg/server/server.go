@@ -1230,6 +1230,28 @@ func (s *Server) Setup() {
 		return s.handleHelmReleasesList(c, proxy, ns)
 	})
 
+	// Add endpoints for listing Kluctl Deployments (context-aware) backed by Kluctl result secrets.
+	// Pseudo resource: apiVersion kluctl.io/v1, kind Deployment.
+	s.echo.GET("/api/:context/kluctl/deployments/deployments", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return s.handleKluctlDeploymentsList(c, proxy, "")
+	})
+
+	s.echo.GET("/api/:context/kluctl/deployments/namespaces/:namespace/deployments", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		ns := c.Param("namespace")
+		if strings.EqualFold(ns, "all-namespaces") {
+			ns = ""
+		}
+		return s.handleKluctlDeploymentsList(c, proxy, ns)
+	})
+
 	// Add endpoint for Helm release rollback (context-aware)
 	s.echo.POST("/api/:context/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
@@ -1364,6 +1386,79 @@ func (s *Server) handleHelmReleasesList(c echo.Context, proxy *KubernetesProxy, 
 	for _, rel := range releases {
 		items = append(items, buildHelmReleaseObject(rel))
 	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"kind":       "List",
+		"apiVersion": "v1",
+		"items":      items,
+	})
+}
+
+// handleKluctlDeploymentsList lists Kluctl Deployments (pseudo resources) using Kluctl result secrets.
+// It returns either a Kubernetes Table or a plain List, similar to handleHelmReleasesList.
+func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesProxy, namespace string) error {
+	ctx := c.Request().Context()
+
+	// For now, read command results from the same namespace used by the Kluctl CLI by default,
+	// but allow overriding via environment variable CAPACITOR_KLUCTL_RESULTS_NAMESPACE.
+	commandResultNamespace := os.Getenv("CAPACITOR_KLUCTL_RESULTS_NAMESPACE")
+	if commandResultNamespace == "" {
+		commandResultNamespace = "kluctl-results"
+	}
+
+	summaries, payloads, err := listCommandResultSummariesWithPayload(ctx, proxy.k8sClient, commandResultNamespace)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("failed to list kluctl command results: %v", err),
+		})
+	}
+
+	groups := groupCommandResultSummaries(summaries)
+
+	// Build pseudo Deployment objects, optionally filtering by namespace.
+	items := make([]map[string]interface{}, 0, len(groups))
+	rows := make([]map[string]interface{}, 0, len(groups))
+	for _, g := range groups {
+		obj := buildKluctlDeploymentObject(g, payloads)
+		// Ensure every pseudo Deployment has a namespace; default to the command result namespace
+		// when KluctlDeploymentInfo.Namespace is not available.
+		if obj.Metadata.Namespace == "" {
+			obj.Metadata.Namespace = commandResultNamespace
+		}
+		if namespace != "" && obj.Metadata.Namespace != namespace {
+			continue
+		}
+		item := map[string]interface{}{
+			"apiVersion": obj.APIVersion,
+			"kind":       obj.Kind,
+			"metadata":   obj.Metadata,
+			"spec":       obj.Spec,
+			"status":     obj.Status,
+		}
+		items = append(items, item)
+		rows = append(rows, map[string]interface{}{
+			"cells": []interface{}{
+				obj.Metadata.Name,
+				obj.Metadata.Namespace,
+			},
+			"object": item,
+		})
+	}
+
+	accept := c.Request().Header.Get("Accept")
+	if strings.Contains(accept, "as=Table;g=meta.k8s.io;v1") {
+		// Minimal Table response; columns are resolved client-side, so we only need rows with object references.
+		table := map[string]interface{}{
+			"kind":       "Table",
+			"apiVersion": "meta.k8s.io/v1",
+			"columnDefinitions": []map[string]interface{}{
+				{"name": "Name", "type": "string", "format": "name"},
+				{"name": "Namespace", "type": "string"},
+			},
+			"rows": rows,
+		}
+		return c.JSON(http.StatusOK, table)
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"kind":       "List",
 		"apiVersion": "v1",
