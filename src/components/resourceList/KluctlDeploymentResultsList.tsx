@@ -12,6 +12,19 @@ type DeploymentIssue = {
   message?: string;
 };
 
+type KluctlLatestResult = {
+  commandInfo?: {
+    initiator?: string;
+    command?: string;
+    startTime?: string;
+  };
+  kluctlDeployment?: {
+    name?: string;
+    namespace?: string;
+  };
+  [key: string]: unknown;
+};
+
 const countIssues = (value: any): number => {
   if (Array.isArray(value)) return value.length;
   if (typeof value === "number") return value;
@@ -125,6 +138,24 @@ const getLatestSummary = (deployment: KluctlDeploymentResult) => {
   return sorted[0];
 };
 
+const getDeploymentOrigin = (deployment: KluctlDeploymentResult): string => {
+  const latestResult = deployment.status?.latestResult as KluctlLatestResult | undefined;
+  const kd = latestResult?.kluctlDeployment;
+
+  console.log(kd);
+
+  // If there is an associated KluctlDeployment CR, treat this as GitOps
+  if (kd) {
+    if (kd.name && kd.namespace) {
+      return `GitOps (KluctlDeployment ${kd.namespace}/${kd.name})`;
+    }
+    return "GitOps (KluctlDeployment)";
+  }
+
+  // Everything else is considered CLI-based
+  return "CLI";
+};
+
 export const renderKluctlDeploymentResultsDetails = (deployment: KluctlDeploymentResult, columnCount = 4) => {
   const summaries = (deployment.status?.commandSummaries as any[] | undefined) || [];
   const sorted = sortSummariesByStartTimeDesc(summaries).slice(0, 5);
@@ -136,7 +167,8 @@ export const renderKluctlDeploymentResultsDetails = (deployment: KluctlDeploymen
       <div style="display: contents;">
         <div>
           <strong>Project:</strong> {deployment.spec?.project?.repoKey?.url || deployment.spec?.project?.repoKey || "-"}/{deployment.spec?.project?.subDir || "-"}<br />
-          <strong>Target:</strong> {deployment.spec?.target?.name || "-"}
+          <strong>Target:</strong> {deployment.spec?.target?.name || "-"}<br />
+          <strong>Origin:</strong> {getDeploymentOrigin(deployment)}
         </div>
         <div>
           <ul>

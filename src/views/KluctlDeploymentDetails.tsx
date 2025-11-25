@@ -45,6 +45,19 @@ type KluctlSummary = {
   compactedObjects?: string;
 };
 
+type KluctlLatestResult = {
+  commandInfo?: {
+    initiator?: string;
+    command?: string;
+    startTime?: string;
+  };
+  kluctlDeployment?: {
+    name?: string;
+    namespace?: string;
+  };
+  [key: string]: unknown;
+};
+
 type KluctlRenderedObject = {
   // Full object shape (when available)
   apiVersion?: string;
@@ -65,29 +78,98 @@ type KluctlRenderedObject = {
 type KluctlReducedDeployment = {
   path?: string;
   renderedObjects?: KluctlRenderedObject[];
+  // Newer Kluctl versions can nest rendered objects under renderedInclude.*
+  // where each entry is an array of deployments with renderedObjects.
+  renderedInclude?: {
+    [key: string]: {
+      path?: string;
+      renderedObjects?: KluctlRenderedObject[];
+      [key: string]: unknown;
+    }[];
+  };
+  [key: string]: unknown;
 };
 
 type KluctlReducedResult = {
   deployment?: {
     deployments?: KluctlReducedDeployment[];
   };
+  // Fallback objects array (older/alternate schema); we can derive simple refs from here
+  // when renderedObjects are not directly available.
+  objects?: {
+    ref?: {
+      group?: string;
+      version?: string;
+      kind?: string;
+      name?: string;
+      namespace?: string;
+      [key: string]: unknown;
+    };
+    rendered?: unknown;
+    [key: string]: unknown;
+  }[];
 };
 
 const getRenderedObjectsFromLatestResult = (d: KluctlDeploymentResult | null): KluctlRenderedObject[] => {
   const txt = (d?.status?.latestReducedResult as string | undefined) || "";
   if (!txt) return [];
   try {
-    const parsed = JSON.parse(txt) as KluctlReducedResult;
-    const deployments = parsed.deployment?.deployments;
-    if (!Array.isArray(deployments)) return [];
     const out: KluctlRenderedObject[] = [];
-    deployments.forEach((entry) => {
-      if (Array.isArray(entry.renderedObjects)) {
-        entry.renderedObjects.forEach((obj) => {
-          out.push(obj);
+
+    const parsed = JSON.parse(txt) as KluctlReducedResult & { [key: string]: unknown };
+    const deployments = parsed.deployment?.deployments;
+
+    if (Array.isArray(deployments)) {
+      deployments.forEach((entry) => {
+        // 1) Direct renderedObjects (CLI-style reducedResult)
+        if (Array.isArray(entry.renderedObjects)) {
+          entry.renderedObjects.forEach((obj) => {
+            out.push(obj);
+          });
+        }
+
+        // 2) Nested renderedInclude.*[].renderedObjects (KluctlDeployment-style reducedResult)
+        const renderedInclude = entry.renderedInclude;
+        if (renderedInclude && typeof renderedInclude === "object") {
+          Object.values(renderedInclude).forEach((val) => {
+            if (!Array.isArray(val)) return;
+            val.forEach((inc) => {
+              if (inc && Array.isArray(inc.renderedObjects)) {
+                inc.renderedObjects.forEach((obj) => {
+                  out.push(obj);
+                });
+              }
+            });
+          });
+        }
+      });
+    }
+
+    // 3) Fallback: derive refs from top-level objects[*].ref when no rendered objects were found
+    if (out.length === 0 && Array.isArray(parsed.objects)) {
+      parsed.objects.forEach((item) => {
+        if (!item || typeof item !== "object") return;
+        const ref = item.ref || {};
+        if (!ref || typeof ref !== "object") return;
+
+        const kind = typeof ref.kind === "string" ? ref.kind : "";
+        const name = typeof ref.name === "string" ? ref.name : "";
+        if (!kind || !name) return;
+
+        const namespace = typeof ref.namespace === "string" ? ref.namespace : "";
+        const group = typeof ref.group === "string" ? ref.group : "";
+        const version = typeof ref.version === "string" ? ref.version : "";
+        const apiVersion = group ? `${group}/${version || "v1"}` : version || "v1";
+
+        out.push({
+          apiVersion,
+          kind,
+          name,
+          namespace,
         });
-      }
-    });
+      });
+    }
+
     return out;
   } catch {
     return [];
@@ -313,6 +395,22 @@ const getIssueMessages = (value: KluctlSummary["errors"] | KluctlSummary["warnin
       }
     })
     .filter((m) => m.length > 0);
+};
+
+const getDeploymentOrigin = (d: KluctlDeploymentResult | null): string => {
+  const latestResult = d?.status?.latestResult as KluctlLatestResult | undefined;
+  const kd = latestResult?.kluctlDeployment;
+
+  // If there is an associated KluctlDeployment CR, treat this as GitOps
+  if (kd) {
+    if (kd.name && kd.namespace) {
+      return `GitOps (KluctlDeployment ${kd.namespace}/${kd.name})`;
+    }
+    return "GitOps (KluctlDeployment)";
+  }
+
+  // Everything else is considered CLI-based
+  return "CLI";
 };
 
 export function KluctlDeploymentDetails() {
@@ -1043,6 +1141,12 @@ export function KluctlDeploymentDetails() {
                       <span class="label">Target:</span>
                       <span class="value">
                         {dep.spec?.target?.targetName || dep.spec?.target?.name || "-"}
+                      </span>
+                    </div>
+                    <div class="info-item">
+                      <span class="label">Origin:</span>
+                      <span class="value">
+                        {getDeploymentOrigin(dep)}
                       </span>
                     </div>
                     <div class="info-item">
