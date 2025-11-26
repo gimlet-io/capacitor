@@ -293,6 +293,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       'spec.nodeName',
       'spec.containers.[*].name',
       'spec.containers.[*].ports',
+      'spec.containers.[*].resources.requests',
+      'spec.containers.[*].resources.limits',
       'status.phase',
       'status.podIP',
       'status.containerStatuses',
