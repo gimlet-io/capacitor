@@ -288,17 +288,6 @@
     }
   }
 
-  function setPitchSliderFromFrequency(freq) {
-    if (!pitchSlider || !Number.isFinite(freq) || freq <= 0) return;
-    // Invert the mapping used in updatePitchFromSlider.
-    var ratio = freq / pitchBaseHz;
-    var raw = (Math.log(ratio) / Math.log(2)) / pitchOctaves + 0.5;
-    var clamped = Math.max(0, Math.min(1, raw));
-    pitchSlider.value = String(clamped);
-    // Update displayed label to match new slider position.
-    updatePitchFromSlider();
-  }
-
   function clearCanvas() {
     const ctx2d = scopeCanvas.getContext('2d');
     if (!ctx2d) return;

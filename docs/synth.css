@@ -211,6 +211,9 @@
 .synth-knob-value {
   font-size: 12px;
   color: var(--cyan);
+  min-width: 56px;
+  text-align: center;
+  display: inline-block;
 }
 
 .synth-knob--lfo {
