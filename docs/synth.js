@@ -85,7 +85,7 @@
 
   /** @type {number | null} */
   let animationFrameId = null;
-  let currentWave = 'sine';
+  let currentWave = 'square';
   let muted = true;
   let simulatedTime = 0; // For synthetic waveform animation
 
@@ -171,8 +171,11 @@
   function updateMuteButton() {
     const muteButton = document.getElementById('synthMuteButton');
     if (muteButton) {
-      muteButton.textContent = muted ? '🔇 Unmute' : '🔊 Mute';
       muteButton.setAttribute('data-muted', muted ? 'true' : 'false');
+      const xIcon = muteButton.querySelector('.synth-mute-icon-x');
+      if (xIcon) {
+        xIcon.setAttribute('opacity', muted ? '1' : '0');
+      }
     }
   }
 

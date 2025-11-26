@@ -9,13 +9,13 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Capacitor Next">
   <meta property="og:title" content="Capacitor Next — Think k9s, but in the browser.">
-  <meta property="og:description" content="Or ArgoCD UI, just lighter. With heavy FluxCD focus.">
+  <meta property="og:description" content="Or ArgoCD UI, but for FluxCD.">
   <meta property="og:image" content="https://gimlet.io/capacitor-next/social.svg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Capacitor Next — Think k9s, but in the browser.">
-  <meta name="twitter:description" content="Or ArgoCD UI, just lighter. With heavy FluxCD focus.">
+  <meta name="twitter:description" content="Or ArgoCD UI, but for FluxCD.">
   <meta name="twitter:image" content="https://gimlet.io/capacitor-next/social.svg">
   <link rel="stylesheet" href="product.css">
   <link rel="stylesheet" href="synth.css">
@@ -24,13 +24,12 @@
   <div class="scanlines" aria-hidden="true"></div>
   <main class="container">
     <header class="hero">
-      <div class="logo" aria-hidden="true"></div>
       <section class="synth" aria-label="Mini synthesizer">
         <div class="synth-module synth-module--oscillator">
           <div class="synth-module-header">Flux</div>
           <div class="synth-module-body">
             <div class="synth-row">
-              <button class="synth-button synth-wave-button synth-wave-button--active" data-wave="sine" type="button">
+              <button class="synth-button synth-wave-button" data-wave="sine" type="button">
                 <span class="synth-wave-icon" aria-hidden="true">
                   <svg viewBox="0 0 40 16" focusable="false" aria-hidden="true">
                     <path d="M1 8 C 7 0, 13 0, 19 8 S 31 16, 37 8" />
@@ -38,7 +37,7 @@
                 </span>
                 <span class="synth-wave-label">Sine</span>
               </button>
-              <button class="synth-button synth-wave-button" data-wave="square" type="button">
+              <button class="synth-button synth-wave-button synth-wave-button--active" data-wave="square" type="button">
                 <span class="synth-wave-icon" aria-hidden="true">
                   <svg viewBox="0 0 40 16" focusable="false" aria-hidden="true">
                     <path d="M1 14 V2 H14 V14 H27 V2 H37" />
@@ -86,7 +85,7 @@
                   min="0"
                   max="1"
                   step="0.01"
-                  value="1"
+                  value="0.87"
                   id="synthFilterFrequency"
                   aria-label="Filter cutoff frequency"
                 />
@@ -132,7 +131,6 @@
           </div>
         </div>
         <div class="synth-module synth-module--scope">
-          <div class="synth-module-header"></div>
           <div class="synth-module-body">
             <canvas
               id="synthScope"
@@ -141,12 +139,52 @@
               height="140"
               aria-label="Waveform and harmonics oscilloscope"
             ></canvas>
-            <button class="synth-button synth-mute-button" id="synthMuteButton" type="button">🔇 Unmute</button>
           </div>
         </div>
+          <div class="synth-module-body">
+            <button class="synth-button synth-mute-button" id="synthMuteButton" type="button" aria-label="Toggle mute" data-muted="true">
+              <svg class="synth-mute-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                <path class="synth-mute-icon-x" d="M19 9l-6 6M13 9l6 6" opacity="1"/>
+              </svg>
+            </button>
+          </div>
       </section>
-      <h1 class="glitch" data-text="Capacitor Next">Capacitor Next</h1>
-      <p class="tagline">Think k9s, but in the browser. Or ArgoCD UI, just lighter. With heavy FluxCD focus.</p>
+      <p class="synth-note">...because synths are fun. And AI is cheap.</p>
+      <div class="glitch-container">
+        <svg class="christmas-tree" viewBox="0 0 32 38" fill="none">
+          <!-- Tree triangles -->
+          <path d="M16 2 L9 12 L23 12 Z" fill="#2d5016" stroke="#1a3009" stroke-width="1"/>
+          <path d="M16 8 L7 20 L25 20 Z" fill="#2d5016" stroke="#1a3009" stroke-width="1"/>
+          <path d="M16 14 L5 28 L27 28 Z" fill="#2d5016" stroke="#1a3009" stroke-width="1"/>
+          <!-- Trunk -->
+          <rect x="13" y="28" width="6" height="8" fill="#4a3228" stroke="#2d1e18" stroke-width="1"/>
+          <!-- Lights -->
+          <circle class="light light-1" cx="12" cy="11" r="1.2" fill="#ff4444"/>
+          <circle class="light light-2" cx="20" cy="13" r="1.2" fill="#4444ff"/>
+          <circle class="light light-3" cx="14" cy="18" r="1.2" fill="#ffd700"/>
+          <circle class="light light-4" cx="18" cy="21" r="1.2" fill="#44ff44"/>
+          <circle class="light light-5" cx="10" cy="24" r="1.2" fill="#ff44ff"/>
+          <circle class="light light-6" cx="22" cy="25" r="1.2" fill="#44ffff"/>
+        </svg>
+        <h1 class="glitch" data-text="Capacitor Next">Capacitor Next</h1>
+        <svg class="christmas-tree" viewBox="0 0 32 38" fill="none">
+          <!-- Tree triangles -->
+          <path d="M16 2 L9 12 L23 12 Z" fill="#2d5016" stroke="#1a3009" stroke-width="1"/>
+          <path d="M16 8 L7 20 L25 20 Z" fill="#2d5016" stroke="#1a3009" stroke-width="1"/>
+          <path d="M16 14 L5 28 L27 28 Z" fill="#2d5016" stroke="#1a3009" stroke-width="1"/>
+          <!-- Trunk -->
+          <rect x="13" y="28" width="6" height="8" fill="#4a3228" stroke="#2d1e18" stroke-width="1"/>
+          <!-- Lights -->
+          <circle class="light light-1" cx="12" cy="11" r="1.2" fill="#ff4444"/>
+          <circle class="light light-2" cx="20" cy="13" r="1.2" fill="#4444ff"/>
+          <circle class="light light-3" cx="14" cy="18" r="1.2" fill="#ffd700"/>
+          <circle class="light light-4" cx="18" cy="21" r="1.2" fill="#44ff44"/>
+          <circle class="light light-5" cx="10" cy="24" r="1.2" fill="#ff44ff"/>
+          <circle class="light light-6" cx="22" cy="25" r="1.2" fill="#44ffff"/>
+        </svg>
+      </div>
+      <p class="tagline">Think k9s, but in the browser. Or ArgoCD UI, but for FluxCD.</p>
       <div class="cta">
         <a class="btn btn-primary" href="./docs/">Docs</a>
         <a class="btn btn-yellow" href="./changelog/" target="_blank">Changelog</a>
