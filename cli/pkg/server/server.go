@@ -66,6 +66,70 @@ type proxyContextKey struct{}
 
 var proxyCtxKey = &proxyContextKey{}
 
+// SystemViewFilter represents a single filter entry in a system view configuration
+type SystemViewFilter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// SystemView represents a single system view configuration exposed via /api/config
+type SystemView struct {
+	ID       string             `json:"id"`
+	Label    string             `json:"label"`
+	IsSystem bool               `json:"isSystem"`
+	Filters  []SystemViewFilter `json:"filters"`
+}
+
+// defaultSystemViews contains the built‑in system views that were previously hardcoded in ViewBar.tsx.
+// They are now served from the backend so they can be centrally controlled and customized.
+var defaultSystemViews = []SystemView{
+	{
+		ID:       "pods",
+		Label:    "Pods",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "core/Pod"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "services",
+		Label:    "Services",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "core/Service"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "helm",
+		Label:    "Helm",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "helm.sh/Release"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "fluxcd/kustomizations",
+		Label:    "FluxCD/Kustomizations",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "kustomize.toolkit.fluxcd.io/Kustomization"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "fluxcd/helmreleases",
+		Label:    "FluxCD/HelmReleases",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "helm.toolkit.fluxcd.io/HelmRelease"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+}
+
 // Removed per-route withK8sProxy wrapper; using global middleware to attach proxies
 
 // getProxyFromContext fetches the KubernetesProxy previously attached by middleware
@@ -202,10 +266,10 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// App configuration endpoint (exposes UI options like theme)
+	// App configuration endpoint (exposes UI options like system views)
 	s.echo.GET("/api/config", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"theme": s.config.Theme,
+			"systemViews": defaultSystemViews,
 		})
 	})
 
@@ -1166,6 +1230,28 @@ func (s *Server) Setup() {
 		return s.handleHelmReleasesList(c, proxy, ns)
 	})
 
+	// Add endpoints for listing Kluctl Deployments (context-aware) backed by Kluctl result secrets.
+	// Pseudo resource: apiVersion kluctl.io/v1, kind Deployment.
+	s.echo.GET("/api/:context/kluctl/deployments/deployments", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return s.handleKluctlDeploymentsList(c, proxy, "")
+	})
+
+	s.echo.GET("/api/:context/kluctl/deployments/namespaces/:namespace/deployments", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		ns := c.Param("namespace")
+		if strings.EqualFold(ns, "all-namespaces") {
+			ns = ""
+		}
+		return s.handleKluctlDeploymentsList(c, proxy, ns)
+	})
+
 	// Add endpoint for Helm release rollback (context-aware)
 	s.echo.POST("/api/:context/helm/rollback/:namespace/:name/:revision", func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
@@ -1300,6 +1386,79 @@ func (s *Server) handleHelmReleasesList(c echo.Context, proxy *KubernetesProxy, 
 	for _, rel := range releases {
 		items = append(items, buildHelmReleaseObject(rel))
 	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"kind":       "List",
+		"apiVersion": "v1",
+		"items":      items,
+	})
+}
+
+// handleKluctlDeploymentsList lists Kluctl Deployments (pseudo resources) using Kluctl result secrets.
+// It returns either a Kubernetes Table or a plain List, similar to handleHelmReleasesList.
+func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesProxy, namespace string) error {
+	ctx := c.Request().Context()
+
+	// For now, read command results from the same namespace used by the Kluctl CLI by default,
+	// but allow overriding via environment variable CAPACITOR_KLUCTL_RESULTS_NAMESPACE.
+	commandResultNamespace := os.Getenv("CAPACITOR_KLUCTL_RESULTS_NAMESPACE")
+	if commandResultNamespace == "" {
+		commandResultNamespace = "kluctl-results"
+	}
+
+	summaries, payloads, err := listCommandResultSummariesWithPayload(ctx, proxy.k8sClient, commandResultNamespace)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("failed to list kluctl command results: %v", err),
+		})
+	}
+
+	groups := groupCommandResultSummaries(summaries)
+
+	// Build pseudo Deployment objects, optionally filtering by namespace.
+	items := make([]map[string]interface{}, 0, len(groups))
+	rows := make([]map[string]interface{}, 0, len(groups))
+	for _, g := range groups {
+		obj := buildKluctlDeploymentObject(g, payloads)
+		// Ensure every pseudo Deployment has a namespace; default to the command result namespace
+		// when KluctlDeploymentInfo.Namespace is not available.
+		if obj.Metadata.Namespace == "" {
+			obj.Metadata.Namespace = commandResultNamespace
+		}
+		if namespace != "" && obj.Metadata.Namespace != namespace {
+			continue
+		}
+		item := map[string]interface{}{
+			"apiVersion": obj.APIVersion,
+			"kind":       obj.Kind,
+			"metadata":   obj.Metadata,
+			"spec":       obj.Spec,
+			"status":     obj.Status,
+		}
+		items = append(items, item)
+		rows = append(rows, map[string]interface{}{
+			"cells": []interface{}{
+				obj.Metadata.Name,
+				obj.Metadata.Namespace,
+			},
+			"object": item,
+		})
+	}
+
+	accept := c.Request().Header.Get("Accept")
+	if strings.Contains(accept, "as=Table;g=meta.k8s.io;v1") {
+		// Minimal Table response; columns are resolved client-side, so we only need rows with object references.
+		table := map[string]interface{}{
+			"kind":       "Table",
+			"apiVersion": "meta.k8s.io/v1",
+			"columnDefinitions": []map[string]interface{}{
+				{"name": "Name", "type": "string", "format": "name"},
+				{"name": "Namespace", "type": "string"},
+			},
+			"rows": rows,
+		}
+		return c.JSON(http.StatusOK, table)
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"kind":       "List",
 		"apiVersion": "v1",

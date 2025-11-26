@@ -10,12 +10,13 @@ import { TerraformDetails } from "./views/TerraformDetails.tsx";
 import { HelmClassicReleaseDetails } from "./views/helmClassicReleaseDetails.tsx";
 import { ApplicationDetails } from "./views/applicationDetails.tsx";
 import { SecretDetails } from "./views/secretDetails.tsx";
+import { KluctlDeploymentDetails } from "./views/KluctlDeploymentDetails.tsx";
 import { Dashboard } from "./views/dashboard.tsx";
 import { FilterProvider } from "./store/filterStore.tsx";
 import { ApiResourceProvider } from "./store/apiResourceStore.tsx";
 import { ErrorProvider } from "./store/errorStore.tsx";
 import { UpdateNotice } from "./components/UpdateNotice.tsx";
-import { applyTheme, fetchDefaultTheme, loadInitialTheme } from "./utils/theme.ts";
+import { applyTheme, loadInitialTheme } from "./utils/theme.ts";
 import { keyboardManager } from "./utils/keyboardManager.ts";
 
 function App() {
@@ -32,18 +33,6 @@ function App() {
   const storedTheme = loadInitialTheme();
   applyTheme(storedTheme);
 
-  // Fetch default theme from server (if provided) and apply only if user has no explicit choice
-  fetchDefaultTheme().then((serverTheme) => {
-    try {
-      const hasUserPref = !!localStorage.getItem("ui.theme");
-      if (!hasUserPref && serverTheme) {
-        applyTheme(serverTheme);
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  });
-
   return (
     <ErrorProvider>
       <ApiResourceProvider>
@@ -57,6 +46,7 @@ function App() {
             <Route path="/helmclassic/:namespace/:name" component={HelmClassicReleaseDetails} />
             <Route path="/application/:namespace/:name" component={ApplicationDetails} />
             <Route path="/secret/:namespace/:name" component={SecretDetails} />
+            <Route path="/kluctldeployment/:namespace/:name" component={KluctlDeploymentDetails} />
           </HashRouter>
         </FilterProvider>
       </ApiResourceProvider>

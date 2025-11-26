@@ -6,7 +6,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, type Column } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, navigateToKluctlDeployment, type Column } from "../../resourceTypeConfigs.tsx";
 import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
@@ -219,6 +219,20 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => {
             handlers.navigate!(`/terraform/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === navigateToKluctlDeployment && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/kluctldeployment/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('kluctl deployment details') && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/kluctldeployment/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
       } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('classic') && handlers.navigate) {

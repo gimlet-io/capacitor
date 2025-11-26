@@ -232,6 +232,17 @@ export const updateHelmReleaseMatchingEvents = (helmRelease: HelmRelease, allEve
   };
 };
 
+export const updateKluctlDeploymentMatchingEvents = (deployment: any, allEvents: Event[]): any => {
+  return {
+    ...deployment,
+    events: allEvents.filter(event =>
+      event.metadata.namespace === deployment.metadata?.namespace &&
+      event.involvedObject.kind === "KluctlDeployment" &&
+      event.involvedObject.name === deployment.metadata?.name
+    )
+  };
+};
+
 export const updateKustomizationMatchingGitRepositories = (kustomization: ExtendedKustomization, allGitRepositories: GitRepository[]): ExtendedKustomization => {
   let namespace = kustomization.spec.sourceRef.namespace;
   if (namespace === undefined) {

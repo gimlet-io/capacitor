@@ -325,15 +325,6 @@ h1 {
   margin: 0.5rem 0;
 }
 
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-transform: capitalize;
-  user-select: none;
-}
-
 .status-badge.ready {
   background-color: var(--linear-green);
   color: #f0fdf4;
@@ -428,6 +419,32 @@ h1 {
   color: white;
 }
 
+/* Kluctl deployment result summary badges */
+.status-badge.kluctl-new {
+  background-color: var(--linear-blue-light); /* Softer blue for new objects */
+  color: var(--linear-blue);
+}
+
+.status-badge.kluctl-changed {
+  background-color: var(--linear-blue-light); /* Softer blue for changed objects */
+  color: var(--linear-blue);
+}
+
+.status-badge.kluctl-deleted {
+  background-color: var(--linear-blue-light); /* Softer blue for deleted objects */
+  color: var(--linear-blue);
+}
+
+.status-badge.kluctl-errors {
+  background-color: var(--linear-red-light); /* Softer red for errors */
+  color: var(--linear-red);
+}
+
+.status-badge.kluctl-warnings {
+  background-color: var(--linear-yellow-light); /* Softer amber for warnings */
+  color: var(--linear-yellow);
+}
+
 /* Kustomization Details */
 .kustomization-details {
   display: flex;
@@ -490,12 +507,16 @@ h1 {
 }
 
 .status-badge {
-  font-size: 13px;
   font-weight: 500;
   padding: 4px 8px;
   border-radius: 4px;
   align-items: center;
   gap: 4px;
+}
+
+/* Kluctl-specific status badge layout */
+.kluctl-status-badge {
+  padding: 0.5px 2px; /* Adjust this to fine-tune Kluctl badge padding */
 }
 
 /* Health status badges (for kustomization reconciliation) */
@@ -1652,6 +1673,8 @@ td.message-cell {
   text-align: left;
   padding: 0.75rem;
   font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.9rem;
   color: var(--linear-text-secondary);
   border-bottom: 1px solid var(--linear-border);
   position: sticky;
@@ -1663,6 +1686,8 @@ td.message-cell {
   border-bottom: 1px solid var(--linear-border);
   vertical-align: middle;
   line-height: 1.4;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.9rem;
   color: var(--linear-text-primary);
 }
 
@@ -2223,7 +2248,6 @@ td.message-cell {
   cursor: pointer;
   color: var(--linear-text-secondary);
   font-weight: 500;
-  padding: 8px 0;
   user-select: none;
 }
 

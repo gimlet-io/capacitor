@@ -82,6 +82,59 @@ body {
 /* .glitch::before { transform: translate(2px, 0); color: rgba(106,169,189,0.55); } */
 /* .glitch::after { transform: translate(-2px, 0); color: rgba(192,107,166,0.55); } */
 
+.glitch-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.christmas-tree {
+  width: 48px;
+  height: 48px;
+  color: var(--cyan);
+  flex-shrink: 0;
+}
+
+.christmas-tree .light {
+  animation: twinkle 1.5s ease-in-out infinite;
+}
+
+.christmas-tree .light-1 {
+  animation-delay: 0s;
+}
+
+.christmas-tree .light-2 {
+  animation-delay: 0.3s;
+}
+
+.christmas-tree .light-3 {
+  animation-delay: 0.6s;
+}
+
+.christmas-tree .light-4 {
+  animation-delay: 0.9s;
+}
+
+.christmas-tree .light-5 {
+  animation-delay: 1.2s;
+}
+
+.christmas-tree .light-6 {
+  animation-delay: 1.5s;
+}
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.3;
+    filter: brightness(0.5);
+  }
+}
+
 .tagline {
   color: var(--muted);
   font-size: 18px;
