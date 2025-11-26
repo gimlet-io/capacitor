@@ -3,9 +3,10 @@
 
 import type { Pod } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
-import { useCalculateAge } from './timeUtils.ts';
+import { useCalculateAge } from "./timeUtils.ts";
 import { createSignal } from "solid-js";
-import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
+import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
+import { PodMetricsCell } from "./PodMetricsCell.tsx";
 
 // Create a signal for node options that can be updated externally
 const [nodeOptions, setNodeOptions] = createSignal<{value: string, label: string}[]>([]);
@@ -217,6 +218,16 @@ export const podColumns = [
 
       return <span style={`color: ${color}; font-weight: 500;`}>{statusText}</span>;
     },
+  },
+  {
+    header: "CPU",
+    width: "10%",
+    accessor: (pod: Pod) => <PodMetricsCell pod={pod} kind="cpu" />,
+  },
+  {
+    header: "MEM",
+    width: "10%",
+    accessor: (pod: Pod) => <PodMetricsCell pod={pod} kind="mem" />,
   },
   {
     header: "RESTARTS",

@@ -143,7 +143,7 @@ function buildPortForwardCommand(resource: any): string {
 export const replaceHandlers = (
   commands: ResourceCommand[],
   handlers: {
-    openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: any) => void;
+    openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "metrics", resource: any) => void;
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
     getContextName?: () => string | undefined;
@@ -175,6 +175,11 @@ export const replaceHandlers = (
         commands[i] = {
           ...cmd,
           handler: (resource) => handlers.openDrawer("logs", resource)
+        };
+      } else if (cmd.shortcut.key === 'm' && cmd.shortcut.description === 'Metrics') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("metrics", resource)
         };
       } else if (cmd.shortcut.key === 'x' && cmd.shortcut.description === 'Exec') {
         commands[i] = {
@@ -325,7 +330,7 @@ export function ResourceList<T>(props: {
   const [listContainer, setListContainer] = createSignal<HTMLDivElement | null>(null);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [selectedResource, setSelectedResource] = createSignal<T | null>(null);
-  const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec">("describe");
+  const [activeTab, setActiveTab] = createSignal<"describe" | "yaml" | "events" | "logs" | "exec" | "metrics">("describe");
   const [commandPermissions, setCommandPermissions] = createSignal<Record<string, boolean | undefined>>({});
   // If user activates pane via mouse, skip one auto-highlight of first row
   let skipNextAutoHighlight = false;
@@ -423,7 +428,7 @@ export function ResourceList<T>(props: {
     return `${apiVersion}|${kind}|${namespace}|${name}`;
   };
 
-  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: T) => {
+  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "metrics", resource: T) => {
     setSelectedResource(() => resource);
     setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
     setActiveTab(tab);
