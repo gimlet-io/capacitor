@@ -79,7 +79,9 @@ export function TimeSeriesChart(props: Props) {
     return PAD_TOP + innerH() * (1 - (v - s.min) / (s.max - s.min));
   };
   const xScale = (i: number) => {
-    const n = Math.max(1, stats().values.length - 1);
+    const valuesLen = stats().values.length;
+    // For a single data point, treat it as spanning the full width so we can draw a full-width line.
+    const n = valuesLen <= 1 ? 1 : valuesLen - 1;
     return PAD_LEFT + (i / n) * innerW();
   };
 
@@ -101,6 +103,13 @@ export function TimeSeriesChart(props: Props) {
   const pathLine = createMemo(() => {
     const { values } = stats();
     if (values.length === 0) return "";
+    // When there is only a single point, render a horizontal line that spans the full chart width.
+    if (values.length === 1) {
+      const y = yScale(values[0]);
+      const xStart = PAD_LEFT;
+      const xEnd = width() - PAD_RIGHT;
+      return `M ${xStart} ${y} L ${xEnd} ${y}`;
+    }
     let d = `M ${xScale(0)} ${yScale(values[0])}`;
     for (let i = 1; i < values.length; i++) {
       d += ` L ${xScale(i)} ${yScale(values[i])}`;
@@ -124,7 +133,10 @@ export function TimeSeriesChart(props: Props) {
   // X-axis labels: show now, and 2-3 earlier marks
   const xLabels = createMemo(() => {
     const n = stats().values.length;
-    if (n <= 1) return [{ x: xScale(0), text: "now" }];
+    if (n <= 1) {
+      // Place "now" at the right edge for a single sample so it aligns with the most recent time.
+      return [{ x: width() - PAD_RIGHT, text: "now" }];
+    }
     const durationSec = (n - 1) * sampleIntervalSec();
     const marks = 3;
     const labels: { x: number; text: string }[] = [];
