@@ -1,4 +1,4 @@
-import { createMemo } from "solid-js";
+import { createMemo, createSignal, createEffect } from "solid-js";
 
 type Props = {
   data: number[];
@@ -46,14 +46,15 @@ export function TimeSeriesChart(props: Props) {
   const yTicks = () => Math.max(2, props.yTicks ?? 4);
   const sampleIntervalSec = () => Math.max(1, props.sampleIntervalSec ?? 5);
 
-  // Layout paddings for axes and labels
-  const PAD_LEFT = 44;
+  const [padLeft, setPadLeft] = createSignal(44);
+  let measureRef: SVGTextElement | undefined;
+
+  // Layout paddings for axes and labels.
+  // Left padding is dynamic based on the Y-axis label length so we avoid clipping
+  // while not wasting too much horizontal space.
   const PAD_RIGHT = 12;
   const PAD_TOP = 8;
   const PAD_BOTTOM = 24;
-
-  const innerW = () => width() - PAD_LEFT - PAD_RIGHT;
-  const innerH = () => height() - PAD_TOP - PAD_BOTTOM;
 
   const stats = createMemo(() => {
     const values = props.data ?? [];
@@ -74,6 +75,34 @@ export function TimeSeriesChart(props: Props) {
     return { min, max, values };
   });
 
+  // Dynamically adjust left padding based on actual label width measured via SVG text.
+  createEffect(() => {
+    const { max } = stats();
+    const sampleLabel = `${formatNumber(max)}${props.yUnit ? ` ${props.yUnit}` : ""}`;
+    const ref = measureRef;
+    if (!ref) return;
+    ref.textContent = sampleLabel;
+    try {
+      const box = ref.getBBox();
+      if (!box || !Number.isFinite(box.width)) return;
+      // Add a small safety factor so we never clip on the left due to font metrics.
+      const safetyWidth = box.width * 1.1;
+      const gap = 10; // gap between labels and axis line
+      const needed = Math.ceil(safetyWidth) + gap;
+      const minPad = 44;
+      const maxPad = Math.min(width() * 0.35, 110); // never use more than ~1/3 of chart width
+      const next = Math.max(minPad, Math.min(needed, maxPad));
+      if (next !== padLeft()) {
+        setPadLeft(next);
+      }
+    } catch {
+      // If measurement fails, keep the existing padding.
+    }
+  });
+
+  const innerW = () => width() - padLeft() - PAD_RIGHT;
+  const innerH = () => height() - PAD_TOP - PAD_BOTTOM;
+
   const yScale = (v: number) => {
     const s = stats();
     return PAD_TOP + innerH() * (1 - (v - s.min) / (s.max - s.min));
@@ -82,7 +111,7 @@ export function TimeSeriesChart(props: Props) {
     const valuesLen = stats().values.length;
     // For a single data point, treat it as spanning the full width so we can draw a full-width line.
     const n = valuesLen <= 1 ? 1 : valuesLen - 1;
-    return PAD_LEFT + (i / n) * innerW();
+    return padLeft() + (i / n) * innerW();
   };
 
   const yTicksComputed = createMemo(() => {
@@ -106,7 +135,7 @@ export function TimeSeriesChart(props: Props) {
     // When there is only a single point, render a horizontal line that spans the full chart width.
     if (values.length === 1) {
       const y = yScale(values[0]);
-      const xStart = PAD_LEFT;
+      const xStart = padLeft();
       const xEnd = width() - PAD_RIGHT;
       return `M ${xStart} ${y} L ${xEnd} ${y}`;
     }
@@ -170,8 +199,8 @@ export function TimeSeriesChart(props: Props) {
         const y = yScale(v);
         return (
           <g>
-            <line x1={PAD_LEFT} y1={y} x2={width() - PAD_RIGHT} y2={y} stroke="#e6e8f0" stroke-width="1" />
-            <text x={PAD_LEFT - 6} y={y} text-anchor="end" dominant-baseline="central" fill="#6b7280" font-size="10">
+            <line x1={padLeft()} y1={y} x2={width() - PAD_RIGHT} y2={y} stroke="#e6e8f0" stroke-width="1" />
+            <text x={padLeft() - 6} y={y} text-anchor="end" dominant-baseline="central" fill="#6b7280" font-size="10">
               {formatNumber(v)}{props.yUnit ? ` ${props.yUnit}` : ""}
             </text>
           </g>
@@ -179,7 +208,7 @@ export function TimeSeriesChart(props: Props) {
       })}
       {/* X axis */}
       <line
-        x1={PAD_LEFT}
+        x1={padLeft()}
         y1={height() - PAD_BOTTOM}
         x2={width() - PAD_RIGHT}
         y2={height() - PAD_BOTTOM}
@@ -202,7 +231,7 @@ export function TimeSeriesChart(props: Props) {
         return (
           <g>
             <line
-              x1={PAD_LEFT}
+              x1={padLeft()}
               y1={y}
               x2={width() - PAD_RIGHT}
               y2={y}
@@ -222,6 +251,16 @@ export function TimeSeriesChart(props: Props) {
       {stats().values.length === 1 ? (
         <circle cx={xScale(0)} cy={yScale(stats().values[0])} r="3" fill={stroke()} />
       ) : null}
+      {/* Hidden measurement text for dynamic left padding */}
+      <text
+        ref={measureRef}
+        x={-9999}
+        y={-9999}
+        font-size="10"
+        visibility="hidden"
+      >
+        {""}
+      </text>
     </svg>
   );
 }
