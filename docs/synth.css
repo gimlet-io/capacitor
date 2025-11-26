@@ -63,9 +63,13 @@
   border: 1px solid rgba(231, 231, 231, 0.35);
   background: rgba(15, 17, 18, 0.9);
   color: var(--text);
-  padding: 6px 10px;
+  padding: 3px 9px;
   font-size: 12px;
+  line-height: 1.2;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
 }
 
@@ -78,6 +82,29 @@
   background: rgba(106, 169, 189, 0.18);
   border-color: var(--cyan);
   color: var(--cyan);
+}
+
+.synth-wave-icon {
+  display: inline-block;
+  width: 26px;
+  height: 12px;
+}
+
+.synth-wave-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.synth-wave-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.synth-wave-label {
+  display: inline-block;
 }
 
 .synth-play-button {
@@ -168,45 +195,6 @@
   transition: transform 80ms linear, box-shadow 80ms linear, opacity 80ms linear;
 }
 
-.synth-module--keyboard {
-  overflow: hidden;
-}
-
-.synth-keyboard {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-  padding: 4px 0;
-}
-
-.synth-key {
-  min-width: 26px;
-  padding: 10px 4px;
-  border-radius: 3px;
-  border: 1px solid rgba(231, 231, 231, 0.35);
-  background: #15181b;
-  color: var(--text);
-  font-size: 11px;
-  cursor: pointer;
-  transition: background 80ms ease, transform 80ms ease, border-color 80ms ease;
-}
-
-.synth-key:hover {
-  transform: translateY(-1px);
-  border-color: var(--cyan);
-}
-
-.synth-key--active {
-  background: rgba(192, 107, 166, 0.4);
-  border-color: var(--magenta);
-}
-
-.synth-keyboard-toggle {
-  margin-top: 8px;
-  width: 100%;
-  font-size: 11px;
-}
-
 .synth-scope-canvas {
   width: 100%;
   height: 160px;
@@ -214,6 +202,30 @@
   background: #0d1012;
   border-radius: 4px;
   border: 1px solid rgba(106, 169, 189, 0.6);
+}
+
+.synth-mute-button {
+  margin-top: 10px;
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.synth-mute-button[data-muted="false"] {
+  background: rgba(106, 169, 189, 0.18);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.synth-module--oscillator .synth-module-body {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+@media (max-width: 620px) {
+  .synth-module--oscillator .synth-module-body {
+    grid-template-columns: 1fr;
+  }
 }
 
 .synth-status-text {
