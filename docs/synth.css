@@ -53,8 +53,14 @@
 
 .synth-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
+}
+
+.synth-row .synth-wave-button {
+  width: 100%;
+  justify-content: center;
 }
 
 .synth-button {
@@ -137,11 +143,17 @@
   color: var(--muted);
 }
 
+.synth-knob-wrapper {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
 .synth-knob-input {
   -webkit-appearance: none;
   appearance: none;
-  width: 80px;
-  height: 80px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08), transparent 60%),
               radial-gradient(circle at 70% 70%, rgba(0, 0, 0, 0.7), transparent 60%);
@@ -153,25 +165,45 @@
 .synth-knob-input::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 -28px 0 0 var(--yellow);
+  width: 1px;
+  height: 1px;
+  background: transparent;
 }
 
 .synth-knob-input::-moz-range-thumb {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 -28px 0 0 var(--yellow);
+  width: 1px;
+  height: 1px;
+  background: transparent;
   border: none;
 }
 
 .synth-knob-input::-webkit-slider-runnable-track,
 .synth-knob-input::-moz-range-track {
   background: transparent;
+}
+
+.synth-knob-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  margin-top: -3px;
+  pointer-events: none;
+  transform-origin: center center;
+  /* Default rotation is set via JS with --knob-angle */
+  transform: rotate(calc(var(--knob-angle, 0deg))) translateY(-9px);
+}
+
+.synth-knob-indicator::after {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: 0 0 4px var(--yellow);
 }
 
 .synth-knob-value {
@@ -181,15 +213,33 @@
 
 .synth-knob--lfo {
   position: relative;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "label label"
+    "knob knob"
+    "value dot";
+}
+
+.synth-knob--lfo .synth-knob-label {
+  grid-area: label;
+}
+
+.synth-knob--lfo .synth-knob-wrapper {
+  grid-area: knob;
+}
+
+.synth-knob--lfo .synth-knob-value {
+  grid-area: value;
+  justify-self: end;
 }
 
 .synth-lfo-indicator {
+  grid-area: dot;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: #ff4d4d;
   box-shadow: 0 0 5px rgba(255, 77, 77, 0.8);
-  margin-top: 4px;
   opacity: 0.85;
   transform: scale(0.8);
   transition: transform 80ms linear, box-shadow 80ms linear, opacity 80ms linear;
@@ -222,8 +272,17 @@
   align-items: center;
 }
 
+.synth-module--filter .synth-module-body {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+}
+
 @media (max-width: 620px) {
   .synth-module--oscillator .synth-module-body {
+    grid-template-columns: 1fr;
+  }
+
+  .synth-module--filter .synth-module-body {
     grid-template-columns: 1fr;
   }
 }

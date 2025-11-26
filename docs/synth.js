@@ -15,6 +15,30 @@
   const scopeCanvas = /** @type {HTMLCanvasElement | null} */ (document.getElementById('synthScope'));
   const statusText = synthRoot.querySelector('[data-synth-status]');
 
+  /**
+   * Updates the knob indicator rotation based on slider value.
+   * Maps slider value [0, 1] to angle [-135°, 135°] for typical synth knob feel.
+   * @param {HTMLInputElement} slider
+   */
+  function updateKnobIndicator(slider) {
+    const indicator = slider.parentElement?.querySelector('[data-knob-indicator]');
+    if (!indicator) return;
+    const value = parseFloat(slider.value) || 0;
+    // Map [0, 1] to [-135, 135] degrees
+    const angle = (value - 0.5) * 270;
+    indicator.style.setProperty('--knob-angle', angle + 'deg');
+  }
+
+  /**
+   * Initialize all knob indicators
+   */
+  function initAllKnobIndicators() {
+    const allSliders = [filterSlider, pitchSlider, lfoSlider, lfoDepthSlider];
+    allSliders.forEach(function(slider) {
+      if (slider) updateKnobIndicator(slider);
+    });
+  }
+
   if (
     waveButtons.length === 0 ||
     !filterSlider ||
@@ -503,12 +527,14 @@
   filterSlider.addEventListener('input', function() {
     ensureSynthRunning();
     updateFilterFromSlider();
+    updateKnobIndicator(filterSlider);
   });
 
   if (pitchSlider) {
     pitchSlider.addEventListener('input', function() {
       ensureSynthRunning();
       updatePitchFromSlider();
+      updateKnobIndicator(pitchSlider);
     });
   }
 
@@ -516,6 +542,7 @@
     lfoSlider.addEventListener('input', function() {
       ensureSynthRunning();
       updateLfoFromSlider();
+      updateKnobIndicator(lfoSlider);
     });
   }
 
@@ -531,6 +558,7 @@
         lfoDepthValueLabel.textContent = Math.round(raw * 100) + '%';
       }
       updateLfoDepth();
+      updateKnobIndicator(lfoDepthSlider);
     });
   }
 
@@ -550,6 +578,7 @@
   setWaveform(currentWave);
   updateFilterFromSlider();
   updatePitchFromSlider();
+  initAllKnobIndicators();
   resizeCanvas();
   clearCanvas();
   

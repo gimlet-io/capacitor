@@ -57,16 +57,19 @@
             </div>
             <label class="synth-knob">
               <span class="synth-knob-label">Pitch</span>
-              <input
-                class="synth-knob-input"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value="0.5"
-                id="synthPitch"
-                aria-label="Oscillator pitch"
-              />
+              <span class="synth-knob-wrapper">
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.5"
+                  id="synthPitch"
+                  aria-label="Oscillator pitch"
+                />
+                <span class="synth-knob-indicator" data-knob-indicator></span>
+              </span>
               <span class="synth-knob-value" id="synthPitchValue">220 Hz</span>
             </label>
           </div>
@@ -76,45 +79,54 @@
           <div class="synth-module-body">
             <label class="synth-knob">
               <span class="synth-knob-label">Cutoff</span>
-              <input
-                class="synth-knob-input"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value="1"
-                id="synthFilterFrequency"
-                aria-label="Filter cutoff frequency"
-              />
+              <span class="synth-knob-wrapper">
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="1"
+                  id="synthFilterFrequency"
+                  aria-label="Filter cutoff frequency"
+                />
+                <span class="synth-knob-indicator" data-knob-indicator></span>
+              </span>
               <span class="synth-knob-value" id="synthFilterFrequencyValue">1.2 kHz</span>
             </label>
             <label class="synth-knob synth-knob--lfo">
               <span class="synth-knob-label">LFO</span>
-              <input
-                class="synth-knob-input"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value="0"
-                id="synthLfoRate"
-                aria-label="LFO rate"
-              />
+              <span class="synth-knob-wrapper">
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0"
+                  id="synthLfoRate"
+                  aria-label="LFO rate"
+                />
+                <span class="synth-knob-indicator" data-knob-indicator></span>
+              </span>
               <span class="synth-knob-value" id="synthLfoRateValue">Off</span>
               <span class="synth-lfo-indicator" data-synth-lfo-indicator aria-hidden="true"></span>
             </label>
             <label class="synth-knob">
               <span class="synth-knob-label">LFO Depth</span>
-              <input
-                class="synth-knob-input"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value="0.45"
-                id="synthLfoDepth"
-                aria-label="LFO depth"
-              />
+              <span class="synth-knob-wrapper">
+                <input
+                  class="synth-knob-input"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.45"
+                  id="synthLfoDepth"
+                  aria-label="LFO depth"
+                />
+                <span class="synth-knob-indicator" data-knob-indicator></span>
+              </span>
               <span class="synth-knob-value" id="synthLfoDepthValue">45%</span>
             </label>
           </div>
