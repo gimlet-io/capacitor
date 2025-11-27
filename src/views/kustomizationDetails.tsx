@@ -28,6 +28,7 @@ import type { Event } from "../types/k8s.ts";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
+import { fluxcdConfig } from "../config/fluxcd.ts";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -1353,8 +1354,17 @@ export function KustomizationDetails() {
                   resource={{
                     apiVersion: "apps/v1",
                     kind: "Deployment",
-                    metadata: { name: "kustomize-controller", namespace: "flux-system" },
-                    spec: { selector: { matchLabels: { "app": "kustomize-controller" } } }
+                    metadata: { 
+                      name: fluxcdConfig.kustomizeController.deploymentName, 
+                      namespace: fluxcdConfig.namespace 
+                    },
+                    spec: { 
+                      selector: { 
+                        matchLabels: { 
+                          [fluxcdConfig.kustomizeController.labelKey]: fluxcdConfig.kustomizeController.labelValue 
+                        } 
+                      } 
+                    }
                   }}
                   isOpen={activeMainTab() === "logs"}
                   initialSearch={(kustomization()?.metadata.name) as string}
