@@ -1405,20 +1405,20 @@ func (s *Server) handleKluctlDeploymentsList(c echo.Context, proxy *KubernetesPr
 		commandResultNamespace = "kluctl-results"
 	}
 
-	summaries, payloads, err := listCommandResultSummariesWithPayload(ctx, proxy.k8sClient, commandResultNamespace)
+	summaries, payloads, err := ListCommandResultSummariesWithPayload(ctx, proxy.k8sClient, commandResultNamespace)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": fmt.Sprintf("failed to list kluctl command results: %v", err),
 		})
 	}
 
-	groups := groupCommandResultSummaries(summaries)
+	groups := GroupCommandResultSummaries(summaries)
 
 	// Build pseudo Deployment objects, optionally filtering by namespace.
 	items := make([]map[string]interface{}, 0, len(groups))
 	rows := make([]map[string]interface{}, 0, len(groups))
 	for _, g := range groups {
-		obj := buildKluctlDeploymentObject(g, payloads)
+		obj := BuildKluctlDeploymentObject(g, payloads)
 		// Ensure every pseudo Deployment has a namespace; default to the command result namespace
 		// when KluctlDeploymentInfo.Namespace is not available.
 		if obj.Metadata.Namespace == "" {

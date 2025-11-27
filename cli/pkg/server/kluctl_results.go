@@ -15,10 +15,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// kluctlDeploymentPseudoResource represents a grouped view of Kluctl command results
+// KluctlDeploymentPseudoResource represents a grouped view of Kluctl command results
 // for a single resource discriminator. It is rendered to a Kubernetes-style object
 // with apiVersion kluctl.io/v1, kind Deployment.
-type kluctlDeploymentPseudoResource struct {
+type KluctlDeploymentPseudoResource struct {
 	APIVersion string                   `json:"apiVersion"`
 	Kind       string                   `json:"kind"`
 	Metadata   KluctlDeploymentMetadata `json:"metadata"`
@@ -48,9 +48,9 @@ type KluctlDeploymentStatus struct {
 	LatestCompactedJson string                 `json:"latestCompactedObjects,omitempty"`
 }
 
-// kluctlDeploymentKey is used to group CommandResultSummaries that belong
+// KluctlDeploymentKey is used to group CommandResultSummaries that belong
 // to the same logical deployment (resource discriminator).
-type kluctlDeploymentKey struct {
+type KluctlDeploymentKey struct {
 	// Prefer KluctlDeploymentInfo when present
 	KDName      string
 	KDNamespace string
@@ -59,18 +59,18 @@ type kluctlDeploymentKey struct {
 	Target  TargetKey
 }
 
-type kluctlDeploymentGroup struct {
-	Key       kluctlDeploymentKey
+type KluctlDeploymentGroup struct {
+	Key       KluctlDeploymentKey
 	Summaries []CommandResultSummary
 }
 
-// groupCommandResultSummaries groups summaries by resource discriminator.
+// GroupCommandResultSummaries groups summaries by resource discriminator.
 // If KluctlDeploymentInfo is present, that is the primary key; otherwise we fall back to Project+Target.
-func groupCommandResultSummaries(summaries []CommandResultSummary) []kluctlDeploymentGroup {
-	groups := map[kluctlDeploymentKey][]CommandResultSummary{}
+func GroupCommandResultSummaries(summaries []CommandResultSummary) []KluctlDeploymentGroup {
+	groups := map[KluctlDeploymentKey][]CommandResultSummary{}
 
 	for _, s := range summaries {
-		key := kluctlDeploymentKey{
+		key := KluctlDeploymentKey{
 			Project: s.ProjectKey,
 			Target:  s.TargetKey,
 		}
@@ -81,7 +81,7 @@ func groupCommandResultSummaries(summaries []CommandResultSummary) []kluctlDeplo
 		groups[key] = append(groups[key], s)
 	}
 
-	result := make([]kluctlDeploymentGroup, 0, len(groups))
+	result := make([]KluctlDeploymentGroup, 0, len(groups))
 	for k, list := range groups {
 		// Sort summaries newest-first by Command.StartTime then EndTime, mirroring lessCommandSummary.
 		sorted := make([]CommandResultSummary, len(list))
@@ -99,7 +99,7 @@ func groupCommandResultSummaries(summaries []CommandResultSummary) []kluctlDeplo
 				j--
 			}
 		}
-		result = append(result, kluctlDeploymentGroup{
+		result = append(result, KluctlDeploymentGroup{
 			Key:       k,
 			Summaries: sorted,
 		})
@@ -123,12 +123,12 @@ func lessCommandSummaryForUI(a, b *CommandResultSummary) bool {
 	return a.Id < b.Id
 }
 
-// buildKluctlDeploymentObject converts a grouped deployment into a Kubernetes-like object.
+// BuildKluctlDeploymentObject converts a grouped deployment into a Kubernetes-like object.
 // NAME is derived from the resource discriminator; NAMESPACE from KluctlDeployment.Namespace when present.
 // The payloads map optionally contains decoded JSON payloads for each command result
 // (reducedResult and compactedObjects). When present, these are attached to every
 // CommandResultSummary so that the UI can compute manifest diffs per result.
-func buildKluctlDeploymentObject(g kluctlDeploymentGroup, payloads map[string]CommandResultPayload) kluctlDeploymentPseudoResource {
+func BuildKluctlDeploymentObject(g KluctlDeploymentGroup, payloads map[string]CommandResultPayload) KluctlDeploymentPseudoResource {
 	// Work on a copy of the summaries slice so we don't mutate shared data.
 	summaries := make([]CommandResultSummary, len(g.Summaries))
 	copy(summaries, g.Summaries)
@@ -191,7 +191,7 @@ func buildKluctlDeploymentObject(g kluctlDeploymentGroup, payloads map[string]Co
 		}
 	}
 
-	return kluctlDeploymentPseudoResource{
+	return KluctlDeploymentPseudoResource{
 		APIVersion: "kluctl.io/v1",
 		Kind:       "Deployment",
 		Metadata:   meta,
@@ -325,10 +325,10 @@ func gunzipToString(data []byte) (string, error) {
 	return string(b), nil
 }
 
-// listCommandResultSummariesWithPayload lists command result summaries by reading the
+// ListCommandResultSummariesWithPayload lists command result summaries by reading the
 // summary annotation from Secrets in the given namespace and also returning decoded
 // JSON payloads from the Secret's data.
-func listCommandResultSummariesWithPayload(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, map[string]CommandResultPayload, error) {
+func ListCommandResultSummariesWithPayload(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, map[string]CommandResultPayload, error) {
 	if k8sClient == nil || k8sClient.Clientset == nil {
 		return nil, nil, fmt.Errorf("kubernetes clientset not initialized")
 	}
@@ -386,8 +386,8 @@ func listCommandResultSummariesWithPayload(ctx context.Context, k8sClient *kuber
 	return summaries, payloads, nil
 }
 
-// listCommandResultSummaries is a compatibility wrapper that returns only summaries.
-func listCommandResultSummaries(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, error) {
-	summaries, _, err := listCommandResultSummariesWithPayload(ctx, k8sClient, commandResultNamespace)
+// ListCommandResultSummaries is a compatibility wrapper that returns only summaries.
+func ListCommandResultSummaries(ctx context.Context, k8sClient *kubernetes.Client, commandResultNamespace string) ([]CommandResultSummary, error) {
+	summaries, _, err := ListCommandResultSummariesWithPayload(ctx, k8sClient, commandResultNamespace)
 	return summaries, err
 }

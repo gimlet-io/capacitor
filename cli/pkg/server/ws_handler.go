@@ -665,16 +665,16 @@ func (h *WebSocketHandler) handleKluctlDeploymentWatch(ctx context.Context, ws *
 
 		// Helper to send a full snapshot of all Kluctl deployments once.
 		sendSnapshot := func() {
-			summaries, payloads, err := listCommandResultSummariesWithPayload(ctx, h.k8sClient, commandResultNamespace)
+			summaries, payloads, err := ListCommandResultSummariesWithPayload(ctx, h.k8sClient, commandResultNamespace)
 			if err != nil {
 				log.Printf("Error listing Kluctl command results: %v", err)
 				h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to list Kluctl command results: %v", err))
 				return
 			}
 
-			groups := groupCommandResultSummaries(summaries)
+			groups := GroupCommandResultSummaries(summaries)
 			for _, g := range groups {
-				obj := buildKluctlDeploymentObject(g, payloads)
+				obj := BuildKluctlDeploymentObject(g, payloads)
 				// Ensure a namespace is always present on the pseudo Deployment; fall back to
 				// the command result namespace when KluctlDeploymentInfo.Namespace is absent.
 				if obj.Metadata.Namespace == "" {
