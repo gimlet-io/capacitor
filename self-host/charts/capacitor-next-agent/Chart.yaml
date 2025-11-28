@@ -2,8 +2,8 @@ apiVersion: v2
 name: capacitor-next-agent
 description: A Helm chart for Capacitor Next Agent - Remote cluster agent for Capacitor
 type: application
-version: 2025-11.2-rc2
-appVersion: "agent-v2025-11.2-rc2"
+version: 2025-11.2
+appVersion: "agent-v2025-11.2"
 home: https://github.com/gimlet-io/capacitor
 maintainers:
   - name: Gimlet
