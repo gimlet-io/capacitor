@@ -179,6 +179,24 @@ extraVolumeMounts: []
 existingSecret:
   name: ""  # Name of the existing secret to use
 
+# Extra environment variables for the Capacitor Next server (optional)
+# These can be used, for example, to configure FluxCD controller logs for HelmRelease and Kustomization resources.
+extraEnv:
+  # - name: FLUXCD_NAMESPACE
+  #   value: "flux-system"
+  # - name: FLUXCD_HELM_CONTROLLER_NAME
+  #   value: "helm-controller"
+  # - name: FLUXCD_HELM_CONTROLLER_LABEL_KEY
+  #   value: "app.kubernetes.io/component"
+  # - name: FLUXCD_HELM_CONTROLLER_LABEL_VALUE
+  #   value: "helm-controller"
+  # - name: FLUXCD_KUSTOMIZE_CONTROLLER_NAME
+  #   value: "kustomize-controller"
+  # - name: FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_KEY
+  #   value: "app.kubernetes.io/component"
+  # - name: FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE
+  #   value: "kustomize-controller"
+
 # Security context configuration
 securityContext:
   enabled: true

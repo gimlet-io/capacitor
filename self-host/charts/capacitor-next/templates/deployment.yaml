@@ -54,6 +54,10 @@ spec:
             - secretRef:
                 name: {{ .Values.existingSecret.name }}
             {{- end }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: registry
               mountPath: /app/backend/registry.yaml
