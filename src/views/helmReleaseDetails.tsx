@@ -26,6 +26,7 @@ import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
+import { fluxcdConfig } from "../config/fluxcd.ts";
 
 export function HelmReleaseDetails() {
   const params = useParams();
@@ -840,14 +841,23 @@ export function HelmReleaseDetails() {
         />
       </Show>
 
-      {/* Logs Tab - helm-controller in flux-system */}
+      {/* Logs Tab - helm-controller */}
       <Show when={activeMainTab() === "logs"}>
         <LogsViewer
           resource={{
             apiVersion: "apps/v1",
             kind: "Deployment",
-            metadata: { name: "helm-controller", namespace: "flux-system" },
-            spec: { selector: { matchLabels: { "app": "helm-controller" } } }
+            metadata: { 
+              name: fluxcdConfig.helmController.deploymentName, 
+              namespace: fluxcdConfig.namespace 
+            },
+            spec: { 
+              selector: { 
+                matchLabels: { 
+                  [fluxcdConfig.helmController.labelKey]: fluxcdConfig.helmController.labelValue 
+                } 
+              } 
+            }
           }}
           isOpen={activeMainTab() === "logs"}
           initialSearch={(helmRelease()?.spec?.releaseName || helmRelease()?.metadata.name) as string}
