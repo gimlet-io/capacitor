@@ -843,19 +843,19 @@ export function HelmReleaseDetails() {
       </Show>
 
       {/* Logs Tab - helm-controller */}
-      <Show when={activeMainTab() === "logs"}>
+      <Show when={activeMainTab() === "logs" && !!fluxcdConfig()}>
         <LogsViewer
           resource={{
             apiVersion: "apps/v1",
             kind: "Deployment",
             metadata: { 
-              name: fluxcdConfig().helmController.deploymentName, 
-              namespace: fluxcdConfig().namespace 
+              name: fluxcdConfig()!.helmController.deploymentName, 
+              namespace: fluxcdConfig()!.namespace 
             },
             spec: { 
               selector: { 
                 matchLabels: { 
-                  [fluxcdConfig().helmController.labelKey]: fluxcdConfig().helmController.labelValue 
+                  [fluxcdConfig()!.helmController.labelKey]: fluxcdConfig()!.helmController.labelValue 
                 } 
               } 
             }

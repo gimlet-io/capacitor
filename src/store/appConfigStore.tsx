@@ -28,25 +28,11 @@ export type FluxcdConfig = {
   };
 };
 
-const defaultFluxcdConfig: FluxcdConfig = {
-  namespace: "fluxcd-system",
-  helmController: {
-    deploymentName: "fluxcd-helm-controller",
-    labelKey: "app.kubernetes.io/component",
-    labelValue: "helm-controller",
-  },
-  kustomizeController: {
-    deploymentName: "fluxcd-kustomize-controller",
-    labelKey: "app.kubernetes.io/component",
-    labelValue: "kustomize-controller",
-  },
-};
-
 type AppConfigContextValue = {
   appConfig: Accessor<AppConfigPayload | null>;
   configLoading: Accessor<boolean>;
   configError: Accessor<string | null>;
-  fluxcdConfig: Accessor<FluxcdConfig>;
+  fluxcdConfig: Accessor<FluxcdConfig | null>;
 };
 
 const AppConfigContext = createContext<AppConfigContextValue>();
@@ -55,7 +41,7 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
   const [appConfig, setAppConfig] = createSignal<AppConfigPayload | null>(null);
   const [configLoading, setConfigLoading] = createSignal(false);
   const [configError, setConfigError] = createSignal<string | null>(null);
-  const [fluxcdConfig, setFluxcdConfig] = createSignal<FluxcdConfig>(defaultFluxcdConfig);
+  const [fluxcdConfig, setFluxcdConfig] = createSignal<FluxcdConfig | null>(null);
 
   onMount(() => {
     (async () => {
@@ -72,45 +58,14 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
 
         const raw = (data && (data as any).fluxcd) as any;
         if (raw && typeof raw === "object") {
-          const namespace = typeof raw.namespace === "string" && raw.namespace.trim()
-            ? raw.namespace
-            : defaultFluxcdConfig.namespace;
-
-          const helm = raw.helmController || {};
-          const kustomize = raw.kustomizeController || {};
-
-          setFluxcdConfig({
-            namespace,
-            helmController: {
-              deploymentName: typeof helm.deploymentName === "string" && helm.deploymentName.trim()
-                ? helm.deploymentName
-                : defaultFluxcdConfig.helmController.deploymentName,
-              labelKey: typeof helm.labelKey === "string" && helm.labelKey.trim()
-                ? helm.labelKey
-                : defaultFluxcdConfig.helmController.labelKey,
-              labelValue: typeof helm.labelValue === "string" && helm.labelValue.trim()
-                ? helm.labelValue
-                : defaultFluxcdConfig.helmController.labelValue,
-            },
-            kustomizeController: {
-              deploymentName: typeof kustomize.deploymentName === "string" && kustomize.deploymentName.trim()
-                ? kustomize.deploymentName
-                : defaultFluxcdConfig.kustomizeController.deploymentName,
-              labelKey: typeof kustomize.labelKey === "string" && kustomize.labelKey.trim()
-                ? kustomize.labelKey
-                : defaultFluxcdConfig.kustomizeController.labelKey,
-              labelValue: typeof kustomize.labelValue === "string" && kustomize.labelValue.trim()
-                ? kustomize.labelValue
-                : defaultFluxcdConfig.kustomizeController.labelValue,
-            },
-          });
+          setFluxcdConfig(raw as FluxcdConfig);
         } else {
-          setFluxcdConfig(defaultFluxcdConfig);
+          setFluxcdConfig(null);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setConfigError(msg);
-        setFluxcdConfig(defaultFluxcdConfig);
+        setFluxcdConfig(null);
       } finally {
         setConfigLoading(false);
       }

@@ -1350,19 +1350,19 @@ export function KustomizationDetails() {
                   </div>
                 </div>
               </Show>
-              <Show when={activeMainTab() === 'logs'}>
+              <Show when={activeMainTab() === 'logs' && !!fluxcdConfig()}>
                 <LogsViewer
                   resource={{
                     apiVersion: "apps/v1",
                     kind: "Deployment",
                     metadata: { 
-                      name: fluxcdConfig().kustomizeController.deploymentName, 
-                      namespace: fluxcdConfig().namespace 
+                      name: fluxcdConfig()!.kustomizeController.deploymentName, 
+                      namespace: fluxcdConfig()!.namespace 
                     },
                     spec: { 
                       selector: { 
                         matchLabels: { 
-                          [fluxcdConfig().kustomizeController.labelKey]: fluxcdConfig().kustomizeController.labelValue 
+                          [fluxcdConfig()!.kustomizeController.labelKey]: fluxcdConfig()!.kustomizeController.labelValue 
                         } 
                       } 
                     }
