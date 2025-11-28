@@ -26,7 +26,7 @@ import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
-import { fluxcdConfig } from "../config/fluxcd.ts";
+import { useAppConfig } from "../store/appConfigStore.tsx";
 
 export function HelmReleaseDetails() {
   const params = useParams();
@@ -56,6 +56,7 @@ export function HelmReleaseDetails() {
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
   const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events" | "logs">("resource");
   const [chartRefVersion, setChartRefVersion] = createSignal<string | null>(null);
+  const { fluxcdConfig } = useAppConfig();
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -65,8 +66,8 @@ export function HelmReleaseDetails() {
       return next;
     });
   };
-  const setAllResourceTypesVisibility = (isVisible: boolean): void => {
-    if (isVisible) setVisibleResourceTypes(new Set<string>(allResourceTypes())); else setVisibleResourceTypes(new Set<string>());
+  const setAllResourceTypesVisibility = (visible: boolean): void => {
+    if (visible) setVisibleResourceTypes(new Set<string>(allResourceTypes())); else setVisibleResourceTypes(new Set<string>());
   };
 
   // Values tab content handled by HelmValues component
@@ -848,13 +849,13 @@ export function HelmReleaseDetails() {
             apiVersion: "apps/v1",
             kind: "Deployment",
             metadata: { 
-              name: fluxcdConfig.helmController.deploymentName, 
-              namespace: fluxcdConfig.namespace 
+              name: fluxcdConfig().helmController.deploymentName, 
+              namespace: fluxcdConfig().namespace 
             },
             spec: { 
               selector: { 
                 matchLabels: { 
-                  [fluxcdConfig.helmController.labelKey]: fluxcdConfig.helmController.labelValue 
+                  [fluxcdConfig().helmController.labelKey]: fluxcdConfig().helmController.labelValue 
                 } 
               } 
             }

@@ -7,6 +7,7 @@ import type { ActiveFilter } from "../filterBar/FilterBar.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
+import { useAppConfig } from "../../store/appConfigStore.tsx";
 
 export interface View {
   id: string;
@@ -42,6 +43,50 @@ export function ViewBar(props: ViewBarProps) {
 
   createEffect(() => {
     setShortcutPrefix(viewShortcutModifier());
+  });
+
+  const { appConfig } = useAppConfig();
+
+  let systemViewsInitialized = false;
+
+  // Initialize system views from global app config when available
+  createEffect(() => {
+    if (systemViewsInitialized) return;
+    const cfg = appConfig();
+    if (!cfg) return;
+
+    const rawViews = (cfg as any).systemViews as unknown;
+    if (Array.isArray(rawViews)) {
+      const parsed: View[] = rawViews
+        .map((raw: any): View | null => {
+          if (!raw || typeof raw !== "object") return null;
+          const id = String((raw as any).id ?? "").trim();
+          const label = String((raw as any).label ?? "").trim();
+          const rawFilters = (raw as any).filters;
+          const filters: ActiveFilter[] = Array.isArray(rawFilters)
+            ? rawFilters
+                .filter((f: any) => f && typeof f.name === "string" && typeof f.value === "string")
+                .map((f: any) => ({ name: f.name as string, value: f.value as string }))
+            : [];
+          if (!id || !label || filters.length === 0) {
+            return null;
+          }
+          return {
+            id,
+            label,
+            isSystem: (raw as any).isSystem !== false,
+            filters,
+          };
+        })
+        .filter((v): v is View => v !== null);
+
+      if (parsed.length > 0) {
+        setSystemViews(parsed);
+      }
+    }
+
+    systemViewsInitialized = true;
+    loadViews();
   });
 
   // Check if current filters match any existing view
@@ -172,48 +217,6 @@ export function ViewBar(props: ViewBarProps) {
   // Labels using formatShortcutForDisplay now rerender via Solid's reactive signal in shortcuts.ts
  
   onMount(() => {
-    // First, try to load system views from the backend config, then initialize the full list
-    (async () => {
-      try {
-        const res = await fetch("/api/config");
-        if (res.ok) {
-          const data = await res.json() as { systemViews?: unknown };
-          const rawViews = (data && (data as any).systemViews) as unknown;
-          if (Array.isArray(rawViews)) {
-            const parsed: View[] = rawViews
-              .map((raw: any): View | null => {
-                if (!raw || typeof raw !== "object") return null;
-                const id = String((raw as any).id ?? "").trim();
-                const label = String((raw as any).label ?? "").trim();
-                const rawFilters = (raw as any).filters;
-                const filters: ActiveFilter[] = Array.isArray(rawFilters)
-                  ? rawFilters
-                      .filter((f: any) => f && typeof f.name === "string" && typeof f.value === "string")
-                      .map((f: any) => ({ name: f.name as string, value: f.value as string }))
-                  : [];
-                if (!id || !label || filters.length === 0) {
-                  return null;
-                }
-                return {
-                  id,
-                  label,
-                  isSystem: (raw as any).isSystem !== false,
-                  filters,
-                };
-              })
-              .filter((v): v is View => v !== null);
-
-            if (parsed.length > 0) {
-              setSystemViews(parsed);
-            }
-          }
-        }
-      } catch {
-        // Ignore network or parsing errors; fall back to whatever systemViews already holds (possibly empty)
-      } finally {
-        loadViews();
-      }
-    })();
     try {
       const handler: EventListener = () => loadViews();
       // store handler on window for cleanup without using `any`

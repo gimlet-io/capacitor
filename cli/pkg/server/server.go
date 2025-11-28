@@ -270,6 +270,19 @@ func (s *Server) Setup() {
 	s.echo.GET("/api/config", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"systemViews": defaultSystemViews,
+			"fluxcd": map[string]interface{}{
+				"namespace": s.config.FluxCD.Namespace,
+				"helmController": map[string]interface{}{
+					"deploymentName": s.config.FluxCD.HelmControllerDeploymentName,
+					"labelKey":       s.config.FluxCD.HelmControllerLabelKey,
+					"labelValue":     s.config.FluxCD.HelmControllerLabelValue,
+				},
+				"kustomizeController": map[string]interface{}{
+					"deploymentName": s.config.FluxCD.KustomizeControllerDeploymentName,
+					"labelKey":       s.config.FluxCD.KustomizeControllerLabelKey,
+					"labelValue":     s.config.FluxCD.KustomizeControllerLabelValue,
+				},
+			},
 		})
 	})
 

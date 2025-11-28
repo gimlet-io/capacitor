@@ -21,6 +21,29 @@ type Config struct {
 	// Kubernetes settings
 	KubeConfigPath        string
 	InsecureSkipTLSVerify bool
+
+	// FluxCD controller settings (used for logs and controller discovery)
+	FluxCD FluxCDConfig
+}
+
+// FluxCDConfig holds configuration for FluxCD controllers and namespace.
+// These values can be customized via environment variables:
+//   - FLUXCD_NAMESPACE
+//   - FLUXCD_HELM_CONTROLLER_NAME
+//   - FLUXCD_HELM_CONTROLLER_LABEL_KEY
+//   - FLUXCD_HELM_CONTROLLER_LABEL_VALUE
+//   - FLUXCD_KUSTOMIZE_CONTROLLER_NAME
+//   - FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_KEY
+//   - FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE
+type FluxCDConfig struct {
+	Namespace string
+
+	HelmControllerDeploymentName      string
+	HelmControllerLabelKey            string
+	HelmControllerLabelValue          string
+	KustomizeControllerDeploymentName string
+	KustomizeControllerLabelKey       string
+	KustomizeControllerLabelValue     string
 }
 
 // New returns a new configuration with sensible defaults
@@ -31,6 +54,17 @@ func New() *Config {
 		StaticFilesDirectory:  "./web/static",
 		KubeConfigPath:        defaultKubeConfigPath(),
 		InsecureSkipTLSVerify: false,
+		FluxCD: FluxCDConfig{
+			// Keep defaults in sync with the frontend defaults in src/config/fluxcd.ts
+			Namespace: "flux-system",
+
+			HelmControllerDeploymentName:      "helm-controller",
+			HelmControllerLabelKey:            "app.kubernetes.io/component",
+			HelmControllerLabelValue:          "helm-controller",
+			KustomizeControllerDeploymentName: "kustomize-controller",
+			KustomizeControllerLabelKey:       "app.kubernetes.io/component",
+			KustomizeControllerLabelValue:     "kustomize-controller",
+		},
 	}
 }
 
@@ -63,6 +97,29 @@ func (c *Config) Parse() {
 	}
 	if env := os.Getenv("KUBECONFIG_INSECURE_SKIP_TLS_VERIFY"); env == "true" {
 		c.InsecureSkipTLSVerify = true
+	}
+
+	// FluxCD configuration from environment variables (override defaults when set)
+	if env := os.Getenv("FLUXCD_NAMESPACE"); env != "" {
+		c.FluxCD.Namespace = env
+	}
+	if env := os.Getenv("FLUXCD_HELM_CONTROLLER_NAME"); env != "" {
+		c.FluxCD.HelmControllerDeploymentName = env
+	}
+	if env := os.Getenv("FLUXCD_HELM_CONTROLLER_LABEL_KEY"); env != "" {
+		c.FluxCD.HelmControllerLabelKey = env
+	}
+	if env := os.Getenv("FLUXCD_HELM_CONTROLLER_LABEL_VALUE"); env != "" {
+		c.FluxCD.HelmControllerLabelValue = env
+	}
+	if env := os.Getenv("FLUXCD_KUSTOMIZE_CONTROLLER_NAME"); env != "" {
+		c.FluxCD.KustomizeControllerDeploymentName = env
+	}
+	if env := os.Getenv("FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_KEY"); env != "" {
+		c.FluxCD.KustomizeControllerLabelKey = env
+	}
+	if env := os.Getenv("FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE"); env != "" {
+		c.FluxCD.KustomizeControllerLabelValue = env
 	}
 }
 

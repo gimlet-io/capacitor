@@ -28,7 +28,7 @@ import type { Event } from "../types/k8s.ts";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
-import { fluxcdConfig } from "../config/fluxcd.ts";
+import { useAppConfig } from "../store/appConfigStore.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -284,6 +284,7 @@ export function KustomizationDetails() {
   const [watchControllers, setWatchControllers] = createSignal<
     AbortController[]
   >([]);
+  const { fluxcdConfig } = useAppConfig();
 
   // Diff drawer state
   const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
@@ -1355,13 +1356,13 @@ export function KustomizationDetails() {
                     apiVersion: "apps/v1",
                     kind: "Deployment",
                     metadata: { 
-                      name: fluxcdConfig.kustomizeController.deploymentName, 
-                      namespace: fluxcdConfig.namespace 
+                      name: fluxcdConfig().kustomizeController.deploymentName, 
+                      namespace: fluxcdConfig().namespace 
                     },
                     spec: { 
                       selector: { 
                         matchLabels: { 
-                          [fluxcdConfig.kustomizeController.labelKey]: fluxcdConfig.kustomizeController.labelValue 
+                          [fluxcdConfig().kustomizeController.labelKey]: fluxcdConfig().kustomizeController.labelValue 
                         } 
                       } 
                     }
