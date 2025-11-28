@@ -55,9 +55,7 @@ func New() *Config {
 		KubeConfigPath:        defaultKubeConfigPath(),
 		InsecureSkipTLSVerify: false,
 		FluxCD: FluxCDConfig{
-			// Keep defaults in sync with the frontend defaults in src/config/fluxcd.ts
-			Namespace: "flux-system",
-
+			Namespace:                         "flux-system",
 			HelmControllerDeploymentName:      "helm-controller",
 			HelmControllerLabelKey:            "app.kubernetes.io/component",
 			HelmControllerLabelValue:          "helm-controller",

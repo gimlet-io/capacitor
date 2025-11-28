@@ -80,6 +80,26 @@ type SystemView struct {
 	Filters  []SystemViewFilter `json:"filters"`
 }
 
+// ControllerConfig represents configuration for a FluxCD controller
+type ControllerConfig struct {
+	DeploymentName string `json:"deploymentName"`
+	LabelKey       string `json:"labelKey"`
+	LabelValue     string `json:"labelValue"`
+}
+
+// FluxCDResponse represents the FluxCD configuration in the config response
+type FluxCDResponse struct {
+	Namespace           string           `json:"namespace"`
+	HelmController      ControllerConfig `json:"helmController"`
+	KustomizeController ControllerConfig `json:"kustomizeController"`
+}
+
+// ConfigResponse represents the response from the /api/config endpoint
+type ConfigResponse struct {
+	SystemViews []SystemView   `json:"systemViews"`
+	FluxCD      FluxCDResponse `json:"fluxcd"`
+}
+
 // defaultSystemViews contains the built‑in system views that were previously hardcoded in ViewBar.tsx.
 // They are now served from the backend so they can be centrally controlled and customized.
 var defaultSystemViews = []SystemView{
@@ -268,19 +288,19 @@ func (s *Server) Setup() {
 
 	// App configuration endpoint (exposes UI options like system views)
 	s.echo.GET("/api/config", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"systemViews": defaultSystemViews,
-			"fluxcd": map[string]interface{}{
-				"namespace": s.config.FluxCD.Namespace,
-				"helmController": map[string]interface{}{
-					"deploymentName": s.config.FluxCD.HelmControllerDeploymentName,
-					"labelKey":       s.config.FluxCD.HelmControllerLabelKey,
-					"labelValue":     s.config.FluxCD.HelmControllerLabelValue,
+		return c.JSON(http.StatusOK, ConfigResponse{
+			SystemViews: defaultSystemViews,
+			FluxCD: FluxCDResponse{
+				Namespace: s.config.FluxCD.Namespace,
+				HelmController: ControllerConfig{
+					DeploymentName: s.config.FluxCD.HelmControllerDeploymentName,
+					LabelKey:       s.config.FluxCD.HelmControllerLabelKey,
+					LabelValue:     s.config.FluxCD.HelmControllerLabelValue,
 				},
-				"kustomizeController": map[string]interface{}{
-					"deploymentName": s.config.FluxCD.KustomizeControllerDeploymentName,
-					"labelKey":       s.config.FluxCD.KustomizeControllerLabelKey,
-					"labelValue":     s.config.FluxCD.KustomizeControllerLabelValue,
+				KustomizeController: ControllerConfig{
+					DeploymentName: s.config.FluxCD.KustomizeControllerDeploymentName,
+					LabelKey:       s.config.FluxCD.KustomizeControllerLabelKey,
+					LabelValue:     s.config.FluxCD.KustomizeControllerLabelValue,
 				},
 			},
 		})
