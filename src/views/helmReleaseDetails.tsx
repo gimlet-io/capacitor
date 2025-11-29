@@ -27,6 +27,7 @@ import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
 import { useAppConfig } from "../store/appConfigStore.tsx";
+import { ValuesFromViewer } from "../components/resourceDetail/ValuesFromViewer.tsx";
 
 export function HelmReleaseDetails() {
   const params = useParams();
