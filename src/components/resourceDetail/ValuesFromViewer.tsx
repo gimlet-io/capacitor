@@ -34,8 +34,11 @@ export function ValuesFromViewer(props: {
   const [loading, setLoading] = createSignal(false);
   const [selectedSource, setSelectedSource] = createSignal<ValuesSource | null>(null);
   const [helmValues, setHelmValues] = createSignal<string>('');
+  const [helmValuesHtml, setHelmValuesHtml] = createSignal<string>('');
   const [helmValuesLoading, setHelmValuesLoading] = createSignal(false);
   const [showAllValues, setShowAllValues] = createSignal(false);
+  const [mergedSourceValues, setMergedSourceValues] = createSignal<unknown>({});
+  const [provenanceState, setProvenanceState] = createSignal<ProvenanceMap>({});
 
   createEffect(() => {
     if (props.valuesFrom && props.valuesFrom.length > 0) {
@@ -57,10 +60,11 @@ export function ValuesFromViewer(props: {
     setHelmValuesLoading(true);
     try {
       const yaml = buildAnnotatedValuesYamlFromSources(currentSources);
-      setHelmValues(yaml || 'No values found');
+      const effective = yaml || 'No values found';
+      setHelmValuesWithHtml(effective);
     } catch (error) {
       console.error('Error building annotated Helm values:', error);
-      setHelmValues('Error building annotated values');
+      setHelmValuesWithHtml('Error building annotated values');
     } finally {
       setHelmValuesLoading(false);
     }
@@ -200,14 +204,23 @@ export function ValuesFromViewer(props: {
       if (!response.ok) throw new Error('Failed to fetch Helm values');
       
       const data = await response.json();
-      const valuesYaml = data.values ? stringifyYAML(data.values) : 'No values found';
-      setHelmValues(valuesYaml);
+      const valuesObject = data.values || {};
+
+      // Use provenance from valuesFrom sources to annotate the full values
+      const annotatedYaml = emitYamlWithComments(valuesObject, provenanceState());
+      const valuesYaml = annotatedYaml || 'No values found';
+      setHelmValuesWithHtml(valuesYaml);
     } catch (error) {
       console.error('Error fetching Helm values:', error);
-      setHelmValues('Error loading values');
+      setHelmValuesWithHtml('Error loading values');
     } finally {
       setHelmValuesLoading(false);
     }
+  }
+
+  function setHelmValuesWithHtml(value: string) {
+    setHelmValues(value);
+    setHelmValuesHtml(renderYamlHtml(value));
   }
 
   function buildAnnotatedValuesYamlFromSources(allSources: ValuesSource[]): string {
@@ -248,6 +261,10 @@ export function ValuesFromViewer(props: {
         merged = mergeWithProvenance(merged, parsed, source, index, '', provenance);
       }
     });
+
+    // Store for reuse (e.g. when including defaults)
+    setMergedSourceValues(merged);
+    setProvenanceState(provenance);
 
     return emitYamlWithComments(merged, provenance);
   }
@@ -442,6 +459,124 @@ export function ValuesFromViewer(props: {
     return `${source.kind}/${resourceName} (#${index})`;
   }
 
+  function renderYamlHtml(yaml: string): string {
+    if (!yaml) {
+      return '';
+    }
+
+    const lines = yaml.split(/\r?\n/);
+    const htmlLines = lines.map((line) => {
+      const match = line.match(/^(\s*)(.*)$/);
+      const indent = match ? match[1] : '';
+      const rest = match ? match[2] : line;
+      const indentHtml = escapeHtml(indent);
+      const contentHtml = renderYamlLineContent(rest);
+      return indentHtml + contentHtml;
+    });
+
+    return htmlLines.join('\n');
+  }
+
+  function renderYamlLineContent(rest: string): string {
+    if (!rest) {
+      return '';
+    }
+
+    const commentIndex = findCommentIndex(rest);
+    let main = rest;
+    let comment = '';
+
+    if (commentIndex >= 0) {
+      main = rest.slice(0, commentIndex);
+      comment = rest.slice(commentIndex);
+    }
+
+    // Array items starting with "-"
+    if (main.trimStart().startsWith('-')) {
+      const trimmed = main.trimStart();
+      const dashIndex = trimmed.indexOf('-');
+      const afterDash = trimmed.slice(dashIndex + 1); // includes following space if any
+      const dashHtml = '<span class="hljs-meta">-</span>';
+      const valueHtml = `<span class="hljs-string">${escapeHtml(afterDash)}</span>`;
+      const commentHtml = comment
+        ? `<span class="hljs-comment">${escapeHtml(comment)}</span>`
+        : '';
+      const leadingSpaces = main.slice(0, main.indexOf('-'));
+      return `${escapeHtml(leadingSpaces)}${dashHtml}${valueHtml}${commentHtml}`;
+    }
+
+    // Object keys with ":" separator
+    const keyColonIndex = findKeyColonIndex(main);
+    let keyPart = '';
+    let valuePart = main;
+
+    if (keyColonIndex >= 0) {
+      keyPart = main.slice(0, keyColonIndex);
+      valuePart = main.slice(keyColonIndex + 1);
+    }
+
+    let result = '';
+
+    if (keyPart) {
+      const keyHtml = `<span class="hljs-attr">${escapeHtml(keyPart)}</span>`;
+      const sepHtml = ':';
+      const valueHtml = `<span class="hljs-string">${escapeHtml(valuePart)}</span>`;
+      result = `${keyHtml}${sepHtml}${valueHtml}`;
+    } else {
+      result = `<span class="hljs-string">${escapeHtml(valuePart)}</span>`;
+    }
+
+    if (comment) {
+      const commentHtml = `<span class="hljs-comment">${escapeHtml(comment)}</span>`;
+      result += commentHtml;
+    }
+
+    return result;
+  }
+
+  function findCommentIndex(line: string): number {
+    let inString = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      const prev = i > 0 ? line[i - 1] : '';
+
+      if (ch === '"' && prev !== '\\') {
+        inString = !inString;
+      }
+      if (!inString && ch === '#') {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  function findKeyColonIndex(line: string): number {
+    let inString = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      const prev = i > 0 ? line[i - 1] : '';
+
+      if (ch === '"' && prev !== '\\') {
+        inString = !inString;
+      }
+      if (!inString && ch === ':') {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  function escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function buildCompleteSources(apiSources: ValuesSource[]): ValuesSource[] {
     const result: ValuesSource[] = [];
 
@@ -517,7 +652,12 @@ export function ValuesFromViewer(props: {
               <div class="loading">Loading values...</div>
             </Show>
             <Show when={!helmValuesLoading()}>
-              <pre class="yaml-content">{helmValues()}</pre>
+              <pre class="yaml-content">
+                <code
+                  class="hljs language-yaml"
+                  innerHTML={helmValuesHtml()}
+                />
+              </pre>
             </Show>
           </div>
 
