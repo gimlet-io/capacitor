@@ -1324,53 +1324,6 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// Add endpoint for Helm release values sources (context-aware)
-	s.echo.POST("/api/:context/helm/values-sources/:namespace/:name", func(c echo.Context) error {
-		proxy, ok := getProxyFromContext(c)
-		if !ok {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
-		}
-
-		namespace := c.Param("namespace")
-		// name parameter is in URL for consistency but not used - valuesFrom array contains all needed info
-
-		// Parse the request body to get valuesFrom
-		var reqBody struct {
-			ValuesFrom []map[string]interface{} `json:"valuesFrom"`
-		}
-
-		if err := c.Bind(&reqBody); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": fmt.Sprintf("Failed to parse request body: %v", err),
-			})
-		}
-
-		if len(reqBody.ValuesFrom) == 0 {
-			return c.JSON(http.StatusOK, map[string]interface{}{
-				"sources": []interface{}{},
-			})
-		}
-
-		hc, err := helm.NewClient(proxy.k8sClient.Config, "")
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("failed to create helm client: %v", err),
-			})
-		}
-
-		// Get values sources
-		sources, err := hc.GetValuesSources(c.Request().Context(), namespace, reqBody.ValuesFrom)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("Failed to get values sources: %v", err),
-			})
-		}
-
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"sources": sources,
-		})
-	})
-
 	// Kubernetes API proxy endpoints
 	// New: match routes with explicit context: /k8s/:context/*
 	s.echo.Any("/k8s/:context/*", func(c echo.Context) error {

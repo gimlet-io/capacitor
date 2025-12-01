@@ -811,9 +811,11 @@ export function HelmReleaseDetails() {
 
       {/* Values Tab */}
       <Show when={activeMainTab() === "values" && !!helmRelease()}>
-        <HelmValues 
-          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace} 
-          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name} 
+        <ValuesFromViewer
+          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace}
+          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name}
+          valuesFrom={(helmRelease()!.spec as any).valuesFrom || []}
+          inlineValues={helmRelease()!.spec?.values}
         />
       </Show>
 
