@@ -12,11 +12,9 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -51,18 +49,6 @@ type HistoryRelease struct {
 	Chart       string `json:"chart"`
 	AppVersion  string `json:"app_version"`
 	Description string `json:"description"`
-}
-
-// ValueSource represents a ConfigMap or Secret referenced in valuesFrom
-type ValueSource struct {
-	Kind       string  `json:"kind"`
-	Name       string  `json:"name"`
-	ValuesKey  string  `json:"valuesKey"`
-	TargetPath *string `json:"targetPath,omitempty"`
-	Optional   bool    `json:"optional"`
-	Data       *string `json:"data,omitempty"`
-	Exists     bool    `json:"exists"`
-	Error      *string `json:"error,omitempty"`
 }
 
 // NewClient creates a new Helm client
@@ -284,106 +270,6 @@ func (c *Client) GetManifest(ctx context.Context, name, namespace string, revisi
 
 	// Return the manifest
 	return rel.Manifest, nil
-}
-
-// GetValuesSources fetches values from ConfigMaps and Secrets referenced in valuesFrom
-func (c *Client) GetValuesSources(ctx context.Context, namespace string, valuesFrom []map[string]interface{}) ([]ValueSource, error) {
-	log.Printf("GetValuesSources called for namespace %s with %d sources", namespace, len(valuesFrom))
-
-	// Get kubernetes config
-	config, err := c.actionConfig.RESTClientGetter.ToRESTConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get REST config: %w", err)
-	}
-
-	// Create kubernetes clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	sources := make([]ValueSource, 0, len(valuesFrom))
-
-	for _, ref := range valuesFrom {
-		kind, _ := ref["kind"].(string)
-		name, _ := ref["name"].(string)
-		valuesKey := "values.yaml"
-		if vk, ok := ref["valuesKey"].(string); ok && vk != "" {
-			valuesKey = vk
-		}
-
-		var targetPath *string
-		if tp, ok := ref["targetPath"].(string); ok && tp != "" {
-			targetPath = &tp
-		}
-
-		optional := false
-		if opt, ok := ref["optional"].(bool); ok {
-			optional = opt
-		}
-
-		source := ValueSource{
-			Kind:       kind,
-			Name:       name,
-			ValuesKey:  valuesKey,
-			TargetPath: targetPath,
-			Optional:   optional,
-			Exists:     false,
-		}
-
-		var data string
-		var fetchErr error
-
-		switch kind {
-		case "ConfigMap":
-			cm, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
-			if err != nil {
-				fetchErr = err
-			} else if cm.Data != nil {
-				if val, ok := cm.Data[valuesKey]; ok {
-					data = val
-					source.Exists = true
-				} else {
-					fetchErr = fmt.Errorf("key %s not found in ConfigMap", valuesKey)
-				}
-			} else {
-				fetchErr = fmt.Errorf("ConfigMap %s has no data", name)
-			}
-
-		case "Secret":
-			secret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
-			if err != nil {
-				fetchErr = err
-			} else if secret.Data != nil {
-				if val, ok := secret.Data[valuesKey]; ok {
-					// Secrets are already base64 encoded in secret.Data, but we want the decoded string
-					data = string(val)
-					source.Exists = true
-				} else {
-					fetchErr = fmt.Errorf("key %s not found in Secret", valuesKey)
-				}
-			} else {
-				fetchErr = fmt.Errorf("Secret %s has no data", name)
-			}
-
-		default:
-			fetchErr = fmt.Errorf("unsupported kind: %s", kind)
-		}
-
-		if fetchErr != nil {
-			if !optional {
-				errMsg := fetchErr.Error()
-				source.Error = &errMsg
-			}
-			log.Printf("Error fetching %s/%s: %v (optional=%v)", kind, name, fetchErr, optional)
-		} else {
-			source.Data = &data
-		}
-
-		sources = append(sources, source)
-	}
-
-	return sources, nil
 }
 
 // Rollback rolls back a Helm release to a specific revision

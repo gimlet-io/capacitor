@@ -45,26 +45,116 @@ export function ValuesFromViewer(props: {
     setLoading(true);
     try {
       const ctxName = apiResourceStore.contextInfo?.current;
-      const apiPrefix = ctxName ? `/api/${encodeURIComponent(ctxName)}` : '/api';
-      const response = await fetch(
-        `${apiPrefix}/helm/values-sources/${props.namespace}/${props.name}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            valuesFrom: props.valuesFrom,
-          }),
+      const k8sPrefix = ctxName ? `/k8s/${encodeURIComponent(ctxName)}` : '/k8s';
+      const namespace = props.namespace;
+
+      const sourcesPromises = props.valuesFrom.map(async (ref: any) => {
+        const kind = ref.kind || '';
+        const name = ref.name || '';
+        const valuesKey = ref.valuesKey || 'values.yaml';
+        const targetPath = ref.targetPath;
+        const optional = ref.optional || false;
+
+        const source: ValuesSource = {
+          kind: kind as 'ConfigMap' | 'Secret',
+          name,
+          valuesKey,
+          targetPath,
+          optional,
+          data: null,
+          exists: false,
+          error: null,
+        };
+
+        try {
+          let url: string;
+          if (kind === 'ConfigMap') {
+            url = `${k8sPrefix}/api/v1/namespaces/${encodeURIComponent(namespace)}/configmaps/${encodeURIComponent(name)}`;
+          } else if (kind === 'Secret') {
+            url = `${k8sPrefix}/api/v1/namespaces/${encodeURIComponent(namespace)}/secrets/${encodeURIComponent(name)}`;
+          } else {
+            source.error = `Unsupported kind: ${kind}`;
+            return source;
+          }
+
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            if (response.status === 404) {
+              source.exists = false;
+              if (!optional) {
+                source.error = `${kind} not found`;
+              }
+            } else {
+              source.error = `Failed to fetch ${kind}: ${response.statusText}`;
+            }
+            return source;
+          }
+
+          const resource = await response.json();
+          
+          let data: string | null = null;
+          
+          if (kind === 'ConfigMap') {
+            // ConfigMap data is plain text
+            if (!resource.data) {
+              source.exists = false;
+              if (!optional) {
+                source.error = `ConfigMap ${name} has no data`;
+              }
+            } else if (resource.data[valuesKey]) {
+              data = resource.data[valuesKey];
+              source.exists = true;
+            } else {
+              source.exists = false;
+              if (!optional) {
+                source.error = `Key "${valuesKey}" not found in ConfigMap`;
+              }
+            }
+          } else if (kind === 'Secret') {
+            // Secret data can be in data (base64) or stringData (plain)
+            if (resource.stringData && resource.stringData[valuesKey]) {
+              data = resource.stringData[valuesKey];
+              source.exists = true;
+            } else if (resource.data && resource.data[valuesKey]) {
+              try {
+                // Decode base64-encoded secret data
+                data = atob(resource.data[valuesKey]);
+                source.exists = true;
+              } catch (e) {
+                source.exists = false;
+                if (!optional) {
+                  source.error = `Failed to decode secret data: ${e instanceof Error ? e.message : String(e)}`;
+                }
+              }
+            } else {
+              source.exists = false;
+              if (!optional) {
+                if (!resource.data && !resource.stringData) {
+                  source.error = `Secret ${name} has no data`;
+                } else {
+                  source.error = `Key "${valuesKey}" not found in Secret`;
+                }
+              }
+            }
+          }
+
+          source.data = data;
+        } catch (error) {
+          source.exists = false;
+          if (!optional) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            source.error = `Error fetching ${kind}/${name}: ${errorMsg}`;
+          }
         }
-      );
 
-      if (!response.ok) throw new Error('Failed to fetch values sources');
+        return source;
+      });
 
-      const data = await response.json();
+      const fetchedSources = await Promise.all(sourcesPromises);
       
-      // Build sources list from ConfigMaps/Secrets
-      const allSources = buildCompleteSources(data.sources);
+      // Build complete sources list (add inline values last)
+      const allSources = buildCompleteSources(fetchedSources);
       setSources(allSources);
     } catch (error) {
       console.error('Error fetching values sources:', error);
