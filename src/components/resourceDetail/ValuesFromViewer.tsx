@@ -40,7 +40,7 @@ export function ValuesFromViewer(props: {
   const [provenanceState, setProvenanceState] = createSignal<ProvenanceMap>({});
 
   createEffect(() => {
-    if (props.valuesFrom && props.valuesFrom.length > 0) {
+    if ((props.valuesFrom && props.valuesFrom.length > 0) || props.inlineValues) {
       fetchValuesSources();
     }
   });
