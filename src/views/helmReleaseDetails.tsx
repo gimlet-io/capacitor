@@ -817,10 +817,6 @@ export function HelmReleaseDetails() {
           valuesFrom={(helmRelease()!.spec as any).valuesFrom || []}
           inlineValues={helmRelease()!.spec?.values}
         />
-        <HelmValues 
-          namespace={helmRelease()!.status?.storageNamespace || helmRelease()!.metadata.namespace} 
-          name={helmRelease()!.spec?.releaseName || helmRelease()!.metadata.name} 
-        />
       </Show>
 
       {/* Manifest Tab */}

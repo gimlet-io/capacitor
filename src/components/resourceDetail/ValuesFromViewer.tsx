@@ -16,6 +16,13 @@ interface ValuesSource {
   error: string | null;
 }
 
+interface SourceProvenance {
+  source: ValuesSource;
+  index: number;
+}
+
+type ProvenanceMap = Record<string, SourceProvenance>;
+
 export function ValuesFromViewer(props: {
   namespace: string;
   name: string;
@@ -37,8 +44,26 @@ export function ValuesFromViewer(props: {
   });
 
   createEffect(() => {
-    // Fetch Helm values whenever showAllValues changes
-    fetchHelmValues();
+    const allValues = showAllValues();
+    const currentSources = sources();
+
+    if (allValues) {
+      // When showing all values (including defaults), keep using the backend API.
+      fetchHelmValues();
+      return;
+    }
+
+    // For computed values (without defaults), locally merge sources and annotate
+    setHelmValuesLoading(true);
+    try {
+      const yaml = buildAnnotatedValuesYamlFromSources(currentSources);
+      setHelmValues(yaml || 'No values found');
+    } catch (error) {
+      console.error('Error building annotated Helm values:', error);
+      setHelmValues('Error building annotated values');
+    } finally {
+      setHelmValuesLoading(false);
+    }
   });
 
   async function fetchValuesSources() {
@@ -185,6 +210,238 @@ export function ValuesFromViewer(props: {
     }
   }
 
+  function buildAnnotatedValuesYamlFromSources(allSources: ValuesSource[]): string {
+    if (!allSources || allSources.length === 0) {
+      return '';
+    }
+
+    let merged: unknown = {};
+    const provenance: ProvenanceMap = {};
+
+    allSources.forEach((source, index) => {
+      if (!source.data) {
+        return;
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = parseYAML(source.data);
+      } catch (e) {
+        console.error(`Failed to parse YAML for source ${source.kind}/${source.name}:`, e);
+        return;
+      }
+
+      if (parsed === null || parsed === undefined) {
+        return;
+      }
+
+      if (source.targetPath) {
+        merged = applySourceAtTargetPath(
+          merged,
+          parsed,
+          source,
+          index,
+          source.targetPath,
+          provenance,
+        );
+      } else {
+        merged = mergeWithProvenance(merged, parsed, source, index, '', provenance);
+      }
+    });
+
+    return emitYamlWithComments(merged, provenance);
+  }
+
+  function applySourceAtTargetPath(
+    target: unknown,
+    value: unknown,
+    source: ValuesSource,
+    sourceIndex: number,
+    targetPath: string,
+    provenance: ProvenanceMap,
+  ): unknown {
+    if (!targetPath) {
+      return mergeWithProvenance(target, value, source, sourceIndex, '', provenance);
+    }
+
+    const pathSegments = targetPath.split('.').filter(Boolean);
+    if (pathSegments.length === 0) {
+      return mergeWithProvenance(target, value, source, sourceIndex, '', provenance);
+    }
+
+    const result: Record<string, unknown> =
+      typeof target === 'object' && target !== null && !Array.isArray(target)
+        ? { ...(target as Record<string, unknown>) }
+        : {};
+
+    let container: Record<string, unknown> = result;
+    let currentPath = '';
+
+    for (let i = 0; i < pathSegments.length - 1; i++) {
+      const segment = pathSegments[i];
+      currentPath = currentPath ? `${currentPath}.${segment}` : segment;
+
+      const existing = container[segment];
+      if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
+        container[segment] = {};
+      }
+      container = container[segment] as Record<string, unknown>;
+    }
+
+    const lastKey = pathSegments[pathSegments.length - 1];
+    const fullPath = currentPath ? `${currentPath}.${lastKey}` : lastKey;
+    const existingAtTarget = container[lastKey];
+
+    container[lastKey] = mergeWithProvenance(
+      existingAtTarget,
+      value,
+      source,
+      sourceIndex,
+      fullPath,
+      provenance,
+    );
+
+    return result;
+  }
+
+  function mergeWithProvenance(
+    target: unknown,
+    source: unknown,
+    sourceInfo: ValuesSource,
+    sourceIndex: number,
+    basePath: string,
+    provenance: ProvenanceMap,
+  ): unknown {
+    // Scalars and arrays replace the entire value at basePath
+    if (source === null || source === undefined || typeof source !== 'object') {
+      if (basePath) {
+        provenance[basePath] = { source: sourceInfo, index: sourceIndex };
+      }
+      return source;
+    }
+
+    if (Array.isArray(source)) {
+      if (basePath) {
+        provenance[basePath] = { source: sourceInfo, index: sourceIndex };
+      }
+      // Arrays fully overwrite
+      return source.slice();
+    }
+
+    const result: Record<string, unknown> =
+      target && typeof target === 'object' && !Array.isArray(target)
+        ? { ...(target as Record<string, unknown>) }
+        : {};
+
+    for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+      const childPath = basePath ? `${basePath}.${key}` : key;
+      const existing = result[key];
+
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        result[key] = mergeWithProvenance(
+          existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {},
+          value,
+          sourceInfo,
+          sourceIndex,
+          childPath,
+          provenance,
+        );
+      } else if (Array.isArray(value)) {
+        result[key] = mergeWithProvenance(
+          existing,
+          value,
+          sourceInfo,
+          sourceIndex,
+          childPath,
+          provenance,
+        );
+      } else {
+        result[key] = value;
+        provenance[childPath] = { source: sourceInfo, index: sourceIndex };
+      }
+    }
+
+    return result;
+  }
+
+  function emitYamlWithComments(value: unknown, provenance: ProvenanceMap): string {
+    const lines: string[] = [];
+    emitNode(value, '', 0, provenance, lines);
+    return lines.join('\n');
+  }
+
+  function emitNode(
+    value: unknown,
+    path: string,
+    indentLevel: number,
+    provenance: ProvenanceMap,
+    lines: string[],
+  ) {
+    const indent = ' '.repeat(indentLevel);
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        const itemPath = path ? `${path}[${index}]` : `[${index}]`;
+        const prov = provenance[itemPath];
+        const comment = prov ? ` # from ${formatSourceLabel(prov)}` : '';
+
+        if (item === null || typeof item !== 'object') {
+          lines.push(`${indent}- ${formatScalar(item)}${comment}`);
+        } else {
+          lines.push(`${indent}-${comment}`);
+          emitNode(item, itemPath, indentLevel + 2, provenance, lines);
+        }
+      });
+      return;
+    }
+
+    if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+        const childPath = path ? `${path}.${key}` : key;
+        const prov = provenance[childPath];
+        const comment = prov ? ` # from ${formatSourceLabel(prov)}` : '';
+
+        if (child === null || typeof child !== 'object' || Array.isArray(child)) {
+          if (Array.isArray(child)) {
+            lines.push(`${indent}${key}:${comment}`);
+            emitNode(child, childPath, indentLevel + 2, provenance, lines);
+          } else {
+            lines.push(`${indent}${key}: ${formatScalar(child)}${comment}`);
+          }
+        } else {
+          lines.push(`${indent}${key}:${comment}`);
+          emitNode(child, childPath, indentLevel + 2, provenance, lines);
+        }
+      }
+      return;
+    }
+
+    // Root scalar
+    const prov = provenance[path];
+    const comment = prov ? ` # from ${formatSourceLabel(prov)}` : '';
+    lines.push(`${indent}${formatScalar(value)}${comment}`);
+  }
+
+  function formatScalar(value: unknown): string {
+    if (value === null || value === undefined) {
+      return 'null';
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    // Use JSON-style quoting to keep things simple and valid YAML (JSON ⊂ YAML)
+    return JSON.stringify(String(value));
+  }
+
+  function formatSourceLabel(prov: SourceProvenance): string {
+    const { source, index } = prov;
+    if (source.kind === 'InlineValues') {
+      return `Inline spec.values (#${index})`;
+    }
+    const resourceName = source.name || '(unknown)';
+    return `${source.kind}/${resourceName} (#${index})`;
+  }
+
   function buildCompleteSources(apiSources: ValuesSource[]): ValuesSource[] {
     const result: ValuesSource[] = [];
 
@@ -225,85 +482,12 @@ export function ValuesFromViewer(props: {
       </Show>
 
       <Show when={!loading()}>
-        {/* Three-column grid layout */}
-        <div class="values-content-grid">
-          {/* Left Column: Merge Flow Diagram */}
-          <div class="merge-flow-diagram">
-            <div class="flow-start">Merge Order</div>
-            <For each={sources()}>
-              {(source, index) => (
-                <>
-                  <div class="flow-arrow">↓</div>
-                  <div classList={{
-                    "flow-step": true,
-                    "overwrites-all": !!source.targetPath
-                  }}>
-                    <span class="step-number">#{index()}</span>
-                    <span class="step-name">{source.name}</span>
-                    <Show when={source.targetPath}>
-                      <span class="step-target">→ {source.targetPath}</span>
-                    </Show>
-                  </div>
-                </>
-              )}
-            </For>
-            <div class="flow-arrow">↓</div>
-            <div class="flow-result">Final Merged Values</div>
-          </div>
-
-          {/* Center Column: Source Cards */}
-          <div class="sources-list">
-          <For each={sources()}>
-            {(source, index) => (
-              <div 
-                classList={{
-                  "source-card": true,
-                  "missing": !source.exists,
-                  "error": !!source.error
-                }}
-                onClick={() => setSelectedSource(source)}
-              >
-                <div class="source-header">
-                  <div class="source-order">#{index()}</div>
-                  <div class="source-info">
-                    <div class="source-name">
-                      <span class="source-kind">{source.kind}</span>
-                      <span class="source-resource-name">{source.name}</span>
-                    </div>
-                    <div class="source-key">Key: {source.valuesKey}</div>
-                  </div>
-                  <div class="source-status">
-                    <Show when={source.exists}>
-                      <span class="status-badge success">✓ Found</span>
-                    </Show>
-                    <Show when={!source.exists && source.optional}>
-                      <span class="status-badge warning">⚠ Not Found (Optional)</span>
-                    </Show>
-                    <Show when={!source.exists && !source.optional}>
-                      <span class="status-badge error">✗ Missing (Required)</span>
-                    </Show>
-                  </div>
-                </div>
-
-                <Show when={source.targetPath}>
-                  <div class="source-target-path">
-                    <span class="target-label">Target Path:</span>
-                    <code class="target-path">{source.targetPath}</code>
-                    <span class="overwrites-badge">Overwrites Everything</span>
-                  </div>
-                </Show>
-
-                <Show when={source.error}>
-                  <div class="source-error">
-                    Error: {source.error}
-                  </div>
-                </Show>
-              </div>
-            )}
-          </For>
-          </div>
-
-          {/* Right Column: Helm Values */}
+        {/* Two-column grid layout: Helm values (2/3) + merge flow (1/3) */}
+        <div
+          class="values-content-grid"
+          style={{ 'grid-template-columns': '2fr 1fr' }}
+        >
+          {/* Left Column: Helm Values (wider) */}
           <div class="merged-values-section">
             <div class="merged-values-header">
               <h3>Helm Values</h3>
@@ -314,7 +498,7 @@ export function ValuesFromViewer(props: {
                     checked={showAllValues()}
                     onChange={() => setShowAllValues(!showAllValues())}
                   />
-                  Show all values (including defaults)
+                  Include defaults
                 </label>
                 <button 
                   class="action-button"
@@ -336,54 +520,116 @@ export function ValuesFromViewer(props: {
               <pre class="yaml-content">{helmValues()}</pre>
             </Show>
           </div>
-        </div>
-      </Show>
 
-      <Show when={selectedSource()}>
-        <div class="source-detail-modal">
-          <div class="modal-overlay" onClick={() => setSelectedSource(null)}></div>
-          <div class="modal-content">
-            <div class="modal-header">
-              <h2>{selectedSource()!.kind}/{selectedSource()!.name}</h2>
-              <button class="close-btn" onClick={() => setSelectedSource(null)}>✕</button>
-            </div>
+          {/* Right Column: Merge Flow Diagram (extended with source details) */}
+          <div class="merge-flow-diagram">
+            <div class="flow-start">Merge Order</div>
+            <For each={sources()}>
+              {(source, index) => (
+                <>
+                  <div class="flow-arrow">↓</div>
+                  <div 
+                    classList={{
+                      "flow-step": true,
+                      "missing": !source.exists,
+                      "error": !!source.error,
+                      "overwrites-all": !!source.targetPath
+                    }}
+                    onClick={() => setSelectedSource(source)}
+                  >
+                    <div class="flow-step-header">
+                      <span class="step-number">#{index()}</span>
+                      <div class="step-main">
+                        <div class="source-name">
+                          <span class="source-kind">{source.kind}</span>
+                          <span class="source-resource-name">{source.name}</span>
+                        </div>
+                        <div class="source-key">Key: {source.valuesKey}</div>
+                      </div>
+                      <div class="source-status">
+                        <Show when={source.exists}>
+                          <span class="status-badge success">✓ Found</span>
+                        </Show>
+                        <Show when={!source.exists && source.optional}>
+                          <span class="status-badge warning">⚠ Not Found (Optional)</span>
+                        </Show>
+                        <Show when={!source.exists && !source.optional}>
+                          <span class="status-badge error">✗ Missing (Required)</span>
+                        </Show>
+                      </div>
+                    </div>
 
-            <div class="modal-body">
-              <div class="detail-row">
-                <span class="detail-label">Values Key:</span>
-                <code>{selectedSource()!.valuesKey}</code>
+                    <Show when={source.targetPath}>
+                      <div class="source-target-path">
+                        <span class="target-label">Target Path:</span>
+                        <code class="target-path">{source.targetPath}</code>
+                        <span class="overwrites-badge">Overwrites Everything</span>
+                      </div>
+                    </Show>
+
+                    <Show when={source.error}>
+                      <div class="source-error">
+                        Error: {source.error}
+                      </div>
+                    </Show>
+                  </div>
+                </>
+              )}
+            </For>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-result">Final Merged Values</div>
+
+            {/* Source detail modal moved next to the merge order widget */}
+            <Show when={selectedSource()}>
+              <div class="source-detail-modal">
+                <div class="modal-overlay" onClick={() => setSelectedSource(null)}></div>
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h2>{selectedSource()!.kind}/{selectedSource()!.name}</h2>
+                    <button class="close-btn" onClick={() => setSelectedSource(null)}>✕</button>
+                  </div>
+
+                  <div class="modal-body">
+                    <div class="detail-row">
+                      <span class="detail-label">Values Key:</span>
+                      <code>{selectedSource()!.valuesKey}</code>
+                    </div>
+
+                    <Show when={selectedSource()!.targetPath}>
+                      <div class="detail-row">
+                        <span class="detail-label">Target Path:</span>
+                        <code>{selectedSource()!.targetPath}</code>
+                      </div>
+                    </Show>
+
+                    <div class="detail-row">
+                      <span class="detail-label">Optional:</span>
+                      <span>{selectedSource()!.optional ? 'Yes' : 'No'}</span>
+                    </div>
+
+                    <Show when={selectedSource()!.data}>
+                      <div class="source-data">
+                        <h3>Content:</h3>
+                        <pre class="yaml-content">{selectedSource()!.data}</pre>
+                      </div>
+                    </Show>
+
+                    <Show when={!selectedSource()!.data}>
+                      <div class="no-data">
+                        {selectedSource()!.optional 
+                          ? 'Source not found (optional)'
+                          : 'Source not found (REQUIRED)'}
+                      </div>
+                    </Show>
+                  </div>
+                </div>
               </div>
-
-              <Show when={selectedSource()!.targetPath}>
-                <div class="detail-row">
-                  <span class="detail-label">Target Path:</span>
-                  <code>{selectedSource()!.targetPath}</code>
-                </div>
-              </Show>
-
-              <div class="detail-row">
-                <span class="detail-label">Optional:</span>
-                <span>{selectedSource()!.optional ? 'Yes' : 'No'}</span>
-              </div>
-
-              <Show when={selectedSource()!.data}>
-                <div class="source-data">
-                  <h3>Content:</h3>
-                  <pre class="yaml-content">{selectedSource()!.data}</pre>
-                </div>
-              </Show>
-
-              <Show when={!selectedSource()!.data}>
-                <div class="no-data">
-                  {selectedSource()!.optional 
-                    ? 'Source not found (optional)'
-                    : 'Source not found (REQUIRED)'}
-                </div>
-              </Show>
-            </div>
+            </Show>
           </div>
+
         </div>
       </Show>
+
     </div>
   );
 }
