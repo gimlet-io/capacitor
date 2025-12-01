@@ -37,7 +37,6 @@ export function ValuesFromViewer(props: {
   const [helmValuesHtml, setHelmValuesHtml] = createSignal<string>('');
   const [helmValuesLoading, setHelmValuesLoading] = createSignal(false);
   const [showAllValues, setShowAllValues] = createSignal(false);
-  const [mergedSourceValues, setMergedSourceValues] = createSignal<unknown>({});
   const [provenanceState, setProvenanceState] = createSignal<ProvenanceMap>({});
 
   createEffect(() => {
@@ -263,7 +262,6 @@ export function ValuesFromViewer(props: {
     });
 
     // Store for reuse (e.g. when including defaults)
-    setMergedSourceValues(merged);
     setProvenanceState(provenance);
 
     return emitYamlWithComments(merged, provenance);
