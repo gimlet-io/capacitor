@@ -1094,6 +1094,10 @@ export interface CronJobList {
   items: CronJob[];
 }
 
+export interface CronJobWithJobs extends CronJob {
+  jobs: Job[];
+}
+
 // HorizontalPodAutoscaler
 export interface HorizontalPodAutoscalerSpec {
   scaleTargetRef: {

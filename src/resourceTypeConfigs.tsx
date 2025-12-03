@@ -33,7 +33,7 @@ import { pvcColumns, pvcStatusFilter, pvcStorageClassFilter } from "./components
 import { daemonSetColumns, daemonSetReadinessFilter } from "./components/resourceList/DaemonSetList.tsx";
 import { namespaceColumns, namespaceStatusFilter } from "./components/resourceList/NamespaceList.tsx";
 import { jobColumns, jobStatusFilter, jobNodeFilter } from "./components/resourceList/JobList.tsx";
-import { cronJobColumns, cronJobSuspendedFilter } from "./components/resourceList/CronJobList.tsx";
+import { cronJobColumns, cronJobSuspendedFilter, renderCronJobDetails } from "./components/resourceList/CronJobList.tsx";
 import { hpaColumns, hpaStatusFilter } from "./components/resourceList/HorizontalPodAutoscalerList.tsx";
 import { pvColumns, pvPhaseFilter, pvReclaimPolicyFilter } from "./components/resourceList/PersistentVolumeList.tsx";
 import { roleColumns, roleVerbFilter, clusterRoleColumns, renderRoleDetails } from "./components/resourceList/RoleList.tsx";
@@ -53,7 +53,8 @@ import {
   updateKustomizationMatchingBuckets,
   updateKustomizationMatchingOCIRepositories,
   updateHelmReleaseMatchingEvents,
-  updateKluctlDeploymentMatchingEvents
+  updateKluctlDeploymentMatchingEvents,
+  updateCronJobMatchingJobs
 } from "./utils/k8s.ts";
 import { updateJobMatchingResources, updateStatefulSetMatchingResources, updateDaemonSetMatchingResources, updateServiceMatchingPods, updateServiceMatchingIngresses, updateServiceMatchingKustomizations } from "./utils/k8s.ts";
 
@@ -140,6 +141,12 @@ export const showPodsInNamespace: ResourceCommand = {
 // Define a command to view pods related to a resource (workloads/services)
 export const showRelatedPods: ResourceCommand = {
   shortcut: { key: "Enter", description: "View related pods", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
+// Define a command to view pods spawned by a CronJob (via its Jobs)
+export const showCronJobPods: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View pods for CronJob", isContextual: true },
   handler: null as any // Will be implemented in ResourceList
 };
 
@@ -673,7 +680,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
         shortcut: { key: "l", description: "Logs", isContextual: true },
         handler: null as any  // Will be implemented in ResourceList
       },
-      ...builtInCommands
+      ...builtInCommands,
+      showRelatedPods
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: jobCardRenderer,
@@ -713,7 +721,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: cronJobColumns,
     filter: [cronJobSuspendedFilter],
     commands: [
-      ...builtInCommands
+      ...builtInCommands,
+      showCronJobPods
     ],
     defaultSortColumn: "NAME",
     treeCardRenderer: cronJobCardRenderer,
@@ -721,7 +730,33 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     projectFields: [
       'spec.schedule',
       'spec.suspend',
+      'spec.timeZone',
+      'spec.concurrencyPolicy',
+      'spec.successfulJobsHistoryLimit',
+      'spec.failedJobsHistoryLimit',
+      'spec.jobTemplate.spec.template.metadata.labels',
       'status.lastScheduleTime'
+     ],
+    detailRowRenderer: renderCronJobDetails,
+    extraWatches: [
+      {
+        resourceType: 'batch/Job',
+        updater: (cronJob, jobs) => updateCronJobMatchingJobs(cronJob, jobs),
+        isParent: (_resource: any, _obj: any) => {return false},
+        projectFields: [
+          'metadata.name',
+          'metadata.namespace',
+          'metadata.ownerReferences',
+          'metadata.creationTimestamp',
+          'spec.completions',
+          'spec.template.metadata.labels',
+          'status.startTime',
+          'status.completionTime',
+          'status.succeeded',
+          'status.failed',
+          'status.active'
+        ]
+      }
     ]
   },
   
