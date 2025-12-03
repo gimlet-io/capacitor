@@ -2071,8 +2071,9 @@ func (s *Server) setupSourceControllerPortForward(ctx context.Context, client *k
 func (s *Server) handleExecWebSocketWithClient(c echo.Context, client *kubernetes.Client) error {
 	namespace := c.Param("namespace")
 	podname := c.Param("podname")
+	requestedContainer := c.QueryParam("container")
 
-	log.Printf("Setting up exec WebSocket for pod %s/%s with auto shell detection (context: %s)", namespace, podname, client.CurrentContext)
+	log.Printf("Setting up exec WebSocket for pod %s/%s with auto shell detection (context: %s, container: %s)", namespace, podname, client.CurrentContext, requestedContainer)
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -2093,94 +2094,154 @@ func (s *Server) handleExecWebSocketWithClient(c echo.Context, client *kubernete
 	var execCmd []string
 	var shell string
 	var shellFound bool
+	var containerName string
 
-	for _, tryShell := range shells {
-		log.Printf("Trying shell: %s", tryShell)
+	ctx := c.Request().Context()
 
-		var shellExists bool
-		testMethods := [][]string{
-			{tryShell, "--version"},
-			{tryShell, "--help"},
-			{tryShell, "-c", "exit 0"},
+	// Fetch pod to discover available containers
+	pod, err := client.Clientset.CoreV1().Pods(namespace).Get(ctx, podname, metav1.GetOptions{})
+	if err != nil {
+		log.Printf("Failed to get pod %s/%s for exec: %v", namespace, podname, err)
+		errorMsg := map[string]interface{}{
+			"type":  "error",
+			"error": fmt.Sprintf("failed to get pod %s/%s: %v", namespace, podname, err),
 		}
+		ws.WriteJSON(errorMsg)
+		return err
+	}
 
-		for _, testCmd := range testMethods {
-			testReq := client.Clientset.CoreV1().RESTClient().Post().
+	// Build list of containers to try
+	var containersToTry []string
+	if requestedContainer != "" && requestedContainer != "all" {
+		// Verify requested container exists in pod spec
+		found := false
+		for _, ctn := range pod.Spec.Containers {
+			if ctn.Name == requestedContainer {
+				found = true
+				break
+			}
+		}
+		if !found {
+			errorMsg := map[string]interface{}{
+				"type":  "error",
+				"error": fmt.Sprintf("requested container %q not found in pod %s/%s", requestedContainer, namespace, podname),
+			}
+			ws.WriteJSON(errorMsg)
+			return fmt.Errorf("requested container %q not found in pod %s/%s", requestedContainer, namespace, podname)
+		}
+		containersToTry = []string{requestedContainer}
+	} else {
+		for _, ctn := range pod.Spec.Containers {
+			containersToTry = append(containersToTry, ctn.Name)
+		}
+	}
+
+	if len(containersToTry) == 0 {
+		errorMsg := map[string]interface{}{
+			"type":  "error",
+			"error": "pod has no containers to exec into",
+		}
+		ws.WriteJSON(errorMsg)
+		return fmt.Errorf("pod %s/%s has no containers", namespace, podname)
+	}
+
+	// Try each container and shell combination until one works
+	for _, tryContainer := range containersToTry {
+		for _, tryShell := range shells {
+			log.Printf("Trying shell %s in container %s for pod %s/%s", tryShell, tryContainer, namespace, podname)
+
+			var shellExists bool
+			testMethods := [][]string{
+				{tryShell, "--version"},
+				{tryShell, "--help"},
+				{tryShell, "-c", "exit 0"},
+			}
+
+			for _, testCmd := range testMethods {
+				testReq := client.Clientset.CoreV1().RESTClient().Post().
+					Resource("pods").
+					Name(podname).
+					Namespace(namespace).
+					SubResource("exec").
+					VersionedParams(&corev1.PodExecOptions{
+						Container: tryContainer,
+						Command:   testCmd,
+						Stdin:     false,
+						Stdout:    true,
+						Stderr:    true,
+						TTY:       false,
+					}, scheme.ParameterCodec)
+
+				testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
+				if err != nil {
+					continue
+				}
+
+				var testOut, testErr bytes.Buffer
+				err = testExec.StreamWithContext(ctx, remotecommand.StreamOptions{
+					Stdout: &testOut,
+					Stderr: &testErr,
+				})
+
+				if err == nil {
+					shellExists = true
+					log.Printf("Shell %s found in container %s using test: %v", tryShell, tryContainer, testCmd)
+					break
+				}
+			}
+
+			if !shellExists {
+				log.Printf("Shell %s not found in container %s", tryShell, tryContainer)
+				continue
+			}
+
+			execCmd = []string{tryShell}
+			req := client.Clientset.CoreV1().RESTClient().Post().
 				Resource("pods").
 				Name(podname).
 				Namespace(namespace).
 				SubResource("exec").
 				VersionedParams(&corev1.PodExecOptions{
-					Command: testCmd,
-					Stdin:   false,
-					Stdout:  true,
-					Stderr:  true,
-					TTY:     false,
+					Container: tryContainer,
+					Command:   execCmd,
+					Stdin:     true,
+					Stdout:    true,
+					Stderr:    true,
+					TTY:       true,
 				}, scheme.ParameterCodec)
 
-			testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
+			exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
 			if err != nil {
+				log.Printf("Failed to create interactive executor for shell %s in container %s: %v", tryShell, tryContainer, err)
 				continue
 			}
 
-			var testOut, testErr bytes.Buffer
-			err = testExec.StreamWithContext(c.Request().Context(), remotecommand.StreamOptions{
-				Stdout: &testOut,
-				Stderr: &testErr,
-			})
-
-			if err == nil {
-				shellExists = true
-				log.Printf("Shell %s found using test: %v", tryShell, testCmd)
-				break
-			}
+			executor = exec
+			shell = tryShell
+			containerName = tryContainer
+			shellFound = true
+			break
 		}
 
-		if !shellExists {
-			log.Printf("Shell %s not found in container", tryShell)
-			continue
+		if shellFound {
+			break
 		}
-
-		execCmd = []string{tryShell}
-		req := client.Clientset.CoreV1().RESTClient().Post().
-			Resource("pods").
-			Name(podname).
-			Namespace(namespace).
-			SubResource("exec").
-			VersionedParams(&corev1.PodExecOptions{
-				Command: execCmd,
-				Stdin:   true,
-				Stdout:  true,
-				Stderr:  true,
-				TTY:     true,
-			}, scheme.ParameterCodec)
-
-		exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
-		if err != nil {
-			log.Printf("Failed to create interactive executor for shell %s: %v", tryShell, err)
-			continue
-		}
-
-		executor = exec
-		shell = tryShell
-		shellFound = true
-		break
 	}
 
 	if !shellFound {
 		errorMsg := map[string]interface{}{
 			"type":  "error",
-			"error": "no suitable shell found in container",
+			"error": "no suitable shell found in any container in pod",
 		}
 		ws.WriteJSON(errorMsg)
-		return fmt.Errorf("no suitable shell found in container")
+		return fmt.Errorf("no suitable shell found in any container in pod %s/%s", namespace, podname)
 	}
 
-	log.Printf("Using shell: %s", shell)
+	log.Printf("Using shell: %s (container: %s)", shell, containerName)
 
 	connectedMsg := map[string]interface{}{
 		"type":    "connected",
-		"message": fmt.Sprintf("Connected to %s/%s with shell %s", namespace, podname, shell),
+		"message": fmt.Sprintf("Connected to %s/%s (container %s) with shell %s", namespace, podname, containerName, shell),
 	}
 	if err := ws.WriteJSON(connectedMsg); err != nil {
 		log.Printf("Error sending connected message: %v", err)
