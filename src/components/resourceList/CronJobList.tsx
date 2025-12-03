@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { JSX } from "solid-js";
-import type { CronJob } from "../../types/k8s.ts";
+import type { CronJob, Job } from "../../types/k8s.ts";
 import { Filter } from "../filterBar/FilterBar.tsx";
 import { useCalculateAge, useCalculateTimeAgo } from "./timeUtils.ts";
 import { sortByName, sortByAge } from '../../utils/sortUtils.ts';
+import { DetailRowCard } from "./DetailRowCard.tsx";
 
 // Helper function to determine if CronJob is suspended
 function getSuspendedComponent(cronJob: CronJob): { element: JSX.Element, title: string } {
-  const suspended = cronJob.spec.suspend === true;
+  const suspended = cronJob.spec?.suspend === true;
   
   const statusClass = suspended ? "text-warning" : "text-success";
   const status = suspended ? "Suspended" : "Active";
@@ -19,6 +20,73 @@ function getSuspendedComponent(cronJob: CronJob): { element: JSX.Element, title:
     title: suspended ? "This CronJob is suspended" : "This CronJob is active"
   };
 }
+
+export const renderCronJobDetails = (cronJob: CronJob & { jobs?: Job[] }, columnCount = 4) => {
+  const jobs: Job[] = cronJob.jobs || [];
+  const sortedJobs = jobs
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.status?.startTime || a.metadata.creationTimestamp || "";
+      const bTime = b.status?.startTime || b.metadata.creationTimestamp || "";
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    })
+    .slice(0, 5);
+
+  const renderJobStatus = (job: Job): string => {
+    const succeeded = job.status?.succeeded || 0;
+    const completions = job.spec?.completions || 1;
+    const failed = job.status?.failed || 0;
+    const active = job.status?.active || 0;
+
+    if (succeeded >= completions) return "Completed";
+    if (failed > 0) return "Failed";
+    if (active > 0) return "Active";
+    return "Pending";
+  };
+
+  return (
+    <DetailRowCard columnCount={columnCount}>
+      <div style="display: contents;">
+        <div>
+          {cronJob.spec?.concurrencyPolicy && (
+            <>
+              <strong>Concurrency policy:</strong> {cronJob.spec.concurrencyPolicy} <br />
+            </>
+          )}
+          {typeof cronJob.spec?.successfulJobsHistoryLimit === "number" && (
+            <>
+              <strong>Successful history limit:</strong> {cronJob.spec.successfulJobsHistoryLimit} <br />
+            </>
+          )}
+          {typeof cronJob.spec?.failedJobsHistoryLimit === "number" && (
+            <>
+              <strong>Failed history limit:</strong> {cronJob.spec.failedJobsHistoryLimit} <br />
+            </>
+          )}
+        </div>
+        <div>
+          {sortedJobs.length === 0 ? (
+            <div>No Jobs found for this CronJob yet.</div>
+          ) : (
+            <ul>
+              {sortedJobs.map(job => {
+                const ts = job.status?.startTime || job.metadata.creationTimestamp || "";
+                const when = ts ? useCalculateAge(ts)() : "";
+                const status = renderJobStatus(job);
+                return (
+                  <li>
+                    <span title={ts}>{when}</span>{" "}
+                    {job.metadata.namespace}/{job.metadata.name}: {status}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </DetailRowCard>
+  );
+};
 
 // Format the schedule into a more human-readable form
 function formatSchedule(schedule: string): string {
@@ -39,8 +107,11 @@ export const cronJobColumns = [
   {
     header: "SCHEDULE",
     width: "20%",
-    accessor: (cronJob: CronJob) => <>{cronJob.spec.schedule}</>,
-    title: (cronJob: CronJob) => `Schedule: ${formatSchedule(cronJob.spec.schedule)}`
+    accessor: (cronJob: CronJob) => <>{cronJob.spec?.schedule ?? "-"}</>,
+    title: (cronJob: CronJob) =>
+      cronJob.spec?.schedule
+        ? `Schedule: ${formatSchedule(cronJob.spec.schedule)}`
+        : "Schedule: -"
   },
   {
     header: "SUSPEND",

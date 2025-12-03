@@ -6,7 +6,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, navigateToKluctlDeployment, type Column } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, navigateToKluctlDeployment, showCronJobPods, type Column } from "../../resourceTypeConfigs.tsx";
 import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
@@ -273,8 +273,14 @@ export const replaceHandlers = (
           handler: (resource) => {
             try {
               const namespace = resource?.metadata?.namespace;
-              // Prefer spec.selector.matchLabels (workloads), fallback to metadata.labels
-              const labelMap = resource?.spec?.selector?.matchLabels || resource?.spec?.selector || resource?.metadata?.labels || {};
+              // Prefer spec.selector.matchLabels (workloads), fallback to spec.selector,
+              // then pod template labels (for jobs/workloads), then metadata.labels
+              const labelMap =
+                resource?.spec?.selector?.matchLabels ||
+                resource?.spec?.selector ||
+                resource?.spec?.template?.metadata?.labels ||
+                resource?.metadata?.labels ||
+                {};
               const parts: string[] = [];
               for (const key in labelMap) {
                 if (Object.prototype.hasOwnProperty.call(labelMap, key)) {
@@ -291,6 +297,27 @@ export const replaceHandlers = (
               handlers.updateFilters!(newFilters);
             } catch (err) {
               console.error('Failed to build related pods filter:', err);
+            }
+          }
+        };
+      } else if (cmd === showCronJobPods && handlers.updateFilters) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            try {
+              const namespace = resource?.metadata?.namespace;
+              const cronName = resource?.metadata?.name;
+              const newFilters: any[] = [
+                { name: 'ResourceType', value: 'core/Pod' },
+              ];
+              if (namespace) newFilters.push({ name: 'Namespace', value: namespace });
+              if (cronName) {
+                // Use a glob prefix so hello-cron* matches all Pods from Jobs like hello-cron-xyz
+                newFilters.push({ name: 'Name', value: `${cronName}*` });
+              }
+              handlers.updateFilters!(newFilters);
+            } catch (err) {
+              console.error('Failed to build CronJob pods filter:', err);
             }
           }
         };

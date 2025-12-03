@@ -15,6 +15,8 @@ import type { Pod,
   Bucket,
   Job,
   JobWithResources,
+  CronJob,
+  CronJobWithJobs,
   StatefulSet,
   StatefulSetWithResources,
   DaemonSet,
@@ -172,6 +174,24 @@ export const updateJobMatchingResources = (job: Job, allPods: Pod[]): JobWithRes
   return {
     ...job,
     pods: getJobMatchingPods(job, allPods)
+  };
+};
+
+export const getCronJobMatchingJobs = (cronJob: CronJob, allJobs: Job[]): Job[] => {
+  const namespace = cronJob.metadata?.namespace;
+  const name = cronJob.metadata?.name;
+  if (!namespace || !name) return [];
+  return (allJobs || []).filter(job => {
+    if (job.metadata?.namespace !== namespace) return false;
+    const owners = job.metadata?.ownerReferences || [];
+    return owners.some(owner => owner.kind === 'CronJob' && owner.name === name);
+  });
+};
+
+export const updateCronJobMatchingJobs = (cronJob: CronJob, allJobs: Job[]): CronJobWithJobs => {
+  return {
+    ...cronJob,
+    jobs: getCronJobMatchingJobs(cronJob, allJobs)
   };
 };
 
