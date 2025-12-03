@@ -95,9 +95,11 @@ type FluxCDResponse struct {
 }
 
 // ConfigResponse represents the response from the /api/config endpoint
+// SystemViews is a map keyed by kube context name; the "*" key is used as a
+// wildcard/default for any context that doesn't have an explicit entry.
 type ConfigResponse struct {
-	SystemViews []SystemView   `json:"systemViews"`
-	FluxCD      FluxCDResponse `json:"fluxcd"`
+	SystemViews map[string][]SystemView `json:"systemViews"`
+	FluxCD      FluxCDResponse          `json:"fluxcd"`
 }
 
 // defaultSystemViews contains the built‑in system views that were previously hardcoded in ViewBar.tsx.
@@ -148,6 +150,13 @@ var defaultSystemViews = []SystemView{
 			{Name: "Namespace", Value: "all-namespaces"},
 		},
 	},
+}
+
+// defaultSystemViewMap exposes the built‑in system views under the "*"
+// wildcard key so that all contexts share the same defaults unless
+// explicitly overridden by a context‑specific configuration.
+var defaultSystemViewMap = map[string][]SystemView{
+	"*": defaultSystemViews,
 }
 
 // Removed per-route withK8sProxy wrapper; using global middleware to attach proxies
@@ -289,7 +298,7 @@ func (s *Server) Setup() {
 	// App configuration endpoint (exposes UI options like system views)
 	s.echo.GET("/api/config", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, ConfigResponse{
-			SystemViews: defaultSystemViews,
+			SystemViews: defaultSystemViewMap,
 			FluxCD: FluxCDResponse{
 				Namespace: s.config.FluxCD.Namespace,
 				HelmController: ControllerConfig{
