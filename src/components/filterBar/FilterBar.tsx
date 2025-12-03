@@ -408,6 +408,17 @@ export function FilterBar(props: {
       setAddMenuOpen(false);
       openFilter("ResourceType");
       return true;
+    } else if (e.key === "/" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      // Ensure Name filter is visible
+      setVisibleFilterNames(prev => {
+        const next = new Set(prev);
+        next.add("Name");
+        return next;
+      });
+      setAddMenuOpen(false);
+      openFilter("Name");
+      return true;
     }
     
     return false;
@@ -767,6 +778,9 @@ export function FilterBar(props: {
                   {filter.name === "ResourceType" && (
                     <span class="shortcut-key">r</span>
                   )}
+                  {filter.name === "Name" && (
+                    <span class="shortcut-key">/</span>
+                  )}
                 </button>
                 <Show when={activeFilter() === filter.name}>
                   <div class="filter-options">
@@ -910,7 +924,12 @@ export function FilterBar(props: {
                         setTimeout(() => openFilter(f.name), 0);
                       }}
                     >
-                      {f.label}
+                      <span>{f.label}</span>
+                      {f.name === "Name" && (
+                        <span class="shortcut-key" style={{ "margin-left": "auto" }}>
+                          /
+                        </span>
+                      )}
                     </button>
                   )}
                 </For>
