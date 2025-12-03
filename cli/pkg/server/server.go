@@ -38,6 +38,7 @@ import (
 	"k8s.io/kubectl/pkg/describe"
 	"k8s.io/kubectl/pkg/scheme"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -1108,6 +1109,73 @@ func (s *Server) Setup() {
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Successfully restarted rollout for %s/%s", kind, req.Name),
 			"output":  output,
+		})
+	})
+
+	// Add endpoint for running a CronJob immediately by creating a one-off Job (context-aware)
+	// Equivalent to: kubectl create job --from=cronjob/<name> <generated-name>
+	s.echo.POST("/api/:context/cronjob/run", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
+		var req struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Invalid request body",
+			})
+		}
+
+		if strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Namespace) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Name and namespace are required fields",
+			})
+		}
+
+		clientset := proxy.k8sClient.Clientset
+		ctx := context.Background()
+
+		cronJob, err := clientset.BatchV1().CronJobs(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
+		if err != nil {
+			log.Printf("Error getting CronJob %s/%s: %v", req.Namespace, req.Name, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to get CronJob: %v", err),
+			})
+		}
+
+		// Generate a job name that clearly indicates a manual run
+		timestamp := time.Now().Format("20060102150405")
+		jobName := fmt.Sprintf("%s-manual-%s", cronJob.Name, timestamp)
+
+		job := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        jobName,
+				Namespace:   cronJob.Namespace,
+				Labels:      cronJob.Spec.JobTemplate.Labels,
+				Annotations: cronJob.Spec.JobTemplate.Annotations,
+			},
+			Spec: *cronJob.Spec.JobTemplate.Spec.DeepCopy(),
+		}
+
+		// Set controller reference back to the CronJob (matches what kubectl does)
+		if ownerRef := metav1.NewControllerRef(cronJob, batchv1.SchemeGroupVersion.WithKind("CronJob")); ownerRef != nil {
+			job.OwnerReferences = []metav1.OwnerReference{*ownerRef}
+		}
+
+		created, err := clientset.BatchV1().Jobs(req.Namespace).Create(ctx, job, metav1.CreateOptions{})
+		if err != nil {
+			log.Printf("Error creating Job from CronJob %s/%s: %v", req.Namespace, req.Name, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to create Job from CronJob: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": fmt.Sprintf("Job %s created from CronJob %s/%s", created.Name, req.Namespace, req.Name),
 		})
 	})
 

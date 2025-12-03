@@ -21,6 +21,53 @@ function getSuspendedComponent(cronJob: CronJob): { element: JSX.Element, title:
   };
 }
 
+// Trigger a one-off Job run for a CronJob, similar to:
+// kubectl create job --from=cronjob/<name> <generated-name>
+async function runCronJobNow(cronJob: CronJob, contextName: string): Promise<void> {
+  const ctxName = encodeURIComponent(contextName);
+  const apiPrefix = `/api/${ctxName}`;
+
+  const response = await fetch(`${apiPrefix}/cronjob/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: cronJob.metadata.name,
+      namespace: cronJob.metadata.namespace,
+    }),
+  });
+
+  if (!response.ok) {
+    try {
+      const data = await response.json();
+      throw new Error(data.error || `Failed to trigger CronJob: ${response.statusText}`);
+    } catch (err) {
+      // If response is not JSON, fall back to generic error
+      if (err instanceof Error) {
+        console.error("Error triggering CronJob:", err);
+        throw err;
+      }
+      throw new Error(`Failed to trigger CronJob: ${response.statusText}`);
+    }
+  }
+}
+
+// Handler used by ResourceList command
+export const handleRunCronJobNow = (resource: CronJob, contextName?: string) => {
+  if (!resource || !resource.metadata) return;
+  if (!contextName) {
+    throw new Error("No Kubernetes context selected");
+  }
+
+  const confirmed = globalThis.confirm(
+    `Run CronJob "${resource.metadata.name}" now? This will create a Job immediately.`
+  );
+  if (!confirmed) return;
+
+  return runCronJobNow(resource, contextName);
+};
+
 export const renderCronJobDetails = (cronJob: CronJob & { jobs?: Job[] }, columnCount = 4) => {
   const jobs: Job[] = cronJob.jobs || [];
   const sortedJobs = jobs
