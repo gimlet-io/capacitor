@@ -33,7 +33,7 @@ import { pvcColumns, pvcStatusFilter, pvcStorageClassFilter } from "./components
 import { daemonSetColumns, daemonSetReadinessFilter } from "./components/resourceList/DaemonSetList.tsx";
 import { namespaceColumns, namespaceStatusFilter } from "./components/resourceList/NamespaceList.tsx";
 import { jobColumns, jobStatusFilter, jobNodeFilter } from "./components/resourceList/JobList.tsx";
-import { cronJobColumns, cronJobSuspendedFilter, renderCronJobDetails } from "./components/resourceList/CronJobList.tsx";
+import { cronJobColumns, cronJobSuspendedFilter, renderCronJobDetails, handleRunCronJobNow } from "./components/resourceList/CronJobList.tsx";
 import { hpaColumns, hpaStatusFilter } from "./components/resourceList/HorizontalPodAutoscalerList.tsx";
 import { pvColumns, pvPhaseFilter, pvReclaimPolicyFilter } from "./components/resourceList/PersistentVolumeList.tsx";
 import { roleColumns, roleVerbFilter, clusterRoleColumns, renderRoleDetails } from "./components/resourceList/RoleList.tsx";
@@ -722,6 +722,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     filter: [cronJobSuspendedFilter],
     commands: [
       ...builtInCommands,
+      {
+        shortcut: { key: "Mod+t", description: "Run CronJob now", isContextual: true },
+        handler: handleRunCronJobNow
+      },
       showCronJobPods
     ],
     defaultSortColumn: "NAME",
