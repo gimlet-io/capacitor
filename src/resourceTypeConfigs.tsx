@@ -122,6 +122,11 @@ export const navigateToSecret: ResourceCommand = {
   handler: null as any // Will be implemented in ResourceList
 };
 
+export const navigateToConfigMap: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View ConfigMap details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
 export const navigateToTerraform: ResourceCommand = {
   shortcut: { key: "Enter", description: "View Terraform details", isContextual: true },
   handler: null as any // Will be implemented in ResourceList
@@ -527,7 +532,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
   'core/ConfigMap': {
     columns: configMapColumns,
     commands: [
-      ...builtInCommands
+      ...builtInCommands,
+      navigateToConfigMap
     ],
     defaultSortColumn: "NAME",
     abbreviations: ['cm'],
