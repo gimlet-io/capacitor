@@ -6,7 +6,7 @@ import { ResourceDrawer } from "../resourceDetail/ResourceDrawer.tsx";
 import { KeyboardShortcuts, KeyboardShortcut } from "../keyboardShortcuts/KeyboardShortcuts.tsx";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
-import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, navigateToKluctlDeployment, showCronJobPods, type Column } from "../../resourceTypeConfigs.tsx";
+import { ResourceTypeConfig, navigateToKustomization, navigateToApplication, navigateToSecret, navigateToConfigMap, showPodsInNamespace, navigateToHelmClassicReleaseDetails, showRelatedPods, navigateToTerraform, navigateToKluctlDeployment, showCronJobPods, type Column } from "../../resourceTypeConfigs.tsx";
 import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
@@ -217,6 +217,13 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => {
             handlers.navigate!(`/secret/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
+      } else if (cmd === navigateToConfigMap && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/configmap/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
       } else if (cmd === navigateToTerraform && handlers.navigate) {
