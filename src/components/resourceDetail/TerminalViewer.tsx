@@ -1,7 +1,7 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createSignal, onMount, onCleanup, Show, createEffect } from "solid-js";
+import { createSignal, onMount, onCleanup, Show, createEffect, For } from "solid-js";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
@@ -16,6 +16,9 @@ export function TerminalViewer(props: {
   const [isConnected, setIsConnected] = createSignal<boolean>(false);
   const [connectionError, setConnectionError] = createSignal<string>("");
   const [noShellAvailable, setNoShellAvailable] = createSignal<boolean>(false);
+  const [availableContainers, setAvailableContainers] = createSignal<string[]>([]);
+  const [availableInitContainers, setAvailableInitContainers] = createSignal<string[]>([]);
+  const [selectedContainer, setSelectedContainer] = createSignal<string>("");
 
   
   let terminalContainer: HTMLDivElement | undefined;
@@ -100,6 +103,30 @@ export function TerminalViewer(props: {
     };
   };
 
+  const updateAvailableContainers = () => {
+    if (!props.resource || props.resource.kind !== "Pod") {
+      setAvailableContainers([]);
+      setAvailableInitContainers([]);
+      setSelectedContainer("");
+      return;
+    }
+
+    const containers = (props.resource.spec?.containers || []).map((c: any) => c.name);
+    const initContainers = (props.resource.spec?.initContainers || []).map((c: any) => c.name);
+
+    setAvailableContainers(containers);
+    setAvailableInitContainers(initContainers);
+
+    // Default to the first regular container if present, otherwise first init container
+    if (containers.length > 0) {
+      setSelectedContainer(containers[0]);
+    } else if (initContainers.length > 0) {
+      setSelectedContainer(initContainers[0]);
+    } else {
+      setSelectedContainer("");
+    }
+  };
+
   const connectWebSocket = async () => {
     if (!props.resource || props.resource.kind !== "Pod" || !terminal()) {
       return;
@@ -121,12 +148,18 @@ export function TerminalViewer(props: {
 
       const podName = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
+      const containerName = selectedContainer();
       
       // Create WebSocket URL for exec (direct connection) - backend will auto-select shell
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
       const contextSegment = ctxName ? `/${ctxName}` : '';
-      const wsUrl = `${protocol}//${window.location.host}/api${contextSegment}/exec/${namespace}/${podName}`;
+      let wsUrl = `${protocol}//${window.location.host}/api${contextSegment}/exec/${namespace}/${podName}`;
+      if (containerName) {
+        const params = new URLSearchParams();
+        params.append("container", containerName);
+        wsUrl = `${wsUrl}?${params.toString()}`;
+      }
       
       console.log("Connecting to exec WebSocket:", wsUrl);
       
@@ -249,6 +282,16 @@ export function TerminalViewer(props: {
     await connectWebSocket();
   };
 
+  const handleContainerChange = (containerName: string) => {
+    setSelectedContainer(containerName);
+    // Reset shell availability state when switching containers
+    setNoShellAvailable(false);
+    // Reconnect to use the newly selected container
+    if (props.isOpen) {
+      handleConnect();
+    }
+  };
+
   // Initialize terminal when component mounts
   onMount(() => {
     const cleanup = initializeTerminal();
@@ -258,11 +301,16 @@ export function TerminalViewer(props: {
     });
   });
 
-  // Reset the noShellAvailable flag when the resource changes
+  // Reset state and available containers when the resource changes
   createEffect(() => {
-    // This will run whenever props.resource changes
-    if (props.resource) {
+    if (props.resource && props.resource.kind === "Pod") {
       setNoShellAvailable(false);
+      updateAvailableContainers();
+    } else if (props.resource) {
+      setNoShellAvailable(false);
+      setAvailableContainers([]);
+      setAvailableInitContainers([]);
+      setSelectedContainer("");
     }
   });
 
@@ -310,6 +358,39 @@ export function TerminalViewer(props: {
         </Show>
         
         <Show when={props.resource?.kind === "Pod"}>
+          <div class="terminal-controls">
+            <div class="terminal-options-row">
+              <div class="logs-select-container">
+                <label>Container:</label>
+                <select
+                  value={selectedContainer()}
+                  onChange={(e) => handleContainerChange(e.target.value)}
+                  class="container-select"
+                >
+                  <Show when={availableContainers().length > 0}>
+                    <optgroup label="Containers">
+                      <For each={availableContainers()}>
+                        {(container) => (
+                          <option value={container}>{container}</option>
+                        )}
+                      </For>
+                    </optgroup>
+                  </Show>
+
+                  <Show when={availableInitContainers().length > 0}>
+                    <optgroup label="Init Containers">
+                      <For each={availableInitContainers()}>
+                        {(container) => (
+                          <option value={container}>{container}</option>
+                        )}
+                      </For>
+                    </optgroup>
+                  </Show>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <Show when={connectionError()}>
             <div class="terminal-error">
               <p>Connection Error: {connectionError()}</p>
@@ -317,7 +398,7 @@ export function TerminalViewer(props: {
                 <p class="terminal-retry-message">Retrying in 2 seconds...</p>
               </Show>
               <Show when={noShellAvailable()}>
-                <p class="terminal-no-shell-message">No shell available in this container.</p>
+                <p class="terminal-no-shell-message">No shell available in any container in this pod.</p>
               </Show>
             </div>
           </Show>
