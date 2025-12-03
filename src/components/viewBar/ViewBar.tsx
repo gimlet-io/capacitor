@@ -8,6 +8,8 @@ import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { ShortcutPrefix, doesEventMatchShortcut, getShortcutPrefix, setShortcutPrefix, getDefaultShortcutPrefix, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
 import { keyboardManager } from "../../utils/keyboardManager.ts";
 import { useAppConfig } from "../../store/appConfigStore.tsx";
+import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
+import { matchGlob } from "../../utils/glob.ts";
 
 export interface View {
   id: string;
@@ -46,47 +48,94 @@ export function ViewBar(props: ViewBarProps) {
   });
 
   const { appConfig } = useAppConfig();
+  const apiResourceStore = useApiResourceStore();
 
-  let systemViewsInitialized = false;
-
-  // Initialize system views from global app config when available
+  // Initialize and update system views from global app config when available.
   createEffect(() => {
-    if (systemViewsInitialized) return;
     const cfg = appConfig();
     if (!cfg) return;
 
-    const rawViews = (cfg as any).systemViews as unknown;
-    if (Array.isArray(rawViews)) {
-      const parsed: View[] = rawViews
-        .map((raw: any): View | null => {
-          if (!raw || typeof raw !== "object") return null;
-          const id = String((raw as any).id ?? "").trim();
-          const label = String((raw as any).label ?? "").trim();
-          const rawFilters = (raw as any).filters;
-          const filters: ActiveFilter[] = Array.isArray(rawFilters)
-            ? rawFilters
-                .filter((f: any) => f && typeof f.name === "string" && typeof f.value === "string")
-                .map((f: any) => ({ name: f.name as string, value: f.value as string }))
-            : [];
-          if (!id || !label || filters.length === 0) {
-            return null;
-          }
-          return {
-            id,
-            label,
-            isSystem: (raw as any).isSystem !== false,
-            filters,
-          };
-        })
-        .filter((v): v is View => v !== null);
+    const ctxInfo = apiResourceStore.contextInfo;
+    const currentContext = ctxInfo?.current;
 
-      if (parsed.length > 0) {
-        setSystemViews(parsed);
+    const systemViewsConfig = (cfg as any).systemViews as unknown;
+
+    // Determine the raw views for the current context from the map-shaped config.
+    let rawForContext: unknown = [];
+
+    if (systemViewsConfig && typeof systemViewsConfig === "object") {
+      // Expected shape: map of context selector -> array of views.
+      // Supported selectors:
+      //   - Exact context name, e.g. "minikube"
+      //   - Glob pattern, e.g. "k3d-helm*", "dev-??"
+      //   - "*" wildcard default for all other contexts
+      const map = systemViewsConfig as Record<string, unknown>;
+      let key: string | undefined;
+
+      if (currentContext) {
+        // 1) Exact match
+        if (Object.prototype.hasOwnProperty.call(map, currentContext)) {
+          key = currentContext;
+        } else {
+          // 2) First glob pattern that matches current context (excluding "*")
+          const candidates = Object.keys(map);
+          for (const candidate of candidates) {
+            if (candidate === "*") continue;
+            // Treat only patterns that contain wildcard characters as globs
+            if (/[*[?\[]/.test(candidate) && matchGlob(candidate, currentContext)) {
+              key = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3) Fallback to "*" wildcard for any remaining contexts
+      if (!key && Object.prototype.hasOwnProperty.call(map, "*")) {
+        key = "*";
+      }
+
+      const value = key ? map[key] : undefined;
+      if (Array.isArray(value)) {
+        rawForContext = value;
       }
     }
 
-    systemViewsInitialized = true;
-    loadViews();
+    // Parse and apply system views for the active context without creating
+    // extra reactive dependencies (so this effect only reruns when config or
+    // context actually change).
+    untrack(() => {
+      const rawViews = rawForContext;
+      let parsed: View[] = [];
+
+      if (Array.isArray(rawViews)) {
+        parsed = rawViews
+          .map((raw: any): View | null => {
+            if (!raw || typeof raw !== "object") return null;
+            const id = String((raw as any).id ?? "").trim();
+            const label = String((raw as any).label ?? "").trim();
+            const rawFilters = (raw as any).filters;
+            const filters: ActiveFilter[] = Array.isArray(rawFilters)
+              ? rawFilters
+                  .filter((f: any) => f && typeof f.name === "string" && typeof f.value === "string")
+                  .map((f: any) => ({ name: f.name as string, value: f.value as string }))
+              : [];
+            if (!id || !label || filters.length === 0) {
+              return null;
+            }
+            return {
+              id,
+              label,
+              isSystem: (raw as any).isSystem !== false,
+              filters,
+            };
+          })
+          .filter((v): v is View => v !== null);
+      }
+
+      setSystemViews(parsed);
+      loadViews();
+    });
   });
 
   // Check if current filters match any existing view
