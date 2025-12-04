@@ -25,13 +25,35 @@ export function ResourceDrawer(props: {
   const [activeTab, setActiveTab] = createSignal<DrawerTab>(props.initialTab || "describe");
   const [describeData, setDescribeData] = createSignal<string>("");
   const [yamlData, setYamlData] = createSignal<string>("");
+  const [yamlDataWithManaged, setYamlDataWithManaged] = createSignal<string>("");
   const [yamlHtml, setYamlHtml] = createSignal<string>("");
   const [events, setEvents] = createSignal<Event[]>([]);
   const [loading, setLoading] = createSignal<boolean>(true);
+  const [showManagedFields, setShowManagedFields] = createSignal<boolean>(false);
   const apiResourceStore = useApiResourceStore();
   
   let describeContentRef: HTMLPreElement | undefined;
   let yamlContentRef: HTMLPreElement | undefined;
+
+  // Keep syntax highlighting in sync with YAML content and toggle state
+  createEffect(() => {
+    const includeManaged = showManagedFields();
+    const baseYaml = includeManaged && yamlDataWithManaged()
+      ? yamlDataWithManaged()
+      : yamlData();
+
+    if (!baseYaml) {
+      setYamlHtml("");
+      return;
+    }
+
+    try {
+      const { value } = hljs.highlight(baseYaml, { language: "yaml" });
+      setYamlHtml(value);
+    } catch (_) {
+      setYamlHtml("");
+    }
+  });
 
   // Watch for changes to initialTab prop
   createEffect(() => {
@@ -83,7 +105,7 @@ export function ResourceDrawer(props: {
   // Helper function to get the correct plural resource name
 
   // Fetch the YAML data when the drawer opens
-  const fetchYamlData = async () => {
+  const fetchYamlData = async (includeManagedFields: boolean = false) => {
     if (!props.resource) return;
 
     setLoading(true);
@@ -105,9 +127,15 @@ export function ResourceDrawer(props: {
       const apiResources = apiResourceStore.apiResources || [];
       const resourceName = getResourceName(kind, apiVersion, apiResources);
       
-      const url = isNamespaced
+      let url = isNamespaced
         ? `${resourcePath}/namespaces/${namespace}/${resourceName}/${name}`
         : `${resourcePath}/${resourceName}/${name}`;
+
+      // When explicitly requested, tell the backend proxy not to strip managedFields
+      if (includeManagedFields) {
+        const separator = url.includes("?") ? "&" : "?";
+        url = `${url}${separator}includeManagedFields=true`;
+      }
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -116,12 +144,11 @@ export function ResourceDrawer(props: {
       
       const data = await response.json();
       const yamlText = stringify(data);
-      setYamlData(yamlText);
-      try {
-        const { value } = hljs.highlight(yamlText, { language: "yaml" });
-        setYamlHtml(value);
-      } catch (_) {
-        setYamlHtml("");
+
+      if (includeManagedFields) {
+        setYamlDataWithManaged(yamlText);
+      } else {
+        setYamlData(yamlText);
       }
     } catch (error) {
       console.error("Error fetching YAML data:", error);
@@ -192,7 +219,10 @@ export function ResourceDrawer(props: {
       if (activeTab() === "describe") {
         fetchDescribeData();
       } else if (activeTab() === "yaml") {
-        fetchYamlData();
+        // Default YAML view hides managedFields; reset toggle and cached full YAML
+        setShowManagedFields(false);
+        setYamlDataWithManaged("");
+        fetchYamlData(false);
       } else if (activeTab() === "events") {
         fetchResourceEvents();
       }
@@ -331,8 +361,49 @@ export function ResourceDrawer(props: {
                 <div class="drawer-loading">Loading...</div>
               </Show>
               <Show when={!loading()}>
-                <Show when={yamlHtml()} fallback={<pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;">{yamlData()}</pre>}>
-                  <pre class="yaml-content" ref={yamlContentRef} tabIndex={0} style="outline: none;"><code class="hljs language-yaml" innerHTML={yamlHtml()!}></code></pre>
+                <div class="yaml-controls">
+                  <label class="yaml-managed-fields-toggle">
+                    <input
+                      type="checkbox"
+                      checked={showManagedFields()}
+                      onChange={(e) => {
+                        const checked = (e.currentTarget as HTMLInputElement).checked;
+                        setShowManagedFields(checked);
+                        // Lazily fetch full YAML (with managedFields) the first time it is requested
+                        if (checked && !yamlDataWithManaged()) {
+                          fetchYamlData(true);
+                        }
+                      }}
+                    />
+                    Show managedFields
+                  </label>
+                </div>
+                <Show
+                  when={yamlHtml()}
+                  fallback={
+                    <pre
+                      class="yaml-content"
+                      ref={yamlContentRef}
+                      tabIndex={0}
+                      style="outline: none;"
+                    >
+                      {showManagedFields() && yamlDataWithManaged()
+                        ? yamlDataWithManaged()
+                        : yamlData()}
+                    </pre>
+                  }
+                >
+                  <pre
+                    class="yaml-content"
+                    ref={yamlContentRef}
+                    tabIndex={0}
+                    style="outline: none;"
+                  >
+                    <code
+                      class="hljs language-yaml"
+                      innerHTML={yamlHtml()!}
+                    ></code>
+                  </pre>
                 </Show>
               </Show>
             </Show>
