@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // deno-lint-ignore-file jsx-button-has-type
-import { createSignal, createEffect, Show, onMount, onCleanup } from "solid-js";
+import { createSignal, createEffect, Show, onMount, onCleanup, For, type JSX } from "solid-js";
 import { EventList } from "../resourceList/EventList.tsx";
 import { LogsViewer } from "./LogsViewer.tsx";
 import { TerminalViewer } from "./TerminalViewer.tsx";
 import type { Event } from "../../types/k8s.ts";
-import { stringify } from "@std/yaml";
+import { stringify, parse } from "@std/yaml";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { getResourceName } from "../../utils/k8s.ts";
 import { Tabs } from "../Tabs.tsx";
 import hljs from "highlight.js";
 import { MetricsViewer } from "./MetricsViewer.tsx";
+import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
+import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
+import { generateDiffHunks, type DiffHunk } from "../../utils/diffUtils.ts";
 
-type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec" | "metrics";
+type DrawerTab = "describe" | "yaml" | "events" | "logs" | "exec" | "metrics" | "edit";
 
 export function ResourceDrawer(props: {
   resource: any;
@@ -30,10 +33,21 @@ export function ResourceDrawer(props: {
   const [events, setEvents] = createSignal<Event[]>([]);
   const [loading, setLoading] = createSignal<boolean>(true);
   const [showManagedFields, setShowManagedFields] = createSignal<boolean>(false);
+  const [canEditResource, setCanEditResource] = createSignal<boolean | undefined>(undefined);
+
+  const [editYamlText, setEditYamlText] = createSignal<string>("");
+  const [editInitialYaml, setEditInitialYaml] = createSignal<string>("");
+  const [editDirty, setEditDirty] = createSignal<boolean>(false);
+  const [editSaving, setEditSaving] = createSignal<boolean>(false);
+  const [editError, setEditError] = createSignal<string | null>(null);
+  const [editDiffHunks, setEditDiffHunks] = createSignal<DiffHunk[]>([]);
+
   const apiResourceStore = useApiResourceStore();
+  let lastResourceKey: string | undefined;
   
   let describeContentRef: HTMLPreElement | undefined;
   let yamlContentRef: HTMLPreElement | undefined;
+  let editContentRef: HTMLTextAreaElement | undefined;
 
   // Keep syntax highlighting in sync with YAML content and toggle state
   createEffect(() => {
@@ -53,6 +67,37 @@ export function ResourceDrawer(props: {
     } catch (_) {
       setYamlHtml("");
     }
+  });
+
+  // Reset YAML/edit state when the selected resource changes
+  createEffect(() => {
+    const res = props.resource as MinimalK8sResource | undefined;
+    if (!res || !res.metadata) {
+      lastResourceKey = undefined;
+      return;
+    }
+    const key = `${res.apiVersion || "v1"}|${res.kind}|${res.metadata.namespace || ""}|${res.metadata.name || ""}`;
+    if (key === lastResourceKey) return;
+    lastResourceKey = key;
+
+    setYamlData("");
+    setYamlDataWithManaged("");
+    setYamlHtml("");
+    setShowManagedFields(false);
+
+    setEditYamlText("");
+    setEditInitialYaml("");
+    setEditDirty(false);
+    setEditError(null);
+    setEditDiffHunks([]);
+  });
+
+  // Recompute inline diff when content changes
+  createEffect(() => {
+    const original = (editInitialYaml() || "").split("\n");
+    const edited = (editYamlText() || "").split("\n");
+    const hunks = generateDiffHunks(original, edited);
+    setEditDiffHunks(hunks);
   });
 
   // Watch for changes to initialTab prop
@@ -163,6 +208,53 @@ export function ResourceDrawer(props: {
     }
   };
 
+  // Check whether the current user can edit (patch) this resource
+  createEffect(() => {
+    const res = props.resource as MinimalK8sResource | undefined;
+    if (!props.isOpen || !res || !res.metadata) {
+      setCanEditResource(undefined);
+      return;
+    }
+
+    const key = `${res.apiVersion || "v1"}|${res.kind}|${res.metadata.namespace || ""}|${res.metadata.name || ""}`;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const allowed = await checkPermissionSSAR(
+          {
+            apiVersion: res.apiVersion,
+            kind: res.kind,
+            metadata: {
+              name: res.metadata.name,
+              namespace: res.metadata.namespace,
+            },
+          },
+          { verb: "patch" },
+          apiResourceStore.apiResources as any
+        );
+        if (!cancelled) {
+          // Only apply if resource is still the same
+          const current = props.resource as MinimalK8sResource | undefined;
+          const currentKey = current
+            ? `${current.apiVersion || "v1"}|${current.kind}|${current.metadata.namespace || ""}|${current.metadata.name || ""}`
+            : "";
+          if (currentKey === key) {
+            setCanEditResource(allowed);
+          }
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setCanEditResource(undefined);
+        }
+      }
+    })();
+
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
   // Fetch events for the selected resource
   const fetchResourceEvents = async () => {
     if (!props.resource) return;
@@ -202,6 +294,8 @@ export function ResourceDrawer(props: {
           describeContentRef.focus();
         } else if (tab === "yaml" && yamlContentRef) {
           yamlContentRef.focus();
+        } else if (tab === "edit" && editContentRef) {
+          editContentRef.focus();
         }
       }, 50);
     }
@@ -225,9 +319,153 @@ export function ResourceDrawer(props: {
         fetchYamlData(false);
       } else if (activeTab() === "events") {
         fetchResourceEvents();
+      } else if (activeTab() === "edit") {
+        // Initialize edit view from the latest YAML (without managedFields)
+        const init = async () => {
+          try {
+            if (!yamlData()) {
+              await fetchYamlData(false);
+            }
+            const baseYaml = yamlData();
+            setEditYamlText(baseYaml);
+            setEditInitialYaml(baseYaml);
+            setEditDirty(false);
+            setEditError(null);
+          } finally {
+            setLoading(false);
+          }
+        };
+        init();
       }
     }
   });
+
+  const saveEditedResource = async () => {
+    if (!props.resource) return;
+
+    const original: any = props.resource;
+    const text = editYamlText();
+
+    let parsed: any;
+    try {
+      parsed = parse(text);
+    } catch (e) {
+      setEditError(e instanceof Error ? `YAML parse error: ${e.message}` : "YAML parse error");
+      return;
+    }
+
+    if (!parsed || typeof parsed !== "object") {
+      setEditError("Edited YAML must define a Kubernetes object");
+      return;
+    }
+
+    const origNs = original.metadata?.namespace || "";
+    const origName = original.metadata?.name || "";
+    const newNs = parsed?.metadata?.namespace || "";
+    const newName = parsed?.metadata?.name || "";
+
+    if (
+      String(parsed.apiVersion || "") !== String(original.apiVersion || "") ||
+      String(parsed.kind || "") !== String(original.kind || "") ||
+      String(newName || "") !== String(origName || "") ||
+      String(newNs || "") !== String(origNs || "")
+    ) {
+      setEditError("apiVersion, kind, metadata.name and metadata.namespace must remain unchanged");
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const ctxName = apiResourceStore.contextInfo?.current
+        ? encodeURIComponent(apiResourceStore.contextInfo.current)
+        : "";
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+      const apiVersion = original.apiVersion || "v1";
+      const isNamespaced = !!origNs;
+      const resourcePath = apiVersion.includes("/")
+        ? `${k8sPrefix}/apis/${apiVersion}`
+        : `${k8sPrefix}/api/${apiVersion}`;
+
+      const apiResources = apiResourceStore.apiResources || [];
+      const resourceName = getResourceName(original.kind || "unknown", apiVersion, apiResources);
+
+      const url = isNamespaced
+        ? `${resourcePath}/namespaces/${origNs}/${resourceName}/${origName}`
+        : `${resourcePath}/${resourceName}/${origName}`;
+
+      const resp = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/merge-patch+json",
+        },
+        body: JSON.stringify(parsed),
+      });
+
+      if (!resp.ok) {
+        const bodyText = await resp.text().catch(() => "");
+        throw new Error(bodyText || `Failed to save resource (HTTP ${resp.status})`);
+      }
+
+      const updated = await resp.json();
+      const updatedYaml = stringify(updated);
+      setEditYamlText(updatedYaml);
+      setEditInitialYaml(updatedYaml);
+      setEditDirty(false);
+      setEditError(null);
+      setYamlData(updatedYaml);
+      setYamlDataWithManaged("");
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const resetEditedResource = () => {
+    const initial = editInitialYaml();
+    setEditYamlText(initial);
+    setEditDirty(false);
+    setEditError(null);
+  };
+
+  const renderEditDiffHunk = (hunk: DiffHunk): JSX.Element[] => {
+    const lines: JSX.Element[] = [];
+    let oldLineNum = hunk.startOldLine + 1;
+    let newLineNum = hunk.startNewLine + 1;
+
+    hunk.changes.forEach((change) => {
+      let className = "";
+      let lineContent = "";
+      let oldNum = "";
+      let newNum = "";
+
+      if (change.type === "add") {
+        className = "diff-line-added";
+        lineContent = `+${change.value}`;
+        newNum = String(newLineNum++);
+      } else if (change.type === "remove") {
+        className = "diff-line-removed";
+        lineContent = `-${change.value}`;
+        oldNum = String(oldLineNum++);
+      } else {
+        className = "diff-line-context";
+        lineContent = ` ${change.value}`;
+        oldNum = String(oldLineNum++);
+        newNum = String(newLineNum++);
+      }
+
+      lines.push(
+        <div class={className}>
+          <span class="line-number old">{oldNum}</span>
+          <span class="line-number new">{newNum}</span>
+          <span class="line-content">{lineContent}</span>
+        </div>,
+      );
+    });
+
+    return lines;
+  };
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -253,6 +491,15 @@ export function ResourceDrawer(props: {
     if (e.key === "Escape") {
       e.preventDefault();
       props.onClose();
+    }
+
+    // Edit tab shortcut (mod+e) when drawer is open
+    if (doesEventMatchShortcut(e, "mod+e")) {
+      e.preventDefault();
+      if (canEditResource()) {
+        setActiveTab("edit");
+      }
+      return;
     }
     
     // Tab shortcuts
@@ -330,6 +577,7 @@ export function ResourceDrawer(props: {
               { key: "describe", label: <span>Describe <span class="shortcut-key">d</span></span> },
               { key: "yaml", label: <span>YAML <span class="shortcut-key">y</span></span> },
               { key: "events", label: <span>Events <span class="shortcut-key">e</span></span> },
+              ...(canEditResource() ? [{ key: "edit", label: <span>Edit <span class="shortcut-key">{`mod+e`}</span></span> }] : []),
               ...( ["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet", "CronJob"].includes(props.resource?.kind)
                 ? [{ key: "metrics", label: <span>Metrics <span class="shortcut-key">m</span></span> }]
                 : []),
@@ -429,6 +677,60 @@ export function ResourceDrawer(props: {
             
             <Show when={activeTab() === "exec"}>
               <TerminalViewer resource={props.resource} isOpen={props.isOpen && activeTab() === "exec"} />
+            </Show>
+
+            <Show when={activeTab() === "edit"}>
+              <Show when={loading()}>
+                <div class="drawer-loading">Loading...</div>
+              </Show>
+              <Show when={!loading()}>
+                <div class="yaml-edit-controls">
+                  <button
+                    class="drawer-button"
+                    disabled={!editDirty() || editSaving() || !canEditResource()}
+                    onClick={saveEditedResource}
+                    title={canEditResource() === false ? "Not permitted" : undefined}
+                  >
+                    {editSaving() ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    class="drawer-button secondary"
+                    disabled={!editDirty() || editSaving()}
+                    onClick={resetEditedResource}
+                  >
+                    Reset
+                  </button>
+                  <Show when={editError()}>
+                    {(err) => <div class="form-error">{err()}</div>}
+                  </Show>
+                </div>
+                <textarea
+                  ref={editContentRef}
+                  class="yaml-edit-textarea"
+                  value={editYamlText()}
+                  onInput={(e) => {
+                    const val = (e.currentTarget as HTMLTextAreaElement).value;
+                    setEditYamlText(val);
+                    setEditDirty(val !== editInitialYaml());
+                  }}
+                  rows={24}
+                  spellcheck={false}
+                />
+                <div class="diff-content yaml-edit-diff">
+                  <Show
+                    when={editDiffHunks().length > 0}
+                    fallback={<div class="no-data">No differences from last saved version</div>}
+                  >
+                    <For each={editDiffHunks()}>
+                      {(hunk) => (
+                        <div class="diff-hunk">
+                          {renderEditDiffHunk(hunk)}
+                        </div>
+                      )}
+                    </For>
+                  </Show>
+                </div>
+              </Show>
             </Show>
           </div>
         </div>
