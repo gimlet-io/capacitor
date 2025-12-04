@@ -208,7 +208,7 @@ export function ResourceDrawer(props: {
     }
   };
 
-  // Check whether the current user can edit (update) this resource
+  // Check whether the current user can edit (patch) this resource
   createEffect(() => {
     const res = props.resource as MinimalK8sResource | undefined;
     if (!props.isOpen || !res || !res.metadata) {
@@ -230,7 +230,7 @@ export function ResourceDrawer(props: {
               namespace: res.metadata.namespace,
             },
           },
-          { verb: "update" },
+          { verb: "patch" },
           apiResourceStore.apiResources as any
         );
         if (!cancelled) {

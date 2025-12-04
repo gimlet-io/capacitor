@@ -538,7 +538,7 @@ export function ResourceList<T>(props: {
     }
     // Edit resource YAML
     if (desc.includes('edit') && key.includes('+e')) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'update' }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermissionSSAR(resource, { verb: 'patch' }, apiResourceStore.apiResources as any);
       return allowed;
     }
     return undefined;
