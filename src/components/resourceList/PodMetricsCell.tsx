@@ -11,6 +11,83 @@ function buildK8sPrefix(contextName?: string) {
   return ctxName ? `/k8s/${ctxName}` : "/k8s";
 }
 
+type PodUsage = {
+  cpu: number;
+  mem: number;
+};
+
+type NamespaceKey = string;
+
+const namespaceMetricsCache = new Map<NamespaceKey, Map<string, PodUsage>>();
+const namespaceMetricsInFlight = new Map<NamespaceKey, Promise<void>>();
+
+function buildNamespaceKey(contextName: string | undefined, namespace: string): NamespaceKey {
+  return `${contextName || ""}::${namespace}`;
+}
+
+async function fetchNamespaceMetrics(contextName: string | undefined, namespace: string) {
+  const key = buildNamespaceKey(contextName, namespace);
+  const inFlight = namespaceMetricsInFlight.get(key);
+  if (inFlight) {
+    await inFlight;
+    return;
+  }
+
+  const promise = (async () => {
+    try {
+      const prefix = buildK8sPrefix(contextName);
+      const url =
+        `${prefix}/apis/metrics.k8s.io/v1beta1/namespaces/` +
+        `${encodeURIComponent(namespace)}/pods`;
+
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        namespaceMetricsCache.delete(key);
+        return;
+      }
+
+      const data = await resp.json() as {
+        items?: Array<{
+          metadata?: { name?: string };
+          containers?: Array<{ usage?: { cpu?: string; memory?: string } }>;
+        }>;
+      };
+      const items = data?.items || [];
+
+      const byPod = new Map<string, PodUsage>();
+
+      for (const item of items) {
+        const podName = item?.metadata?.name;
+        if (!podName) continue;
+
+        let cpuTotal = 0;
+        let memTotal = 0;
+        const containers = item?.containers || [];
+        for (const c of containers) {
+          cpuTotal += parseCpuToMilli(c?.usage?.cpu);
+          memTotal += parseMemToMi(c?.usage?.memory);
+        }
+
+        byPod.set(podName, { cpu: cpuTotal, mem: memTotal });
+      }
+
+      namespaceMetricsCache.set(key, byPod);
+    } finally {
+      namespaceMetricsInFlight.delete(key);
+    }
+  })();
+
+  namespaceMetricsInFlight.set(key, promise);
+  await promise;
+}
+
+async function getPodUsage(contextName: string | undefined, namespace: string, name: string): Promise<PodUsage | undefined> {
+  const key = buildNamespaceKey(contextName, namespace);
+  await fetchNamespaceMetrics(contextName, namespace);
+  const byPod = namespaceMetricsCache.get(key);
+  return byPod?.get(name);
+}
+
 export function PodMetricsCell(props: { pod: Pod; kind: "cpu" | "mem" }) {
   const apiResourceStore = useApiResourceStore();
 
@@ -64,31 +141,25 @@ export function PodMetricsCell(props: { pod: Pod; kind: "cpu" | "mem" }) {
 
   const fetchOnce = async () => {
     try {
-      const ns = props.pod.metadata.namespace;
-      const name = props.pod.metadata.name;
-      const ctx = apiResourceStore.contextInfo?.current;
-      const prefix = buildK8sPrefix(ctx);
-      const url =
-        `${prefix}/apis/metrics.k8s.io/v1beta1/namespaces/` +
-        `${encodeURIComponent(ns)}/pods/${encodeURIComponent(name)}`;
-
-      const resp = await fetch(url);
-      if (!resp.ok) {
+      const phase = props.pod.status?.phase;
+      if (phase !== "Running") {
+        setCpuActual(null);
+        setMemActual(null);
         setFailed(true);
         return;
       }
-      const data = await resp.json() as { containers?: Array<{ usage?: { cpu?: string; memory?: string } }> };
-      const containers = data?.containers || [];
 
-      let cpuTotal = 0;
-      let memTotal = 0;
-      for (const c of containers) {
-        cpuTotal += parseCpuToMilli(c?.usage?.cpu);
-        memTotal += parseMemToMi(c?.usage?.memory);
+      const ns = props.pod.metadata.namespace;
+      const name = props.pod.metadata.name;
+      const ctx = apiResourceStore.contextInfo?.current;
+      const usage = await getPodUsage(ctx, ns, name);
+      if (!usage) {
+        setFailed(true);
+        return;
       }
 
-      setCpuActual(cpuTotal);
-      setMemActual(memTotal);
+      setCpuActual(usage.cpu);
+      setMemActual(usage.mem);
       setFailed(false);
     } catch {
       setFailed(true);
