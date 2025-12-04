@@ -45,6 +45,16 @@ export const DEFAULT_PANE_FILTERS: ActiveFilter[] = [
 // Registry to track pane filter states for split operations
 const paneFilterRegistry = new Map<number, () => ActiveFilter[]>();
 
+// Registry to persist per‑pane filter history across route navigation
+type PaneFilterHistoryState = {
+  history: { filters: ActiveFilter[]; viewId: string }[];
+  index: number;
+  usingDefaultFilters: boolean;
+  selectedViewId: string;
+};
+
+const paneFilterHistoryRegistry = new Map<number, PaneFilterHistoryState>();
+
 export function registerPaneFilters(paneId: number, getFilters: () => ActiveFilter[]) {
   paneFilterRegistry.set(paneId, getFilters);
 }
@@ -68,11 +78,33 @@ export function PaneFilterProvider(props: {
   const [selectedView, setSelectedView] = createSignal<string>('');
   const [filterHistory, setFilterHistory] = createSignal<{ filters: ActiveFilter[]; viewId: string }[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = createSignal<number>(-1);
-  const [isNavigating, setIsNavigating] = createSignal<boolean>(false);
+  const [navigatingHistory, setNavigatingHistory] = createSignal<boolean>(false);
   const [sortColumn, setSortColumn] = createSignal<string | null>(null);
   const [sortAscending, setSortAscending] = createSignal<boolean>(true);
   // Track whether we're still on the built-in defaults (no URL/cache/user interaction yet)
   const [usingDefaultFilters, setUsingDefaultFilters] = createSignal<boolean>(!props.initialFilters);
+
+  // Restore history for this pane (if we have any saved state)
+  const savedHistory = paneFilterHistoryRegistry.get(props.paneId);
+  if (savedHistory && Array.isArray(savedHistory.history) && savedHistory.history.length > 0) {
+    // Restore core signals without pushing new history entries
+    const safeHistory = savedHistory.history.map(entry => ({
+      filters: entry.filters.map(f => ({ ...f })),
+      viewId: entry.viewId || ""
+    }));
+    setFilterHistory(safeHistory);
+    setCurrentHistoryIndex(Math.min(
+      Math.max(savedHistory.index, 0),
+      safeHistory.length - 1
+    ));
+    setUsingDefaultFilters(savedHistory.usingDefaultFilters);
+    const currentIdx = currentHistoryIndex();
+    const currentState = safeHistory[currentIdx] ?? safeHistory[safeHistory.length - 1];
+    if (currentState) {
+      setActiveFiltersInternal(currentState.filters.map(f => ({ ...f })));
+      setSelectedView(currentState.viewId || savedHistory.selectedViewId || "");
+    }
+  }
 
   // Register this pane's filter getter in the registry
   onMount(() => {
@@ -102,7 +134,7 @@ export function PaneFilterProvider(props: {
 
   // Add to history when filters change
   const addToHistory = (filters: ActiveFilter[], viewId: string) => {
-    if (isNavigating()) return; // Don't add to history when navigating
+    if (navigatingHistory()) return; // Don't add to history when navigating
 
     const current = filterHistory();
     const currentIndex = currentHistoryIndex();
@@ -136,30 +168,51 @@ export function PaneFilterProvider(props: {
   const goBack = () => {
     if (!canGoBack()) return;
 
-    setIsNavigating(true);
+    setNavigatingHistory(true);
     const newIndex = currentHistoryIndex() - 1;
     setCurrentHistoryIndex(newIndex);
     const historyState = filterHistory()[newIndex];
     setActiveFiltersInternal([...historyState.filters]);
     setSelectedView(historyState.viewId);
-    setIsNavigating(false);
+    setNavigatingHistory(false);
   };
 
   const goForward = () => {
     if (!canGoForward()) return;
 
-    setIsNavigating(true);
+    setNavigatingHistory(true);
     const newIndex = currentHistoryIndex() + 1;
     setCurrentHistoryIndex(newIndex);
     const historyState = filterHistory()[newIndex];
     setActiveFiltersInternal([...historyState.filters]);
     setSelectedView(historyState.viewId);
-    setIsNavigating(false);
+    setNavigatingHistory(false);
   };
 
   // Initialize history with initial filters
   onMount(() => {
-    addToHistory(activeFilters(), selectedView());
+    // Only seed history if we don't already have any entries (fresh pane)
+    if (filterHistory().length === 0) {
+      addToHistory(activeFilters(), selectedView());
+    }
+  });
+
+  // Persist history state for this pane so it survives route changes
+  createEffect(() => {
+    const history = filterHistory();
+    const index = currentHistoryIndex();
+    const defaultFilters = usingDefaultFilters();
+    const viewId = selectedView();
+
+    paneFilterHistoryRegistry.set(props.paneId, {
+      history: history.map(entry => ({
+        filters: entry.filters.map(f => ({ ...f })),
+        viewId: entry.viewId || ""
+      })),
+      index,
+      usingDefaultFilters: defaultFilters,
+      selectedViewId: viewId || ""
+    });
   });
 
   const store: PaneFilterState = {
