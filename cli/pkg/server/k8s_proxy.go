@@ -57,6 +57,17 @@ func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) 
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
 
+		// Check for special query parameter to include metadata.managedFields
+		// We use a custom header to communicate this intent to ModifyResponse
+		// while stripping the query parameter before forwarding to the API server.
+		q := req.URL.Query()
+		includeManaged := strings.EqualFold(q.Get("includeManagedFields"), "true") || q.Get("includeManagedFields") == "1"
+		if includeManaged {
+			req.Header.Set("X-Include-Managed-Fields", "true")
+			q.Del("includeManagedFields")
+			req.URL.RawQuery = q.Encode()
+		}
+
 		// Copy authentication headers from the client config
 		if k8sClient.Config.BearerToken != "" {
 			req.Header.Set("Authorization", "Bearer "+k8sClient.Config.BearerToken)
@@ -71,6 +82,14 @@ func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) 
 
 	// Strip metadata.managedFields from JSON responses
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		// If the original request explicitly asked to include managed fields,
+		// skip stripping them from the response.
+		if resp != nil && resp.Request != nil {
+			if val := resp.Request.Header.Get("X-Include-Managed-Fields"); strings.EqualFold(val, "true") {
+				return nil
+			}
+		}
+
 		// Skip if this is a watch stream; we don't buffer streaming responses here
 		if resp != nil && resp.Request != nil {
 			q := resp.Request.URL.Query().Get("watch")
