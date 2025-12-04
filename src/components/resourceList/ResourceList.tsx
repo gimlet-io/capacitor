@@ -35,6 +35,10 @@ export const builtInCommands = [
     shortcut: { key: "Mod+d", description: "Delete resource", isContextual: true },
     handler: null as any  // Will be implemented in ResourceList
   },
+  {
+    shortcut: { key: "Mod+e", description: "Edit resource YAML", isContextual: true },
+    handler: null as any  // Will be implemented in ResourceList
+  },
 ]
 
 
@@ -143,7 +147,7 @@ function buildPortForwardCommand(resource: any): string {
 export const replaceHandlers = (
   commands: ResourceCommand[],
   handlers: {
-    openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "metrics", resource: any) => void;
+    openDrawer: (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "metrics" | "edit", resource: any) => void;
     navigate?: (path: string) => void;
     updateFilters?: (filters: any[]) => void;
     getContextName?: () => string | undefined;
@@ -185,6 +189,11 @@ export const replaceHandlers = (
         commands[i] = {
           ...cmd,
           handler: (resource) => handlers.openDrawer("exec", resource)
+        };
+      } else if (cmd.shortcut.key === 'Mod+e' && cmd.shortcut.description === 'Edit resource YAML') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("edit", resource)
         };
       } else if (cmd.shortcut.description === 'Delete resource') {
         commands[i] = {
@@ -462,7 +471,7 @@ export function ResourceList<T>(props: {
     return `${apiVersion}|${kind}|${namespace}|${name}`;
   };
 
-  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "metrics", resource: T) => {
+  const openDrawer = (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "metrics" | "edit", resource: T) => {
     setSelectedResource(() => resource);
     setSelectedKey(getResourceKey(resource as unknown as KeyableResource));
     setActiveTab(tab);
@@ -526,6 +535,11 @@ export function ResourceList<T>(props: {
         }
       }
       return true;
+    }
+    // Edit resource YAML
+    if (desc.includes('edit') && key.includes('+e')) {
+      const allowed = await checkPermissionSSAR(resource, { verb: 'update' }, apiResourceStore.apiResources as any);
+      return allowed;
     }
     return undefined;
   };

@@ -333,10 +333,10 @@ export function ResourceTree(props: ResourceTreeProps) {
     document.body.style.overflow = 'hidden';
   };
 
-  // Wrapper to satisfy command handler signature that may include an 'exec' tab.
-  const openDrawerWithExec = (tab: "describe" | "yaml" | "events" | "logs" | "exec", resource: any) => {
-    // Map 'exec' to 'logs' drawer for now
-    const mappedTab = (tab === 'exec' ? 'logs' : tab) as "describe" | "yaml" | "events" | "logs";
+  // Wrapper to satisfy command handler signature that may include 'exec' or 'edit' tabs.
+  const openDrawerWithExec = (tab: "describe" | "yaml" | "events" | "logs" | "exec" | "edit", resource: any) => {
+    // Map unsupported tabs to nearest equivalents for the tree view
+    const mappedTab = (tab === 'exec' ? 'logs' : tab === 'edit' ? 'yaml' : tab) as "describe" | "yaml" | "events" | "logs";
     openDrawer(mappedTab, resource);
   };
 
