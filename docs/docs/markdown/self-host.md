@@ -28,6 +28,9 @@ If you want to run it for your team on a URL get in touch on laszlo at gimlet.io
 - [capacitor-next](https://github.com/gimlet-io/capacitor/tree/main/self-host/charts/capacitor-next)
 - [capacitor-next-agent](https://github.com/gimlet-io/capacitor/tree/main/self-host/charts/capacitor-next-agent)
 
+## Deployment: HelmRelease
+
+
 ## Deployment: yaml
 
 ### Service Account
