@@ -204,6 +204,8 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   width: 100%;
+  margin-top: 32px;
+  margin-bottom: 32px;
 }
 .feature {
   background: var(--panel);
@@ -310,6 +312,8 @@ body {
 
 .pricing {
   width: 100%;
+  margin-top: 32px;
+  margin-bottom: 48px;
   display: grid;
   justify-items: center;
 }
