@@ -18,7 +18,7 @@ Common filters can loaded from views.
 
 - There are system views that come preloaded with Capacitor.
 - System views can be deleted if you don't need them. The deletion is stored in browser local storage.
-- The current filters can be saved as a custom view by clicking the *Save as View...* button in the View dropdown.
+- The current filters can be saved as a custom view by clicking the *Save as View...* button in the View dropdown. The button is shown only when there is no filter exists with the current filters.
 - Custom views are stored in browser local storage.
 
 ### System Views in the self-hosted version
