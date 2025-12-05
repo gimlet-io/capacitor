@@ -165,7 +165,11 @@
           const urlEsc = String(url).replace(/"/g, '&quot;');
           return '<a class="dim" href="' + urlEsc + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
         });
-        const withCode = withLinks.replace(/`([^`]+)`/g, (_m, code) => {
+        // Basic emphasis: *text* → <em>text</em>
+        const withEmphasis = withLinks.replace(/\*([^*]+)\*/g, (_m, em) => {
+          return '<em>' + em + '</em>';
+        });
+        const withCode = withEmphasis.replace(/`([^`]+)`/g, (_m, code) => {
           // Inline code: use break-all so the code wraps mid-word rather than
           // being pushed to a new line as a whole unit.
           return '<code style="word-break: break-all;">' + code + '</code>';
