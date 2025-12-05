@@ -10,10 +10,10 @@ Clusters, named as contexts are described and set in the kubeconfig (`~/.kube.co
 
 If you are not sure how to get a valid kubeconfig file, reach out to your cluster administrator.
 
-If you have multiple kubeconfig files, Capacitor Next respects the `KUBECONFIG` environment variable but handles one at a time.
+If you have multiple kubeconfig files, Capacitor Next respects the `KUBECONFIG` environment variable.
 
 ```bash
-export KUBECONFIG=~/.kube/my-other-config
+export KUBECONFIG=~/.kube/config:~/.kube/my-other-config
 next -p 3333
 ```
 
