@@ -6,8 +6,10 @@ package kubernetes
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -42,39 +44,17 @@ func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
 		}
 	}
 
-	// Load the kubeconfig file directly to access context information
-	apiConfig, err := clientcmd.LoadFromFile(kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("error loading kubeconfig file: %w", err)
+	// Support multiple kubeconfig files in a path-list (e.g. KUBECONFIG=~/.kube/config:~/.kube/other)
+	configLoadingRules := &clientcmd.ClientConfigLoadingRules{}
+	kubeconfigPaths := strings.Split(kubeconfig, string(os.PathListSeparator))
+	if len(kubeconfigPaths) > 1 {
+		configLoadingRules.Precedence = kubeconfigPaths
+	} else {
+		configLoadingRules.ExplicitPath = kubeconfig
 	}
 
-	// Get current context
-	currentContext = apiConfig.CurrentContext
-	contextConfig = apiConfig.Contexts[currentContext]
-	// Get available contexts
-	availableContexts = apiConfig.Contexts
-
-	// Log details about the current context
-	log.Printf("Using kubeconfig context: %s", currentContext)
-	log.Printf("Cluster: %s, Namespace: %s, User: %s",
-		contextConfig.Cluster,
-		contextConfig.Namespace,
-		contextConfig.AuthInfo)
-
-	// Get the cluster config to check if there's a certificate authority
-	clusterConfig := apiConfig.Clusters[contextConfig.Cluster]
-	if clusterConfig != nil {
-		if clusterConfig.CertificateAuthority != "" {
-			log.Printf("Using certificate authority file: %s", clusterConfig.CertificateAuthority)
-		} else if len(clusterConfig.CertificateAuthorityData) > 0 {
-			log.Printf("Using embedded certificate authority data from kubeconfig")
-		}
-	}
-
-	// Create config with existing context and optional TLS settings
-	configOverrides := &clientcmd.ConfigOverrides{
-		CurrentContext: currentContext,
-	}
+	// Create config with optional TLS settings; let client-go pick the current context
+	configOverrides := &clientcmd.ConfigOverrides{}
 
 	// Only override TLS verification if explicitly requested
 	if insecureSkipTLSVerify {
@@ -82,9 +62,39 @@ func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
 	}
 
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+		configLoadingRules,
 		configOverrides,
 	)
+
+	// Load the merged, raw kubeconfig to access current context and contexts
+	apiConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return nil, fmt.Errorf("error loading kubeconfig: %w", err)
+	}
+
+	// Get current context and available contexts
+	currentContext = apiConfig.CurrentContext
+	contextConfig = apiConfig.Contexts[currentContext]
+	availableContexts = apiConfig.Contexts
+
+	// Log details about the current context
+	log.Printf("Using kubeconfig context: %s", currentContext)
+	if contextConfig != nil {
+		log.Printf("Cluster: %s, Namespace: %s, User: %s",
+			contextConfig.Cluster,
+			contextConfig.Namespace,
+			contextConfig.AuthInfo)
+
+		// Get the cluster config to check if there's a certificate authority
+		clusterConfig := apiConfig.Clusters[contextConfig.Cluster]
+		if clusterConfig != nil {
+			if clusterConfig.CertificateAuthority != "" {
+				log.Printf("Using certificate authority file: %s", clusterConfig.CertificateAuthority)
+			} else if len(clusterConfig.CertificateAuthorityData) > 0 {
+				log.Printf("Using embedded certificate authority data from kubeconfig")
+			}
+		}
+	}
 
 	// Get namespace from current context
 	namespace, _, err := clientConfig.Namespace()
@@ -170,13 +180,19 @@ func (c *Client) SwitchContext(contextName, kubeConfigPath string) error {
 		return fmt.Errorf("cannot switch context when running in-cluster")
 	}
 
-	// Create config with new context
-	configOverrides := &clientcmd.ConfigOverrides{
-		CurrentContext: contextName,
+	// Create config with new context; support multiple kubeconfig files in a path-list
+	configLoadingRules := &clientcmd.ClientConfigLoadingRules{}
+	kubeconfigPaths := strings.Split(kubeConfigPath, string(os.PathListSeparator))
+	if len(kubeconfigPaths) > 1 {
+		configLoadingRules.Precedence = kubeconfigPaths
+	} else {
+		configLoadingRules.ExplicitPath = kubeConfigPath
 	}
 
+	configOverrides := &clientcmd.ConfigOverrides{CurrentContext: contextName}
+
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfigPath},
+		configLoadingRules,
 		configOverrides,
 	)
 
