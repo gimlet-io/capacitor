@@ -21,7 +21,7 @@ The local and self-hosted version share the same features and codebase. The self
 
 The self-hosted version may become source available and paid once the beta is over.
 
-If you want to run it for your team on a URL, get in touch on laszlo at gimlet.io. There are more than 60 companies in the beta and it proven to be an efficient way to incorporate feedback into Capacitor.
+If you want to run it for your team on a URL get in touch on laszlo at gimlet.io. There are more than 60 companies in the beta and it proven to be an efficient way to incorporate feedback into Capacitor.
 
 ## Deployment: Helm
 

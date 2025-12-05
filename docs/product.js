@@ -53,7 +53,32 @@
       }
     }
 
-    async function loadDoc(id) {
+    function scrollToSection(sectionId) {
+      if (!sectionId || !content) return;
+      const el = content.querySelector('#' + sectionId);
+      if (!el) return;
+      el.scrollIntoView({ block: 'start' });
+    }
+
+    function enhanceHeadings(currentId) {
+      if (!content || !currentId) return;
+      const headings = content.querySelectorAll('h2[id], h3[id]');
+      headings.forEach(function(h) {
+        const id = h.getAttribute('id');
+        if (!id) return;
+        // Avoid wrapping multiple times
+        if (h.querySelector('a.doc-heading-link')) return;
+        const innerHtml = h.innerHTML;
+        const link = document.createElement('a');
+        link.className = 'doc-heading-link';
+        link.setAttribute('href', '#' + currentId + ':' + id);
+        link.innerHTML = innerHtml;
+        h.innerHTML = '';
+        h.appendChild(link);
+      });
+    }
+
+    async function loadDoc(id, sectionId) {
       try {
         setActive(id);
         content.innerHTML = '<p class="dim">Loading…</p>';
@@ -63,8 +88,13 @@
         const md = await res.text();
         content.innerHTML = renderMarkdown(md);
         renderPrevNextNav(id);
+        enhanceHeadings(id);
         // Scroll top of content after load
         content.scrollTop = 0;
+        if (sectionId) {
+          // Let the DOM paint before scrolling to the target section
+          setTimeout(function() { scrollToSection(sectionId); }, 0);
+        }
       } catch (e) {
         const isFileProtocol = window.location.protocol === 'file:';
         const hint = isFileProtocol
@@ -138,6 +168,26 @@
         const withCode = withLinks.replace(/`([^`]+)`/g, (_m, code) => '<code>' + code + '</code>');
         return withCode;
       };
+      const usedHeadingIds = {};
+      function slugifyHeading(text) {
+        const base = String(text || '')
+          .toLowerCase()
+          .replace(/[`*_~]/g, '')
+          .replace(/[^a-z0-9\s-]/g, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+        return base || 'section';
+      }
+      function getUniqueHeadingId(base) {
+        let id = base;
+        let counter = 2;
+        while (usedHeadingIds[id]) {
+          id = base + '-' + counter++;
+        }
+        usedHeadingIds[id] = true;
+        return id;
+      }
       const lines = md.split(/\r?\n/);
       let html = '';
       let inCode = false;
@@ -153,7 +203,17 @@
         const h = line.match(/^(#{1,3})\s+(.*)$/);
         if (h) {
           if (listOpen) { html += '</ul>'; listOpen = false; }
-          html += '<' + 'h' + h[1].length + '>' + formatInline(h[2]) + '</h' + h[1].length + '>';
+          const level = h[1].length;
+          const rawText = h[2] || '';
+          const tag = 'h' + level;
+          const innerHtml = formatInline(rawText);
+          if (level === 2 || level === 3) {
+            const slugBase = slugifyHeading(rawText);
+            const id = getUniqueHeadingId(slugBase);
+            html += '<' + tag + ' id="' + id + '">' + innerHtml + '</' + tag + '>';
+          } else {
+            html += '<' + tag + '>' + innerHtml + '</' + tag + '>';
+          }
           continue;
         }
         const li = line.match(/^[-*]\s+(.*)$/);
@@ -171,9 +231,12 @@
     }
 
     function route() {
-      const defaultId = docsOrder.length > 0 ? ('#' + docsOrder[0]) : '#quickstart';
-      const id = (location.hash || defaultId).replace('#', '');
-      loadDoc(id);
+      const fallbackDocId = docsOrder.length > 0 ? docsOrder[0] : 'quickstart';
+      const raw = window.location.hash ? window.location.hash.slice(1) : fallbackDocId;
+      const parts = raw.split(':');
+      const docId = parts[0] || fallbackDocId;
+      const sectionId = parts.length > 1 ? parts[1] : null;
+      loadDoc(docId, sectionId);
     }
     window.addEventListener('hashchange', route);
     route();
