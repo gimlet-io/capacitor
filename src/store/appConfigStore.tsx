@@ -28,11 +28,21 @@ export type FluxcdConfig = {
   };
 };
 
+export type CarvelConfig = {
+  namespace: string;
+  kappController: {
+    deploymentName: string;
+    labelKey: string;
+    labelValue: string;
+  };
+};
+
 type AppConfigContextValue = {
   appConfig: Accessor<AppConfigPayload | null>;
   configLoading: Accessor<boolean>;
   configError: Accessor<string | null>;
   fluxcdConfig: Accessor<FluxcdConfig | null>;
+  carvelConfig: Accessor<CarvelConfig | null>;
 };
 
 const AppConfigContext = createContext<AppConfigContextValue>();
@@ -42,6 +52,7 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
   const [configLoading, setConfigLoading] = createSignal(false);
   const [configError, setConfigError] = createSignal<string | null>(null);
   const [fluxcdConfig, setFluxcdConfig] = createSignal<FluxcdConfig | null>(null);
+  const [carvelConfig, setCarvelConfig] = createSignal<CarvelConfig | null>(null);
 
   onMount(() => {
     (async () => {
@@ -62,10 +73,18 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
         } else {
           setFluxcdConfig(null);
         }
+
+        const carvelRaw = (data && (data as any).carvel) as any;
+        if (carvelRaw && typeof carvelRaw === "object") {
+          setCarvelConfig(carvelRaw as CarvelConfig);
+        } else {
+          setCarvelConfig(null);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setConfigError(msg);
         setFluxcdConfig(null);
+        setCarvelConfig(null);
       } finally {
         setConfigLoading(false);
       }
@@ -79,6 +98,7 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
         configLoading,
         configError,
         fluxcdConfig,
+        carvelConfig,
       }}
     >
       {props.children}

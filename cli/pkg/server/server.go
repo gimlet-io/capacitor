@@ -1328,8 +1328,11 @@ func (s *Server) Setup() {
 			Resource: resourceName,
 		}
 
-		log.Printf("[RemoteResource] Fetching resource with GVR: %s/%s/%s (namespaced: %v, namespace: %s)", 
-			targetGVR.Group, targetGVR.Version, targetGVR.Resource, isNamespaced, namespace)
+		// Check if managedFields should be included
+		includeManagedFields := c.QueryParam("includeManagedFields") == "true"
+		
+		log.Printf("[RemoteResource] Fetching resource with GVR: %s/%s/%s (namespaced: %v, namespace: %s, includeManagedFields: %v)", 
+			targetGVR.Group, targetGVR.Version, targetGVR.Resource, isNamespaced, namespace, includeManagedFields)
 
 		// Fetch the resource from remote cluster
 		var resource map[string]interface{}
@@ -1358,6 +1361,13 @@ func (s *Server) Setup() {
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": fmt.Sprintf("failed to fetch resource from remote cluster: %v", fetchErr),
 			})
+		}
+
+		// Remove managedFields if not requested
+		if !includeManagedFields {
+			if metadata, ok := resource["metadata"].(map[string]interface{}); ok {
+				delete(metadata, "managedFields")
+			}
 		}
 
 		return c.JSON(http.StatusOK, resource)

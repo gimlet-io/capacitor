@@ -172,7 +172,6 @@ export function ResourceDrawer(props: {
       
       if (isRemoteResource) {
         // Fetch from remote cluster using the new endpoint
-        // Note: Remote endpoint doesn't support managedFields filtering yet
         const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
         const queryParams = new URLSearchParams({
           namespace: namespace || '',
@@ -181,7 +180,8 @@ export function ResourceDrawer(props: {
           apiVersion: apiVersion,
           parentKind: parentApp.kind,
           parentName: parentApp.name,
-          parentNamespace: parentApp.namespace
+          parentNamespace: parentApp.namespace,
+          includeManagedFields: String(includeManagedFields)
         });
         url = `${apiPrefix}/carvel-remote-resource?${queryParams}`;
         
@@ -192,6 +192,7 @@ export function ResourceDrawer(props: {
           name,
           cluster,
           parentApp,
+          includeManagedFields,
           url
         });
         
