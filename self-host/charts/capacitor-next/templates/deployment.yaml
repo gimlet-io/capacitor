@@ -14,11 +14,11 @@ spec:
     metadata:
       labels:
         {{- include "capacitor-server.selectorLabels" . | nindent 8 }}
-        {{- if .Values.azureWorkloadIdentity.enabled }}
+        {{- if eq .Values.env.AZURE_WORKLOAD_IDENTITY_ENABLED "true" }}
         azure.workload.identity/use: "true"
         {{- end }}
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "capacitor-server.serviceAccountName" . }}
       {{- if .Values.securityContext.enabled }}
@@ -63,8 +63,8 @@ spec:
             {{- end }}
       volumes:
         - name: registry
-          secret:
-            secretName: {{ include "capacitor-server.fullname" . }}
+          configMap:
+            name: {{ include "capacitor-server.fullname" . }}
             items:
               - key: registry.yaml
                 path: registry.yaml

@@ -23,11 +23,6 @@ serviceAccount:
   create: true
   name: capacitor-next-agent
 
-# RBAC configuration
-rbac:
-  create: true
-  createImpersonatorRole: true
-
 # Agent configuration
 agent:
   # WebSocket URL of the Capacitor server
@@ -71,4 +66,3 @@ securityContext:
     capabilities:
       drop:
         - ALL
-

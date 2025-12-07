@@ -17,17 +17,8 @@ helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
   --namespace flux-system \
   --create-namespace \
   --set env.LICENSE_KEY="message laszlo at gimlet.io" \
-  --set env.SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
-  --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
-```
-
-### Installing from Local Chart
-
-```bash
-helm upgrade -i capacitor-next ./capacitor-next \
-  --namespace flux-system \
-  --create-namespace \
-  --set env.LICENSE_KEY="message laszlo at gimlet.io" \
+  --set env.AUTH=noauth \
+  --set env.IMPERSONATE_SA_RULES="noauth=flux-system:capacitor-next-preset-clusteradmin" \
   --set env.SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
   --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
 ```

@@ -49,14 +49,14 @@ env:
   #USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG]"
   #IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-preset-clusteradmin,*@mycompany.com:flux-system:capacitor-next-preset-readonly
 
-  # registry.yaml: |
-  #   clusters:
-  #   - id: in-cluster
-  #     name: In-cluster
-  #     apiServerURL: https://kubernetes.default.svc
-  #     certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  #     serviceAccount:
-  #       tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  registry.yaml: |
+    clusters:
+    - id: in-cluster
+      name: In-cluster
+      apiServerURL: https://kubernetes.default.svc
+      certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      serviceAccount:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 
   # OIDC_INSECURE_SKIP_TLS_VERIFY: true
   # ENTRA_ID_FEDEREATED_TOKEN_AUTH=: true #if you use Azure Entra ID

@@ -27,18 +27,6 @@ helm upgrade -i capacitor-next-agent oci://ghcr.io/gimlet-io/charts/capacitor-ne
   --set agent.agentSharedSecret="your-shared-secret"
 ```
 
-### Installing from Local Chart
-
-```bash
-helm upgrade -i capacitor-next-agent ./capacitor-next-agent \
-  --version 2025-11.2 \
-  --namespace flux-system \
-  --create-namespace \
-  --set agent.backendWsUrl="wss://capacitor.example.com/agent/connect" \
-  --set agent.clusterId="my-cluster" \
-  --set agent.agentSharedSecret="your-shared-secret"
-```
-
 ## Configuration
 
 ### Basic Configuration
