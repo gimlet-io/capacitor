@@ -75,7 +75,7 @@ AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
 # ENTRA_ID_FEDEREATED_TOKEN_AUTH=true #if you use Azure Entra ID
 # OIDC_SCOPES="openid,profile,email" #<--the default list. Include groups if needed. eg.: "openid,profile,email,groups"
 # OIDC_GROUPS_CLAIM=groups #<--default
-# OIDC_GROUP_PREFIX= #TODO
-# OIDC_GROUP_SUFFIX= #TODO
+# OIDC_GROUP_PREFIX= # If your OIDC group names don't match exactly your RBAC role grant subjects, you add a prefix to the OIDC group name when setting the impersonation headers. Debug with AUTH_DEBUG: true
+# OIDC_GROUP_SUFFIX= # If your OIDC group names don't match exactly your RBAC role grant subjects, you add a suffix to the OIDC group name when setting the impersonation headers. Debug with AUTH_DEBUG: true
 # AUTH_DEBUG=true #logs impersonation headers for namespace listing (useful for OIDC and ServiceAccount impersonation debugging)
 ```

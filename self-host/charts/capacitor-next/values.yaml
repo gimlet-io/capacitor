@@ -25,6 +25,7 @@ env:
   ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization) docs entry for more information.
   ##
   # AUTH: noauth
+  # AUTH_DEBUG: "true" #logs impersonation headers
   # IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
   
   ## OIDC Authentication
@@ -32,6 +33,7 @@ env:
   ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac) docs entry for more information.
   ##
   # AUTH: oidc
+  # AUTH_DEBUG: true #logs impersonation headers
   # OIDC_ISSUER: "https://your-oidc-provider.com"
   # OIDC_CLIENT_ID: "capacitor"
   # OIDC_CLIENT_SECRET: "your-client-secret"
@@ -43,6 +45,7 @@ env:
   ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication) docs entry for more information.
   ##
   #AUTH: static
+  # AUTH_DEBUG: true #logs impersonation headers
   #USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG]"
   #IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-preset-clusteradmin,*@mycompany.com:flux-system:capacitor-next-preset-readonly
 
@@ -55,6 +58,12 @@ env:
   #     serviceAccount:
   #       tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 
+  # OIDC_INSECURE_SKIP_TLS_VERIFY: true
+  # ENTRA_ID_FEDEREATED_TOKEN_AUTH=: true #if you use Azure Entra ID
+  # OIDC_SCOPES: "openid,profile,email" #<--the default list. Include groups if needed. eg.: "openid,profile,email,groups"
+  # OIDC_GROUPS_CLAIM: "groups" #<--default
+  # OIDC_GROUP_PREFIX: "" # If your OIDC group names don't match exactly your RBAC role grant subjects, you add a prefix to the OIDC group name when setting the impersonation headers. Debug with AUTH_DEBUG: true
+  # OIDC_GROUP_SUFFIX: "" # If your OIDC group names don't match exactly your RBAC role grant subjects, you add a suffix to the OIDC group name when setting the impersonation headers. Debug with AUTH_DEBUG: true
 
   ##
   ## FluxCD labels to display controller logs in the UI
@@ -66,6 +75,38 @@ env:
   # FLUXCD_KUSTOMIZE_CONTROLLER_NAME: "kustomize-controller"
   # FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_KEY: "app.kubernetes.io/component"
   # FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE: "kustomize-controller"
+
+  ## Configure the system views to help your team with these presets.
+  ## Read https://gimlet.io/capacitor-next/docs/#filters-and-views for more information.
+  # SYSTEM_VIEWS: |
+  #   {
+  #     "*": [
+  #       {
+  #           "id": "APIPods",
+  #           "label": "API Pods",
+  #           "filters": [
+  #               { "name": "ResourceType", "value": "core/Pod" },
+  #               { "name": "Namespace", "value": "production" }
+  #           ]
+  #       },
+  #       {
+  #           "id": "Kustomizations",
+  #           "label": "Kustomizations",
+  #           "filters": [
+  #               { "name": "ResourceType", "value": "kustomize.toolkit.fluxcd.io/Kustomization" },
+  #               { "name": "Namespace", "value": "all-namespaces" }
+  #           ]
+  #       },
+  #       {
+  #           "id": "HelmReleases",
+  #           "label": "HelmReleases",
+  #           "filters": [
+  #               { "name": "ResourceType", "value": "helm.toolkit.fluxcd.io/HelmRelease" },
+  #               { "name": "Namespace", "value": "all-namespaces" }
+  #           ]
+  #       }
+  #     ]
+  #   }
 
 service:
   type: ClusterIP

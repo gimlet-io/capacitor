@@ -46,6 +46,7 @@ env:
   ## Read https://gimlet.io/capacitor-next/docs/#authorization for more information.
   ##
   AUTH: noauth
+  AUTH_DEBUG: true #logs impersonation headers
   IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
 
   SESSION_HASH_KEY:"base64:$(openssl rand -base64 32)"
@@ -72,6 +73,7 @@ env:
   ## Read https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac for more information.
   ##
   AUTH: oidc
+  AUTH_DEBUG: true #logs impersonation headers
   OIDC_ISSUER: "https://your-oidc-provider.com"
   OIDC_CLIENT_ID: "capacitor"
   OIDC_CLIENT_SECRET: "your-client-secret"
@@ -102,6 +104,7 @@ env:
   ## Read https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication for more information.
   ##
   AUTH: static
+  AUTH_DEBUG: true #logs impersonation headers
   USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG]"
   IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-preset-clusteradmin,*@mycompany.com:flux-system:capacitor-next-preset-readonly
 
@@ -130,6 +133,7 @@ env:
   LICENSE_KEY: "overwritten from existing secret"
 
   AUTH: oidc
+  AUTH_DEBUG: true #logs impersonation headers
   OIDC_ISSUER: "https://your-oidc-provider.com"
   OIDC_CLIENT_ID: "capacitor"
   OIDC_CLIENT_SECRET:  "overwritten from existing secret"
