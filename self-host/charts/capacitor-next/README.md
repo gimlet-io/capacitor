@@ -44,6 +44,7 @@ spec:
   interval: 1h
   url: oci://ghcr.io/gimlet-io/charts/capacitor-next
   ref:
+    # semver: ">= 0.12.0-0" # Adding a `-0` suffix to the semver range will include prerelease versions.
     semver: ">= 0.12.0"
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
