@@ -4,7 +4,7 @@ This Helm chart deploys the Capacitor Next server - a Kubernetes UI for FluxCD.
 
 ## Installation
 
-### Installing from OCI Registry (GitHub Packages)
+### Installing with `helm` CLI
 
 ```bash
 # Add credentials for GitHub Container Registry
@@ -21,6 +21,50 @@ helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
   --set env.IMPERSONATE_SA_RULES="noauth=flux-system:capacitor-next-preset-clusteradmin" \
   --set env.SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
   --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+```
+
+### Installing with FluxCD
+
+```bash
+kubectl create secret generic capacitor-next \
+  --namespace=flux-system \
+  --from-literal=LICENSE_KEY="message laszlo at gimlet.io" \
+  --from-literal=SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
+  --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+```
+
+```yaml
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: oci://ghcr.io/gimlet-io/charts/capacitor-next
+  ref:
+    semver: ">= 0.12.0"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+spec:
+  interval: 15m
+  timeout: 1m
+  chartRef:
+    kind: OCIRepository
+    name: capacitor-next
+    namespace: flux-system
+  values:
+    env:
+      AUTH: noauth
+      AUTH_DEBUG: true #logs impersonation headers
+      IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
+    existingSecret:
+      name: capacitor-next
 ```
 
 ## Configuration
@@ -133,15 +177,6 @@ env:
 
   SESSION_HASH_KEY: "overwritten from existing secret"
   SESSION_BLOCK_KEY: "overwritten from existing secret"
-
-  registry.yaml: |
-    clusters:
-    - id: in-cluster
-      name: In-cluster
-      apiServerURL: https://kubernetes.default.svc
-      certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-      serviceAccount:
-        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 
 # The chart will create its configmap with all configuration
 # AND use your existing secret for additional/override values
