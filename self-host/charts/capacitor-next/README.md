@@ -43,7 +43,7 @@ env:
   ##
   ## ClusterAdmin access without authentiaction
   ## For your home lab, local development or testing.
-  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization) docs entry for more information.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization) for more information.
   ##
   AUTH: noauth
   IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
@@ -69,8 +69,7 @@ env:
 
   ## OIDC Authentication
   ## With per-user defined RBAC.
-  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac)
-  ## docs entry for more information.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac) for more information.
   ##
   AUTH: oidc
   OIDC_ISSUER: "https://your-oidc-provider.com"
@@ -100,8 +99,7 @@ env:
 
   ## Static User Authentication
   ## With mapping users to impersonate ServiceAccounts
-  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication)
-  ## docs entry for more information.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication) for more information.
   ##
   AUTH: static
   USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG]"
