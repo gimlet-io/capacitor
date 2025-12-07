@@ -12,6 +12,8 @@ import { ApplicationDetails } from "./views/applicationDetails.tsx";
 import { SecretDetails } from "./views/secretDetails.tsx";
 import { ConfigMapDetails } from "./views/configMapDetails.tsx";
 import { KluctlDeploymentDetails } from "./views/KluctlDeploymentDetails.tsx";
+import { CarvelAppDetails } from "./views/carvelAppDetails.tsx";
+import { CarvelPackageInstallDetails } from "./views/carvelPackageInstallDetails.tsx";
 import { Dashboard } from "./views/dashboard.tsx";
 import { FilterProvider } from "./store/filterStore.tsx";
 import { ApiResourceProvider } from "./store/apiResourceStore.tsx";
@@ -51,6 +53,8 @@ function App() {
               <Route path="/secret/:namespace/:name" component={SecretDetails} />
               <Route path="/configmap/:namespace/:name" component={ConfigMapDetails} />
               <Route path="/kluctldeployment/:namespace/:name" component={KluctlDeploymentDetails} />
+              <Route path="/carvelapp/:namespace/:name" component={CarvelAppDetails} />
+              <Route path="/carvelpackageinstall/:namespace/:name" component={CarvelPackageInstallDetails} />
             </HashRouter>
           </FilterProvider>
         </ApiResourceProvider>

@@ -24,6 +24,9 @@ type Config struct {
 
 	// FluxCD controller settings (used for logs and controller discovery)
 	FluxCD FluxCDConfig
+
+	// Carvel kapp-controller settings (used for logs and controller discovery)
+	Carvel CarvelConfig
 }
 
 // FluxCDConfig holds configuration for FluxCD controllers and namespace.
@@ -46,6 +49,19 @@ type FluxCDConfig struct {
 	KustomizeControllerLabelValue     string
 }
 
+// CarvelConfig holds configuration for Carvel kapp-controller.
+// These values can be customized via environment variables:
+//   - CARVEL_NAMESPACE
+//   - CARVEL_KAPP_CONTROLLER_NAME
+//   - CARVEL_KAPP_CONTROLLER_LABEL_KEY
+//   - CARVEL_KAPP_CONTROLLER_LABEL_VALUE
+type CarvelConfig struct {
+	Namespace                    string
+	KappControllerDeploymentName string
+	KappControllerLabelKey       string
+	KappControllerLabelValue     string
+}
+
 // New returns a new configuration with sensible defaults
 func New() *Config {
 	return &Config{
@@ -62,6 +78,12 @@ func New() *Config {
 			KustomizeControllerDeploymentName: "kustomize-controller",
 			KustomizeControllerLabelKey:       "app.kubernetes.io/component",
 			KustomizeControllerLabelValue:     "kustomize-controller",
+		},
+		Carvel: CarvelConfig{
+			Namespace:                    "kapp-controller",
+			KappControllerDeploymentName: "kapp-controller",
+			KappControllerLabelKey:       "app",
+			KappControllerLabelValue:     "kapp-controller",
 		},
 	}
 }
@@ -118,6 +140,20 @@ func (c *Config) Parse() {
 	}
 	if env := os.Getenv("FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE"); env != "" {
 		c.FluxCD.KustomizeControllerLabelValue = env
+	}
+
+	// Carvel kapp-controller configuration from environment variables (override defaults when set)
+	if env := os.Getenv("CARVEL_NAMESPACE"); env != "" {
+		c.Carvel.Namespace = env
+	}
+	if env := os.Getenv("CARVEL_KAPP_CONTROLLER_NAME"); env != "" {
+		c.Carvel.KappControllerDeploymentName = env
+	}
+	if env := os.Getenv("CARVEL_KAPP_CONTROLLER_LABEL_KEY"); env != "" {
+		c.Carvel.KappControllerLabelKey = env
+	}
+	if env := os.Getenv("CARVEL_KAPP_CONTROLLER_LABEL_VALUE"); env != "" {
+		c.Carvel.KappControllerLabelValue = env
 	}
 }
 
