@@ -1,5 +1,3 @@
-# Default values for capacitor-server
-
 # Container image configuration
 image:
   repository: ghcr.io/gimlet-io/capacitor-next
@@ -9,13 +7,71 @@ image:
 # Number of replicas
 replicaCount: 1
 
-# Service configuration
+# Existing secret configuration
+# If specified, the deployment will use this secret in addition to the built-in secret
+# Both secrets will be loaded via envFrom, allowing you to override or supplement values
+existingSecret:
+  name: ""  # Name of the existing secret to use
+
+# Environment variables to configure all aspects of Capacitor Next
+env:
+  # LICENSE_KEY: "message laszlo at gimlet.io"
+  # SESSION_HASH_KEY: "base64:$(openssl rand -base64 32)"
+  # SESSION_BLOCK_KEY: "base64:$(openssl rand -base64 32)"
+
+  ##
+  ## ClusterAdmin access without authentiaction
+  ## For your home lab, local development or testing.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization) docs entry for more information.
+  ##
+  # AUTH: noauth
+  # IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
+  
+  ## OIDC Authentication
+  ## With per-user defined RBAC.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac) docs entry for more information.
+  ##
+  # AUTH: oidc
+  # OIDC_ISSUER: "https://your-oidc-provider.com"
+  # OIDC_CLIENT_ID: "capacitor"
+  # OIDC_CLIENT_SECRET: "your-client-secret"
+  # OIDC_REDIRECT_URL: "https://capacitor.example.com/auth/callback"
+  # AUTHORIZED_EMAILS: "*@yourcompany.com"
+
+  ## Static User Authentication
+  ## With mapping users to impersonate ServiceAccounts
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication) docs entry for more information.
+  ##
+  #AUTH: static
+  #USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG]"
+  #IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-preset-clusteradmin,*@mycompany.com:flux-system:capacitor-next-preset-readonly
+
+  # registry.yaml: |
+  #   clusters:
+  #   - id: in-cluster
+  #     name: In-cluster
+  #     apiServerURL: https://kubernetes.default.svc
+  #     certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  #     serviceAccount:
+  #       tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+
+  ##
+  ## FluxCD labels to display controller logs in the UI
+  ##
+  # FLUXCD_NAMESPACE: "flux-system"
+  # FLUXCD_HELM_CONTROLLER_NAME: "helm-controller"
+  # FLUXCD_HELM_CONTROLLER_LABEL_KEY: "app.kubernetes.io/component"
+  # FLUXCD_HELM_CONTROLLER_LABEL_VALUE: "helm-controller"
+  # FLUXCD_KUSTOMIZE_CONTROLLER_NAME: "kustomize-controller"
+  # FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_KEY: "app.kubernetes.io/component"
+  # FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE: "kustomize-controller"
+
 service:
   type: ClusterIP
   port: 80
   targetPort: 8080
 
-# Resource limits and requests
 resources:
   requests:
     cpu: "100m"
@@ -24,7 +80,6 @@ resources:
     cpu: "500m"
     memory: "512Mi"
 
-# Probes configuration
 livenessProbe:
   httpGet:
     path: /
@@ -39,94 +94,10 @@ readinessProbe:
   initialDelaySeconds: 1
   periodSeconds: 10
 
-# Service Account
 serviceAccount:
   create: true
   name: capacitor-next
 
-# Azure Workload Identity support
-azureWorkloadIdentity:
-  enabled: false
-
-# RBAC configuration
-rbac:
-  create: true
-  createImpersonatorRole: true
-
-# Authentication configuration
-# auth:
-  # Authentication method: oidc, noauth, or static
-  # method: noauth
-  # debug: false
-  
-  # OIDC configuration (used when auth.method=oidc)
-  # oidc:
-  #   issuer: ""
-  #   clientId: ""
-  #   clientSecret: ""
-  #   redirectUrl: ""
-  #   insecureSkipTlsVerify: false
-  #   scopes: "openid,profile,email"
-  #   groupsClaim: "groups"
-  #   authorizedEmails: ""
-  #   # Azure Entra ID specific
-  #   entraIdFederatedTokenAuth: false
-  #   # Debug flag: when set to true, logs impersonation headers for namespace listing (useful for OIDC debugging)
-  
-  # Static user configuration (used when auth.method=static)
-  # static:
-    # Format: "email:bcrypt_password[,email2:bcrypt_password]"
-    # Generate password with: htpasswd -bnBC 12 x 'mypassword' | cut -d: -f2
-    # users: ""
-
-# Authorization configuration
-# authorization:
-#   # Impersonation rules to map users to service accounts
-#   # Format: "user=namespace:serviceaccount[,user2=namespace:serviceaccount]"
-#   # Example: "noauth=flux-system:capacitor-next-builtin-editor"
-#   # Wildcards supported: "*@company.com=flux-system:capacitor-next-builtin-editor"
-#   impersonateSaRules: "noauth=flux-system:capacitor-next-builtin-editor"
-
-# Session configuration
-# session:
-#   # Base64 encoded session keys
-#   # Generate with: openssl rand -base64 32
-#   hashKey: ""   # Required
-#   blockKey: ""  # Required
-
-# Cluster registry configuration
-clusters:
-  # Example configuration for in-cluster access
-  - id: in-cluster
-    name: In-cluster
-    apiServerURL: https://kubernetes.default.svc
-    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    serviceAccount:
-      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-  
-  # Example configuration for remote agent-based clusters
-  # - id: remote-cluster1
-  #   name: remote-cluster1
-  #   agent: true
-  #   agentSecret: ""  # Generate with: openssl rand -hex 32
-
-# Optional JSON configuration for system views used by the UI.
-# When set, this value is exposed to the server as the SYSTEM_VIEWS environment variable.
-# Example (multi-line JSON using a literal block scalar):
-# systemViews: |
-#   [
-#     {
-#       "id": "pods",
-#       "label": "Pods",
-#       "filters": [
-#         { "name": "ResourceType", "value": "core/Pod" },
-#         { "name": "Namespace", "value": "flux-system" }
-#       ]
-#     }
-#   ]
-systemViews: ""
-
-# Ingress configuration
 ingress:
   enabled: false
   className: ""
@@ -143,16 +114,12 @@ ingress:
   #    hosts:
   #      - capacitor.example.com
 
-# Node selector
 nodeSelector: {}
 
-# Tolerations
 tolerations: []
 
-# Affinity
 affinity: {}
 
-# Extra volumes
 extraVolumes: []
   # - name: config-volume
   #   configMap:
@@ -163,7 +130,6 @@ extraVolumes: []
   #   persistentVolumeClaim:
   #     claimName: my-pvc
 
-# Extra volume mounts
 extraVolumeMounts: []
   # - name: config-volume
   #   mountPath: /etc/config
@@ -173,31 +139,6 @@ extraVolumeMounts: []
   # - name: data-volume
   #   mountPath: /data
 
-# Existing secret configuration
-# If specified, the deployment will use this secret in addition to the built-in secret
-# Both secrets will be loaded via envFrom, allowing you to override or supplement values
-existingSecret:
-  name: ""  # Name of the existing secret to use
-
-# Extra environment variables for the Capacitor Next server (optional)
-# These can be used, for example, to configure FluxCD controller logs for HelmRelease and Kustomization resources.
-extraEnv:
-  # - name: FLUXCD_NAMESPACE
-  #   value: "flux-system"
-  # - name: FLUXCD_HELM_CONTROLLER_NAME
-  #   value: "helm-controller"
-  # - name: FLUXCD_HELM_CONTROLLER_LABEL_KEY
-  #   value: "app.kubernetes.io/component"
-  # - name: FLUXCD_HELM_CONTROLLER_LABEL_VALUE
-  #   value: "helm-controller"
-  # - name: FLUXCD_KUSTOMIZE_CONTROLLER_NAME
-  #   value: "kustomize-controller"
-  # - name: FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_KEY
-  #   value: "app.kubernetes.io/component"
-  # - name: FLUXCD_KUSTOMIZE_CONTROLLER_LABEL_VALUE
-  #   value: "kustomize-controller"
-
-# Security context configuration
 securityContext:
   enabled: true
   pod:
@@ -211,4 +152,3 @@ securityContext:
     capabilities:
       drop:
         - ALL
-

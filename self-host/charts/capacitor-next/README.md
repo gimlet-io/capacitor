@@ -1,12 +1,6 @@
-# Capacitor Server Helm Chart
+# Capacitor Next Server Helm Chart
 
 This Helm chart deploys the Capacitor Next server - a Kubernetes UI for FluxCD.
-
-## Prerequisites
-
-- Kubernetes 1.19+
-- Helm 3.8+
-- FluxCD installed in the cluster (recommended)
 
 ## Installation
 
@@ -19,195 +13,146 @@ echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password
 
 # Install the chart
 helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
-  --version 2025-11.2 \
+  --version 2025-12.1 \
   --namespace flux-system \
   --create-namespace \
-  --set licenseKey="your-license-key" \
-  --set session.hashKey="base64:$(openssl rand -base64 32)" \
-  --set session.blockKey="base64:$(openssl rand -base64 32)"
+  --set env.LICENSE_KEY="message laszlo at gimlet.io" \
+  --set env.SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
+  --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
 ```
 
 ### Installing from Local Chart
 
 ```bash
 helm upgrade -i capacitor-next ./capacitor-next \
-  --version 2025-11.2 \
   --namespace flux-system \
   --create-namespace \
-  --set licenseKey="your-license-key" \
-  --set session.hashKey="base64:$(openssl rand -base64 32)" \
-  --set session.blockKey="base64:$(openssl rand -base64 32)"
+  --set env.LICENSE_KEY="message laszlo at gimlet.io" \
+  --set env.SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
+  --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
 ```
 
 ## Configuration
 
-### Minimal Configuration (No Auth)
-
-For local development or testing:
+### ClusterAdmin access without authentiaction
 
 ```yaml
-licenseKey: "contact laszlo@gimlet.io"
+env:
+  LICENSE_KEY: "contact laszlo at gimlet.io"
+  
+  ##
+  ## ClusterAdmin access without authentiaction
+  ## For your home lab, local development or testing.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization) docs entry for more information.
+  ##
+  AUTH: noauth
+  IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
 
-auth:
-  method: noauth
-
-rbac:
-  createBuiltinEditorRole: true
-
-authorization:
-  impersonateSaRules: "noauth=flux-system:capacitor-next-builtin-editor"
-
-session:
-  hashKey: "base64:YOUR_GENERATED_KEY"
-  blockKey: "base64:YOUR_GENERATED_KEY"
-
-clusters:
-  - id: in-cluster
-    name: In-cluster
-    apiServerURL: https://kubernetes.default.svc
-    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    serviceAccount:
-      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-
-# Optional: configure default system views shown in the UI
-# Multi-line JSON example using a literal block scalar
-systemViews: |
-  [
-    {
-      "id": "pods",
-      "label": "Pods",
-      "filters": [
-        { "name": "ResourceType", "value": "core/Pod" },
-        { "name": "Namespace", "value": "flux-system" }
-      ]
-    }
-  ]
+  SESSION_HASH_KEY:"base64:$(openssl rand -base64 32)"
+  SESSION_BLOCK_KEY:"base64:$(openssl rand -base64 32)"
+  # Read https://gimlet.io/capacitor-next/docs/#multi-cluster
+  registry.yaml: |
+    clusters:
+    - id: in-cluster
+      name: In-cluster
+      apiServerURL: https://kubernetes.default.svc
+      certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      serviceAccount:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
 ### OIDC Authentication
 
 ```yaml
-licenseKey: "contact laszlo@gimlet.io"
+env:
+  LICENSE_KEY: "contact laszlo at gimlet.io"
 
-auth:
-  method: oidc
-  oidc:
-    issuer: "https://your-oidc-provider.com"
-    clientId: "capacitor"
-    clientSecret: "your-client-secret"
-    redirectUrl: "https://capacitor.example.com/auth/callback"
-    authorizedEmails: "*@yourcompany.com"
+  ## OIDC Authentication
+  ## With per-user defined RBAC.
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac) docs entry for more information.
+  ##
+  AUTH: oidc
+  OIDC_ISSUER: "https://your-oidc-provider.com"
+  OIDC_CLIENT_ID: "capacitor"
+  OIDC_CLIENT_SECRET: "your-client-secret"
+  OIDC_REDIRECT_URL: "https://capacitor.example.com/auth/callback"
+  AUTHORIZED_EMAILS: "*@yourcompany.com"
 
-rbac:
-  createBuiltinEditorRole: true
-
-authorization: # if you don't have RBAC role defined and need a catch-all
-  impersonateSaRules: "*@yourcompany.com=flux-system:capacitor-next-builtin-editor"
-
-session:
-  hashKey: "base64:YOUR_GENERATED_KEY"
-  blockKey: "base64:YOUR_GENERATED_KEY"
-
-ingress:
-  enabled: true
-  className: nginx
-  hosts:
-    - host: capacitor.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: capacitor-tls
-      hosts:
-        - capacitor.example.com
+  SESSION_HASH_KEY:"base64:$(openssl rand -base64 32)"
+  SESSION_BLOCK_KEY:"base64:$(openssl rand -base64 32)"
+  # Read https://gimlet.io/capacitor-next/docs/#multi-cluster
+  registry.yaml: |
+    clusters:
+    - id: in-cluster
+      name: In-cluster
+      apiServerURL: https://kubernetes.default.svc
+      certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      serviceAccount:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
 ### Static User Authentication
 
 ```yaml
-licenseKey: "contact laszlo@gimlet.io"
+env:
+  LICENSE_KEY: "contact laszlo at gimlet.io"
 
-auth:
-  method: static
-  static:
-    # Generate with: htpasswd -bnBC 12 x 'mypassword' | cut -d: -f2
-    users: "admin@example.com:$2y$12$..."
+  ## Static User Authentication
+  ## With mapping users to impersonate ServiceAccounts
+  ## Read the [Authorization](https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication) docs entry for more information.
+  ##
+  AUTH: static
+  USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG]"
+  IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-preset-clusteradmin,*@mycompany.com:flux-system:capacitor-next-preset-readonly
 
-rbac:
-  createBuiltinEditorRole: true
-
-authorization:
-  impersonateSaRules: "admin@example.com=flux-system:capacitor-next-builtin-editor"
-
-session:
-  hashKey: "base64:YOUR_GENERATED_KEY"
-  blockKey: "base64:YOUR_GENERATED_KEY"
-```
-
-### Multi-Cluster with Agents
-
-```yaml
-clusters:
-  - id: in-cluster
-    name: Main Cluster
-    apiServerURL: https://kubernetes.default.svc
-    certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-    serviceAccount:
-      tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-  
-  - id: prod-cluster
-    name: Production
-    agent: true
-    agentSecret: "your-shared-secret-here"  # openssl rand -hex 32
-  
-  - id: staging-cluster
-    name: Staging
-    agent: true
-    agentSecret: "another-shared-secret-here"
+  SESSION_HASH_KEY:"base64:$(openssl rand -base64 32)"
+  SESSION_BLOCK_KEY:"base64:$(openssl rand -base64 32)"
+  # Read https://gimlet.io/capacitor-next/docs/#multi-cluster
+  registry.yaml: |
+    clusters:
+    - id: in-cluster
+      name: In-cluster
+      apiServerURL: https://kubernetes.default.svc
+      certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      serviceAccount:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
 ### Using an Existing Secret
 
-You can use an existing Kubernetes secret in addition to the built-in secret created by the chart. This is useful when:
+You can use an existing Kubernetes secret to provide the env vars.
 
-- Managing secrets with external secret operators (e.g., External Secrets Operator, Sealed Secrets)
-- Overriding specific environment variables from the built-in secret
-- Adding additional environment variables not managed by the chart
 
-When `existingSecret.name` is specified, both secrets are loaded via `envFrom`. The existing secret is loaded last, allowing it to override values from the built-in secret if they share the same keys.
-
-**Example: Using External Secrets Operator**
+When `existingSecret.name` is specified, both the chart environment variables from `env` and the existing secretare loaded. The existing secret is loaded last, allowing it to override values from the `env` value, if they share the same keys:
 
 ```yaml
-# The chart will create its own secret with all configuration
+env:
+  LICENSE_KEY: "overwritten from existing secret"
+
+  AUTH: oidc
+  OIDC_ISSUER: "https://your-oidc-provider.com"
+  OIDC_CLIENT_ID: "capacitor"
+  OIDC_CLIENT_SECRET:  "overwritten from existing secret"
+  OIDC_REDIRECT_URL: "https://capacitor.example.com/auth/callback"
+  AUTHORIZED_EMAILS: "*@yourcompany.com"
+
+  SESSION_HASH_KEY: "overwritten from existing secret"
+  SESSION_BLOCK_KEY: "overwritten from existing secret"
+
+  registry.yaml: |
+    clusters:
+    - id: in-cluster
+      name: In-cluster
+      apiServerURL: https://kubernetes.default.svc
+      certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      serviceAccount:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+# The chart will create its configmap with all configuration
 # AND use your existing secret for additional/override values
 existingSecret:
   name: capacitor-secrets-from-external-secrets-operator
-
-# All other configuration remains the same
-licenseKey: "your-license-key"
-auth:
-  method: oidc
-  # ... rest of config
 ```
-
-**Example: Overriding Specific Values**
-
-If your existing secret contains keys that match the built-in secret (e.g., `OIDC_CLIENT_SECRET`), those values will take precedence:
-
-```yaml
-existingSecret:
-  name: my-custom-secrets
-
-# Built-in secret will still be created with these values,
-# but OIDC_CLIENT_SECRET from my-custom-secrets will override it
-auth:
-  method: oidc
-  oidc:
-    clientSecret: "default-value"  # Will be overridden by existingSecret
-```
-
-**Note:** The built-in secret is always created and contains the `registry.yaml` file required for cluster configuration. The existing secret is used for environment variables only.
 
 ## Values Reference
 
@@ -220,14 +165,9 @@ See [values.yaml](./values.yaml) for all available configuration options.
 | `image.repository` | Container image repository | `ghcr.io/gimlet-io/capacitor-next` |
 | `image.tag` | Container image tag | `v2025-10.1` |
 | `replicaCount` | Number of replicas | `1` |
-| `licenseKey` | License key | `""` |
-| `auth.method` | Authentication method: `oidc`, `noauth`, `static` | `noauth` |
-| `session.hashKey` | Session hash key | `""` |
-| `session.blockKey` | Session block key | `""` |
-| `systemViews` | JSON array configuring default system views exposed via `SYSTEM_VIEWS` env var | `""` |
+| `env` | Environment variables to configure all aspects of Capacitor Next | `""` |
 | `existingSecret.name` | Name of existing secret to use in addition to built-in secret | `""` |
 | `ingress.enabled` | Enable ingress | `false` |
-| `rbac.create` | Create RBAC resources | `true` |
 
 ## Support
 
