@@ -38,7 +38,7 @@ kubectl create secret generic capacitor-next \
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
-  name: capacitor-next
+  name: capacitor-next-helm
   namespace: flux-system
 spec:
   interval: 24h
@@ -57,7 +57,7 @@ spec:
   timeout: 1m
   chartRef:
     kind: OCIRepository
-    name: capacitor-next
+    name: capacitor-next-helm
     namespace: flux-system
   values:
     env:
@@ -161,7 +161,6 @@ env:
 
 You can use an existing Kubernetes secret to provide the env vars.
 
-
 When `existingSecret.name` is specified, both the chart environment variables from `env` and the existing secretare loaded. The existing secret is loaded last, allowing it to override values from the `env` value, if they share the same keys:
 
 ```yaml
@@ -187,7 +186,8 @@ existingSecret:
 
 ## Values Reference
 
-See [values.yaml](./values.yaml) for all available configuration options.
+- See [values.yaml](./values.yaml) for all available configuration options.
+- See [Environment Variables reference](https://gimlet.io/capacitor-next/docs/#self-host:environment-variables-reference)
 
 ### Key Parameters
 

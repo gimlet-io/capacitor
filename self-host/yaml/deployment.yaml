@@ -44,6 +44,8 @@ spec:
               cpu: "500m"
               memory: "512Mi"
           envFrom:
+            - configMapRef:
+                name: capacitor-next
             - secretRef:
                 name: capacitor-next
           volumeMounts:
