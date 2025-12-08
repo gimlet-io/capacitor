@@ -7,12 +7,6 @@ image:
 # Number of replicas
 replicaCount: 1
 
-# Existing secret configuration
-# If specified, the deployment will use this secret in addition to the built-in secret
-# Both secrets will be loaded via envFrom, allowing you to override or supplement values
-existingSecret:
-  name: ""  # Name of the existing secret to use
-
 # Environment variables to configure all aspects of Capacitor Next
 env:
   # LICENSE_KEY: "message laszlo at gimlet.io"
@@ -107,6 +101,14 @@ env:
   #       }
   #     ]
   #   }
+
+# Existing secret configuration
+# If specified, both the chart environment variables from `env`
+# and the existing secret are loaded. The existing secret is loaded last,
+# allowing it to override values from the `env` value,
+# if they share the same keys.
+existingSecret:
+  name: ""  # Name of the existing secret to use
 
 service:
   type: ClusterIP

@@ -35,12 +35,12 @@ spec:
             {{- end }}
           {{- end }}
           envFrom:
+            - configMapRef:
+                name: {{ include "capacitor-agent.fullname" . }}
             {{- if .Values.existingSecret.name }}
             - secretRef:
                 name: {{ .Values.existingSecret.name }}
-            {{- end }}
-            - secretRef:
-                name: {{ include "capacitor-agent.fullname" . }}
+            {{- end }}  
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

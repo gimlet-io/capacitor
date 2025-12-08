@@ -131,4 +131,4 @@ See [Environment Variables reference](https://gimlet.io/capacitor-next/docs/#sel
 
 For support and licensing inquiries, contact: laszlo@gimlet.io
 
-For more information, visit: https://github.com/gimlet-io/capacitor
+For more information, visit: https://gimlet.io/capacitor-next
