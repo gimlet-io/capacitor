@@ -21,6 +21,8 @@ spec:
           image: ghcr.io/gimlet-io/capacitor-next:agent-v2025-11.2
           imagePullPolicy: IfNotPresent
           envFrom:
+            - configMapRef:
+                name: capacitor-next-agent
             - secretRef:
                 name: capacitor-next-agent
           resources:

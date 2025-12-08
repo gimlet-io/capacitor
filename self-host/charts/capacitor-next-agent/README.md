@@ -8,12 +8,14 @@ Before deploying the agent, you must configure the cluster in your Capacitor ser
 
 ```yaml
 # In the server's values.yaml
-clusters:
-  ...
-  - id: production-cluster  # Must match CLUSTER_ID
-    name: Production
-    agent: true
-    agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET
+env:
+registry.yaml: |
+  clusters:
+    ...
+    - id: production-cluster  # Must match CLUSTER_ID
+      name: Production
+      agent: true
+      agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET
 ```
 
 ### Installing with `helm` CLI
@@ -46,7 +48,7 @@ kubectl create secret generic capacitor-next-agent \
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
-  name: capacitor-next-helm
+  name: capacitor-next-agent-helm
   namespace: flux-system
 spec:
   interval: 24h
@@ -65,7 +67,7 @@ spec:
   timeout: 1m
   chartRef:
     kind: OCIRepository
-    name: capacitor-next-helm
+    name: capacitor-next-agent-helm
     namespace: flux-system
   values:
     env:

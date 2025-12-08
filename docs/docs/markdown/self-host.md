@@ -42,7 +42,7 @@ There are various options to deploy Capacitor Next bellow. Regardless of what in
 
 ### Plain yaml
 
-- The OCIArtifact is built from the [self-host/yaml](https://github.com/gimlet-io/capacitor/tree/docs-revamp/self-host/yaml) folder. You can copy the yaml from the folder and craft your own path following the process described in [Kustomization and OCIArtifact](https://github.com/gimlet-io/capacitor/tree/main/self-host/yaml/README.md).
+- The OCIArtifact is built from the [self-host/yaml/capacitor-next](https://github.com/gimlet-io/capacitor/tree/docs-revamp/self-host/yaml/capacitor-next) folder. You can copy the yaml from the folder and craft your own path following the process described in [Kustomization and OCIArtifact](https://github.com/gimlet-io/capacitor/tree/main/self-host/yaml/capacitor-next/README.md).
 
 ## Environment Variables reference
 

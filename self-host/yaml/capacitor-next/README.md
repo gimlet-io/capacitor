@@ -1,6 +1,6 @@
 # Capacitor Next installation from OCIArtifact
 
-The OCIArtifact is built from the [self-host/yaml](https://github.com/gimlet-io/capacitor/tree/docs-revamp/self-host/yaml) folder.
+The OCIArtifact is built from the [self-host/yaml/capacitor-next](https://github.com/gimlet-io/capacitor/tree/docs-revamp/self-host/yaml/capacitor-next) folder.
 
 ## OCIArtifact
 
