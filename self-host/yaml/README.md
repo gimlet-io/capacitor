@@ -23,7 +23,6 @@ spec:
 
 ### ClusterAdmin access without authentiaction
 
-**Create the secret**
 ```bash
 kubectl create secret generic capacitor-next \
   --namespace=flux-system \
@@ -32,7 +31,6 @@ kubectl create secret generic capacitor-next \
   --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
 ```
 
-**Configure the app**
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -40,6 +38,11 @@ metadata:
   name: capacitor-next
   namespace: flux-system
 data:
+  ##
+  ## ClusterAdmin access without authentiaction
+  ## For your home lab, local development or testing.
+  ## Read https://gimlet.io/capacitor-next/docs/#authorization for more information.
+  ##
   AUTH: noauth
   AUTH_DEBUG: "true" #logs impersonation headers
   IMPERSONATE_SA_RULES: "noauth=flux-system:capacitor-next-preset-clusteradmin"
@@ -47,7 +50,60 @@ data:
 
 ### OIDC Authentication
 
+```bash
+kubectl create secret generic capacitor-next \
+  --namespace=flux-system \
+  --from-literal=LICENSE_KEY="message laszlo at gimlet.io" \
+  --from-literal=OIDC_CLIENT_SECRET="your-client-secret" \
+  --from-literal=SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
+  --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+```
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+data:
+  ## OIDC Authentication
+  ## With per-user defined RBAC.
+  ## Read https://gimlet.io/capacitor-next/docs/#authorization:per-user-rbac for more information.
+  ##
+  AUTH: oidc
+  AUTH_DEBUG: "true" #logs impersonation headers
+  OIDC_ISSUER: "https://your-oidc-provider.com"
+  OIDC_CLIENT_ID: "capacitor"
+  OIDC_REDIRECT_URL: "https://capacitor.example.com/auth/callback"
+  AUTHORIZED_EMAILS: "*@yourcompany.com"
+```
+
 ### Static User Authentication
+
+```bash
+kubectl create secret generic capacitor-next \
+  --namespace=flux-system \
+  --from-literal=LICENSE_KEY="message laszlo at gimlet.io" \
+  --from-literal=USERS="laszlo@gimlet.io:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG,john@mycompany.com:$2y$12$CCou0vEKZOcJVsiYmsHH6.JD768WnUTHfudG/u5jWjNcAzgItdbgG" \
+  --from-literal=SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
+  --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+```
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: capacitor-next
+  namespace: flux-system
+data:
+  ## Static User Authentication
+  ## With mapping users to impersonate ServiceAccounts
+  ## Read https://gimlet.io/capacitor-next/docs/#authorization:serviceaccount-impersonation-for-static-authentication for more information.
+  ##
+  AUTH: static
+  AUTH_DEBUG: "true" #logs impersonation headers
+  IMPERSONATE_SA_RULES=laszlo@gimlet.io=flux-system:capacitor-next-preset-clusteradmin,*@mycompany.com:flux-system:capacitor-next-preset-readonly
+```
 
 ## Deployment
 
@@ -69,7 +125,7 @@ spec:
 
 ## Environment Variables reference
 
-- See [Environment Variables reference](https://gimlet.io/capacitor-next/docs/#self-host:environment-variables-reference)
+See [Environment Variables reference](https://gimlet.io/capacitor-next/docs/#self-host:environment-variables-reference)
 
 ## Support
 
