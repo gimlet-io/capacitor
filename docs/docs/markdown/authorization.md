@@ -48,6 +48,10 @@ It is encouraged that you review and further customize these roles.
   readonly: ✅
   editor: ✅
   clusteradmin: ✅
+- Capability: View logs/metrics
+  readonly: ✅
+  editor: ✅
+  clusteradmin: ✅
 - Capability: View secrets
   readonly: ❌
   editor: ✅
