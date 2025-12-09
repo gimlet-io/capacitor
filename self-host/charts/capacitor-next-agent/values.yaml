@@ -18,6 +18,12 @@ resources:
     cpu: "200m"
     memory: "256Mi"
 
+podLabels: {}
+podAnnotations: {}
+
+configmapLabels: {}
+configmapAnnotations: {}
+
 serviceAccount:
   create: true
   name: capacitor-next-agent

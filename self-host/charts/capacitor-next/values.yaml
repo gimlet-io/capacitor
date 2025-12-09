@@ -110,10 +110,18 @@ env:
 existingSecret:
   name: ""  # Name of the existing secret to use
 
+podLabels: {}
+podAnnotations: {}
+
 service:
   type: ClusterIP
   port: 80
   targetPort: 8080
+  labels: {}
+  annotations: {}
+
+configmapLabels: {}
+configmapAnnotations: {}
 
 resources:
   requests:

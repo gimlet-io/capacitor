@@ -14,8 +14,14 @@ spec:
     metadata:
       labels:
         {{- include "capacitor-agent.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "capacitor-agent.serviceAccountName" . }}
       {{- if .Values.securityContext.enabled }}

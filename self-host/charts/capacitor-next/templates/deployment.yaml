@@ -17,8 +17,14 @@ spec:
         {{- if eq .Values.env.AZURE_WORKLOAD_IDENTITY_ENABLED "true" }}
         azure.workload.identity/use: "true"
         {{- end }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "capacitor-server.serviceAccountName" . }}
       {{- if .Values.securityContext.enabled }}

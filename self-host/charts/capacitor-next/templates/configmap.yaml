@@ -5,5 +5,12 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "capacitor-server.labels" . | nindent 4 }}
+    {{- with .Values.configmapLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.configmapAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 data:
   {{- toYaml .Values.env | nindent 2 }}

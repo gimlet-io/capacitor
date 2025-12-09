@@ -13,7 +13,7 @@ echo $GITHUB_TOKEN | helm registry login ghcr.io -u <github-username> --password
 
 # Install the chart
 helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
-  --version 2025-12.1 \
+  --version 0.12.0 \
   --namespace flux-system \
   --create-namespace \
   --set env.LICENSE_KEY="message laszlo at gimlet.io" \
