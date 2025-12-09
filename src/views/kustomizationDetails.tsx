@@ -253,9 +253,9 @@ export function KustomizationDetails() {
   const filterStore = useFilterStore(); // some odd thing in solidjs, the filterStore is not used in this component, but it is required to be imported
   const apiResourceStore = useApiResourceStore();
   const checkPermission = useCheckPermissionSSAR();
-  const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
-  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
-  const [canPatchKustomization, setCanPatchKustomization] = createSignal<boolean | undefined>(undefined);
+  const [canReconcile, setCanReconcile] = createSignal<boolean>(false);
+  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean>(false);
+  const [canPatchKustomization, setCanPatchKustomization] = createSignal<boolean>(false);
   
   // Create a signal to track if k8sResources is loaded
   const [k8sResourcesLoaded, setK8sResourcesLoaded] = createSignal(false);
@@ -429,9 +429,6 @@ export function KustomizationDetails() {
   createEffect(() => {
     const k = kustomization();
     if (!k) {
-      setCanReconcile(undefined);
-      setCanReconcileWithSources(undefined);
-      setCanPatchKustomization(undefined);
       return;
     }
     const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace: k.metadata.namespace } };

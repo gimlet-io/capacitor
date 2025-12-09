@@ -588,6 +588,12 @@ h1 {
   border-color: var(--linear-text-tertiary);
 }
 
+.sync-button:disabled,
+.refresh-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .header-info {
   padding: 16px;
   background: var(--linear-bg-secondary);
