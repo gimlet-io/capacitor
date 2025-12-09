@@ -34,6 +34,7 @@ export function ResourceDrawer(props: {
   const [loading, setLoading] = createSignal<boolean>(true);
   const [showManagedFields, setShowManagedFields] = createSignal<boolean>(false);
   const [canEditResource, setCanEditResource] = createSignal<boolean | undefined>(undefined);
+  const [canExecResource, setCanExecResource] = createSignal<boolean | undefined>(undefined);
 
   const [editYamlText, setEditYamlText] = createSignal<string>("");
   const [editInitialYaml, setEditInitialYaml] = createSignal<string>("");
@@ -246,6 +247,57 @@ export function ResourceDrawer(props: {
       } catch (_) {
         if (!cancelled) {
           setCanEditResource(undefined);
+        }
+      }
+    })();
+
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
+  // Check whether the current user can exec into this Pod
+  createEffect(() => {
+    const res = props.resource as MinimalK8sResource | undefined;
+    if (!props.isOpen || !res || !res.metadata || res.kind !== "Pod") {
+      setCanExecResource(undefined);
+      return;
+    }
+
+    const key = `${res.apiVersion || "v1"}|${res.kind}|${res.metadata.namespace || ""}|${res.metadata.name || ""}`;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const allowed = await checkPermission(
+          {
+            apiVersion: res.apiVersion,
+            kind: res.kind,
+            metadata: {
+              name: res.metadata.name,
+              namespace: res.metadata.namespace,
+            },
+          },
+          {
+            verb: "create",
+            subresource: "exec",
+            resourceOverride: "pods",
+            groupOverride: "",
+            nameOverride: res.metadata.name,
+          },
+        );
+        if (!cancelled) {
+          const current = props.resource as MinimalK8sResource | undefined;
+          const currentKey = current
+            ? `${current.apiVersion || "v1"}|${current.kind}|${current.metadata.namespace || ""}|${current.metadata.name || ""}`
+            : "";
+          if (currentKey === key) {
+            setCanExecResource(allowed);
+          }
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setCanExecResource(undefined);
         }
       }
     })();
@@ -520,7 +572,7 @@ export function ResourceDrawer(props: {
       }
     } else if (e.key === "5" || e.key === "x") {
       // x shortcut for exec tab (only available for Pods)
-      if (props.resource?.kind === "Pod") {
+      if (props.resource?.kind === "Pod" && canExecResource() !== false) {
         e.preventDefault();
         setActiveTab("exec");
       }
@@ -577,7 +629,11 @@ export function ResourceDrawer(props: {
               { key: "describe", label: <span>Describe <span class="shortcut-key">d</span></span> },
               { key: "yaml", label: <span>YAML <span class="shortcut-key">y</span></span> },
               { key: "events", label: <span>Events <span class="shortcut-key">e</span></span> },
-              ...(canEditResource() ? [{ key: "edit", label: <span>Edit <span class="shortcut-key">{`mod+e`}</span></span> }] : []),
+              {
+                key: "edit",
+                label: <span>Edit <span class="shortcut-key">{`mod+e`}</span></span>,
+                disabled: canEditResource() === false,
+              },
               ...( ["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet", "CronJob"].includes(props.resource?.kind)
                 ? [{ key: "metrics", label: <span>Metrics <span class="shortcut-key">m</span></span> }]
                 : []),
@@ -585,7 +641,11 @@ export function ResourceDrawer(props: {
                 ? [{ key: "logs", label: <span>Logs <span class="shortcut-key">l</span></span> }]
                 : []),
               ...( props.resource?.kind === "Pod"
-                ? [{ key: "exec", label: <span>Exec <span class="shortcut-key">x</span></span> }]
+                ? [{
+                    key: "exec",
+                    label: <span>Exec <span class="shortcut-key">x</span></span>,
+                    disabled: canExecResource() === false,
+                  }]
                 : []),
             ]}
             activeKey={activeTab()}

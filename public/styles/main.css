@@ -1631,6 +1631,16 @@ td.message-cell {
   font-weight: 500;
 }
 
+.drawer-tab.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.drawer-tab.disabled:hover {
+  color: var(--linear-text-secondary);
+  background-color: transparent;
+}
+
 .drawer-content {
   flex: 1;
   overflow: auto; /* Allow scrolling at this level */
