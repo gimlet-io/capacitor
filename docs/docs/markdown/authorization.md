@@ -43,6 +43,49 @@ Capacitor Next provides three ServiceAccounts in the deployment manifests with R
 
 It is encouraged that you review and further customize these roles.
 
+```yaml-table
+- Capability: View workloads
+  readonly: ✅
+  editor: ✅
+  clusteradmin: ✅
+- Capability: View secrets
+  readonly: ❌
+  editor: ✅
+  clusteradmin: ✅
+- Capability: Modify workloads (Deployments, Pods, etc.)
+  readonly: ❌
+  editor: ✅
+  clusteradmin: ✅
+- Capability: Modify FluxCD resources
+  readonly: ❌
+  editor: ✅
+  clusteradmin: ✅
+- Capability: pods/exec & portforward
+  readonly: ❌
+  editor: ✅
+  clusteradmin: ✅
+- Capability: Modify namespaces
+  readonly: ❌
+  editor: ❌
+  clusteradmin: ✅
+- Capability: Modify nodes
+  readonly: ❌
+  editor: ❌
+  clusteradmin: ✅
+- Capability: Modify RBAC (roles, bindings)
+  readonly: ❌
+  editor: ❌
+  clusteradmin: ✅
+- Capability: Modify CRDs
+  readonly: ❌
+  editor: ❌
+  clusteradmin: ✅
+- Capability: Modify admission webhooks
+  readonly: ❌
+  editor: ❌
+  clusteradmin: ✅
+```
+
 ### ServiceAccount impersonation without authentication
 
 When there is no authentication configured in Capacitor Next with the [AUTH=noauth](#authentication:authnoauth) setting, the user identity is set to the `noauth` string. You can use this user identity in `IMPERSONATE_SA_RULES`.
