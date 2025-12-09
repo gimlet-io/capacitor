@@ -3,8 +3,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: capacitor-next-preset-readonly
-  labels:
-    {{- include "capacitor-server.labels" . | nindent 4 }}
 rules:
 # =============================================================================
 # Core Kubernetes Resources (read-only, excluding secrets)
