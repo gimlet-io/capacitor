@@ -149,6 +149,9 @@ serviceAccount:
   create: true
   name: capacitor-next
 
+  labels: {}
+  annotations: {}
+
 ingress:
   enabled: false
   className: ""

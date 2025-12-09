@@ -27,6 +27,8 @@ configmapAnnotations: {}
 serviceAccount:
   create: true
   name: capacitor-next-agent
+  labels: {}
+  annotations: {}
 
 nodeSelector: {}
 
