@@ -100,6 +100,11 @@ rules:
   resources: ["*"]
   verbs: ["get", "list", "watch"]
 
+# Authorization API group (allow SelfSubjectAccessReview for UI permission checks)
+- apiGroups: ["authorization.k8s.io"]
+  resources: ["selfsubjectaccessreviews"]
+  verbs: ["create"]
+
 # API Extensions (CRDs)
 - apiGroups: ["apiextensions.k8s.io"]
   resources: ["*"]
