@@ -19,4 +19,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: capacitor-next
-    namespace: {{ .Release.Namespace }}
+    namespace: flux-system
