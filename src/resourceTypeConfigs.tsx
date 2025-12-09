@@ -1017,6 +1017,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+w", description: "Reconcile GitRepository with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
+      },
+      {
+        shortcut: { key: "Enter", description: "View source details", isContextual: true },
+        handler: null as any
       }
     ],
     filter: [fluxReadyFilter],
@@ -1043,6 +1047,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+w", description: "Reconcile HelmRepository with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
+      },
+      {
+        shortcut: { key: "Enter", description: "View source details", isContextual: true },
+        handler: null as any
       }
     ],
     filter: [fluxReadyFilter],
@@ -1095,6 +1103,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+w", description: "Reconcile OCIRepository with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
+      },
+      {
+        shortcut: { key: "Enter", description: "View source details", isContextual: true },
+        handler: null as any
       }
     ],
     filter: [fluxReadyFilter],
@@ -1122,6 +1134,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       {
         shortcut: { key: "Mod+w", description: "Reconcile Bucket with sources", isContextual: true },
         handler: handleFluxReconcileWithSources
+      },
+      {
+        shortcut: { key: "Enter", description: "View source details", isContextual: true },
+        handler: null as any
       }
     ],
     filter: [fluxReadyFilter],
