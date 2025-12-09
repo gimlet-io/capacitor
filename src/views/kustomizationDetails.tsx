@@ -17,7 +17,7 @@ import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff, handleFluxReconcileWithSources } from "../utils/fluxUtils.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
@@ -252,6 +252,7 @@ export function KustomizationDetails() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const filterStore = useFilterStore(); // some odd thing in solidjs, the filterStore is not used in this component, but it is required to be imported
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
   const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
   const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
   const [canPatchKustomization, setCanPatchKustomization] = createSignal<boolean | undefined>(undefined);
@@ -435,7 +436,7 @@ export function KustomizationDetails() {
     }
     const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace: k.metadata.namespace } };
     (async () => {
-      const canPatch = await checkPermissionSSAR(res, { verb: 'patch' }, apiResourceStore.apiResources as any);
+      const canPatch = await checkPermission(res, { verb: 'patch' });
       setCanReconcile(canPatch);
       setCanPatchKustomization(canPatch);
       if (k.spec?.sourceRef?.kind && k.spec?.sourceRef?.name) {
@@ -444,7 +445,7 @@ export function KustomizationDetails() {
           kind: k.spec.sourceRef.kind,
           metadata: { name: k.spec.sourceRef.name, namespace: k.spec.sourceRef.namespace || k.metadata.namespace }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources as any);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
         setCanReconcileWithSources(canPatch && canPatchSrc);
       } else {
         setCanReconcileWithSources(canPatch);

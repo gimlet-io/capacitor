@@ -4,7 +4,7 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { getWebSocketClient } from "../../k8sWebSocketClient.ts";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { stringify, parse as parseYAML } from "@std/yaml";
 import { type DiffHunk, type FileDiffSection, generateDiffHunks } from "../../utils/diffUtils.ts";
@@ -26,6 +26,7 @@ export function HelmHistory(props: {
   const [diffSections, setDiffSections] = createSignal<{ [key: string]: { fileSections: FileDiffSection[] } }>({});
 
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
   let tableRef: HTMLTableElement | undefined;
   let unsubscribeHistory: (() => void) | null = null;
 
@@ -33,7 +34,7 @@ export function HelmHistory(props: {
   createEffect(() => {
     const res: MinimalK8sResource = { apiVersion: props.apiVersion, kind: props.kind, metadata: { name: props.name, namespace: props.namespace } };
     (async () => {
-      const ok = await checkPermissionSSAR(res, { verb: 'patch' }, apiResourceStore.apiResources as any);
+      const ok = await checkPermission(res, { verb: 'patch' });
       setCanRollback(ok);
     })();
   });

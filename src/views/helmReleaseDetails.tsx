@@ -8,7 +8,7 @@ import { Show } from "solid-js";
 import type { HelmRelease, Event, Kustomization, ExtendedKustomization, OCIRepository } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
@@ -34,6 +34,7 @@ export function HelmReleaseDetails() {
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
   const filterStore = useFilterStore();
+  const checkPermission = useCheckPermissionSSAR();
 
   const [helmRelease, setHelmRelease] = createSignal<HelmRelease & { events?: Event[] } | null>(null);
   const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
@@ -155,7 +156,7 @@ export function HelmReleaseDetails() {
 
     const mainRes: MinimalK8sResource = { apiVersion: hr.apiVersion, kind: hr.kind, metadata: { name: hr.metadata.name, namespace: hr.metadata.namespace } };
     (async () => {
-      const canPatchMain = await checkPermissionSSAR(mainRes, { verb: 'patch' }, apiResourceStore.apiResources);
+      const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
       setCanReconcile(canPatchMain);
       setCanPatch(canPatchMain);
 
@@ -169,7 +170,7 @@ export function HelmReleaseDetails() {
           kind: src.kind,
           metadata: { name: src.name, namespace: src.namespace || hr.metadata.namespace }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
         setCanReconcileWithSources(canPatchMain && canPatchSrc);
       } else {
         setCanReconcileWithSources(canPatchMain);

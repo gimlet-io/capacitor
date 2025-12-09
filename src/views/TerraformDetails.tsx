@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "@solidjs/router";
 import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff, handleFluxApprove } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
@@ -21,6 +21,7 @@ export function TerraformDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
 
   const [terraform, setTerraform] = createSignal<Terraform & { events?: Event[] } | null>(null);
 
@@ -254,7 +255,7 @@ export function TerraformDetails() {
 
     const mainRes: MinimalK8sResource = { apiVersion: tf.apiVersion, kind: tf.kind, metadata: { name: tf.metadata.name, namespace: tf.metadata.namespace } };
     (async () => {
-      const canPatchMain = await checkPermissionSSAR(mainRes, { verb: 'patch' }, apiResourceStore.apiResources);
+      const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
       setCanReconcile(canPatchMain);
       setCanPatch(canPatchMain);
 
@@ -265,7 +266,7 @@ export function TerraformDetails() {
           kind: src.kind,
           metadata: { name: src.name, namespace: src.namespace || tf.metadata.namespace }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
         setCanReconcileWithSources(canPatchMain && canPatchSrc);
       } else {
         setCanReconcileWithSources(canPatchMain);

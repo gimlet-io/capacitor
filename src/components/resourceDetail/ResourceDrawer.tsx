@@ -13,7 +13,7 @@ import { getResourceName } from "../../utils/k8s.ts";
 import { Tabs } from "../Tabs.tsx";
 import hljs from "highlight.js";
 import { MetricsViewer } from "./MetricsViewer.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 import { doesEventMatchShortcut } from "../../utils/shortcuts.ts";
 import { generateDiffHunks, type DiffHunk } from "../../utils/diffUtils.ts";
 
@@ -43,6 +43,7 @@ export function ResourceDrawer(props: {
   const [editDiffHunks, setEditDiffHunks] = createSignal<DiffHunk[]>([]);
 
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
   let lastResourceKey: string | undefined;
   
   let describeContentRef: HTMLPreElement | undefined;
@@ -221,7 +222,7 @@ export function ResourceDrawer(props: {
 
     (async () => {
       try {
-        const allowed = await checkPermissionSSAR(
+        const allowed = await checkPermission(
           {
             apiVersion: res.apiVersion,
             kind: res.kind,
@@ -230,8 +231,7 @@ export function ResourceDrawer(props: {
               namespace: res.metadata.namespace,
             },
           },
-          { verb: "patch" },
-          apiResourceStore.apiResources as any
+          { verb: "patch" }
         );
         if (!cancelled) {
           // Only apply if resource is still the same
