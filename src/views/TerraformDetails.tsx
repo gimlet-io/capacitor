@@ -25,9 +25,9 @@ export function TerraformDetails() {
 
   const [terraform, setTerraform] = createSignal<Terraform & { events?: Event[] } | null>(null);
 
-  const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
-  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
-  const [canPatch, setCanPatch] = createSignal<boolean | undefined>(undefined);
+  const [canReconcile, setCanReconcile] = createSignal<boolean>(false);
+  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean>(false);
+  const [canPatch, setCanPatch] = createSignal<boolean>(false);
 
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
@@ -247,9 +247,6 @@ export function TerraformDetails() {
   createEffect(() => {
     const tf = terraform();
     if (!tf) {
-      setCanReconcile(undefined);
-      setCanReconcileWithSources(undefined);
-      setCanPatch(undefined);
       return;
     }
 
