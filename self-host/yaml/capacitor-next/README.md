@@ -29,6 +29,13 @@ kubectl create secret generic capacitor-next \
   --from-literal=LICENSE_KEY="message laszlo at gimlet.io" \
   --from-literal=SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
   --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+  --from-literal=registry.yaml="clusters:
+- id: in-cluster
+  name: In-cluster
+  apiServerURL: https://kubernetes.default.svc
+  certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  serviceAccount:
+    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token"
 ```
 
 ```yaml

@@ -14,7 +14,6 @@ spec:
     metadata:
       labels:
         app: capacitor-next
-        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: capacitor-next
       containers:
