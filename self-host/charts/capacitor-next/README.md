@@ -20,7 +20,18 @@ helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
   --set env.AUTH=noauth \
   --set env.IMPERSONATE_SA_RULES="noauth=flux-system:capacitor-next-preset-clusteradmin" \
   --set env.SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
-  --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+  --set env.SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)" \
+  --from-literal=registry.yaml="clusters:
+- id: in-cluster
+  name: In-cluster
+  apiServerURL: https://kubernetes.default.svc
+  certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  serviceAccount:
+    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token" #\
+# - id: remote-cluster  # Must match CLUSTER_ID of the agent
+#   name: remote-cluster
+#   agent: true
+#   agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET of the agent
 ```
 
 ### Installing with FluxCD
@@ -30,7 +41,18 @@ kubectl create secret generic capacitor-next \
   --namespace=flux-system \
   --from-literal=LICENSE_KEY="message laszlo at gimlet.io" \
   --from-literal=SESSION_HASH_KEY="base64:$(openssl rand -base64 32)" \
-  --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)"
+  --from-literal=SESSION_BLOCK_KEY="base64:$(openssl rand -base64 32)" \
+  --from-literal=registry.yaml="clusters:
+- id: in-cluster
+  name: In-cluster
+  apiServerURL: https://kubernetes.default.svc
+  certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  serviceAccount:
+    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token" #\
+# - id: remote-cluster  # Must match CLUSTER_ID of the agent
+#   name: remote-cluster
+#   agent: true
+#   agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET of the agent
 ```
 
 ```yaml

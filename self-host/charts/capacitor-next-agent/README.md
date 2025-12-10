@@ -9,13 +9,13 @@ Before deploying the agent, you must configure the cluster in your Capacitor ser
 ```yaml
 # In the server's values.yaml
 env:
-registry.yaml: |
-  clusters:
-    ...
-    - id: production-cluster  # Must match CLUSTER_ID
-      name: Production
-      agent: true
-      agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET
+  registry.yaml: |
+    clusters:
+      ...
+      - id: production-cluster  # Must match CLUSTER_ID
+        name: Production
+        agent: true
+        agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET
 ```
 
 ### Installing with `helm` CLI
@@ -30,7 +30,7 @@ helm upgrade -i capacitor-next-agent oci://ghcr.io/gimlet-io/charts/capacitor-ne
   --version 0.12.0 \
   --namespace flux-system \
   --create-namespace \
-  --set env.BACKEND_WS_URL backendWsUrl="wss://capacitor.example.com/agent/connect" \
+  --set env.BACKEND_WS_URL="wss://capacitor.example.com/agent/connect" \
   --set env.CLUSTER_ID="my-cluster" \
   --set env.AGENT_SHARED_SECRET="your-shared-secret"
 ```

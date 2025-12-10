@@ -69,8 +69,8 @@ spec:
             {{- end }}
       volumes:
         - name: registry
-          configMap:
-            name: {{ include "capacitor-server.fullname" . }}
+          secret:
+            secretName: {{ include "capacitor-server.fullname" . }}
             items:
               - key: registry.yaml
                 path: registry.yaml
