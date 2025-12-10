@@ -506,11 +506,11 @@ export function SourceDetails() {
                     {src.status && (
                       <div class="info-item full-width">
                         <div class="info-grid">
-                          <div class="info-item" style={{ "grid-column": "1 / 3" }}>
+                          <div class="info-item" style={{ "grid-column": "1 / 4" }}>
                             <span class="label">Artifact Revision:</span>
                             {renderSourceRevision(src as unknown as Source)}
                           </div>
-                          <div class="info-item">
+                          <div class="info-item" style={{ "grid-column": "4 / 7" }}>
                             <span class="label">Artifact URL:</span>
                             <span class="value">
                               {src.status?.artifact?.url || "None"}
