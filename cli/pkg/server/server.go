@@ -936,7 +936,7 @@ func (s *Server) Setup() {
 			})
 		}
 
-		tempDir, err := s.downloadAndExtractArtifact(ctx, client, artifactURL)
+		tempDir, err := DownloadAndExtractArtifact(ctx, client, artifactURL)
 		if err != nil {
 			log.Printf("Error downloading source artifact for %s/%s (%s): %v", namespace, name, kindParam, err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -945,7 +945,7 @@ func (s *Server) Setup() {
 		}
 		defer os.RemoveAll(tempDir)
 
-		files, err := s.listArtifactFiles(tempDir)
+		files, err := ListArtifactFiles(tempDir)
 		if err != nil {
 			log.Printf("Error listing files in artifact for %s/%s (%s): %v", namespace, name, kindParam, err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -1758,8 +1758,9 @@ func humanizeDuration(d time.Duration) string {
 	return fmt.Sprintf("%dd", days)
 }
 
-// downloadAndExtractArtifact downloads and extracts a Flux source artifact
-func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, error) {
+// DownloadAndExtractArtifact downloads and extracts a Flux source artifact using the provided Kubernetes client.
+// It is exported so that external backends (like onurl) can reuse the same implementation without duplication.
+func DownloadAndExtractArtifact(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, error) {
 	// Create a temporary directory
 	tempDir, err := os.MkdirTemp("", "flux-artifact-*")
 	if err != nil {
@@ -1791,7 +1792,7 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kuberne
 		// This is an internal cluster URL, we need to set up port-forwarding
 		log.Printf("Detected internal cluster URL, setting up port-forwarding to source-controller")
 
-		localURL, cleanup, err := s.setupSourceControllerPortForward(ctx, client, artifactURL)
+		localURL, cleanup, err := SetupSourceControllerPortForward(ctx, client, artifactURL)
 		if err != nil {
 			os.RemoveAll(tempDir)
 			return "", fmt.Errorf("failed to setup port-forwarding: %w", err)
@@ -1847,7 +1848,7 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kuberne
 
 	if isGzip {
 		// Extract the tar.gz archive
-		extractedCount, err := s.extractTarGz(data, tempDir)
+		extractedCount, err := ExtractTarGz(data, tempDir)
 		if err != nil {
 			os.RemoveAll(tempDir)
 			return "", fmt.Errorf("failed to extract artifact: %w", err)
@@ -1874,9 +1875,9 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kuberne
 	return tempDir, nil
 }
 
-// extractTarGz extracts a tar.gz archive to the specified directory
-// Returns the number of files/directories extracted
-func (s *Server) extractTarGz(data []byte, destDir string) (int, error) {
+// ExtractTarGz extracts a tar.gz archive to the specified directory.
+// Returns the number of files/directories extracted.
+func ExtractTarGz(data []byte, destDir string) (int, error) {
 	// Create a gzip reader
 	gzReader, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
@@ -1948,10 +1949,11 @@ func (s *Server) extractTarGz(data []byte, destDir string) (int, error) {
 	return extractedCount, nil
 }
 
-// listArtifactFiles walks the extracted artifact directory and returns a shallow
-// file listing including file contents (intended for source artifacts).
-// Paths are returned relative to the artifact root.
-func (s *Server) listArtifactFiles(root string) ([]map[string]interface{}, error) {
+// ListArtifactFiles walks the extracted artifact directory and returns a shallow
+// file listing including file contents (intended for source artifacts). Paths are
+// returned relative to the artifact root.
+// It is exported so that external backends can reuse the same serialization shape.
+func ListArtifactFiles(root string) ([]map[string]interface{}, error) {
 	files := []map[string]interface{}{}
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
@@ -2195,8 +2197,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.echo.Shutdown(ctx)
 }
 
-// setupSourceControllerPortForward sets up port-forwarding to the source-controller
-func (s *Server) setupSourceControllerPortForward(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, func(), error) {
+// SetupSourceControllerPortForward sets up port-forwarding to the source-controller
+// for the given artifact URL. It is exported so that external backends can reuse
+// the same behavior when inspecting Flux source artifacts.
+func SetupSourceControllerPortForward(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, func(), error) {
 	// Parse the original URL to extract the path
 	u, err := url.Parse(artifactURL)
 	if err != nil {
@@ -2729,7 +2733,7 @@ func (s *Server) getSourceArtifactDirectory(ctx context.Context, client *kuberne
 	}
 
 	// Download and extract the artifact
-	tempDir, err := s.downloadAndExtractArtifact(ctx, client, artifactURL)
+	tempDir, err := DownloadAndExtractArtifact(ctx, client, artifactURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to download and extract artifact: %w", err)
 	}
