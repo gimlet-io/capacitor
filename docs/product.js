@@ -242,7 +242,9 @@
           for (let i = 0; i < headerKeys.length; i++) {
             const key = headerKeys[i];
             const val = row[key] != null ? String(row[key]) : '';
-            html += '<td>' + esc(val) + '</td>';
+            // Use the same inline formatter as regular markdown so links,
+            // code, emphasis, etc. render inside yaml-table cells.
+            html += '<td>' + formatInline(val) + '</td>';
           }
           html += '</tr>';
         }

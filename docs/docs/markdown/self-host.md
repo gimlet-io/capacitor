@@ -49,6 +49,52 @@ There are various options to deploy Capacitor Next bellow. Regardless of what in
 Regardless of what installation method you chose, you can configure behavior with environment variables.
 
 ```yaml-table
+- Variable: PORT
+  Description: Sets the HTTP listening port for the Capacitor Next server.
+- Variable: STATIC_DIR
+  Description: Specifies the directory from which Capacitor Next serves static frontend assets. Only relevant in development.
+- Variable: FLUXCD_*
+  Description: Sets where the FluxCD controllers run so Capacitor Next can discover their logs. [See usage](https://github.com/gimlet-io/capacitor/blob/main/self-host/charts/capacitor-next/values.yaml#L54-L62).
 - Variable: AUTH
-  Description: ..
+  Description: Selects the authentication mode for Capacitor Next, such as `noauth`, `static`, or `oidc`. [See Authentication](#authentication)
+- Variable: AUTH_DEBUG
+  Description: When true, logs impersonation headers for debugging namespace listing, OIDC, and ServiceAccount impersonation. [See Authentication](#authentication)
+- Variable: IMPERSONATE_SA_RULES
+  Description: Maps user identities to Kubernetes ServiceAccounts in the format `<user>=<namespace>:<service-account>[,<user2>=<namespace2>:<service-account2>]`. [See Authorication](#authorization)
+- Variable: OIDC_ISSUER
+  Description: Specifies the OIDC issuer URL used by Capacitor Next for authentication.
+- Variable: OIDC_CLIENT_ID
+  Description: Sets the OIDC client ID registered for Capacitor Next.
+- Variable: OIDC_CLIENT_SECRET
+  Description: Sets the OIDC client secret used by Capacitor Next to authenticate with the OIDC provider.
+- Variable: OIDC_REDIRECT_URL
+  Description: Defines the redirect URL where the OIDC provider sends users back after authentication.
+- Variable: OIDC_INSECURE_SKIP_TLS_VERIFY
+  Description: When true, skips TLS certificate verification for the OIDC issuer, mainly for development setups.
+- Variable: ENTRA_ID_FEDEREATED_TOKEN_AUTH
+  Description: Enables Azure Entra ID federated token authentication for OIDC when set to true.
+- Variable: OIDC_CLIENT_CREDENTIALS_SCOPE
+  Description: The scope used for a non‑interactive client_credentials token request, specifically the federated token preflight when ENTRA_ID_FEDEREATED_TOKEN_AUTH is enabled (Azure Workload Identity). Default in this project: https://graph.microsoft.com/.default.
+- Variable: OIDC_SCOPES
+  Description: Sets the OIDC scopes requested during authentication, such as `openid,profile,email,groups`.
+- Variable: OIDC_GROUPS_CLAIM
+  Description: Specifies the claim name in the OIDC token that contains the user’s groups.
+- Variable: OIDC_GROUP_PREFIX
+  Description: If your OIDC group names don't match exactly your RBAC role grant subjects, you add a prefix to the OIDC group name when setting the impersonation headers.
+- Variable: OIDC_GROUP_SUFFIX
+  Description: If your OIDC group names don't match exactly your RBAC role grant subjects, you add a suffix to the OIDC group name when setting the impersonation headers.
+- Variable: SESSION_HASH_KEY
+  Description: Signs the session cookie so the client can’t tamper with its contents without invalidating the signature.
+- Variable: SESSION_BLOCK_KEY
+  Description: Encrypts the session cookie’s contents so the client can’t read what’s inside (email, groups, selected cluster, etc.).
+- Variable: CLUSTER_REGISTRY_PATH
+  Description: Points to the YAML file that defines the cluster registry Capacitor Next connects to.
+- Variable: AUTHORIZED_EMAILS
+  Description: Lists the email addresses or wildcards that are allowed to authenticate via OIDC. [See Authentication](#authentication)
+- Variable: USERS
+  Description: Defines static users and bcrypt-hashed passwords in the format `email:bcrypt_password[,email2:bcrypt_password]`. [See Authentication](#authentication)
+- Variable: SYSTEM_VIEWS
+  Description: Provides a JSON definition of default system views and filters shown in the Capacitor Next UI. [See Filters and Views](  #filters-and-views:system-views-in-the-self-hosted-version)
+- Variable: AGENT_SHARED_SECRET
+  Description: Shared secret string that must match between Capacitor Next and its agent to authenticate agent connections. [See Agent installation](https://github.com/gimlet-io/capacitor/blob/main/self-host/charts/capacitor-next-agent/README.md)
 ```
