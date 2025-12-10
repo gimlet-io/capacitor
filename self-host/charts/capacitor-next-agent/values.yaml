@@ -1,15 +1,15 @@
-# Default values for capacitor-agent
-
-# Container image configuration
 image:
   repository: ghcr.io/gimlet-io/capacitor-next
-  tag: agent-v2025-12.1-rc3
+  tag: agent-0.12.0-rc.13
   pullPolicy: IfNotPresent
 
-# Number of replicas
 replicaCount: 1
 
-# Resource limits and requests
+# Environment variables to configure all aspects of Capacitor Next Agent
+env:
+  # BACKEND_WS_URL: "wss://capacitor.example.com/agent/connect"
+  # CLUSTER_ID: "production-cluster"
+
 resources:
   requests:
     cpu: "50m"
@@ -18,42 +18,29 @@ resources:
     cpu: "200m"
     memory: "256Mi"
 
-# Service Account
+podLabels: {}
+podAnnotations: {}
+
+configmapLabels: {}
+configmapAnnotations: {}
+
 serviceAccount:
   create: true
   name: capacitor-next-agent
+  labels: {}
+  annotations: {}
 
-# RBAC configuration
-rbac:
-  create: true
-  createImpersonatorRole: true
-
-# Agent configuration
-agent:
-  # WebSocket URL of the Capacitor server
-  # Format: wss://capacitor.example.com/agent/connect
-  backendWsUrl: ""  # Required
-  
-  # Cluster ID - must match the cluster ID configured in the server
-  clusterId: ""  # Required
-  
-  # Shared secret for agent authentication
-  # Must match the agentSecret in the server's cluster configuration
-  # Generate with: openssl rand -hex 32
-  agentSharedSecret: ""  # Required
-
-# Node selector
 nodeSelector: {}
 
-# Tolerations
 tolerations: []
 
-# Affinity
 affinity: {}
 
 # Existing secret configuration
-# If specified, the deployment will use this secret in addition to the built-in secret
-# Both secrets will be loaded via envFrom, allowing you to override or supplement values
+# If specified, both the chart environment variables from `env`
+# and the existing secret are loaded. The existing secret is loaded last,
+# allowing it to override values from the `env` value,
+# if they share the same keys.
 existingSecret:
   name: ""  # Name of the existing secret to use
 
@@ -71,4 +58,3 @@ securityContext:
     capabilities:
       drop:
         - ALL
-

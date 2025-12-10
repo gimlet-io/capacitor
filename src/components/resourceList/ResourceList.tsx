@@ -11,7 +11,7 @@ import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
 export interface ResourceCommand {
   shortcut: KeyboardShortcut;
@@ -270,6 +270,13 @@ export const replaceHandlers = (
             handlers.navigate!(`/helmrelease/${resource.metadata.namespace}/${resource.metadata.name}`);
           }
         };
+      } else if (cmd.shortcut.key === 'Enter' && cmd.shortcut.description.toLowerCase().includes('source details') && handlers.navigate) {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => {
+            handlers.navigate!(`/source/${resource.kind}/${resource.metadata.namespace}/${resource.metadata.name}`);
+          }
+        };
       } else if (cmd === showPodsInNamespace && handlers.updateFilters) {
         commands[i] = {
           ...cmd,
@@ -482,8 +489,8 @@ export function ResourceList<T>(props: {
     setDrawerOpen(false);
   };
 
-  // Resolve plural resource name using the API resource list
-  const apiResourceStore = useApiResourceStore();
+  // Resolve plural resource name using the API resource list for permissions
+  const checkPermission = useCheckPermissionSSAR();
 
   // Unique id for a command
   const commandId = (cmd: ResourceCommand) => `${cmd.shortcut.key}::${cmd.shortcut.description}`;
@@ -498,39 +505,39 @@ export function ResourceList<T>(props: {
     }
     // Delete
     if (desc.includes('delete') && (key.includes('+d'))) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'delete', nameOverride: resource.metadata.name }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
       return allowed;
     }
     // Logs
     if (key === 'l' && desc.includes('logs')) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermission(resource, { verb: 'get', subresource: 'log', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
       return allowed;
     }
     // Exec
     if (key === 'x' && desc.includes('exec')) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
       return allowed;
     }
     // Scale
     if (desc.includes('scale') && key.includes('+s')) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'update', subresource: 'scale' }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermission(resource, { verb: 'update', subresource: 'scale' });
       return allowed;
     }
     // Rollout restart
     if (desc.includes('rollout restart') && key.includes('+r')) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'patch' }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermission(resource, { verb: 'patch' });
       return allowed;
     }
     // Flux reconcile
     if (desc.startsWith('reconcile')) {
-      const mainAllowed = await checkPermissionSSAR(resource, { verb: 'patch' }, apiResourceStore.apiResources as any);
+      const mainAllowed = await checkPermission(resource, { verb: 'patch' });
       if (!mainAllowed) return false;
       if (desc.includes('with sources')) {
         const src: any = (resource as any)?.spec?.sourceRef;
         if (src?.kind && src?.name) {
           const srcGroup = typeof src?.apiVersion === 'string' && src.apiVersion.includes('/') ? src.apiVersion.split('/')[0] : undefined;
           const tempResource = { ...resource, kind: src.kind, apiVersion: src.apiVersion || '', metadata: { name: src.name, namespace: src.namespace || resource.metadata.namespace } } as MinimalK8sResource;
-          const srcAllowed = await checkPermissionSSAR(tempResource, { verb: 'patch', groupOverride: srcGroup }, apiResourceStore.apiResources as any);
+          const srcAllowed = await checkPermission(tempResource, { verb: 'patch', groupOverride: srcGroup });
           if (!srcAllowed) return false;
         }
       }
@@ -538,7 +545,7 @@ export function ResourceList<T>(props: {
     }
     // Edit resource YAML
     if (desc.includes('edit') && key.includes('+e')) {
-      const allowed = await checkPermissionSSAR(resource, { verb: 'patch' }, apiResourceStore.apiResources as any);
+      const allowed = await checkPermission(resource, { verb: 'patch' });
       return allowed;
     }
     return undefined;

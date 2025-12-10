@@ -7,9 +7,9 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cli/cmd/main.go",
-      // "env": {
-      //   "K8S_PROXY_KUBECONFIG": "/Users/laszlo/dev/orka/kubeconfig"
-      // }
+      "env": {
+        "KUBECONFIG": "/Users/laszlo/.kube/config"
+      }
     }
   ]
 }

@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "@solidjs/router";
 import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff, handleFluxApprove } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
@@ -21,12 +21,13 @@ export function TerraformDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
 
   const [terraform, setTerraform] = createSignal<Terraform & { events?: Event[] } | null>(null);
 
-  const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
-  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
-  const [canPatch, setCanPatch] = createSignal<boolean | undefined>(undefined);
+  const [canReconcile, setCanReconcile] = createSignal<boolean>(false);
+  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean>(false);
+  const [canPatch, setCanPatch] = createSignal<boolean>(false);
 
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
@@ -246,15 +247,12 @@ export function TerraformDetails() {
   createEffect(() => {
     const tf = terraform();
     if (!tf) {
-      setCanReconcile(undefined);
-      setCanReconcileWithSources(undefined);
-      setCanPatch(undefined);
       return;
     }
 
     const mainRes: MinimalK8sResource = { apiVersion: tf.apiVersion, kind: tf.kind, metadata: { name: tf.metadata.name, namespace: tf.metadata.namespace } };
     (async () => {
-      const canPatchMain = await checkPermissionSSAR(mainRes, { verb: 'patch' }, apiResourceStore.apiResources);
+      const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
       setCanReconcile(canPatchMain);
       setCanPatch(canPatchMain);
 
@@ -265,7 +263,7 @@ export function TerraformDetails() {
           kind: src.kind,
           metadata: { name: src.name, namespace: src.namespace || tf.metadata.namespace }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
         setCanReconcileWithSources(canPatchMain && canPatchSrc);
       } else {
         setCanReconcileWithSources(canPatchMain);

@@ -1,5 +1,3 @@
-{{- if .Values.rbac.create }}
-{{- if .Values.rbac.createImpersonatorRole }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -26,6 +24,3 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "capacitor-agent.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- end }}
-{{- end }}
-

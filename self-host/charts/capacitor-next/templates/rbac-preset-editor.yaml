@@ -1,0 +1,248 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capacitor-next-preset-editor
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+rules:
+# =============================================================================
+# Core Kubernetes Resources (full access to workloads, including secrets)
+# =============================================================================
+
+# Core API group - workload resources (full access)
+- apiGroups: [""]
+  resources:
+    - configmaps
+    - endpoints
+    - events
+    - limitranges
+    - persistentvolumeclaims
+    - persistentvolumes
+    - pods
+    - pods/log
+    - pods/status
+    - pods/exec
+    - pods/portforward
+    - replicationcontrollers
+    - resourcequotas
+    - secrets
+    - serviceaccounts
+    - services
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Core API group - namespaces and nodes (read-only, cannot delete/modify)
+- apiGroups: [""]
+  resources:
+    - namespaces
+    - nodes
+  verbs: ["get", "list", "watch"]
+
+# Apps API group (full access)
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Batch API group (full access)
+- apiGroups: ["batch"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Autoscaling API group (full access)
+- apiGroups: ["autoscaling"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Networking API group (full access)
+- apiGroups: ["networking.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Policy API group (full access)
+- apiGroups: ["policy"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Storage API group (full access)
+- apiGroups: ["storage.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Certificates API group (full access)
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Coordination API group (full access)
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Discovery API group (full access)
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Events API group (full access)
+- apiGroups: ["events.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Scheduling API group (read-only - editors shouldn't modify scheduling)
+- apiGroups: ["scheduling.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Node API group (read-only)
+- apiGroups: ["node.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# Security-sensitive resources (READ-ONLY - key difference from clusteradmin)
+# =============================================================================
+
+# RBAC API group (read-only - cannot escalate privileges)
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Admission API groups (read-only - cannot modify webhooks)
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# API Extensions / CRDs (read-only - cannot create/modify CRDs)
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Metrics API (for pod/node metrics)
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# FluxCD Resources (full access - all versions including 2.7+)
+# =============================================================================
+
+# FluxCD Source Controller - all resources
+- apiGroups: ["source.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Kustomize Controller - all resources
+- apiGroups: ["kustomize.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Helm Controller - all resources
+- apiGroups: ["helm.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Notification Controller - all resources
+- apiGroups: ["notification.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# FluxCD Image Automation Controller - all resources
+- apiGroups: ["image.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# =============================================================================
+# Terraform/Tofu Controller (FluxCD ecosystem)
+# =============================================================================
+
+# Tofu Controller / Terraform Controller - all resources
+- apiGroups: ["infra.contrib.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# =============================================================================
+# Kluctl Resources
+# =============================================================================
+
+# Kluctl GitOps Controller - all resources
+- apiGroups: ["gitops.kluctl.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# =============================================================================
+# Other Common GitOps/CD Resources
+# =============================================================================
+
+# Argo CD (if present)
+- apiGroups: ["argoproj.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Crossplane (if present)
+- apiGroups: ["pkg.crossplane.io", "apiextensions.crossplane.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Cert-Manager (if present)
+- apiGroups: ["cert-manager.io", "acme.cert-manager.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# External Secrets (if present)
+- apiGroups: ["external-secrets.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Sealed Secrets (if present)
+- apiGroups: ["bitnami.com"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Prometheus/Monitoring (if present)
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Istio (if present)
+- apiGroups: ["networking.istio.io", "security.istio.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Gateway API
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Traefik (if present)
+- apiGroups: ["traefik.io", "traefik.containo.us"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Carvel (if present)
+- apiGroups: ["packaging.carvel.dev", "data.packaging.carvel.dev", "kappctrl.k14s.io", "secretgen.carvel.dev", "secretgen.k14s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capacitor-next-preset-editor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capacitor-next-preset-editor
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capacitor-next-preset-editor
+subjects:
+- kind: ServiceAccount
+  name: capacitor-next-preset-editor
+  namespace: {{ .Release.Namespace }}

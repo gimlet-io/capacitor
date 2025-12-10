@@ -21,137 +21,73 @@ Deno.test("normalizeVersion - handles dev version", () => {
 });
 
 Deno.test("normalizeVersion - removes v prefix", () => {
-  assertEquals(normalizeVersion("v2025-09.1"), "2025-09.1");
-  assertEquals(normalizeVersion("v2025-09.1-patch1"), "2025-09.1-patch1");
+  assertEquals(normalizeVersion("v0.12.0"), "0.12.0");
+  assertEquals(normalizeVersion("v0.12.0-rc1"), "0.12.0-rc1");
 });
 
 Deno.test("normalizeVersion - handles version without v prefix", () => {
-  assertEquals(normalizeVersion("2025-09.1"), "2025-09.1");
+  assertEquals(normalizeVersion("0.12.0"), "0.12.0");
 });
 
 // Tests for isFeatureRelease
-Deno.test("isFeatureRelease - identifies valid feature releases", () => {
-  assertEquals(isFeatureRelease("v2025-09.1"), true);
-  assertEquals(isFeatureRelease("v2025-09.2"), true);
-  assertEquals(isFeatureRelease("v2025-10.1"), true);
-  assertEquals(isFeatureRelease("v2024-12.3"), true);
-  assertEquals(isFeatureRelease("2025-09.1"), true); // without v prefix
+Deno.test("isFeatureRelease - identifies stable semver releases", () => {
+  assertEquals(isFeatureRelease("v0.12.0"), true);
+  assertEquals(isFeatureRelease("0.12.0"), true);
+  assertEquals(isFeatureRelease("1.0.0"), true);
 });
 
-Deno.test("isFeatureRelease - rejects patch releases", () => {
-  assertEquals(isFeatureRelease("v2025-09.1-patch1"), false);
-  assertEquals(isFeatureRelease("v2025-09.1-patch2"), false);
-});
-
-Deno.test("isFeatureRelease - rejects rc releases", () => {
-  assertEquals(isFeatureRelease("v2025-09.2-rc1"), false);
-  assertEquals(isFeatureRelease("v2025-09.2-rc2"), false);
-});
-
-Deno.test("isFeatureRelease - rejects debug releases", () => {
-  assertEquals(isFeatureRelease("v2025-09.2-debug1"), false);
-  assertEquals(isFeatureRelease("v2025-09.2-debug2"), false);
-});
-
-Deno.test("isFeatureRelease - rejects invalid formats", () => {
+Deno.test("isFeatureRelease - rejects pre-releases and invalid formats", () => {
+  assertEquals(isFeatureRelease("0.12.0-rc1"), false);
+  assertEquals(isFeatureRelease("0.12.0-beta.1"), false);
   assertEquals(isFeatureRelease(""), false);
   assertEquals(isFeatureRelease("dev"), false);
-  assertEquals(isFeatureRelease("0.0.0"), false);
-  assertEquals(isFeatureRelease("v1.0.0"), false); // semantic version
-  assertEquals(isFeatureRelease("v2025.09.1"), false); // wrong separator
-  assertEquals(isFeatureRelease("v25-09.1"), false); // short year
+  assertEquals(isFeatureRelease("2025-09.1"), false);
 });
 
-// Tests for parseCalendarVersion
-Deno.test("parseCalendarVersion - parses valid calendar versions", () => {
-  assertEquals(parseCalendarVersion("v2025-09.1"), [2025, 9, 1]);
-  assertEquals(parseCalendarVersion("v2025-09.2"), [2025, 9, 2]);
-  assertEquals(parseCalendarVersion("v2024-12.3"), [2024, 12, 3]);
-  assertEquals(parseCalendarVersion("2025-10.1"), [2025, 10, 1]); // without v prefix
+// Tests for parseCalendarVersion (now backed by semver parsing)
+Deno.test("parseCalendarVersion (semver) - parses valid semver", () => {
+  assertEquals(parseCalendarVersion("v0.12.0"), [0, 12, 0]);
+  assertEquals(parseCalendarVersion("0.12.1"), [0, 12, 1]);
+  assertEquals(parseCalendarVersion("1.2.3"), [1, 2, 3]);
 });
 
-Deno.test("parseCalendarVersion - handles next- prefix", () => {
-  assertEquals(parseCalendarVersion("next-2025-09.1"), [2025, 9, 1]);
+Deno.test("parseCalendarVersion (semver) - ignores pre-release and build metadata", () => {
+  assertEquals(parseCalendarVersion("0.12.0-rc1"), [0, 12, 0]);
+  assertEquals(parseCalendarVersion("1.2.3+build.10"), [1, 2, 3]);
+  assertEquals(parseCalendarVersion("1.2.3-rc1+build.10"), [1, 2, 3]);
 });
 
-Deno.test("parseCalendarVersion - parses version with suffix (extracts core)", () => {
-  assertEquals(parseCalendarVersion("v2025-09.1-patch1"), [2025, 9, 1]);
-  assertEquals(parseCalendarVersion("v2025-09.2-rc2"), [2025, 9, 2]);
-  assertEquals(parseCalendarVersion("v2025-09.2-debug1"), [2025, 9, 2]);
-});
-
-Deno.test("parseCalendarVersion - returns [0,0,0] for invalid formats", () => {
+Deno.test("parseCalendarVersion (semver) - returns [0,0,0] for invalid formats", () => {
   assertEquals(parseCalendarVersion(""), [0, 0, 0]);
   assertEquals(parseCalendarVersion("dev"), [0, 0, 0]);
-  assertEquals(parseCalendarVersion("v1.0.0"), [0, 0, 0]);
-  assertEquals(parseCalendarVersion("invalid"), [0, 0, 0]);
+  assertEquals(parseCalendarVersion("2025-09.1"), [0, 0, 0]);
 });
 
-// Tests for isNewerVersion
-Deno.test("isNewerVersion - detects newer year", () => {
-  assertEquals(isNewerVersion("v2026-01.1", "v2025-12.2"), true);
-  assertEquals(isNewerVersion("v2025-01.1", "v2026-12.2"), false);
+// Tests for isNewerVersion with pure semver
+Deno.test("isNewerVersion - detects newer major", () => {
+  assertEquals(isNewerVersion("1.0.0", "0.12.0"), true);
+  assertEquals(isNewerVersion("0.12.0", "1.0.0"), false);
 });
 
-Deno.test("isNewerVersion - detects newer month", () => {
-  assertEquals(isNewerVersion("v2025-10.1", "v2025-09.2"), true);
-  assertEquals(isNewerVersion("v2025-09.1", "v2025-10.2"), false);
+Deno.test("isNewerVersion - detects newer minor", () => {
+  assertEquals(isNewerVersion("0.13.0", "0.12.0"), true);
+  assertEquals(isNewerVersion("0.12.0", "0.13.0"), false);
 });
 
-Deno.test("isNewerVersion - detects newer feature number", () => {
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.1"), true);
-  assertEquals(isNewerVersion("v2025-09.1", "v2025-09.2"), false);
+Deno.test("isNewerVersion - detects newer patch", () => {
+  assertEquals(isNewerVersion("0.12.1", "0.12.0"), true);
+  assertEquals(isNewerVersion("0.12.0", "0.12.1"), false);
 });
 
-Deno.test("isNewerVersion - returns false for same version", () => {
-  assertEquals(isNewerVersion("v2025-09.1", "v2025-09.1"), false);
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.2"), false);
+Deno.test("isNewerVersion - returns false for same stable version", () => {
+  assertEquals(isNewerVersion("0.12.0", "0.12.0"), false);
+  assertEquals(isNewerVersion("1.2.3", "1.2.3"), false);
 });
 
-Deno.test("isNewerVersion - does NOT trigger on patch releases", () => {
-  // Patch releases should not be considered as updates
-  assertEquals(isNewerVersion("v2025-09.1-patch1", "v2025-09.1"), false);
-  assertEquals(isNewerVersion("v2025-09.1-patch2", "v2025-09.1-patch1"), false);
+Deno.test("isNewerVersion - ignores pre-release latest", () => {
+  assertEquals(isNewerVersion("0.12.0-rc1", "0.11.0"), false);
 });
 
-Deno.test("isNewerVersion - does NOT trigger on rc releases", () => {
-  // RC releases should not be considered as updates
-  assertEquals(isNewerVersion("v2025-09.2-rc1", "v2025-09.1"), false);
-  assertEquals(isNewerVersion("v2025-09.2-rc2", "v2025-09.2-rc1"), false);
-});
-
-Deno.test("isNewerVersion - does NOT trigger on debug releases", () => {
-  // Debug releases should not be considered as updates
-  assertEquals(isNewerVersion("v2025-09.2-debug1", "v2025-09.1"), false);
-  assertEquals(isNewerVersion("v2025-09.2-debug2", "v2025-09.2-debug1"), false);
-});
-
-Deno.test("isNewerVersion - feature release is newer than patch of previous feature", () => {
-  // v2025-09.2 is newer than v2025-09.1-patch1
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.1-patch1"), true);
-  assertEquals(isNewerVersion("v2025-10.1", "v2025-09.2-patch5"), true);
-});
-
-Deno.test("isNewerVersion - handles current version being a patch", () => {
-  // If current is v2025-09.1-patch1 and latest is v2025-09.2, should show update
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.1-patch1"), true);
-  // If current is v2025-09.1-patch1 and latest is v2025-09.1, should not show update
-  assertEquals(isNewerVersion("v2025-09.1", "v2025-09.1-patch1"), false);
-});
-
-Deno.test("isNewerVersion - complex real-world scenarios", () => {
-  // Current: v2025-09.1, Latest: v2025-09.2 (feature) -> show update
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.1"), true);
-  
-  // Current: v2025-09.1-patch1, Latest: v2025-09.2 (feature) -> show update
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.1-patch1"), true);
-  
-  // Current: v2025-09.1, Latest: v2025-09.1-patch1 -> do NOT show update
-  assertEquals(isNewerVersion("v2025-09.1-patch1", "v2025-09.1"), false);
-  
-  // Current: v2025-09.1, Latest: v2025-09.2-rc1 -> do NOT show update
-  assertEquals(isNewerVersion("v2025-09.2-rc1", "v2025-09.1"), false);
-  
-  // Current: v2025-09.2-rc1, Latest: v2025-09.2 (feature) -> show update
-  assertEquals(isNewerVersion("v2025-09.2", "v2025-09.2-rc1"), true);
+Deno.test("isNewerVersion - stable newer than pre-release of same version", () => {
+  assertEquals(isNewerVersion("0.12.0", "0.12.0-rc1"), true);
 });

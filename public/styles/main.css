@@ -588,6 +588,12 @@ h1 {
   border-color: var(--linear-text-tertiary);
 }
 
+.sync-button:disabled,
+.refresh-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .header-info {
   padding: 16px;
   background: var(--linear-bg-secondary);
@@ -1629,6 +1635,16 @@ td.message-cell {
   color: var(--linear-blue);
   border-bottom: 2px solid var(--linear-blue);
   font-weight: 500;
+}
+
+.drawer-tab.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.drawer-tab.disabled:hover {
+  color: var(--linear-text-secondary);
+  background-color: transparent;
 }
 
 .drawer-content {

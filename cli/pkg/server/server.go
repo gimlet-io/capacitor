@@ -863,6 +863,100 @@ func (s *Server) Setup() {
 
 	})
 
+	// Add endpoint for inspecting Flux source artifacts (GitRepository, OCIRepository, Bucket, etc.)
+	// This downloads the artifact from source-controller (using port-forward when needed),
+	// extracts it to a temporary directory, walks the files, and returns a lightweight file listing.
+	s.echo.GET("/api/:context/flux/source-artifact/:kind/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
+		kindParam := c.Param("kind")
+		namespace := c.Param("namespace")
+		name := c.Param("name")
+
+		if strings.TrimSpace(kindParam) == "" || strings.TrimSpace(namespace) == "" || strings.TrimSpace(name) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "kind, namespace, and name are required path parameters",
+			})
+		}
+
+		client := proxy.k8sClient
+		ctx := context.Background()
+
+		// Load the source resource based on kind
+		var (
+			sourceResource map[string]interface{}
+			err            error
+		)
+
+		switch strings.ToLower(kindParam) {
+		case "gitrepository":
+			sourceResource, err = s.getGitRepository(ctx, client, name, namespace)
+		case "ocirepository":
+			sourceResource, err = s.getOCIRepository(ctx, client, name, namespace)
+		case "bucket":
+			sourceResource, err = s.getBucket(ctx, client, name, namespace)
+		default:
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("unsupported source kind for artifact inspection: %s", kindParam),
+			})
+		}
+
+		if err != nil {
+			log.Printf("Error getting source resource %s/%s (%s): %v", namespace, name, kindParam, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to get source resource: %v", err),
+			})
+		}
+
+		status, ok := sourceResource["status"].(map[string]interface{})
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "source resource has no status",
+			})
+		}
+
+		artifact, ok := status["artifact"].(map[string]interface{})
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "source resource has no artifact",
+			})
+		}
+
+		artifactURL, ok := artifact["url"].(string)
+		if !ok || strings.TrimSpace(artifactURL) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "artifact has no URL",
+			})
+		}
+
+		tempDir, err := s.downloadAndExtractArtifact(ctx, client, artifactURL)
+		if err != nil {
+			log.Printf("Error downloading source artifact for %s/%s (%s): %v", namespace, name, kindParam, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to download and extract artifact: %v", err),
+			})
+		}
+		defer os.RemoveAll(tempDir)
+
+		files, err := s.listArtifactFiles(tempDir)
+		if err != nil {
+			log.Printf("Error listing files in artifact for %s/%s (%s): %v", namespace, name, kindParam, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to list artifact files: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"files":     files,
+			"kind":      kindParam,
+			"name":      name,
+			"namespace": namespace,
+		})
+	})
+
 	// Add endpoint for scaling Kubernetes resources (context-aware)
 	s.echo.POST("/api/:context/scale", func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
@@ -1803,6 +1897,56 @@ func (s *Server) extractTarGz(data []byte, destDir string) error {
 	}
 
 	return nil
+}
+
+// listArtifactFiles walks the extracted artifact directory and returns a shallow
+// file listing including file contents (intended for source artifacts).
+// Paths are returned relative to the artifact root.
+func (s *Server) listArtifactFiles(root string) ([]map[string]interface{}, error) {
+	files := []map[string]interface{}{}
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		// Skip the root directory entry itself
+		if path == root {
+			return nil
+		}
+
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		entry := map[string]interface{}{
+			"path": rel,
+			"size": info.Size(),
+			"dir":  d.IsDir(),
+		}
+		// Include file contents for regular files (best-effort; errors bubble up)
+		if !d.IsDir() {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			entry["content"] = string(data)
+		}
+		files = append(files, entry)
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 // Helper function to discover Flux API path for a resource kind using a client

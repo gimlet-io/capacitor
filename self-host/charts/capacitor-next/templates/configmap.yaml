@@ -1,17 +1,16 @@
-{{- if .Values.serviceAccount.create -}}
 apiVersion: v1
-kind: ServiceAccount
+kind: ConfigMap
 metadata:
-  name: {{ include "capacitor-server.serviceAccountName" . }}
+  name: {{ include "capacitor-server.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "capacitor-server.labels" . | nindent 4 }}
-    {{- with .Values.serviceAccount.labels }}
+    {{- with .Values.configmapLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.serviceAccount.annotations }}
+  {{- with .Values.configmapAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-{{- end }}
-
+data:
+  {{- toYaml .Values.env | nindent 2 }}

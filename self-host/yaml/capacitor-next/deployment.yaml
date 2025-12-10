@@ -14,12 +14,11 @@ spec:
     metadata:
       labels:
         app: capacitor-next
-        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: capacitor-next
       containers:
         - name: capacitor-next
-          image: ghcr.io/gimlet-io/capacitor-next:v2025-11.2
+          image: ghcr.io/gimlet-io/capacitor-next:0.12.0-rc.13
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -44,6 +43,8 @@ spec:
               cpu: "500m"
               memory: "512Mi"
           envFrom:
+            - configMapRef:
+                name: capacitor-next
             - secretRef:
                 name: capacitor-next
           volumeMounts:

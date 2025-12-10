@@ -1,0 +1,35 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capacitor-next-preset-clusteradmin
+rules:
+  - apiGroups:
+      - '*'
+    resources:
+      - '*'
+    verbs:
+      - '*'
+  - nonResourceURLs:
+      - '*'
+    verbs:
+      - '*'
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capacitor-next-preset-clusteradmin
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capacitor-next-preset-clusteradmin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capacitor-next-preset-clusteradmin
+subjects:
+- kind: ServiceAccount
+  name: capacitor-next-preset-clusteradmin
+  namespace: flux-system

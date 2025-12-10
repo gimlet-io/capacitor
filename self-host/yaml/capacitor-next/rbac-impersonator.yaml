@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: impersonator
+  name: capacitor-next-impersonator
 rules:
   - apiGroups: [""]
     resources: ["users", "groups", "serviceaccounts"]
@@ -15,7 +15,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: impersonator
+  name: capacitor-next-impersonator
 subjects:
   - kind: ServiceAccount
     name: capacitor-next

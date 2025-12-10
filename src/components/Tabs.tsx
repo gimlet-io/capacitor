@@ -6,6 +6,7 @@ import { For, JSX } from "solid-js";
 export type TabItem = {
   key: string;
   label: string | JSX.Element;
+  disabled?: boolean;
 };
 
 type TabsProps = {
@@ -27,8 +28,13 @@ export function Tabs(props: TabsProps) {
         {(tab, index) => (
           <button
             type="button"
-            class={`${buttonCls} ${props.activeKey === tab.key ? activeCls : ""}`.trim()}
-            onClick={() => props.onChange(tab.key)}
+            class={`${buttonCls} ${props.activeKey === tab.key ? activeCls : ""} ${tab.disabled ? "disabled" : ""}`.trim()}
+            disabled={tab.disabled}
+            onClick={() => {
+              if (!tab.disabled) {
+                props.onChange(tab.key);
+              }
+            }}
             style={{ "margin-right": index() < (props.tabs.length - 1) ? "8px" : undefined }}
           >
             {tab.label}

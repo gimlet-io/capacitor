@@ -9,6 +9,7 @@ import { HelmReleaseDetails } from "./views/helmReleaseDetails.tsx";
 import { TerraformDetails } from "./views/TerraformDetails.tsx";
 import { HelmClassicReleaseDetails } from "./views/helmClassicReleaseDetails.tsx";
 import { ApplicationDetails } from "./views/applicationDetails.tsx";
+import { SourceDetails } from "./views/sourceDetails.tsx";
 import { SecretDetails } from "./views/secretDetails.tsx";
 import { ConfigMapDetails } from "./views/configMapDetails.tsx";
 import { KluctlDeploymentDetails } from "./views/KluctlDeploymentDetails.tsx";
@@ -44,6 +45,7 @@ function App() {
             <HashRouter>
               <Route path="/" component={Dashboard} />
               <Route path="/kustomization/:namespace/:name" component={KustomizationDetails} />
+              <Route path="/source/:kind/:namespace/:name" component={SourceDetails} />
               <Route path="/helmrelease/:namespace/:name" component={HelmReleaseDetails} />
               <Route path="/terraform/:namespace/:name" component={TerraformDetails} />
               <Route path="/helmclassic/:namespace/:name" component={HelmClassicReleaseDetails} />

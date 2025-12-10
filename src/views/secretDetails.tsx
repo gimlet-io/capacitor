@@ -8,12 +8,13 @@ import type { Secret } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 
 export function SecretDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
   
   // Initialize state for the specific secret
   const [secret, setSecret] = createSignal<Secret | null>(null);
@@ -65,7 +66,7 @@ export function SecretDetails() {
             setSecret(event.object);
             const res: MinimalK8sResource = { apiVersion: (event.object as any).apiVersion, kind: (event.object as any).kind, metadata: { name: event.object.metadata.name, namespace: event.object.metadata.namespace } };
             (async () => {
-              const ok = await checkPermissionSSAR(res, { verb: 'patch' });
+                const ok = await checkPermission(res, { verb: 'patch' });
               setCanPatchSecret(ok);
             })();
           }
