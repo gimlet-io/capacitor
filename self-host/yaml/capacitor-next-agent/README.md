@@ -31,13 +31,13 @@ registry.yaml: |
     - id: production-cluster  # Must match CLUSTER_ID
       name: Production
       agent: true
-      agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET
+      agentSecret: "your-shared-secret"  # Must match AGENT_SHARED_SECRET
 ```
 
 ```bash
 kubectl create secret generic capacitor-next-agent \
   --namespace=flux-system \
-  --from-literal=AGENT_SHARED_SECRET="your-shared-secret-here" # openssl rand -hex 32
+  --from-literal=AGENT_SHARED_SECRET="your-shared-secret" # openssl rand -hex 32
 ```
 
 ```yaml

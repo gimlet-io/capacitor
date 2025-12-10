@@ -8,6 +8,8 @@ import { useCheckPermissionSSAR, type MinimalK8sResource } from "../../utils/per
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
 import { stringify, parse as parseYAML } from "@std/yaml";
 import { type DiffHunk, type FileDiffSection, generateDiffHunks } from "../../utils/diffUtils.ts";
+import { doesEventMatchShortcut, formatShortcutForDisplay } from "../../utils/shortcuts.ts";
+import { keyboardManager } from "../../utils/keyboardManager.ts";
 
 export function HelmHistory(props: {
   namespace: string;
@@ -428,16 +430,45 @@ export function HelmHistory(props: {
   };
 
   // Keyboard: navigate rows and rollback
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent): boolean | void => {
     const currentIndex = selectedRevisionIndex();
     let newIndex = currentIndex;
+    let handled = false;
+
     switch (e.key) {
-      case "ArrowUp": e.preventDefault(); newIndex = Math.max(0, currentIndex - 1); break;
-      case "ArrowDown": e.preventDefault(); newIndex = Math.min(historyData().length - 1, currentIndex + 1); break;
-      case "Home": e.preventDefault(); newIndex = 0; break;
-      case "End": e.preventDefault(); newIndex = historyData().length - 1; break;
-      case "r": if (e.ctrlKey && currentIndex !== -1) { e.preventDefault(); rollbackToRevision(); } break;
+      case "ArrowUp":
+        e.preventDefault();
+        newIndex = Math.max(0, currentIndex - 1);
+        handled = true;
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        newIndex = Math.min(historyData().length - 1, currentIndex + 1);
+        handled = true;
+        break;
+      case "Home":
+        e.preventDefault();
+        newIndex = 0;
+        handled = true;
+        break;
+      case "End":
+        e.preventDefault();
+        newIndex = historyData().length - 1;
+        handled = true;
+        break;
     }
+
+    // Rollback shortcut using the global "mod" prefix (e.g., Ctrl+Shift or Cmd+Shift)
+    if (doesEventMatchShortcut(e, "mod+r") && currentIndex !== -1) {
+      e.preventDefault();
+      rollbackToRevision();
+      handled = true;
+    }
+
+    if (!handled) {
+      return false;
+    }
+
     if (newIndex !== currentIndex) {
       setSelectedRevisionIndex(newIndex);
       setTimeout(() => {
@@ -446,12 +477,23 @@ export function HelmHistory(props: {
         if (targetRow) targetRow.scrollIntoView({ block: "nearest", behavior: "auto" });
       }, 0);
     }
+
+    return true;
   };
+
   onMount(() => {
-    window.addEventListener('keydown', handleKeyDown, true);
-  });
-  onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown, true);
+    // Register with centralized keyboard manager (priority 3 = resource/history navigation)
+    const handlerId = `helm-history-${Math.random().toString(36).slice(2)}`;
+    const unregister = keyboardManager.register({
+      id: handlerId,
+      priority: 3,
+      handler: handleKeyDown,
+      ignoreInInput: true
+    });
+
+    onCleanup(() => {
+      unregister();
+    });
   });
 
   const getStatusColor = (status: string) => {
@@ -471,7 +513,9 @@ export function HelmHistory(props: {
       <Show when={historyData().length > 0} fallback={<div class="no-history">No release history found</div>}>
         <div class="keyboard-shortcut-container" style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
           <div class="keyboard-shortcut">
-            <span class={`shortcut-key ${canRollback() === false ? 'disabled' : ''}`}>Mod+r</span>
+            <span class={`shortcut-key ${canRollback() === false ? 'disabled' : ''}`}>
+              {formatShortcutForDisplay('mod+r')}
+            </span>
             <span class={`shortcut-description ${canRollback() === false ? 'disabled' : ''}`}>Rollback to selected revision</span>
           </div>
         </div>

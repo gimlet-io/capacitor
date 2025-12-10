@@ -15,7 +15,7 @@ env:
       - id: production-cluster  # Must match CLUSTER_ID
         name: Production
         agent: true
-        agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET
+        agentSecret: "your-shared-secret"  # Must match AGENT_SHARED_SECRET
 ```
 
 ### Installing with `helm` CLI
@@ -40,7 +40,7 @@ helm upgrade -i capacitor-next-agent oci://ghcr.io/gimlet-io/charts/capacitor-ne
 ```bash
 kubectl create secret generic capacitor-next-agent \
   --namespace=flux-system \
-  --from-literal=AGENT_SHARED_SECRET="your-shared-secret-here" # openssl rand -hex 32
+  --from-literal=AGENT_SHARED_SECRET="your-shared-secret" # openssl rand -hex 32
 ```
 
 ```yaml
@@ -63,7 +63,7 @@ metadata:
   name: capacitor-next-agent
   namespace: flux-system
 spec:
-  interval: 1hm
+  interval: 1h
   timeout: 1m
   chartRef:
     kind: OCIRepository
