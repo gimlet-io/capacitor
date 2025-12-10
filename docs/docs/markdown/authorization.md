@@ -90,6 +90,8 @@ It is encouraged that you review and further customize these roles.
   clusteradmin: ✅
 ```
 
+In case of the read-only preset, you may want to [use the permition elevation case](#authorization:permition-elevation).
+
 ### ServiceAccount impersonation without authentication
 
 When there is no authentication configured in Capacitor Next with the [AUTH=noauth](#authentication:authnoauth) setting, the user identity is set to the `noauth` string. You can use this user identity in `IMPERSONATE_SA_RULES`.
@@ -131,6 +133,8 @@ AUTH=noauth
 IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-preset-readonly
 ```
 
+
+
 ### Multiple roles with static authentication
 
 ```
@@ -147,3 +151,21 @@ Sometimes even with per-user OIDC identities, you want to grant access that does
 AUTH=oidc
 IMPERSONATE_SA_RULES=matt@mycompany.com=flux-system:capacitor-next-preset-readonly
 ```
+
+## Permition elevation
+
+Capacitor Next uses Kubernetes RBAC to determine access in all cases as described on this page:
+
+> Capacitor Next impersonates a Kubernetes user or ServiceAccount in all cases. All calls to the Kubernetes API are handled on behalf of an existing identity. The RBAC roles of this identity define authorization in the Kubernetes API.
+
+For read-only dashboards (using the `flux-system:capacitor-next-preset-readonly` service account) there are a handful of usecases that are operationally useful, but not possible to to RBAC:
+- deleting pods to restart them
+- rolling restart of deployments
+- trigger FluxCD reconciliation
+- reading helm secrets to get rollout history and build the resource tree
+
+Capacitor Next can enable these usecases on read-only setups if you set the `PERMITION_ELEVATION_WORKLOAD_RESTART`, `PERMITION_ELEVATION_FLUX_RECONCILIATION`, `PERMISSION_ELEVATION_HELM_INFO` environment variables.
+
+In these cases Capacitor's inpersonator service account gets additional RBAC scopes and these features will use the impersonator service account, and not the impersonated access, this we elevate the user's RBAC permissions to perform useful and not harmful actions.
+
+This is a controlled way to work around the limitations of the RBAC system.

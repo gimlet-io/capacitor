@@ -320,6 +320,18 @@ body {
   border-radius: 4px;
 }
 
+.content blockquote {
+  margin: 24px 0;
+  padding: 14px 18px;
+  border-left: 3px solid var(--yellow);
+  background: rgba(15, 17, 18, 0.9);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.content blockquote p {
+  margin: 0;
+}
+
 /* YAML table styling (for ```yaml-table fenced blocks) */
 .content table.yaml-table {
   width: 100%;
