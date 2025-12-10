@@ -31,7 +31,7 @@ helm upgrade -i capacitor-next oci://ghcr.io/gimlet-io/charts/capacitor-next \
 # - id: remote-cluster  # Must match CLUSTER_ID of the agent
 #   name: remote-cluster
 #   agent: true
-#   agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET of the agent
+#   agentSecret: "your-shared-secret"  # Must match AGENT_SHARED_SECRET of the agent
 ```
 
 ### Installing with FluxCD
@@ -52,7 +52,7 @@ kubectl create secret generic capacitor-next \
 # - id: remote-cluster  # Must match CLUSTER_ID of the agent
 #   name: remote-cluster
 #   agent: true
-#   agentSecret: "your-shared-secret-here"  # Must match AGENT_SHARED_SECRET of the agent
+#   agentSecret: "your-shared-secret"  # Must match AGENT_SHARED_SECRET of the agent
 ```
 
 ```yaml
