@@ -8,6 +8,7 @@ import { useNavigate, useParams } from "@solidjs/router";
 import type {
   GitRepository,
   HelmRepository,
+  HelmChart,
   OCIRepository,
   Bucket,
   Event,
@@ -25,11 +26,12 @@ import { Tabs } from "../components/Tabs.tsx";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 
-type FluxSourceKind = "GitRepository" | "HelmRepository" | "OCIRepository" | "Bucket";
+type FluxSourceKind = "GitRepository" | "HelmRepository" | "HelmChart" | "OCIRepository" | "Bucket";
 
 type FluxSource =
   | (GitRepository & { events?: Event[] })
   | (HelmRepository & { events?: Event[] })
+  | (HelmChart & { events?: Event[] })
   | (OCIRepository & { events?: Event[] })
   | (Bucket & { events?: Event[] });
 
@@ -135,8 +137,9 @@ export function SourceDetails() {
 
   const [artifactLoading, setArtifactLoading] = createSignal(false);
   const [artifactError, setArtifactError] = createSignal<string | null>(null);
-  const [artifactFiles, setArtifactFiles] = createSignal<ArtifactFile[]>([]);
+  const [, setArtifactFiles] = createSignal<ArtifactFile[]>([]);
   const [artifactSections, setArtifactSections] = createSignal<ArtifactSection[]>([]);
+  const [artifactLoaded, setArtifactLoaded] = createSignal(false);
 
   // Compute permissions
   createEffect(() => {
@@ -195,6 +198,7 @@ export function SourceDetails() {
     });
 
     setSource(null);
+    setArtifactLoaded(false);
 
     const controllers: AbortController[] = [];
 
@@ -210,6 +214,8 @@ export function SourceDetails() {
             return "gitrepositories";
           case "HelmRepository":
             return "helmrepositories";
+          case "HelmChart":
+            return "helmcharts";
           case "OCIRepository":
             return "ocirepositories";
           case "Bucket":
@@ -323,12 +329,13 @@ export function SourceDetails() {
       setArtifactError("Failed to load source artifact");
     } finally {
       setArtifactLoading(false);
+      setArtifactLoaded(true);
     }
   };
 
   // Lazy load artifact listing when artifact tab is opened
   createEffect(() => {
-    if (activeTab() === "artifact" && source() && artifactFiles().length === 0 && !artifactLoading()) {
+    if (activeTab() === "artifact" && source() && !artifactLoaded() && !artifactLoading()) {
       loadArtifactFiles();
     }
   });
@@ -339,6 +346,8 @@ export function SourceDetails() {
         return "Git repository";
       case "HelmRepository":
         return "Helm repository";
+      case "HelmChart":
+        return "Helm chart";
       case "OCIRepository":
         return "OCI repository";
       case "Bucket":
@@ -497,11 +506,11 @@ export function SourceDetails() {
                     {src.status && (
                       <div class="info-item full-width">
                         <div class="info-grid">
-                          <div class="info-item" style={{ "grid-column": "1 / 3" }}>
+                          <div class="info-item" style={{ "grid-column": "1 / 4" }}>
                             <span class="label">Artifact Revision:</span>
                             {renderSourceRevision(src as unknown as Source)}
                           </div>
-                          <div class="info-item">
+                          <div class="info-item" style={{ "grid-column": "4 / 7" }}>
                             <span class="label">Artifact URL:</span>
                             <span class="value">
                               {src.status?.artifact?.url || "None"}

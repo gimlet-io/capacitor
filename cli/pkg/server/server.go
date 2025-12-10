@@ -898,6 +898,10 @@ func (s *Server) Setup() {
 			sourceResource, err = s.getOCIRepository(ctx, client, name, namespace)
 		case "bucket":
 			sourceResource, err = s.getBucket(ctx, client, name, namespace)
+		case "helmrepository":
+			sourceResource, err = s.getHelmRepository(ctx, client, name, namespace)
+		case "helmchart":
+			sourceResource, err = s.getHelmChart(ctx, client, name, namespace)
 		default:
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"error": fmt.Sprintf("unsupported source kind for artifact inspection: %s", kindParam),
@@ -1827,27 +1831,63 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kuberne
 		return "", fmt.Errorf("failed to read artifact data: %w", err)
 	}
 
-	// Extract the tar.gz archive
-	err = s.extractTarGz(data, tempDir)
-	if err != nil {
+	contentType := resp.Header.Get("Content-Type")
+	log.Printf("Downloaded artifact: %d bytes, content-type: %s", len(data), contentType)
+
+	if len(data) == 0 {
 		os.RemoveAll(tempDir)
-		return "", fmt.Errorf("failed to extract artifact: %w", err)
+		return "", fmt.Errorf("downloaded artifact is empty")
+	}
+
+	// Check if this is a compressed archive or plain content
+	// HelmRepository artifacts are plain YAML (index.yaml), not tar.gz
+	isGzip := strings.Contains(contentType, "gzip") ||
+		strings.Contains(contentType, "x-tar") ||
+		(len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b) // gzip magic bytes
+
+	if isGzip {
+		// Extract the tar.gz archive
+		extractedCount, err := s.extractTarGz(data, tempDir)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("failed to extract artifact: %w", err)
+		}
+		log.Printf("Extracted %d files/directories from artifact", extractedCount)
+	} else {
+		// Plain content (e.g., HelmRepository index.yaml)
+		// Determine filename from URL or use default
+		filename := "index.yaml"
+		if u, err := url.Parse(artifactURL); err == nil {
+			base := filepath.Base(u.Path)
+			if base != "" && base != "." && base != "/" {
+				filename = base
+			}
+		}
+		destPath := filepath.Join(tempDir, filename)
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("failed to write artifact file: %w", err)
+		}
+		log.Printf("Saved plain artifact as %s (%d bytes)", filename, len(data))
 	}
 
 	return tempDir, nil
 }
 
 // extractTarGz extracts a tar.gz archive to the specified directory
-func (s *Server) extractTarGz(data []byte, destDir string) error {
+// Returns the number of files/directories extracted
+func (s *Server) extractTarGz(data []byte, destDir string) (int, error) {
 	// Create a gzip reader
 	gzReader, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+		return 0, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer gzReader.Close()
 
 	// Create a tar reader
 	tarReader := tar.NewReader(gzReader)
+
+	extractedCount := 0
 
 	// Extract files
 	for {
@@ -1856,47 +1896,56 @@ func (s *Server) extractTarGz(data []byte, destDir string) error {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("failed to read tar header: %w", err)
+			return extractedCount, fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Skip the root directory entry "." - it's just the tar root and adds no value
+		if header.Name == "." {
+			continue
 		}
 
 		// Construct the full path
 		path := filepath.Join(destDir, header.Name)
 
-		if header.Name != "." {
-			// Ensure the path is within the destination directory (security check)
-			if !strings.HasPrefix(path, filepath.Clean(destDir)+string(os.PathSeparator)) {
-				return fmt.Errorf("invalid file path: %s", header.Name)
-			}
+		// Ensure the path is within the destination directory (security check)
+		if !strings.HasPrefix(path, filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return extractedCount, fmt.Errorf("invalid file path: %s", header.Name)
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
 			// Create directory
+			log.Printf("Extracting directory: %s", header.Name)
 			err := os.MkdirAll(path, 0755)
 			if err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to create directory %s: %w", path, err)
 			}
+			extractedCount++
 		case tar.TypeReg:
 			// Create file
+			log.Printf("Extracting file: %s (%d bytes)", header.Name, header.Size)
 			err := os.MkdirAll(filepath.Dir(path), 0755)
 			if err != nil {
-				return fmt.Errorf("failed to create parent directory for %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to create parent directory for %s: %w", path, err)
 			}
 
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
 			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to create file %s: %w", path, err)
 			}
 
 			_, err = io.Copy(file, tarReader)
 			file.Close()
 			if err != nil {
-				return fmt.Errorf("failed to write file %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to write file %s: %w", path, err)
 			}
+			extractedCount++
+		default:
+			log.Printf("Skipping unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
 	}
 
-	return nil
+	return extractedCount, nil
 }
 
 // listArtifactFiles walks the extracted artifact directory and returns a shallow
@@ -1996,6 +2045,38 @@ func (s *Server) getBucket(ctx context.Context, client *kubernetes.Client, name,
 	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "Bucket")
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover Bucket API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+func (s *Server) getHelmRepository(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "HelmRepository")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover HelmRepository API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+func (s *Server) getHelmChart(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "HelmChart")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover HelmChart API path: %w", err)
 	}
 	path := fmt.Sprintf(apiPath, namespace, name)
 	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
