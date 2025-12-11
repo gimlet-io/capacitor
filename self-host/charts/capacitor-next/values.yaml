@@ -1,7 +1,7 @@
 # Container image configuration
 image:
   repository: ghcr.io/gimlet-io/capacitor-next
-  tag: 0.12.0-rc.13
+  tag: 0.12.0-rc.15
   pullPolicy: IfNotPresent
 
 # Number of replicas
@@ -92,6 +92,20 @@ env:
   #       }
   #     ]
   #   }
+
+# Permission Elevation
+# Useful for read-only setups where certain operational actions should be allowed
+# without granting users direct RBAC permissions. When enabled, these actions
+# bypass user impersonation and use the impersonator service account's elevated RBAC.
+# Specify a list of namespaces to limit the scope. Use ["*"] for all namespaces (not recommended).
+# Read the [Authorization](https://gimlet.io/capacitor-next/docs/#permission-elevation) docs for more information.
+permissionElevation:
+  # Namespaces where pod deletion and deployment/statefulset/daemonset rollout restart are allowed
+  # Example: ["flux-system", "default"] or ["*"] for all namespaces
+  workloadRestartNamespaces: []
+  # Namespaces where triggering FluxCD reconciliation is allowed
+  # Example: ["flux-system"] or ["*"] for all namespaces
+  fluxReconciliationNamespaces: []
 
 # Existing secret configuration
 # If specified, both the chart environment variables from `env`

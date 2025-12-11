@@ -276,6 +276,8 @@
       const lines = md.split(/\r?\n/);
       let html = '';
       let listOpen = false;
+      let quoteOpen = false;
+      let quoteBuffer = [];
 
       function closeListIfOpen() {
         if (listOpen) {
@@ -284,11 +286,24 @@
         }
       }
 
+      function closeQuoteIfOpen() {
+        if (quoteOpen) {
+          const text = quoteBuffer.join(' ').trim();
+          if (text) {
+            html += '<blockquote><p>' + formatInline(text) + '</p></blockquote>';
+          }
+          quoteOpen = false;
+          quoteBuffer = [];
+        }
+      }
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
         // Fenced code blocks (including yaml-table)
         if (line.startsWith('```')) {
+          closeListIfOpen();
+          closeQuoteIfOpen();
           const info = line.slice(3).trim().toLowerCase();
           const isYamlTable = info === 'yaml-table' || info === 'yaml table';
           const blockLines = [];
@@ -299,7 +314,6 @@
           }
           // closing fence (```...) is consumed by while; outer for will increment i again
           if (isYamlTable) {
-            closeListIfOpen();
             const tableHtml = renderYamlTableBlock(blockLines);
             if (tableHtml != null) {
               html += tableHtml;
@@ -312,7 +326,6 @@
               html += '</code></pre>';
             }
           } else {
-            closeListIfOpen();
             html += '<pre class="code-fence"><code class="mono">';
             for (let j = 0; j < blockLines.length; j++) {
               html += esc(blockLines[j]) + '\n';
@@ -320,6 +333,27 @@
             html += '</code></pre>';
           }
           continue;
+        }
+
+        // Blockquotes (lines starting with ">")
+        const bq = line.match(/^>\s?(.*)$/);
+        if (bq) {
+          closeListIfOpen();
+          if (!quoteOpen) {
+            quoteOpen = true;
+            quoteBuffer = [];
+          }
+          quoteBuffer.push(bq[1]);
+          continue;
+        }
+        if (quoteOpen && line.trim() === '') {
+          // Blank line ends the quote block
+          closeQuoteIfOpen();
+          continue;
+        }
+        if (quoteOpen) {
+          // Any non-blank, non-quote line closes the quote first
+          closeQuoteIfOpen();
         }
 
         const h = line.match(/^(#{1,3})\s+(.*)$/);
@@ -358,6 +392,7 @@
       }
 
       if (listOpen) html += '</ul>';
+      closeQuoteIfOpen();
       return html;
     }
 

@@ -24,3 +24,172 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "capacitor-agent.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+{{- if .Values.permissionElevation.workloadRestartNamespaces }}
+{{- if has "*" .Values.permissionElevation.workloadRestartNamespaces }}
+---
+# Permission Elevation: Workload Restart (cluster-wide)
+# Allows the agent service account to delete pods and update workloads
+# for rollout restart operations, bypassing user impersonation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "capacitor-agent.fullname" . }}-elevation-workload-restart
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+rules:
+  # Pod deletion for restarting pods
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  # Deployment/StatefulSet/DaemonSet get+update for rollout restart
+  # (update is required for the get-modify-update pattern used by rollout restart)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "capacitor-agent.fullname" . }}-elevation-workload-restart-binding
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "capacitor-agent.fullname" . }}-elevation-workload-restart
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "capacitor-agent.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- else }}
+{{- /* Create Role/RoleBinding for each specific namespace */ -}}
+{{- range .Values.permissionElevation.workloadRestartNamespaces }}
+---
+# Permission Elevation: Workload Restart (namespace: {{ . }})
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "capacitor-agent.fullname" $ }}-elevation-workload-restart
+  namespace: {{ . }}
+  labels:
+    {{- include "capacitor-agent.labels" $ | nindent 4 }}
+rules:
+  # Pod deletion for restarting pods
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  # Deployment/StatefulSet/DaemonSet get+update for rollout restart
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "capacitor-agent.fullname" $ }}-elevation-workload-restart-binding
+  namespace: {{ . }}
+  labels:
+    {{- include "capacitor-agent.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "capacitor-agent.fullname" $ }}-elevation-workload-restart
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "capacitor-agent.serviceAccountName" $ }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.permissionElevation.fluxReconciliationNamespaces }}
+{{- if has "*" .Values.permissionElevation.fluxReconciliationNamespaces }}
+---
+# Permission Elevation: Flux Reconciliation (cluster-wide)
+# Allows the agent service account to patch Flux resources
+# for triggering reconciliation, bypassing user impersonation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "capacitor-agent.fullname" . }}-elevation-flux-reconciliation
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+rules:
+  # Kustomizations
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["patch"]
+  # HelmReleases
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["patch"]
+  # Sources (GitRepository, HelmRepository, HelmChart, OCIRepository, Bucket)
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["gitrepositories", "helmrepositories", "helmcharts", "ocirepositories", "buckets"]
+    verbs: ["patch"]
+  # Terraform (if using tf-controller)
+  - apiGroups: ["infra.contrib.fluxcd.io"]
+    resources: ["terraforms"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "capacitor-agent.fullname" . }}-elevation-flux-reconciliation-binding
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "capacitor-agent.fullname" . }}-elevation-flux-reconciliation
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "capacitor-agent.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- else }}
+{{- /* Create Role/RoleBinding for each specific namespace */ -}}
+{{- range .Values.permissionElevation.fluxReconciliationNamespaces }}
+---
+# Permission Elevation: Flux Reconciliation (namespace: {{ . }})
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "capacitor-agent.fullname" $ }}-elevation-flux-reconciliation
+  namespace: {{ . }}
+  labels:
+    {{- include "capacitor-agent.labels" $ | nindent 4 }}
+rules:
+  # Kustomizations
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["patch"]
+  # HelmReleases
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["patch"]
+  # Sources
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["gitrepositories", "helmrepositories", "helmcharts", "ocirepositories", "buckets"]
+    verbs: ["patch"]
+  # Terraform
+  - apiGroups: ["infra.contrib.fluxcd.io"]
+    resources: ["terraforms"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "capacitor-agent.fullname" $ }}-elevation-flux-reconciliation-binding
+  namespace: {{ . }}
+  labels:
+    {{- include "capacitor-agent.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "capacitor-agent.fullname" $ }}-elevation-flux-reconciliation
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "capacitor-agent.serviceAccountName" $ }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+{{- end }}
