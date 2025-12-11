@@ -164,7 +164,7 @@ For read-only dashboards (using the `flux-system:capacitor-next-preset-readonly`
 - trigger FluxCD reconciliation
 - reading helm secrets to get rollout history and build the resource tree
 
-Capacitor Next can enable these usecases on read-only setups if you set the `PERMITION_ELEVATION_WORKLOAD_RESTART`, `PERMITION_ELEVATION_FLUX_RECONCILIATION`, `PERMISSION_ELEVATION_HELM_INFO` environment variables.
+Capacitor Next can enable these usecases on read-only setups if you set the `PERMISSION_ELEVATION_WORKLOAD_RESTART`, `PERMISSION_ELEVATION_FLUX_RECONCILIATION`, `PERMISSION_ELEVATION_HELM_INFO` environment variables.
 
 In these cases Capacitor's inpersonator service account gets additional RBAC scopes and these features will use the impersonator service account, and not the impersonated access, this we elevate the user's RBAC permissions to perform useful and not harmful actions.
 
