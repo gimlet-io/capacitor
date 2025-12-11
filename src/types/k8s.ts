@@ -393,6 +393,138 @@ export interface Terraform {
   };
 }
 
+// Carvel kapp-controller App resource
+export interface CarvelApp {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: {
+    syncPeriod?: string;
+    paused?: boolean;
+    canceled?: boolean;
+    serviceAccountName?: string;
+    fetch?: any[];
+    template?: any[];
+    deploy?: any[];
+    cluster?: {
+      namespace?: string;
+      kubeconfigSecretRef?: {
+        name: string;
+        key?: string;
+      };
+    };
+  };
+  status?: {
+    friendlyDescription?: string;
+    usefulErrorMessage?: string;
+    observedGeneration?: number;
+    conditions?: Condition[];
+    consecutiveReconcileSuccesses?: number;
+    consecutiveReconcileFailures?: number;
+    deploy?: {
+      exitCode?: number;
+      finished?: boolean;
+      startedAt?: string;
+      updatedAt?: string;
+      stdout?: string;
+      stderr?: string;
+      kapp?: {
+        associatedResources?: {
+          label?: string;
+          namespaces?: string[];
+          groupKinds?: Array<{ group: string; kind: string }>;
+        };
+      };
+    };
+    fetch?: {
+      exitCode?: number;
+      startedAt?: string;
+      updatedAt?: string;
+      stdout?: string;
+      stderr?: string;
+    };
+    template?: {
+      exitCode?: number;
+      updatedAt?: string;
+      stderr?: string;
+    };
+    inspect?: {
+      exitCode?: number;
+      updatedAt?: string;
+      stdout?: string;
+      stderr?: string;
+      error?: string;
+    };
+  };
+}
+
+// Carvel PackageInstall resource
+export interface CarvelPackageInstall {
+  apiVersion: string;
+  kind: string;
+  metadata: ObjectMeta;
+  spec: {
+    syncPeriod?: string;
+    paused?: boolean;
+    canceled?: boolean;
+    serviceAccountName?: string;
+    packageRef?: {
+      refName: string;
+      versionSelection?: {
+        constraints?: string;
+        prereleases?: any;
+      };
+    };
+    values?: Array<{
+      secretRef?: {
+        name: string;
+      };
+      configMapRef?: {
+        name: string;
+      };
+    }>;
+    cluster?: {
+      namespace?: string;
+      kubeconfigSecretRef?: {
+        name: string;
+        key?: string;
+      };
+    };
+  };
+  status?: {
+    friendlyDescription?: string;
+    usefulErrorMessage?: string;
+    observedGeneration?: number;
+    conditions?: Condition[];
+    consecutiveReconcileSuccesses?: number;
+    consecutiveReconcileFailures?: number;
+    version?: string;
+    lastAttemptedVersion?: string;
+    deploy?: {
+      exitCode?: number;
+      finished?: boolean;
+      startedAt?: string;
+      updatedAt?: string;
+      stdout?: string;
+      stderr?: string;
+      kapp?: {
+        associatedResources?: {
+          label?: string;
+          namespaces?: string[];
+          groupKinds?: Array<{ group: string; kind: string }>;
+        };
+      };
+    };
+    fetch?: {
+      exitCode?: number;
+      startedAt?: string;
+      updatedAt?: string;
+      stdout?: string;
+      stderr?: string;
+    };
+  };
+}
+
 export interface GitRepository extends Source {
   spec: Source['spec'] & {
     url: string;
@@ -1092,10 +1224,6 @@ export interface CronJobList {
   kind: string;
   metadata: ListMeta;
   items: CronJob[];
-}
-
-export interface CronJobWithJobs extends CronJob {
-  jobs: Job[];
 }
 
 // HorizontalPodAutoscaler

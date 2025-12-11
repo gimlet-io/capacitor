@@ -29,6 +29,15 @@ export type FluxcdConfig = {
   };
 };
 
+export type CarvelConfig = {
+  namespace: string;
+  kappController: {
+    deploymentName: string;
+    labelKey: string;
+    labelValue: string;
+  };
+};
+
 // Permission elevation configuration for read-only setups.
 // When enabled, certain operations bypass user RBAC and use elevated permissions.
 // Operations are scoped to specific namespaces for security.
@@ -74,6 +83,7 @@ type AppConfigContextValue = {
   configLoading: Accessor<boolean>;
   configError: Accessor<string | null>;
   fluxcdConfig: Accessor<FluxcdConfig | null>;
+  carvelConfig: Accessor<CarvelConfig | null>;
   permissionElevation: Accessor<PermissionElevationConfig | null>;
 };
 
@@ -84,6 +94,7 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
   const [configLoading, setConfigLoading] = createSignal(false);
   const [configError, setConfigError] = createSignal<string | null>(null);
   const [fluxcdConfig, setFluxcdConfig] = createSignal<FluxcdConfig | null>(null);
+  const [carvelConfig, setCarvelConfig] = createSignal<CarvelConfig | null>(null);
   const [permissionElevation, setPermissionElevation] = createSignal<PermissionElevationConfig | null>(null);
 
   onMount(() => {
@@ -107,6 +118,11 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
           setFluxcdConfig(null);
         }
 
+        const carvelRaw = (data && (data as any).carvel) as any;
+        if (carvelRaw && typeof carvelRaw === "object") {
+          setCarvelConfig(carvelRaw as CarvelConfig);
+        } else {
+          setCarvelConfig(null);
         // Parse permission elevation config
         const rawElevation = (data && (data as any).permissionElevation) as any;
         if (rawElevation && typeof rawElevation === "object") {
@@ -125,6 +141,7 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
         const msg = e instanceof Error ? e.message : String(e);
         setConfigError(msg);
         setFluxcdConfig(null);
+        setCarvelConfig(null);
         setPermissionElevation(null);
       } finally {
         setConfigLoading(false);
@@ -139,6 +156,7 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
         configLoading,
         configError,
         fluxcdConfig,
+        carvelConfig,
         permissionElevation,
       }}
     >

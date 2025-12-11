@@ -12,6 +12,8 @@ import { helmRepositoryColumns, renderHelmRepositoryDetails } from "./components
 import { ociRepositoryColumns, renderOCIRepositoryDetails } from "./components/resourceList/OCIRepositoryList.tsx";
 import { helmChartColumns, renderHelmChartDetails } from "./components/resourceList/HelmChartList.tsx";
 import { helmReleaseFluxColumns, renderHelmReleaseFluxDetails } from "./components/resourceList/HelmReleaseFluxList.tsx";
+import { carvelAppColumns, renderCarvelAppDetails } from "./components/resourceList/CarvelAppList.tsx";
+import { carvelPackageInstallColumns, renderCarvelPackageInstallDetails } from "./components/resourceList/CarvelPackageInstallList.tsx";
 import { terraformColumns, renderTerraformDetails } from "./components/resourceList/TerraformList.tsx";
 import { bucketColumns, renderBucketDetails } from "./components/resourceList/BucketList.tsx";
 import { applicationColumns, renderApplicationDetails } from "./components/resourceList/ApplicationList.tsx";
@@ -134,6 +136,16 @@ export const navigateToTerraform: ResourceCommand = {
 
 export const navigateToKluctlDeployment: ResourceCommand = {
   shortcut: { key: "Enter", description: "View Kluctl deployment details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
+export const navigateToCarvelApp: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View Carvel App details", isContextual: true },
+  handler: null as any // Will be implemented in ResourceList
+};
+
+export const navigateToCarvelPackageInstall: ResourceCommand = {
+  shortcut: { key: "Enter", description: "View PackageInstall details", isContextual: true },
   handler: null as any // Will be implemented in ResourceList
 };
 
@@ -1203,6 +1215,57 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
           'source.component'
         ]
       }
+    ]
+  },
+
+  'kappctrl.k14s.io/App': {
+    columns: carvelAppColumns,
+    detailRowRenderer: renderCarvelAppDetails,
+    rowKeyField: "name",
+    commands: [
+      navigateToCarvelApp,
+      ...builtInCommands
+    ],
+    projectFields: [
+      'spec.syncPeriod',
+      'spec.paused',
+      'spec.canceled',
+      'spec.fetch',
+      'spec.template',
+      'spec.cluster',
+      'status.friendlyDescription',
+      'status.usefulErrorMessage',
+      'status.conditions',
+      'status.consecutiveReconcileSuccesses',
+      'status.consecutiveReconcileFailures',
+      'status.deploy',
+      'status.fetch',
+      'status.template'
+    ]
+  },
+
+  'packaging.carvel.dev/PackageInstall': {
+    columns: carvelPackageInstallColumns,
+    detailRowRenderer: renderCarvelPackageInstallDetails,
+    rowKeyField: "name",
+    commands: [
+      navigateToCarvelPackageInstall,
+      ...builtInCommands
+    ],
+    projectFields: [
+      'spec.packageRef',
+      'spec.syncPeriod',
+      'spec.paused',
+      'spec.canceled',
+      'status.friendlyDescription',
+      'status.usefulErrorMessage',
+      'status.version',
+      'status.lastAttemptedVersion',
+      'status.conditions',
+      'status.consecutiveReconcileSuccesses',
+      'status.consecutiveReconcileFailures',
+      'status.deploy',
+      'status.fetch'
     ]
   },
   

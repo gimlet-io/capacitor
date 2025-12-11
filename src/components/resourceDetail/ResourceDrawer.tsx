@@ -158,33 +158,83 @@ export function ResourceDrawer(props: {
     setLoading(true);
     try {
       const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
       const kind = props.resource.kind || "unknown";
       const name = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
       const apiVersion = props.resource.apiVersion || "";
       
-      // Use kubectl proxy to get the resource
-      const isNamespaced = namespace && namespace !== '';
-      const resourcePath = apiVersion.includes('/') 
-        ? `${k8sPrefix}/apis/${apiVersion}` 
-        : `${k8sPrefix}/api/${apiVersion || 'v1'}`;
+      // Check if this is a remote cluster resource
+      // cluster values: "in-cluster" (local), "example-cluster" (remote), or "" (local)
+      const cluster = (props.resource as any)._cluster;
+      const parentApp = (props.resource as any)._parentApp;
+      const isRemoteResource = cluster && cluster !== "in-cluster" && cluster !== "" && parentApp;
       
-      // Get the correct plural resource name
-      const apiResources = apiResourceStore.apiResources || [];
-      const resourceName = getResourceName(kind, apiVersion, apiResources);
+      let url: string;
+      let response: Response;
       
-      let url = isNamespaced
-        ? `${resourcePath}/namespaces/${namespace}/${resourceName}/${name}`
-        : `${resourcePath}/${resourceName}/${name}`;
+      if (isRemoteResource) {
+        // Fetch from remote cluster using the new endpoint
+        const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
+        const queryParams = new URLSearchParams({
+          namespace: namespace || '',
+          kind: kind,
+          name: name,
+          apiVersion: apiVersion,
+          parentKind: parentApp.kind,
+          parentName: parentApp.name,
+          parentNamespace: parentApp.namespace,
+          includeManagedFields: String(includeManagedFields)
+        });
+        url = `${apiPrefix}/carvel-remote-resource?${queryParams}`;
+        
+        console.log('[ResourceDrawer] Fetching from remote cluster:', {
+          kind,
+          apiVersion,
+          namespace,
+          name,
+          cluster,
+          parentApp,
+          includeManagedFields,
+          url
+        });
+        
+        response = await fetch(url);
+      } else {
+        // Use kubectl proxy to get the resource from current cluster
+        const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+        const isNamespaced = namespace && namespace !== '';
+        const resourcePath = apiVersion.includes('/') 
+          ? `${k8sPrefix}/apis/${apiVersion}` 
+          : `${k8sPrefix}/api/${apiVersion || 'v1'}`;
+        
+        // Get the correct plural resource name
+        const apiResources = apiResourceStore.apiResources || [];
+        const resourceName = getResourceName(kind, apiVersion, apiResources);
+        
+        url = isNamespaced
+          ? `${resourcePath}/namespaces/${namespace}/${resourceName}/${name}`
+          : `${resourcePath}/${resourceName}/${name}`;
 
-      // When explicitly requested, tell the backend proxy not to strip managedFields
-      if (includeManagedFields) {
-        const separator = url.includes("?") ? "&" : "?";
-        url = `${url}${separator}includeManagedFields=true`;
+        // When explicitly requested, tell the backend proxy not to strip managedFields
+        if (includeManagedFields) {
+          const separator = url.includes("?") ? "&" : "?";
+          url = `${url}${separator}includeManagedFields=true`;
+        }
+        
+        console.log('[ResourceDrawer] Fetching YAML:', {
+          kind,
+          apiVersion,
+          namespace,
+          name,
+          resourceName,
+          url,
+          includeManagedFields,
+          apiResourcesCount: apiResources.length
+        });
+        
+        response = await fetch(url);
       }
       
-      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch resource: ${response.statusText}`);
       }

@@ -95,13 +95,20 @@ type FluxCDResponse struct {
 	KustomizeController ControllerConfig `json:"kustomizeController"`
 }
 
+// CarvelResponse represents the Carvel kapp-controller configuration in the config response
+type CarvelResponse struct {
+	Namespace      string           `json:"namespace"`
+	KappController ControllerConfig `json:"kappController"`
+}
+
 // ConfigResponse represents the response from the /api/config endpoint
 // SystemViews is a map keyed by kube context name; the "*" key is used as a
 // wildcard/default for any context that doesn't have an explicit entry.
 type ConfigResponse struct {
 	SystemViews map[string][]SystemView `json:"systemViews"`
 	FluxCD      FluxCDResponse          `json:"fluxcd"`
-}
+	Carvel      CarvelResponse			`json:"carvel"`
+	}
 
 // defaultSystemViews contains the built‑in system views that were previously hardcoded in ViewBar.tsx.
 // They are now served from the backend so they can be centrally controlled and customized.
@@ -151,7 +158,25 @@ var defaultSystemViews = []SystemView{
 			{Name: "Namespace", Value: "all-namespaces"},
 		},
 	},
-}
+	{
+		ID:       "carvel/apps",
+		Label:    "Carvel/Apps",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "kappctrl.k14s.io/App"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	{
+		ID:       "carvel/pkgi",
+		Label:    "Carvel/PackageInstall",
+		IsSystem: true,
+		Filters: []SystemViewFilter{
+			{Name: "ResourceType", Value: "packaging.carvel.dev/PackageInstall"},
+			{Name: "Namespace", Value: "all-namespaces"},
+		},
+	},
+	}
 
 // defaultSystemViewMap exposes the built‑in system views under the "*"
 // wildcard key so that all contexts share the same defaults unless
@@ -311,6 +336,14 @@ func (s *Server) Setup() {
 					DeploymentName: s.config.FluxCD.KustomizeControllerDeploymentName,
 					LabelKey:       s.config.FluxCD.KustomizeControllerLabelKey,
 					LabelValue:     s.config.FluxCD.KustomizeControllerLabelValue,
+				},
+			},
+			Carvel: CarvelResponse{
+				Namespace: s.config.Carvel.Namespace,
+				KappController: ControllerConfig{
+					DeploymentName: s.config.Carvel.KappControllerDeploymentName,
+					LabelKey:       s.config.Carvel.KappControllerLabelKey,
+					LabelValue:     s.config.Carvel.KappControllerLabelValue,
 				},
 			},
 		})
@@ -1210,6 +1243,7 @@ func (s *Server) Setup() {
 		})
 	})
 
+
 	// Add endpoint for running a CronJob immediately by creating a one-off Job (context-aware)
 	// Equivalent to: kubectl create job --from=cronjob/<name> <generated-name>
 	s.echo.POST("/api/:context/cronjob/run", func(c echo.Context) error {
@@ -1275,6 +1309,166 @@ func (s *Server) Setup() {
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Job %s created from CronJob %s/%s", created.Name, req.Namespace, req.Name),
 		})
+	})
+
+	// Add endpoint for fetching resources from remote clusters (for Carvel apps/pkgis)
+	s.echo.GET("/api/:context/carvel-remote-resource", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
+		// Get resource details from query params
+		namespace := c.QueryParam("namespace")
+		kind := c.QueryParam("kind")
+		name := c.QueryParam("name")
+		apiVersion := c.QueryParam("apiVersion")
+		parentKind := c.QueryParam("parentKind")
+		parentName := c.QueryParam("parentName")
+		parentNamespace := c.QueryParam("parentNamespace")
+
+		if kind == "" || name == "" || parentKind == "" || parentName == "" || parentNamespace == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "kind, name, parentKind, parentName, and parentNamespace are required",
+			})
+		}
+
+		log.Printf("[RemoteResource] Fetching %s/%s from namespace %s via parent %s/%s in namespace %s", 
+			kind, name, namespace, parentKind, parentName, parentNamespace)
+
+		// Fetch the parent resource (App or PackageInstall) to get cluster config
+		ctx := c.Request().Context()
+		var parentGVR schema.GroupVersionResource
+		if parentKind == "App" {
+			parentGVR = schema.GroupVersionResource{Group: "kappctrl.k14s.io", Version: "v1alpha1", Resource: "apps"}
+		} else if parentKind == "PackageInstall" {
+			parentGVR = schema.GroupVersionResource{Group: "packaging.carvel.dev", Version: "v1alpha1", Resource: "packageinstalls"}
+		} else {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("unsupported parent kind: %s", parentKind),
+			})
+		}
+
+		parentResource, err := proxy.dynamicClient.Resource(parentGVR).Namespace(parentNamespace).Get(ctx, parentName, metav1.GetOptions{})
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to get parent resource: %v", err),
+			})
+		}
+
+		// Create clients for the remote cluster
+		remoteClients, clusterName, err := createClientsForCluster(ctx, parentResource.Object, parentNamespace, proxy.k8sClient.Clientset)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to create remote cluster clients: %v", err),
+			})
+		}
+		if remoteClients == nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "parent resource does not have spec.cluster.kubeconfigSecretRef configured",
+			})
+		}
+
+		log.Printf("[RemoteResource] Using remote cluster: %s", clusterName)
+
+		// Determine the GVR for the resource
+		group := ""
+		version := "v1"
+		if apiVersion != "" {
+			parts := strings.Split(apiVersion, "/")
+			if len(parts) == 2 {
+				group = parts[0]
+				version = parts[1]
+			} else {
+				version = apiVersion
+			}
+		}
+
+		// Get resource plural name and scope from API resources discovery
+		discoveryClient := remoteClients.Clientset.Discovery()
+		resourceLists, err := discoveryClient.ServerPreferredResources()
+		if err != nil {
+			log.Printf("[RemoteResource] Warning: failed to get preferred resources: %v", err)
+		}
+
+		resourceName := strings.ToLower(kind) + "s" // default plural
+		isNamespaced := true // default to namespaced
+		if resourceLists != nil {
+			for _, resourceList := range resourceLists {
+				gv := strings.Split(resourceList.GroupVersion, "/")
+				listGroup := ""
+				listVersion := ""
+				if len(gv) == 2 {
+					listGroup = gv[0]
+					listVersion = gv[1]
+				} else {
+					listVersion = gv[0]
+				}
+
+				if (group == "" && listGroup == "") || group == listGroup {
+					if version == listVersion {
+						for _, resource := range resourceList.APIResources {
+							if strings.EqualFold(resource.Kind, kind) {
+								resourceName = resource.Name
+								isNamespaced = resource.Namespaced
+								log.Printf("[RemoteResource] Found resource: %s (namespaced: %v)", resourceName, isNamespaced)
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+
+		targetGVR := schema.GroupVersionResource{
+			Group:    group,
+			Version:  version,
+			Resource: resourceName,
+		}
+
+		// Check if managedFields should be included
+		includeManagedFields := c.QueryParam("includeManagedFields") == "true"
+		
+		log.Printf("[RemoteResource] Fetching resource with GVR: %s/%s/%s (namespaced: %v, namespace: %s, includeManagedFields: %v)", 
+			targetGVR.Group, targetGVR.Version, targetGVR.Resource, isNamespaced, namespace, includeManagedFields)
+
+		// Fetch the resource from remote cluster
+		var resource map[string]interface{}
+		var fetchErr error
+		if isNamespaced {
+			// For namespaced resources, use the namespace (or default to "default" if empty)
+			ns := namespace
+			if ns == "" {
+				ns = "default"
+			}
+			unstructured, err := remoteClients.DynamicClient.Resource(targetGVR).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
+			if err == nil {
+				resource = unstructured.Object
+			}
+			fetchErr = err
+		} else {
+			// For cluster-scoped resources, don't use namespace
+			unstructured, err := remoteClients.DynamicClient.Resource(targetGVR).Get(ctx, name, metav1.GetOptions{})
+			if err == nil {
+				resource = unstructured.Object
+			}
+			fetchErr = err
+		}
+
+		if fetchErr != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": fmt.Sprintf("failed to fetch resource from remote cluster: %v", fetchErr),
+			})
+		}
+
+		// Remove managedFields if not requested
+		if !includeManagedFields {
+			if metadata, ok := resource["metadata"].(map[string]interface{}); ok {
+				delete(metadata, "managedFields")
+			}
+		}
+
+		return c.JSON(http.StatusOK, resource)
 	})
 
 	// Add endpoint for describing Kubernetes resources using kubectl describe (context-aware)
@@ -1497,6 +1691,133 @@ func (s *Server) Setup() {
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": fmt.Sprintf("Successfully rolled back %s to revision %d", name, revision),
 		})
+	})
+
+	// Add endpoint for Carvel App diagram (context-aware)
+	s.echo.GET("/api/:context/carvelAppDiagram/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppDiagram(c, proxy)
+	})
+
+	// Add endpoint for Carvel PackageInstall diagram (context-aware)
+	s.echo.GET("/api/:context/carvelPkgiDiagram/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPkgiDiagram(c, proxy)
+	})
+
+	// Add endpoint for Carvel App values and overlays (context-aware)
+	s.echo.GET("/api/:context/carvelAppValues/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppValues(c, proxy)
+	})
+
+	// Add endpoint for Carvel PackageInstall values and overlays (context-aware)
+	s.echo.GET("/api/:context/carvelPackageInstallValues/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackageInstallValues(c, proxy)
+	})
+
+	// Add endpoint for Carvel Package details (context-aware)
+	s.echo.GET("/api/:context/carvelPackage/:namespace/:packageName", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackage(c, proxy)
+	})
+
+	// Add endpoints for Carvel App operations (context-aware)
+	s.echo.POST("/api/:context/carvelApp/:namespace/:name/pause", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppPause(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelApp/:namespace/:name/unpause", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppUnpause(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelApp/:namespace/:name/cancel", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppCancel(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelApp/:namespace/:name/uncancel", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppUncancel(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelApp/:namespace/:name/trigger", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelAppTrigger(c, proxy)
+	})
+
+	// Add endpoints for Carvel PackageInstall operations (context-aware)
+	s.echo.POST("/api/:context/carvelPackageInstall/:namespace/:name/pause", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackageInstallPause(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelPackageInstall/:namespace/:name/unpause", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackageInstallUnpause(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelPackageInstall/:namespace/:name/cancel", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackageInstallCancel(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelPackageInstall/:namespace/:name/uncancel", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackageInstallUncancel(c, proxy)
+	})
+
+	s.echo.POST("/api/:context/carvelPackageInstall/:namespace/:name/trigger", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+		return handleCarvelPackageInstallTrigger(c, proxy)
 	})
 
 	// Kubernetes API proxy endpoints
@@ -2376,80 +2697,80 @@ func (s *Server) handleExecWebSocketWithClient(c echo.Context, client *kubernete
 
 	// Try each container and shell combination until one works
 	for _, tryContainer := range containersToTry {
-		for _, tryShell := range shells {
+	for _, tryShell := range shells {
 			log.Printf("Trying shell %s in container %s for pod %s/%s", tryShell, tryContainer, namespace, podname)
 
-			var shellExists bool
-			testMethods := [][]string{
-				{tryShell, "--version"},
-				{tryShell, "--help"},
-				{tryShell, "-c", "exit 0"},
-			}
+		var shellExists bool
+		testMethods := [][]string{
+			{tryShell, "--version"},
+			{tryShell, "--help"},
+			{tryShell, "-c", "exit 0"},
+		}
 
-			for _, testCmd := range testMethods {
-				testReq := client.Clientset.CoreV1().RESTClient().Post().
-					Resource("pods").
-					Name(podname).
-					Namespace(namespace).
-					SubResource("exec").
-					VersionedParams(&corev1.PodExecOptions{
+		for _, testCmd := range testMethods {
+			testReq := client.Clientset.CoreV1().RESTClient().Post().
+				Resource("pods").
+				Name(podname).
+				Namespace(namespace).
+				SubResource("exec").
+				VersionedParams(&corev1.PodExecOptions{
 						Container: tryContainer,
 						Command:   testCmd,
 						Stdin:     false,
 						Stdout:    true,
 						Stderr:    true,
 						TTY:       false,
-					}, scheme.ParameterCodec)
+				}, scheme.ParameterCodec)
 
-				testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
-				if err != nil {
-					continue
-				}
-
-				var testOut, testErr bytes.Buffer
-				err = testExec.StreamWithContext(ctx, remotecommand.StreamOptions{
-					Stdout: &testOut,
-					Stderr: &testErr,
-				})
-
-				if err == nil {
-					shellExists = true
-					log.Printf("Shell %s found in container %s using test: %v", tryShell, tryContainer, testCmd)
-					break
-				}
-			}
-
-			if !shellExists {
-				log.Printf("Shell %s not found in container %s", tryShell, tryContainer)
+			testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
+			if err != nil {
 				continue
 			}
 
-			execCmd = []string{tryShell}
-			req := client.Clientset.CoreV1().RESTClient().Post().
-				Resource("pods").
-				Name(podname).
-				Namespace(namespace).
-				SubResource("exec").
-				VersionedParams(&corev1.PodExecOptions{
+			var testOut, testErr bytes.Buffer
+				err = testExec.StreamWithContext(ctx, remotecommand.StreamOptions{
+				Stdout: &testOut,
+				Stderr: &testErr,
+			})
+
+			if err == nil {
+				shellExists = true
+					log.Printf("Shell %s found in container %s using test: %v", tryShell, tryContainer, testCmd)
+				break
+			}
+		}
+
+		if !shellExists {
+				log.Printf("Shell %s not found in container %s", tryShell, tryContainer)
+			continue
+		}
+
+		execCmd = []string{tryShell}
+		req := client.Clientset.CoreV1().RESTClient().Post().
+			Resource("pods").
+			Name(podname).
+			Namespace(namespace).
+			SubResource("exec").
+			VersionedParams(&corev1.PodExecOptions{
 					Container: tryContainer,
 					Command:   execCmd,
 					Stdin:     true,
 					Stdout:    true,
 					Stderr:    true,
 					TTY:       true,
-				}, scheme.ParameterCodec)
+			}, scheme.ParameterCodec)
 
-			exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
-			if err != nil {
+		exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
+		if err != nil {
 				log.Printf("Failed to create interactive executor for shell %s in container %s: %v", tryShell, tryContainer, err)
-				continue
-			}
+			continue
+		}
 
-			executor = exec
-			shell = tryShell
+		executor = exec
+		shell = tryShell
 			containerName = tryContainer
-			shellFound = true
-			break
+		shellFound = true
+		break
 		}
 
 		if shellFound {
