@@ -170,4 +170,4 @@ In these cases Capacitor's inpersonator service account gets additional RBAC sco
 
 This is a controlled way to work around the limitations of the RBAC system.
 
-Since we are delegating work to Capacitor's impersonator role, the RBAC for that needs to allow that. The [Helm chart has values](TODO) for this.
+Since we are delegating work to Capacitor's impersonator role, the RBAC for that needs to allow that. The [Helm chart has values](https://github.com/gimlet-io/capacitor/blob/main/self-host/charts/capacitor-next/values.yaml#L101-L107) for this.
