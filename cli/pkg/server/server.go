@@ -107,8 +107,8 @@ type CarvelResponse struct {
 type ConfigResponse struct {
 	SystemViews map[string][]SystemView `json:"systemViews"`
 	FluxCD      FluxCDResponse          `json:"fluxcd"`
-	Carvel      CarvelResponse			`json:"carvel"`
-	}
+	Carvel      CarvelResponse          `json:"carvel"`
+}
 
 // defaultSystemViews contains the built‑in system views that were previously hardcoded in ViewBar.tsx.
 // They are now served from the backend so they can be centrally controlled and customized.
@@ -176,7 +176,7 @@ var defaultSystemViews = []SystemView{
 			{Name: "Namespace", Value: "all-namespaces"},
 		},
 	},
-	}
+}
 
 // defaultSystemViewMap exposes the built‑in system views under the "*"
 // wildcard key so that all contexts share the same defaults unless
@@ -482,7 +482,8 @@ func (s *Server) Setup() {
 				})
 			}
 
-			// HelmRelease has sourceRef at spec.chart.spec.sourceRef or via spec.chartRef (HelmChart resource),
+			// HelmRelease has sourceRef at spec.chart.spec.sourceRef or via spec.chartRef
+			// (either a HelmChart resource which in turn has spec.sourceRef, or directly an OCIRepository).
 			// while Kustomization and Terraform have it at spec.sourceRef
 			var sourceRef map[string]interface{}
 			if kind == "HelmRelease" {
@@ -495,7 +496,7 @@ func (s *Server) Setup() {
 					}
 				}
 
-				// If no inline chart sourceRef, try chartRef (HelmChart resource)
+				// If no inline chart sourceRef, try chartRef (HelmChart or OCIRepository resource)
 				if sourceRef == nil {
 					if chartRef, ok := spec["chartRef"].(map[string]interface{}); ok {
 						chartRefKind, _ := chartRef["kind"].(string)
@@ -505,37 +506,50 @@ func (s *Server) Setup() {
 							chartRefNamespace = ns
 						}
 
-						// Get the HelmChart resource to find its sourceRef
-						if chartRefKind == "HelmChart" && chartRefName != "" {
-							helmChartAPIPath, err := proxy.getFluxAPIPath(ctx, "HelmChart")
-							if err != nil {
-								log.Printf("Error discovering HelmChart API path: %v", err)
-								return c.JSON(http.StatusInternalServerError, map[string]string{
-									"error": fmt.Sprintf("Failed to discover HelmChart API path: %v", err),
-								})
-							}
-
-							helmChartPath := fmt.Sprintf(helmChartAPIPath, chartRefNamespace, chartRefName)
-							helmChartData, err := clientset.RESTClient().Get().AbsPath(helmChartPath).DoRaw(ctx)
-							if err != nil {
-								log.Printf("Error getting HelmChart resource: %v", err)
-								return c.JSON(http.StatusInternalServerError, map[string]string{
-									"error": fmt.Sprintf("Failed to get HelmChart resource: %v", err),
-								})
-							}
-
-							var helmChartObj map[string]interface{}
-							if err := json.Unmarshal(helmChartData, &helmChartObj); err != nil {
-								log.Printf("Error parsing HelmChart data: %v", err)
-								return c.JSON(http.StatusInternalServerError, map[string]string{
-									"error": fmt.Sprintf("Failed to parse HelmChart data: %v", err),
-								})
-							}
-
-							if helmChartSpec, ok := helmChartObj["spec"].(map[string]interface{}); ok {
-								if srcRef, ok := helmChartSpec["sourceRef"].(map[string]interface{}); ok {
-									sourceRef = srcRef
+						if chartRefName != "" {
+							switch chartRefKind {
+							case "HelmChart":
+								// Get the HelmChart resource to find its sourceRef
+								helmChartAPIPath, err := proxy.getFluxAPIPath(ctx, "HelmChart")
+								if err != nil {
+									log.Printf("Error discovering HelmChart API path: %v", err)
+									return c.JSON(http.StatusInternalServerError, map[string]string{
+										"error": fmt.Sprintf("Failed to discover HelmChart API path: %v", err),
+									})
 								}
+
+								helmChartPath := fmt.Sprintf(helmChartAPIPath, chartRefNamespace, chartRefName)
+								helmChartData, err := clientset.RESTClient().Get().AbsPath(helmChartPath).DoRaw(ctx)
+								if err != nil {
+									log.Printf("Error getting HelmChart resource: %v", err)
+									return c.JSON(http.StatusInternalServerError, map[string]string{
+										"error": fmt.Sprintf("Failed to get HelmChart resource: %v", err),
+									})
+								}
+
+								var helmChartObj map[string]interface{}
+								if err := json.Unmarshal(helmChartData, &helmChartObj); err != nil {
+									log.Printf("Error parsing HelmChart data: %v", err)
+									return c.JSON(http.StatusInternalServerError, map[string]string{
+										"error": fmt.Sprintf("Failed to parse HelmChart data: %v", err),
+									})
+								}
+
+								if helmChartSpec, ok := helmChartObj["spec"].(map[string]interface{}); ok {
+									if srcRef, ok := helmChartSpec["sourceRef"].(map[string]interface{}); ok {
+										sourceRef = srcRef
+									}
+								}
+							case "OCIRepository":
+								// When chartRef points directly at an OCIRepository, the repository itself is the source.
+								srcRef := map[string]interface{}{
+									"kind": "OCIRepository",
+									"name": chartRefName,
+								}
+								if chartRefNamespace != "" {
+									srcRef["namespace"] = chartRefNamespace
+								}
+								sourceRef = srcRef
 							}
 						}
 					}
@@ -1243,7 +1257,6 @@ func (s *Server) Setup() {
 		})
 	})
 
-
 	// Add endpoint for running a CronJob immediately by creating a one-off Job (context-aware)
 	// Equivalent to: kubectl create job --from=cronjob/<name> <generated-name>
 	s.echo.POST("/api/:context/cronjob/run", func(c echo.Context) error {
@@ -1333,7 +1346,7 @@ func (s *Server) Setup() {
 			})
 		}
 
-		log.Printf("[RemoteResource] Fetching %s/%s from namespace %s via parent %s/%s in namespace %s", 
+		log.Printf("[RemoteResource] Fetching %s/%s from namespace %s via parent %s/%s in namespace %s",
 			kind, name, namespace, parentKind, parentName, parentNamespace)
 
 		// Fetch the parent resource (App or PackageInstall) to get cluster config
@@ -1392,7 +1405,7 @@ func (s *Server) Setup() {
 		}
 
 		resourceName := strings.ToLower(kind) + "s" // default plural
-		isNamespaced := true // default to namespaced
+		isNamespaced := true                        // default to namespaced
 		if resourceLists != nil {
 			for _, resourceList := range resourceLists {
 				gv := strings.Split(resourceList.GroupVersion, "/")
@@ -1428,8 +1441,8 @@ func (s *Server) Setup() {
 
 		// Check if managedFields should be included
 		includeManagedFields := c.QueryParam("includeManagedFields") == "true"
-		
-		log.Printf("[RemoteResource] Fetching resource with GVR: %s/%s/%s (namespaced: %v, namespace: %s, includeManagedFields: %v)", 
+
+		log.Printf("[RemoteResource] Fetching resource with GVR: %s/%s/%s (namespaced: %v, namespace: %s, includeManagedFields: %v)",
 			targetGVR.Group, targetGVR.Version, targetGVR.Resource, isNamespaced, namespace, includeManagedFields)
 
 		// Fetch the resource from remote cluster
@@ -2697,80 +2710,80 @@ func (s *Server) handleExecWebSocketWithClient(c echo.Context, client *kubernete
 
 	// Try each container and shell combination until one works
 	for _, tryContainer := range containersToTry {
-	for _, tryShell := range shells {
+		for _, tryShell := range shells {
 			log.Printf("Trying shell %s in container %s for pod %s/%s", tryShell, tryContainer, namespace, podname)
 
-		var shellExists bool
-		testMethods := [][]string{
-			{tryShell, "--version"},
-			{tryShell, "--help"},
-			{tryShell, "-c", "exit 0"},
-		}
+			var shellExists bool
+			testMethods := [][]string{
+				{tryShell, "--version"},
+				{tryShell, "--help"},
+				{tryShell, "-c", "exit 0"},
+			}
 
-		for _, testCmd := range testMethods {
-			testReq := client.Clientset.CoreV1().RESTClient().Post().
-				Resource("pods").
-				Name(podname).
-				Namespace(namespace).
-				SubResource("exec").
-				VersionedParams(&corev1.PodExecOptions{
+			for _, testCmd := range testMethods {
+				testReq := client.Clientset.CoreV1().RESTClient().Post().
+					Resource("pods").
+					Name(podname).
+					Namespace(namespace).
+					SubResource("exec").
+					VersionedParams(&corev1.PodExecOptions{
 						Container: tryContainer,
 						Command:   testCmd,
 						Stdin:     false,
 						Stdout:    true,
 						Stderr:    true,
 						TTY:       false,
-				}, scheme.ParameterCodec)
+					}, scheme.ParameterCodec)
 
-			testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
-			if err != nil {
+				testExec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", testReq.URL())
+				if err != nil {
+					continue
+				}
+
+				var testOut, testErr bytes.Buffer
+				err = testExec.StreamWithContext(ctx, remotecommand.StreamOptions{
+					Stdout: &testOut,
+					Stderr: &testErr,
+				})
+
+				if err == nil {
+					shellExists = true
+					log.Printf("Shell %s found in container %s using test: %v", tryShell, tryContainer, testCmd)
+					break
+				}
+			}
+
+			if !shellExists {
+				log.Printf("Shell %s not found in container %s", tryShell, tryContainer)
 				continue
 			}
 
-			var testOut, testErr bytes.Buffer
-				err = testExec.StreamWithContext(ctx, remotecommand.StreamOptions{
-				Stdout: &testOut,
-				Stderr: &testErr,
-			})
-
-			if err == nil {
-				shellExists = true
-					log.Printf("Shell %s found in container %s using test: %v", tryShell, tryContainer, testCmd)
-				break
-			}
-		}
-
-		if !shellExists {
-				log.Printf("Shell %s not found in container %s", tryShell, tryContainer)
-			continue
-		}
-
-		execCmd = []string{tryShell}
-		req := client.Clientset.CoreV1().RESTClient().Post().
-			Resource("pods").
-			Name(podname).
-			Namespace(namespace).
-			SubResource("exec").
-			VersionedParams(&corev1.PodExecOptions{
+			execCmd = []string{tryShell}
+			req := client.Clientset.CoreV1().RESTClient().Post().
+				Resource("pods").
+				Name(podname).
+				Namespace(namespace).
+				SubResource("exec").
+				VersionedParams(&corev1.PodExecOptions{
 					Container: tryContainer,
 					Command:   execCmd,
 					Stdin:     true,
 					Stdout:    true,
 					Stderr:    true,
 					TTY:       true,
-			}, scheme.ParameterCodec)
+				}, scheme.ParameterCodec)
 
-		exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
-		if err != nil {
+			exec, err := remotecommand.NewSPDYExecutor(client.Config, "POST", req.URL())
+			if err != nil {
 				log.Printf("Failed to create interactive executor for shell %s in container %s: %v", tryShell, tryContainer, err)
-			continue
-		}
+				continue
+			}
 
-		executor = exec
-		shell = tryShell
+			executor = exec
+			shell = tryShell
 			containerName = tryContainer
-		shellFound = true
-		break
+			shellFound = true
+			break
 		}
 
 		if shellFound {
