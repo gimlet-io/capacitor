@@ -163,13 +163,9 @@ For read-only dashboards (using the `flux-system:capacitor-next-preset-readonly`
 - rolling restart of deployments
 - trigger FluxCD reconciliation
 
-<<<<<<< HEAD
-Capacitor Next can enable these usecases on read-only setups if you set the `PERMISSION_ELEVATION_WORKLOAD_RESTART`, `PERMISSION_ELEVATION_FLUX_RECONCILIATION`, `PERMISSION_ELEVATION_HELM_INFO` environment variables.
-=======
 Capacitor Next can enable these usecases on read-only setups by specifying namespace lists in the following environment variables:
 - `PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES` - Comma-separated list of namespaces where pod deletion and rollout restart are allowed
 - `PERMISSION_ELEVATION_FLUX_RECONCILIATION_NAMESPACES` - Comma-separated list of namespaces where FluxCD reconciliation is allowed
->>>>>>> 1664448 (Removed helm perm elevation, restricted restarts into namespaces)
 
 Use `*` for all namespaces (not recommended for security reasons).
 
