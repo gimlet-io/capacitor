@@ -62,24 +62,9 @@ az ad app federated-credential create \
 
 ## 4) Deploy Capacitor Next
 
-### Service Account
-
-```
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: capacitor-next
-  namespace: flux-system
-  annotations:
-    azure.workload.identity/client-id: "<Application ID from 1)>"
-```
-
 ### Secrets
 
-Technically, only the session keys are secrets.
-
-```
+```yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -88,12 +73,8 @@ metadata:
 type: Opaque
 stringData:
   LICENSE_KEY: "contact laszlo at gimlet.io"
-  OIDC_ISSUER: "https://login.microsoftonline.com/<tenant ID>/v2.0"
-  OIDC_CLIENT_ID: "<Application ID from 1)>"
-  OIDC_REDIRECT_URL: "http://localhost:10081/auth/callback" # replace this with your ingress URL if you not run capacitor next on a port forward
   SESSION_HASH_KEY: "base64:< run `openssl rand -base64 32`>"
   SESSION_BLOCK_KEY: "base64:< same value as the line before>"
-  ENTRA_ID_FEDEREATED_TOKEN_AUTH: "true"
   registry.yaml: |
     clusters:
       - id: in-cluster
@@ -104,34 +85,48 @@ stringData:
           tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 ```
 
-### Deploy the yamls to the flux-system namespace.
+### Deploy with the Helm chart via FluxCD
 
-```
+
+```yaml
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
+kind: OCIRepository
 metadata:
-  name: capacitor-next
+  name: capacitor-next-helm
   namespace: flux-system
 spec:
-  interval: 1m
-  url: https://github.com/gimlet-io/capacitor
+  interval: 24h
+  url: oci://ghcr.io/gimlet-io/charts/capacitor-next
   ref:
-    branch: main
+    # semver: ">= 0.12.0-0" # Adding a `-0` suffix to the semver range will include prerelease versions.
+    semver: ">= 0.12.0"
 ---
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
 metadata:
   name: capacitor-next
   namespace: flux-system
 spec:
-  interval: 1m
-  path: "./self-host/yaml"
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: capacitor-next
-  targetNamespace: flux-system
+  interval: 15m
+  timeout: 1m
+  chartRef:
+    kind: OCIRepository
+    name: capacitor-next-helm
+    namespace: flux-system
+  values:
+    env:
+      AUTH: oidc
+      AUTH_DEBUG: "true" # logs impersonation headers
+      OIDC_ISSUER: "https://login.microsoftonline.com/<tenant ID>/v2.0"
+      OIDC_CLIENT_ID: "<Application ID from 1)>"
+      OIDC_REDIRECT_URL: "http://localhost:10081/auth/callback" # replace this with your ingress URL if you not run capacitor next on a port forward
+      ENTRA_ID_FEDEREATED_TOKEN_AUTH: "true"
+    existingSecret:
+      name: capacitor-next
+    serviceAccount:
+      annotations:
+        azure.workload.identity/client-id: "<Application ID from 1)>"
 ```
 
 ### Visit the app
@@ -142,57 +137,4 @@ kubectl port-forward -n flux-system svc/capacitor-next 10081:80
 
 [http://localhost:10081](http://localhost:10081)
 
-### Adjust end-user RBAC if needed
-
-[A minimal end-user RBAC for Capacitor Next to work](#rbac-and-read-only-mode)
-
-Check browser console log to see any RBAC related issue.
-
-## Multi-cluster
-
-Editing the secret from step 2) to configure multiple clusters.
-
-```
-apiVersion: v1
-kind: Secret
-metadata:
-  name: capacitor-next
-  namespace: flux-system
-stringData:
-...
-  registry.yaml: |
-    clusters:
-      - id: in-cluster
-        name: In-cluster
-        apiServerURL: https://kubernetes.default.svc
-        certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        serviceAccount:
-          tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-      - id: remote-cluster
-        name: remote-cluster
-        apiServerURL: https://xxx.hcp.eastus.azmk8s.io:443
-        certificateAuthorityData: |
-        -----BEGIN CERTIFICATE-----
-        ...
-        -----END CERTIFICATE-----
-        serviceAccount:
-        token: "<bearer-token>"
-```
-
-Where
-- you get apiServerURL and from your kube context
-```
-CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name == "'$(kubectl config current-context)'")].context.cluster}')
-kubectl config view --raw -o jsonpath="{.clusters[?(@.name == \"${CLUSTER_NAME}\" )].cluster.server}"
-```
-- certificateAuthorityData from kube context also, but base64 decode it first
-```
-CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name == "'$(kubectl config current-context)'")].context.cluster}')
-kubectl config view --raw -o jsonpath="{.clusters[?(@.name == \"${CLUSTER_NAME}\" )].cluster.certificate-authority-data}" | base64 -d
-```
-- you can generate a service account token with
-```
-kubectl -n default create token capacitor-next --duration=4320h # for 6 months
-```
-
-Using workload identity to access a remote cluster is not explored at this point.
+Adjust end-user RBAC if needed based on [Authorization](#authorization).
