@@ -40,15 +40,16 @@ affinity: {}
 # Useful for read-only setups where certain operational actions should be allowed
 # without granting users direct RBAC permissions. When enabled on the backend,
 # these actions bypass user impersonation and use the agent's service account's
-# elevated RBAC. These flags must match the backend's permissionElevation settings.
+# elevated RBAC. These settings must match the backend's permissionElevation settings.
+# Specify a list of namespaces to limit the scope. Use ["*"] for all namespaces (not recommended).
 # Read the [Authorization](https://gimlet.io/capacitor-next/docs/#permission-elevation) docs for more information.
 permissionElevation:
-  # Enables pod deletion (to restart pods) and deployment/statefulset/daemonset rollout restart
-  workloadRestart: false
-  # Enables triggering FluxCD reconciliation on Kustomizations, HelmReleases, and Sources
-  fluxReconciliation: false
-  # Enables reading Helm secrets to display release history, values, and manifests
-  helmInfo: false
+  # Namespaces where pod deletion and deployment/statefulset/daemonset rollout restart are allowed
+  # Example: ["flux-system", "default"] or ["*"] for all namespaces
+  workloadRestartNamespaces: []
+  # Namespaces where triggering FluxCD reconciliation is allowed
+  # Example: ["flux-system"] or ["*"] for all namespaces
+  fluxReconciliationNamespaces: []
 
 # Existing secret configuration
 # If specified, both the chart environment variables from `env`

@@ -28,7 +28,7 @@ import type { Event } from "../types/k8s.ts";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
-import { useAppConfig } from "../store/appConfigStore.tsx";
+import { useAppConfig, isFluxReconciliationAllowed } from "../store/appConfigStore.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -432,22 +432,26 @@ export function KustomizationDetails() {
       return;
     }
     const elevation = permissionElevation();
-    const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace: k.metadata.namespace } };
+    const namespace = k.metadata.namespace;
+    const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace } };
     (async () => {
       const canPatch = await checkPermission(res, { verb: 'patch' });
-      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled
-      const effectiveCanReconcile = canPatch || !!elevation?.fluxReconciliation;
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled for this namespace
+      const nsElevated = isFluxReconciliationAllowed(elevation, namespace);
+      const effectiveCanReconcile = canPatch || nsElevated;
       setCanReconcile(effectiveCanReconcile);
       setCanPatchKustomization(canPatch);
       if (k.spec?.sourceRef?.kind && k.spec?.sourceRef?.name) {
+        const srcNs = k.spec.sourceRef.namespace || namespace;
         const srcRes: MinimalK8sResource = {
           apiVersion: (k.spec as any).sourceRef.apiVersion || '',
           kind: k.spec.sourceRef.kind,
-          metadata: { name: k.spec.sourceRef.name, namespace: k.spec.sourceRef.namespace || k.metadata.namespace }
+          metadata: { name: k.spec.sourceRef.name, namespace: srcNs }
         };
         const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
-        // Allow reconcile with sources if both permissions are granted OR elevation is enabled
-        setCanReconcileWithSources((canPatch && canPatchSrc) || !!elevation?.fluxReconciliation);
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled for both namespaces
+        const srcNsElevated = isFluxReconciliationAllowed(elevation, srcNs);
+        setCanReconcileWithSources((canPatch && canPatchSrc) || (nsElevated && srcNsElevated));
       } else {
         setCanReconcileWithSources(effectiveCanReconcile);
       }

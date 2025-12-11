@@ -24,10 +24,11 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "capacitor-server.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- if .Values.permissionElevation.workloadRestart }}
+{{- if .Values.permissionElevation.workloadRestartNamespaces }}
+{{- if has "*" .Values.permissionElevation.workloadRestartNamespaces }}
 ---
-# Permission Elevation: Workload Restart
-# Allows the impersonator service account to delete pods and patch workloads
+# Permission Elevation: Workload Restart (cluster-wide)
+# Allows the impersonator service account to delete pods and update workloads
 # for rollout restart operations, bypassing user impersonation.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -40,10 +41,11 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["delete"]
-  # Deployment/StatefulSet/DaemonSet patch for rollout restart
+  # Deployment/StatefulSet/DaemonSet get+update for rollout restart
+  # (update is required for the get-modify-update pattern used by rollout restart)
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets", "daemonsets"]
-    verbs: ["patch"]
+    verbs: ["get", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -59,10 +61,50 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "capacitor-server.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- end }}
-{{- if .Values.permissionElevation.fluxReconciliation }}
+{{- else }}
+{{- /* Create Role/RoleBinding for each specific namespace */ -}}
+{{- range .Values.permissionElevation.workloadRestartNamespaces }}
 ---
-# Permission Elevation: Flux Reconciliation
+# Permission Elevation: Workload Restart (namespace: {{ . }})
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "capacitor-server.fullname" $ }}-elevation-workload-restart
+  namespace: {{ . }}
+  labels:
+    {{- include "capacitor-server.labels" $ | nindent 4 }}
+rules:
+  # Pod deletion for restarting pods
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  # Deployment/StatefulSet/DaemonSet get+update for rollout restart
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "capacitor-server.fullname" $ }}-elevation-workload-restart-binding
+  namespace: {{ . }}
+  labels:
+    {{- include "capacitor-server.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "capacitor-server.fullname" $ }}-elevation-workload-restart
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "capacitor-server.serviceAccountName" $ }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.permissionElevation.fluxReconciliationNamespaces }}
+{{- if has "*" .Values.permissionElevation.fluxReconciliationNamespaces }}
+---
+# Permission Elevation: Flux Reconciliation (cluster-wide)
 # Allows the impersonator service account to patch Flux resources
 # for triggering reconciliation, bypassing user impersonation.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -103,36 +145,51 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "capacitor-server.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- end }}
-{{- if .Values.permissionElevation.helmInfo }}
+{{- else }}
+{{- /* Create Role/RoleBinding for each specific namespace */ -}}
+{{- range .Values.permissionElevation.fluxReconciliationNamespaces }}
 ---
-# Permission Elevation: Helm Info
-# Allows the impersonator service account to read Helm release secrets
-# for displaying release history, values, and manifests, bypassing user impersonation.
+# Permission Elevation: Flux Reconciliation (namespace: {{ . }})
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: {{ include "capacitor-server.fullname" . }}-elevation-helm-info
+  name: {{ include "capacitor-server.fullname" $ }}-elevation-flux-reconciliation
+  namespace: {{ . }}
   labels:
-    {{- include "capacitor-server.labels" . | nindent 4 }}
+    {{- include "capacitor-server.labels" $ | nindent 4 }}
 rules:
-  # Read Helm release secrets (sh.helm.release.v1.*)
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list"]
+  # Kustomizations
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["patch"]
+  # HelmReleases
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["patch"]
+  # Sources
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["gitrepositories", "helmrepositories", "helmcharts", "ocirepositories", "buckets"]
+    verbs: ["patch"]
+  # Terraform
+  - apiGroups: ["infra.contrib.fluxcd.io"]
+    resources: ["terraforms"]
+    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: {{ include "capacitor-server.fullname" . }}-elevation-helm-info-binding
+  name: {{ include "capacitor-server.fullname" $ }}-elevation-flux-reconciliation-binding
+  namespace: {{ . }}
   labels:
-    {{- include "capacitor-server.labels" . | nindent 4 }}
+    {{- include "capacitor-server.labels" $ | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ include "capacitor-server.fullname" . }}-elevation-helm-info
+  kind: Role
+  name: {{ include "capacitor-server.fullname" $ }}-elevation-flux-reconciliation
 subjects:
   - kind: ServiceAccount
-    name: {{ include "capacitor-server.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
+    name: {{ include "capacitor-server.serviceAccountName" $ }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
 {{- end }}

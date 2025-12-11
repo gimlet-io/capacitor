@@ -152,22 +152,53 @@ AUTH=oidc
 IMPERSONATE_SA_RULES=matt@mycompany.com=flux-system:capacitor-next-preset-readonly
 ```
 
-## Permition elevation
+## Permission elevation
 
 Capacitor Next uses Kubernetes RBAC to determine access in all cases as described on this page:
 
 > Capacitor Next impersonates a Kubernetes user or ServiceAccount in all cases. All calls to the Kubernetes API are handled on behalf of an existing identity. The RBAC roles of this identity define authorization in the Kubernetes API.
 
-For read-only dashboards (using the `flux-system:capacitor-next-preset-readonly` service account) there are a handful of usecases that are operationally useful, but not possible to to RBAC:
+For read-only dashboards (using the `flux-system:capacitor-next-preset-readonly` service account) there are a handful of usecases that are operationally useful, but not possible with RBAC alone:
 - deleting pods to restart them
 - rolling restart of deployments
 - trigger FluxCD reconciliation
-- reading helm secrets to get rollout history and build the resource tree
 
+<<<<<<< HEAD
 Capacitor Next can enable these usecases on read-only setups if you set the `PERMISSION_ELEVATION_WORKLOAD_RESTART`, `PERMISSION_ELEVATION_FLUX_RECONCILIATION`, `PERMISSION_ELEVATION_HELM_INFO` environment variables.
+=======
+Capacitor Next can enable these usecases on read-only setups by specifying namespace lists in the following environment variables:
+- `PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES` - Comma-separated list of namespaces where pod deletion and rollout restart are allowed
+- `PERMISSION_ELEVATION_FLUX_RECONCILIATION_NAMESPACES` - Comma-separated list of namespaces where FluxCD reconciliation is allowed
+>>>>>>> 1664448 (Removed helm perm elevation, restricted restarts into namespaces)
 
-In these cases Capacitor's inpersonator service account gets additional RBAC scopes and these features will use the impersonator service account, and not the impersonated access, this we elevate the user's RBAC permissions to perform useful and not harmful actions.
+Use `*` for all namespaces (not recommended for security reasons).
+
+**Examples:**
+```bash
+# Allow workload restart in flux-system and default namespaces
+PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES=flux-system,default
+
+# Allow Flux reconciliation only in flux-system namespace
+PERMISSION_ELEVATION_FLUX_RECONCILIATION_NAMESPACES=flux-system
+
+# Allow all namespaces (not recommended)
+PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES=*
+```
+
+In these cases Capacitor's impersonator service account gets additional RBAC scopes and these features will use the impersonator service account, and not the impersonated access. This elevates the user's RBAC permissions to perform useful and not harmful actions, scoped to specific namespaces.
 
 This is a controlled way to work around the limitations of the RBAC system.
 
-Since we are delegating work to Capacitor's impersonator role, the RBAC for that needs to allow that. The [Helm chart has values](https://github.com/gimlet-io/capacitor/blob/main/self-host/charts/capacitor-next/values.yaml#L101-L107) for this.
+Since we are delegating work to Capacitor's impersonator role, the RBAC for that needs to allow that. The [Helm chart has values](https://github.com/gimlet-io/capacitor/blob/main/self-host/charts/capacitor-next/values.yaml#L101-L107) for this:
+
+```yaml
+permissionElevation:
+  # Namespaces where pod deletion and deployment/statefulset/daemonset rollout restart are allowed
+  # Example: ["flux-system", "default"] or ["*"] for all namespaces
+  workloadRestartNamespaces: []
+  # Namespaces where triggering FluxCD reconciliation is allowed
+  # Example: ["flux-system"] or ["*"] for all namespaces
+  fluxReconciliationNamespaces: []
+```
+
+When you specify namespaces, the Helm chart creates namespace-scoped Roles and RoleBindings for just those namespaces. If you use `["*"]`, it creates cluster-wide ClusterRoles and ClusterRoleBindings.

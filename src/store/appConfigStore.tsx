@@ -31,14 +31,43 @@ export type FluxcdConfig = {
 
 // Permission elevation configuration for read-only setups.
 // When enabled, certain operations bypass user RBAC and use elevated permissions.
+// Operations are scoped to specific namespaces for security.
 export type PermissionElevationConfig = {
-  // Enables pod deletion and deployment/statefulset/daemonset rollout restart
-  workloadRestart: boolean;
-  // Enables triggering FluxCD reconciliation
-  fluxReconciliation: boolean;
-  // Enables reading Helm secrets for history, values, and manifest
-  helmInfo: boolean;
+  // Namespaces where pod deletion and deployment/statefulset/daemonset rollout restart are allowed
+  // Empty array means disabled. Use ["*"] for all namespaces (not recommended).
+  workloadRestartNamespaces: string[];
+  // Namespaces where FluxCD reconciliation is allowed
+  // Empty array means disabled. Use ["*"] for all namespaces (not recommended).
+  fluxReconciliationNamespaces: string[];
 };
+
+// Helper function to check if a namespace is allowed for a permission
+function isNamespaceAllowed(allowedNamespaces: string[] | undefined, namespace: string): boolean {
+  if (!allowedNamespaces || allowedNamespaces.length === 0) return false;
+  return allowedNamespaces.includes("*") || allowedNamespaces.includes(namespace);
+}
+
+// Check if workload restart is allowed for a namespace
+export function isWorkloadRestartAllowed(config: PermissionElevationConfig | null, namespace: string): boolean {
+  if (!config) return false;
+  return isNamespaceAllowed(config.workloadRestartNamespaces, namespace);
+}
+
+// Check if Flux reconciliation is allowed for a namespace
+export function isFluxReconciliationAllowed(config: PermissionElevationConfig | null, namespace: string): boolean {
+  if (!config) return false;
+  return isNamespaceAllowed(config.fluxReconciliationNamespaces, namespace);
+}
+
+// Check if workload restart elevation is enabled for any namespace
+export function isWorkloadRestartEnabled(config: PermissionElevationConfig | null): boolean {
+  return !!config && config.workloadRestartNamespaces.length > 0;
+}
+
+// Check if Flux reconciliation elevation is enabled for any namespace
+export function isFluxReconciliationEnabled(config: PermissionElevationConfig | null): boolean {
+  return !!config && config.fluxReconciliationNamespaces.length > 0;
+}
 
 type AppConfigContextValue = {
   appConfig: Accessor<AppConfigPayload | null>;
@@ -82,9 +111,12 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
         const rawElevation = (data && (data as any).permissionElevation) as any;
         if (rawElevation && typeof rawElevation === "object") {
           setPermissionElevation({
-            workloadRestart: !!rawElevation.workloadRestart,
-            fluxReconciliation: !!rawElevation.fluxReconciliation,
-            helmInfo: !!rawElevation.helmInfo,
+            workloadRestartNamespaces: Array.isArray(rawElevation.workloadRestartNamespaces)
+              ? rawElevation.workloadRestartNamespaces
+              : [],
+            fluxReconciliationNamespaces: Array.isArray(rawElevation.fluxReconciliationNamespaces)
+              ? rawElevation.fluxReconciliationNamespaces
+              : [],
           });
         } else {
           setPermissionElevation(null);

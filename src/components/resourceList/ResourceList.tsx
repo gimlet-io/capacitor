@@ -11,7 +11,7 @@ import { getResourceName } from "../../utils/k8s.ts";
 import { helmReleaseColumns as _helmReleaseColumns } from "./HelmReleaseList.tsx";
 import { usePaneFilterStore } from "../../store/paneFilterStore.tsx";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
-import { useAppConfig } from "../../store/appConfigStore.tsx";
+import { useAppConfig, isWorkloadRestartAllowed, isFluxReconciliationAllowed } from "../../store/appConfigStore.tsx";
 import { useCheckPermissionSSAR, type MinimalK8sResource } from "../../utils/permissions.ts";
 
 export interface ResourceCommand {
@@ -507,15 +507,11 @@ export function ResourceList<T>(props: {
     if (desc === 'describe' || desc === 'yaml' || desc === 'events' || desc === 'manifest' || desc === 'values' || desc === 'release history') {
       return undefined;
     }
-    // Delete (pod deletion is elevated with workloadRestart)
+    // Delete (pod deletion is elevated with workloadRestart for specific namespaces)
     if (desc.includes('delete') && (key.includes('+d'))) {
       const allowed = await checkPermission(resource, { verb: 'delete', nameOverride: resource.metadata.name });
-      console.log('hello allowed', allowed);
-      console.log('hello elevation', elevation);
-      // Allow pod deletion if workloadRestart elevation is enabled
-      console.log(resource)
-      if (!allowed && resource.kind === 'Pod' && elevation?.workloadRestart) {
-        console.log('permission elevation is enabled');
+      // Allow pod deletion if workloadRestart elevation is enabled for this namespace
+      if (!allowed && resource.kind === 'Pod' && isWorkloadRestartAllowed(elevation, resource.metadata.namespace)) {
         return true;
       }
       return allowed;
@@ -535,21 +531,22 @@ export function ResourceList<T>(props: {
       const allowed = await checkPermission(resource, { verb: 'update', subresource: 'scale' });
       return allowed;
     }
-    // Rollout restart (elevated with workloadRestart)
+    // Rollout restart (elevated with workloadRestart for specific namespaces)
     if (desc.includes('rollout restart') && key.includes('+r')) {
       const allowed = await checkPermission(resource, { verb: 'patch' });
-      // Allow rollout restart if workloadRestart elevation is enabled
-      if (!allowed && elevation?.workloadRestart) {
+      // Allow rollout restart if workloadRestart elevation is enabled for this namespace
+      if (!allowed && isWorkloadRestartAllowed(elevation, resource.metadata.namespace)) {
         return true;
       }
       return allowed;
     }
-    // Flux reconcile (elevated with fluxReconciliation)
+    // Flux reconcile (elevated with fluxReconciliation for specific namespaces)
     if (desc.startsWith('reconcile')) {
       const mainAllowed = await checkPermission(resource, { verb: 'patch' });
-      // Allow reconcile if fluxReconciliation elevation is enabled
-      if (!mainAllowed && !elevation?.fluxReconciliation) return false;
-      if (desc.includes('with sources') && !elevation?.fluxReconciliation) {
+      const nsElevated = isFluxReconciliationAllowed(elevation, resource.metadata.namespace);
+      // Allow reconcile if user has permission OR fluxReconciliation elevation is enabled for this namespace
+      if (!mainAllowed && !nsElevated) return false;
+      if (desc.includes('with sources') && !nsElevated) {
         const src: any = (resource as any)?.spec?.sourceRef;
         if (src?.kind && src?.name) {
           const srcGroup = typeof src?.apiVersion === 'string' && src.apiVersion.includes('/') ? src.apiVersion.split('/')[0] : undefined;
