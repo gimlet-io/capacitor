@@ -133,8 +133,6 @@ AUTH=noauth
 IMPERSONATE_SA_RULES=noauth=flux-system:capacitor-next-preset-readonly
 ```
 
-
-
 ### Multiple roles with static authentication
 
 ```
