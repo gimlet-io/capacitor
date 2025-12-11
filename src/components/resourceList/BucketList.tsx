@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Source } from "../../types/k8s.ts";
-import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import { ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
+import { FluxSourceStatusBadges } from "./FluxSourceStatusBadges.tsx";
 
 // Type definition for Bucket since it's not in k8s.ts
 type Bucket = Source & {
@@ -63,31 +64,9 @@ export const bucketColumns = [
   {
     header: "READY",
     width: "20%",
-    accessor: (bucket: Bucket) => {
-      const readyCondition = bucket.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      const artifactCondition = bucket.status?.conditions?.find((c) =>
-        c.type === "ArtifactInStorage"
-      );
-
-      return (
-        <div class="status-badges">
-          {readyCondition?.status === ConditionStatus.True && (
-            <span class="status-badge ready">Ready</span>
-          )}
-          {readyCondition?.status === ConditionStatus.False && (
-            <span class="status-badge not-ready">NotReady</span>
-          )}
-          {artifactCondition?.status === ConditionStatus.True && (
-            <span class="status-badge artifact">Artifact</span>
-          )}
-          {bucket.spec.suspend && (
-            <span class="status-badge suspended">Suspended</span>
-          )}
-        </div>
-      );
-    },
+    accessor: (bucket: Bucket) => (
+      <FluxSourceStatusBadges resource={bucket} artifactLabel="Artifact" />
+    ),
   },
   {
     header: "STATUS",

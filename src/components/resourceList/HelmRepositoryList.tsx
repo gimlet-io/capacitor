@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { HelmRepository } from "../../types/k8s.ts";
-import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import { ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
+import { FluxSourceStatusBadges } from "./FluxSourceStatusBadges.tsx";
 
 export const renderHelmRepositoryDetails = (helmRepository: HelmRepository, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
@@ -46,31 +47,9 @@ export const helmRepositoryColumns = [
   {
     header: "READY",
     width: "20%",
-    accessor: (helmRepository: HelmRepository) => {
-      const readyCondition = helmRepository.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      const artifactCondition = helmRepository.status?.conditions?.find((c) =>
-        c.type === "ArtifactInStorage"
-      );
-
-      return (
-        <div class="status-badges">
-          {readyCondition?.status === ConditionStatus.True && (
-            <span class="status-badge ready">Ready</span>
-          )}
-          {readyCondition?.status === ConditionStatus.False && (
-            <span class="status-badge not-ready">NotReady</span>
-          )}
-          {artifactCondition?.status === ConditionStatus.True && (
-            <span class="status-badge artifact">Indexed</span>
-          )}
-          {helmRepository.spec.suspend && (
-            <span class="status-badge suspended">Suspended</span>
-          )}
-        </div>
-      );
-    },
+    accessor: (helmRepository: HelmRepository) => (
+      <FluxSourceStatusBadges resource={helmRepository} artifactLabel="Indexed" />
+    ),
   },
   {
     header: "STATUS",

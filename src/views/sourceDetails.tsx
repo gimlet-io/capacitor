@@ -26,6 +26,7 @@ import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
 import { Tabs } from "../components/Tabs.tsx";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
+import { fluxSourceReconciling } from "../components/resourceList/FluxSourceStatusBadges.tsx";
 
 type FluxSourceKind = "GitRepository" | "HelmRepository" | "HelmChart" | "OCIRepository" | "Bucket";
 
@@ -164,25 +165,6 @@ export function SourceDetails() {
     })();
   });
 
-  // Set up watches when params and API resources loaded.
-  // Extract all reactive reads here and pass plain values to setupWatches
-  // to avoid any reactive tracking inside the setup function.
-  createEffect(() => {
-    const ns = params.namespace;
-    const name = params.name;
-    const kindParam = params.kind;
-    const apiResources = apiResourceStore.apiResources;
-    const currentContext = apiResourceStore.contextInfo?.current;
-
-    if (ns && name && kindParam && apiResources) {
-      const kind = kindParam as FluxSourceKind;
-      // Pass all reactive values as plain parameters
-      untrack(() => {
-        setupWatches(ns, name, kind, apiResources, currentContext);
-      });
-    }
-  });
-
   onCleanup(() => {
     untrack(() => {
       watchControllers().forEach((c) => c.abort());
@@ -278,6 +260,19 @@ export function SourceDetails() {
     setWatchControllers(controllers);
   };
 
+  // Set up watches when component mounts or params change
+  createEffect(() => {
+    if (params.namespace && params.name && params.kind && apiResourceStore.apiResources) {
+      setupWatches(
+        params.namespace,
+        params.name,
+        params.kind as FluxSourceKind,
+        apiResourceStore.apiResources,
+        apiResourceStore.contextInfo?.current,
+      );
+    }
+  });
+
   const handleBackClick = () => {
     navigate("/");
   };
@@ -365,9 +360,7 @@ export function SourceDetails() {
   return (
     <div class="kustomization-details">
       <Show when={source()} fallback={<div class="loading">Loading...</div>}>
-        {(s) => {
-          const src = s();
-          return (
+        {(s) => (
             <>
               <header class="kustomization-header">
                 <div class="header-top">
@@ -376,10 +369,10 @@ export function SourceDetails() {
                       <span class="icon">←</span> Back
                     </button>
                     <h1>
-                      {src.metadata.namespace}/{src.metadata.name}
+                      {s().metadata.namespace}/{s().metadata.name}
                     </h1>
                     <div class="kustomization-status">
-                      {StatusBadges(src as unknown as ExtendedKustomization)}
+                      {StatusBadges(s() as unknown as ExtendedKustomization)}
                     </div>
                   </div>
                   <div class="header-actions">
@@ -387,18 +380,18 @@ export function SourceDetails() {
                       class="sync-button reconcile-button"
                       disabled={canReconcile() === false}
                       title={canReconcile() === false ? "Not permitted" : undefined}
-                      onClick={() => handleFluxReconcile(src, apiResourceStore.contextInfo?.current)}
+                      onClick={() => handleFluxReconcile(s(), apiResourceStore.contextInfo?.current)}
                     >
                       Reconcile
                     </button>
-                    {src.spec.suspend ? (
+                    {s().spec.suspend ? (
                       <button
                         class="sync-button resume"
                         style={{ "background-color": "#188038", color: "white" }}
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(src, false, apiResourceStore.contextInfo?.current).catch((e) =>
+                          handleFluxSuspend(s(), false, apiResourceStore.contextInfo?.current).catch((e) =>
                             console.error("Failed to resume source:", e),
                           );
                         }}
@@ -411,7 +404,7 @@ export function SourceDetails() {
                         disabled={canPatch() === false}
                         title={canPatch() === false ? "Not permitted" : undefined}
                         onClick={() => {
-                          handleFluxSuspend(src, true, apiResourceStore.contextInfo?.current).catch((e) =>
+                          handleFluxSuspend(s(), true, apiResourceStore.contextInfo?.current).catch((e) =>
                             console.error("Failed to suspend source:", e),
                           );
                         }}
@@ -426,27 +419,40 @@ export function SourceDetails() {
                   <div class="info-grid">
                     <div class="info-item">
                       <span class="label">Type:</span>
-                      <span class="value">{describeSourceType(src)}</span>
+                      <span class="value">{describeSourceType(s())}</span>
                     </div>
                     <div class="info-item">
                       <span class="label">URL:</span>
                       <span class="value">
-                        {(src as GitRepository | HelmRepository | OCIRepository | Bucket).spec?.url || "—"}
+                        {(s() as GitRepository | HelmRepository | OCIRepository | Bucket).spec?.url || "—"}
                       </span>
                     </div>
                     <div class="info-item">
                       <span class="label">Interval:</span>
-                      <span class="value">{src.spec.interval}</span>
+                      <span class="value">{s().spec.interval}</span>
                     </div>
-                    <Show when={src.status}>
+                    <Show when={s().status}>
                       <div class="info-item" style="grid-column: 4 / 10; grid-row: 1 / 2;">
                         <span class="label">Status:</span>
                         <span class="value">
                           {(() => {
-                            const readyCondition = src.status?.conditions?.find(
+                            const readyCondition = s().status?.conditions?.find(
                               (c) => c.type === ConditionType.Ready || c.type === "Ready",
                             );
-                            return readyCondition?.message || "—";
+
+                            const message = readyCondition?.message || "—";
+                            const reconcilingActive = fluxSourceReconciling(s());
+
+                            return (
+                              <>
+                                {message}
+                                {reconcilingActive && (
+                                  <span class="status-badge reconciling" style={{ "margin-left": "0.5rem" }}>
+                                    Reconciling
+                                  </span>
+                                )}
+                              </>
+                            );
                           })()}
                         </span>
                       </div>
@@ -454,7 +460,7 @@ export function SourceDetails() {
                     <div class="info-item" style="grid-column: 4 / 10; grid-row: 2 / 5;">
                       <span class="label">Events:</span>
                       <ul style="font-family: monospace; font-size: 12px;">
-                        {(src.events || [])
+                        {(s().events || [])
                           .slice()
                           .sort(
                             (a, b) =>
@@ -508,17 +514,17 @@ export function SourceDetails() {
                       </ul>
                     </div>
 
-                    {src.status && (
+                    {s().status && (
                       <div class="info-item full-width">
                         <div class="info-grid">
                           <div class="info-item" style={{ "grid-column": "1 / 4" }}>
                             <span class="label">Artifact Revision:</span>
-                            {renderSourceRevision(src as unknown as Source)}
+                            {renderSourceRevision(s() as unknown as Source)}
                           </div>
                           <div class="info-item" style={{ "grid-column": "4 / 7" }}>
                             <span class="label">Artifact URL:</span>
                             <span class="value">
-                              {src.status?.artifact?.url || "None"}
+                              {s().status?.artifact?.url || "None"}
                             </span>
                           </div>
                         </div>
@@ -529,9 +535,12 @@ export function SourceDetails() {
                       <details>
                         <summary class="label">Conditions</summary>
                         <pre class="conditions-yaml">
-                          {src.status?.conditions
-                            ? stringifyYAML(src.status.conditions)
-                            : "No conditions available"}
+                          {(() => {
+                            const conditions = s().status?.conditions;
+                            return conditions
+                              ? stringifyYAML(conditions)
+                              : "No conditions available";
+                          })()}
                         </pre>
                       </details>
                     </div>
@@ -552,7 +561,7 @@ export function SourceDetails() {
                         <span>
                           Events
                           {(() => {
-                            const count = (src.events || []).length;
+                            const count = (s().events || []).length;
                             return count ? ` (${count})` : "";
                           })()}
                         </span>
@@ -647,8 +656,7 @@ export function SourceDetails() {
                 </Show>
               </div>
             </>
-          );
-        }}
+          )}
       </Show>
     </div>
   );

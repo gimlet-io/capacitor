@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { GitRepository } from "../../types/k8s.ts";
-import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import { ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByAge, sortByName } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
+import { FluxSourceStatusBadges } from "./FluxSourceStatusBadges.tsx";
 
 export const renderGitRepositoryDetails = (gitRepository: GitRepository, columnCount = 4) => (
   <DetailRowCard columnCount={columnCount}>
@@ -54,31 +55,9 @@ export const gitRepositoryColumns = [
   {
     header: "READY",
     width: "20%",
-    accessor: (gitRepository: GitRepository) => {
-      const readyCondition = gitRepository.status?.conditions?.find((c) =>
-        c.type === ConditionType.Ready
-      );
-      const artifactCondition = gitRepository.status?.conditions?.find((c) =>
-        c.type === "ArtifactInStorage"
-      );
-
-      return (
-        <div class="status-badges">
-          {readyCondition?.status === ConditionStatus.True && (
-            <span class="status-badge ready">Ready</span>
-          )}
-          {readyCondition?.status === ConditionStatus.False && (
-            <span class="status-badge not-ready">NotReady</span>
-          )}
-          {artifactCondition?.status === ConditionStatus.True && (
-            <span class="status-badge artifact">Artifact</span>
-          )}
-          {gitRepository.spec.suspend && (
-            <span class="status-badge suspended">Suspended</span>
-          )}
-        </div>
-      );
-    },
+    accessor: (gitRepository: GitRepository) => (
+      <FluxSourceStatusBadges resource={gitRepository} artifactLabel="Artifact" />
+    ),
   },
   {
     header: "STATUS",
