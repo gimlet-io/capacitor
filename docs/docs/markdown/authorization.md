@@ -169,18 +169,6 @@ Capacitor Next can enable these usecases on read-only setups by specifying names
 
 Use `*` for all namespaces (not recommended for security reasons).
 
-**Examples:**
-```bash
-# Allow workload restart in flux-system and default namespaces
-PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES=flux-system,default
-
-# Allow Flux reconciliation only in flux-system namespace
-PERMISSION_ELEVATION_FLUX_RECONCILIATION_NAMESPACES=flux-system
-
-# Allow all namespaces (not recommended)
-PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES=*
-```
-
 In these cases Capacitor's impersonator service account gets additional RBAC scopes and these features will use the impersonator service account, and not the impersonated access. This elevates the user's RBAC permissions to perform useful and not harmful actions, scoped to specific namespaces.
 
 This is a controlled way to work around the limitations of the RBAC system.
