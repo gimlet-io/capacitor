@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "capacitor-server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+    {{- with .Values.configmapLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.configmapAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- toYaml .Values.env | nindent 2 }}
+  {{- if .Values.permissionElevation.workloadRestartNamespaces }}
+  PERMISSION_ELEVATION_WORKLOAD_RESTART_NAMESPACES: {{ .Values.permissionElevation.workloadRestartNamespaces | join "," | quote }}
+  {{- end }}
+  {{- if .Values.permissionElevation.fluxReconciliationNamespaces }}
+  PERMISSION_ELEVATION_FLUX_RECONCILIATION_NAMESPACES: {{ .Values.permissionElevation.fluxReconciliationNamespaces | join "," | quote }}
+  {{- end }}

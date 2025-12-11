@@ -9,33 +9,7 @@ To learn more about the release, try:
 
 Capacitor Agent has been deployed successfully!
 
-The agent will connect to the Capacitor server at:
-  {{ .Values.agent.backendWsUrl }}
-
-Cluster ID: {{ .Values.agent.clusterId }}
-
-{{- if not .Values.agent.backendWsUrl }}
-
-⚠️  WARNING: No backend WebSocket URL has been configured!
-Please set .Values.agent.backendWsUrl to point to your Capacitor server.
-Example: wss://capacitor.example.com/agent/connect
-{{- end }}
-
-{{- if not .Values.agent.clusterId }}
-
-⚠️  WARNING: No cluster ID has been configured!
-Please set .Values.agent.clusterId to match the cluster configuration in your server.
-{{- end }}
-
-{{- if not .Values.agent.agentSharedSecret }}
-
-⚠️  WARNING: No agent shared secret has been configured!
-Please generate one with: openssl rand -hex 32
-And ensure it matches the agentSecret in your server's cluster configuration.
-{{- end }}
-
 To check the agent status:
   kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "capacitor-agent.name" . }} --tail=50
 
 For more information, visit: https://github.com/gimlet-io/capacitor
-

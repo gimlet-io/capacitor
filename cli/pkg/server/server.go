@@ -896,6 +896,104 @@ func (s *Server) Setup() {
 
 	})
 
+	// Add endpoint for inspecting Flux source artifacts (GitRepository, OCIRepository, Bucket, etc.)
+	// This downloads the artifact from source-controller (using port-forward when needed),
+	// extracts it to a temporary directory, walks the files, and returns a lightweight file listing.
+	s.echo.GET("/api/:context/flux/source-artifact/:kind/:namespace/:name", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
+		kindParam := c.Param("kind")
+		namespace := c.Param("namespace")
+		name := c.Param("name")
+
+		if strings.TrimSpace(kindParam) == "" || strings.TrimSpace(namespace) == "" || strings.TrimSpace(name) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "kind, namespace, and name are required path parameters",
+			})
+		}
+
+		client := proxy.k8sClient
+		ctx := context.Background()
+
+		// Load the source resource based on kind
+		var (
+			sourceResource map[string]interface{}
+			err            error
+		)
+
+		switch strings.ToLower(kindParam) {
+		case "gitrepository":
+			sourceResource, err = s.getGitRepository(ctx, client, name, namespace)
+		case "ocirepository":
+			sourceResource, err = s.getOCIRepository(ctx, client, name, namespace)
+		case "bucket":
+			sourceResource, err = s.getBucket(ctx, client, name, namespace)
+		case "helmrepository":
+			sourceResource, err = s.getHelmRepository(ctx, client, name, namespace)
+		case "helmchart":
+			sourceResource, err = s.getHelmChart(ctx, client, name, namespace)
+		default:
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("unsupported source kind for artifact inspection: %s", kindParam),
+			})
+		}
+
+		if err != nil {
+			log.Printf("Error getting source resource %s/%s (%s): %v", namespace, name, kindParam, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to get source resource: %v", err),
+			})
+		}
+
+		status, ok := sourceResource["status"].(map[string]interface{})
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "source resource has no status",
+			})
+		}
+
+		artifact, ok := status["artifact"].(map[string]interface{})
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "source resource has no artifact",
+			})
+		}
+
+		artifactURL, ok := artifact["url"].(string)
+		if !ok || strings.TrimSpace(artifactURL) == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "artifact has no URL",
+			})
+		}
+
+		tempDir, err := DownloadAndExtractArtifact(ctx, client, artifactURL)
+		if err != nil {
+			log.Printf("Error downloading source artifact for %s/%s (%s): %v", namespace, name, kindParam, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to download and extract artifact: %v", err),
+			})
+		}
+		defer os.RemoveAll(tempDir)
+
+		files, err := ListArtifactFiles(tempDir)
+		if err != nil {
+			log.Printf("Error listing files in artifact for %s/%s (%s): %v", namespace, name, kindParam, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to list artifact files: %v", err),
+			})
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"files":     files,
+			"kind":      kindParam,
+			"name":      name,
+			"namespace": namespace,
+		})
+	})
+
 	// Add endpoint for scaling Kubernetes resources (context-aware)
 	s.echo.POST("/api/:context/scale", func(c echo.Context) error {
 		proxy, ok := getProxyFromContext(c)
@@ -1981,8 +2079,9 @@ func humanizeDuration(d time.Duration) string {
 	return fmt.Sprintf("%dd", days)
 }
 
-// downloadAndExtractArtifact downloads and extracts a Flux source artifact
-func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, error) {
+// DownloadAndExtractArtifact downloads and extracts a Flux source artifact using the provided Kubernetes client.
+// It is exported so that external backends (like onurl) can reuse the same implementation without duplication.
+func DownloadAndExtractArtifact(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, error) {
 	// Create a temporary directory
 	tempDir, err := os.MkdirTemp("", "flux-artifact-*")
 	if err != nil {
@@ -2014,7 +2113,7 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kuberne
 		// This is an internal cluster URL, we need to set up port-forwarding
 		log.Printf("Detected internal cluster URL, setting up port-forwarding to source-controller")
 
-		localURL, cleanup, err := s.setupSourceControllerPortForward(ctx, client, artifactURL)
+		localURL, cleanup, err := SetupSourceControllerPortForward(ctx, client, artifactURL)
 		if err != nil {
 			os.RemoveAll(tempDir)
 			return "", fmt.Errorf("failed to setup port-forwarding: %w", err)
@@ -2054,27 +2153,63 @@ func (s *Server) downloadAndExtractArtifact(ctx context.Context, client *kuberne
 		return "", fmt.Errorf("failed to read artifact data: %w", err)
 	}
 
-	// Extract the tar.gz archive
-	err = s.extractTarGz(data, tempDir)
-	if err != nil {
+	contentType := resp.Header.Get("Content-Type")
+	log.Printf("Downloaded artifact: %d bytes, content-type: %s", len(data), contentType)
+
+	if len(data) == 0 {
 		os.RemoveAll(tempDir)
-		return "", fmt.Errorf("failed to extract artifact: %w", err)
+		return "", fmt.Errorf("downloaded artifact is empty")
+	}
+
+	// Check if this is a compressed archive or plain content
+	// HelmRepository artifacts are plain YAML (index.yaml), not tar.gz
+	isGzip := strings.Contains(contentType, "gzip") ||
+		strings.Contains(contentType, "x-tar") ||
+		(len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b) // gzip magic bytes
+
+	if isGzip {
+		// Extract the tar.gz archive
+		extractedCount, err := ExtractTarGz(data, tempDir)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("failed to extract artifact: %w", err)
+		}
+		log.Printf("Extracted %d files/directories from artifact", extractedCount)
+	} else {
+		// Plain content (e.g., HelmRepository index.yaml)
+		// Determine filename from URL or use default
+		filename := "index.yaml"
+		if u, err := url.Parse(artifactURL); err == nil {
+			base := filepath.Base(u.Path)
+			if base != "" && base != "." && base != "/" {
+				filename = base
+			}
+		}
+		destPath := filepath.Join(tempDir, filename)
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("failed to write artifact file: %w", err)
+		}
+		log.Printf("Saved plain artifact as %s (%d bytes)", filename, len(data))
 	}
 
 	return tempDir, nil
 }
 
-// extractTarGz extracts a tar.gz archive to the specified directory
-func (s *Server) extractTarGz(data []byte, destDir string) error {
+// ExtractTarGz extracts a tar.gz archive to the specified directory.
+// Returns the number of files/directories extracted.
+func ExtractTarGz(data []byte, destDir string) (int, error) {
 	// Create a gzip reader
 	gzReader, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+		return 0, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer gzReader.Close()
 
 	// Create a tar reader
 	tarReader := tar.NewReader(gzReader)
+
+	extractedCount := 0
 
 	// Extract files
 	for {
@@ -2083,47 +2218,107 @@ func (s *Server) extractTarGz(data []byte, destDir string) error {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("failed to read tar header: %w", err)
+			return extractedCount, fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Skip the root directory entry "." - it's just the tar root and adds no value
+		if header.Name == "." {
+			continue
 		}
 
 		// Construct the full path
 		path := filepath.Join(destDir, header.Name)
 
-		if header.Name != "." {
-			// Ensure the path is within the destination directory (security check)
-			if !strings.HasPrefix(path, filepath.Clean(destDir)+string(os.PathSeparator)) {
-				return fmt.Errorf("invalid file path: %s", header.Name)
-			}
+		// Ensure the path is within the destination directory (security check)
+		if !strings.HasPrefix(path, filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return extractedCount, fmt.Errorf("invalid file path: %s", header.Name)
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
 			// Create directory
+			log.Printf("Extracting directory: %s", header.Name)
 			err := os.MkdirAll(path, 0755)
 			if err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to create directory %s: %w", path, err)
 			}
+			extractedCount++
 		case tar.TypeReg:
 			// Create file
+			log.Printf("Extracting file: %s (%d bytes)", header.Name, header.Size)
 			err := os.MkdirAll(filepath.Dir(path), 0755)
 			if err != nil {
-				return fmt.Errorf("failed to create parent directory for %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to create parent directory for %s: %w", path, err)
 			}
 
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
 			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to create file %s: %w", path, err)
 			}
 
 			_, err = io.Copy(file, tarReader)
 			file.Close()
 			if err != nil {
-				return fmt.Errorf("failed to write file %s: %w", path, err)
+				return extractedCount, fmt.Errorf("failed to write file %s: %w", path, err)
 			}
+			extractedCount++
+		default:
+			log.Printf("Skipping unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
 	}
 
-	return nil
+	return extractedCount, nil
+}
+
+// ListArtifactFiles walks the extracted artifact directory and returns a shallow
+// file listing including file contents (intended for source artifacts). Paths are
+// returned relative to the artifact root.
+// It is exported so that external backends can reuse the same serialization shape.
+func ListArtifactFiles(root string) ([]map[string]interface{}, error) {
+	files := []map[string]interface{}{}
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		// Skip the root directory entry itself
+		if path == root {
+			return nil
+		}
+
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		entry := map[string]interface{}{
+			"path": rel,
+			"size": info.Size(),
+			"dir":  d.IsDir(),
+		}
+		// Include file contents for regular files (best-effort; errors bubble up)
+		if !d.IsDir() {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			entry["content"] = string(data)
+		}
+		files = append(files, entry)
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 // Helper function to discover Flux API path for a resource kind using a client
@@ -2173,6 +2368,38 @@ func (s *Server) getBucket(ctx context.Context, client *kubernetes.Client, name,
 	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "Bucket")
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover Bucket API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+func (s *Server) getHelmRepository(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "HelmRepository")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover HelmRepository API path: %w", err)
+	}
+	path := fmt.Sprintf(apiPath, namespace, name)
+	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resource map[string]interface{}
+	err = json.Unmarshal(data, &resource)
+	return resource, err
+}
+
+func (s *Server) getHelmChart(ctx context.Context, client *kubernetes.Client, name, namespace string) (map[string]interface{}, error) {
+	apiPath, err := s.discoverFluxAPIPathForClient(ctx, client, "HelmChart")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover HelmChart API path: %w", err)
 	}
 	path := fmt.Sprintf(apiPath, namespace, name)
 	data, err := client.Clientset.RESTClient().Get().AbsPath(path).DoRaw(ctx)
@@ -2291,8 +2518,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.echo.Shutdown(ctx)
 }
 
-// setupSourceControllerPortForward sets up port-forwarding to the source-controller
-func (s *Server) setupSourceControllerPortForward(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, func(), error) {
+// SetupSourceControllerPortForward sets up port-forwarding to the source-controller
+// for the given artifact URL. It is exported so that external backends can reuse
+// the same behavior when inspecting Flux source artifacts.
+func SetupSourceControllerPortForward(ctx context.Context, client *kubernetes.Client, artifactURL string) (string, func(), error) {
 	// Parse the original URL to extract the path
 	u, err := url.Parse(artifactURL)
 	if err != nil {
@@ -2825,7 +3054,7 @@ func (s *Server) getSourceArtifactDirectory(ctx context.Context, client *kuberne
 	}
 
 	// Download and extract the artifact
-	tempDir, err := s.downloadAndExtractArtifact(ctx, client, artifactURL)
+	tempDir, err := DownloadAndExtractArtifact(ctx, client, artifactURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to download and extract artifact: %w", err)
 	}

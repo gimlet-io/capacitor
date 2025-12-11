@@ -53,7 +53,32 @@
       }
     }
 
-    async function loadDoc(id) {
+    function scrollToSection(sectionId) {
+      if (!sectionId || !content) return;
+      const el = content.querySelector('#' + sectionId);
+      if (!el) return;
+      el.scrollIntoView({ block: 'start' });
+    }
+
+    function enhanceHeadings(currentId) {
+      if (!content || !currentId) return;
+      const headings = content.querySelectorAll('h2[id], h3[id]');
+      headings.forEach(function(h) {
+        const id = h.getAttribute('id');
+        if (!id) return;
+        // Avoid wrapping multiple times
+        if (h.querySelector('a.doc-heading-link')) return;
+        const innerHtml = h.innerHTML;
+        const link = document.createElement('a');
+        link.className = 'doc-heading-link';
+        link.setAttribute('href', '#' + currentId + ':' + id);
+        link.innerHTML = innerHtml;
+        h.innerHTML = '';
+        h.appendChild(link);
+      });
+    }
+
+    async function loadDoc(id, sectionId) {
       try {
         setActive(id);
         content.innerHTML = '<p class="dim">Loading…</p>';
@@ -63,8 +88,13 @@
         const md = await res.text();
         content.innerHTML = renderMarkdown(md);
         renderPrevNextNav(id);
+        enhanceHeadings(id);
         // Scroll top of content after load
         content.scrollTop = 0;
+        if (sectionId) {
+          // Let the DOM paint before scrolling to the target section
+          setTimeout(function() { scrollToSection(sectionId); }, 0);
+        }
       } catch (e) {
         const isFileProtocol = window.location.protocol === 'file:';
         const hint = isFileProtocol
@@ -135,45 +165,244 @@
           const urlEsc = String(url).replace(/"/g, '&quot;');
           return '<a class="dim" href="' + urlEsc + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
         });
-        const withCode = withLinks.replace(/`([^`]+)`/g, (_m, code) => '<code>' + code + '</code>');
+        // Basic emphasis: *text* → <em>text</em>
+        const withEmphasis = withLinks.replace(/\*([^*]+)\*/g, (_m, em) => {
+          return '<em>' + em + '</em>';
+        });
+        const withCode = withEmphasis.replace(/`([^`]+)`/g, (_m, code) => {
+          // Inline code: use break-all so the code wraps mid-word rather than
+          // being pushed to a new line as a whole unit.
+          return '<code style="word-break: break-all;">' + code + '</code>';
+        });
         return withCode;
       };
+
+      // Very small YAML-table helper: parses a list of maps and renders as an HTML table.
+      function renderYamlTableBlock(lines) {
+        const rows = [];
+        let current = {};
+        function pushCurrent() {
+          if (Object.keys(current).length > 0) {
+            rows.push(current);
+          }
+          current = {};
+        }
+        for (let i = 0; i < lines.length; i++) {
+          const raw = lines[i];
+          const trimmed = raw.trim();
+          if (!trimmed) continue;
+          if (trimmed[0] === '#') continue;
+          if (trimmed.startsWith('- ')) {
+            // Start a new row
+            pushCurrent();
+            const afterDash = trimmed.slice(2).trim();
+            if (afterDash) {
+              const idx = afterDash.indexOf(':');
+              if (idx !== -1) {
+                const key = afterDash.slice(0, idx).trim();
+                const value = afterDash.slice(idx + 1).trim();
+                if (key) current[key] = value;
+              }
+            }
+            continue;
+          }
+          if (trimmed.indexOf(':') !== -1) {
+            const idx = trimmed.indexOf(':');
+            const key = trimmed.slice(0, idx).trim();
+            const value = trimmed.slice(idx + 1).trim();
+            if (key) current[key] = value;
+          }
+        }
+        pushCurrent();
+        if (!rows.length) {
+          // Fallback: nothing parsed, render as plain code block
+          return null;
+        }
+        const headerKeys = [];
+        const seen = {};
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          for (const k in row) {
+            if (!Object.prototype.hasOwnProperty.call(row, k)) continue;
+            if (!seen[k]) {
+              seen[k] = true;
+              headerKeys.push(k);
+            }
+          }
+        }
+        if (!headerKeys.length) return null;
+        let html = '<table class="yaml-table"><thead><tr>';
+        for (let i = 0; i < headerKeys.length; i++) {
+          html += '<th>' + esc(headerKeys[i]) + '</th>';
+        }
+        html += '</tr></thead><tbody>';
+        for (let r = 0; r < rows.length; r++) {
+          const row = rows[r];
+          html += '<tr>';
+          for (let i = 0; i < headerKeys.length; i++) {
+            const key = headerKeys[i];
+            const val = row[key] != null ? String(row[key]) : '';
+            // Use the same inline formatter as regular markdown so links,
+            // code, emphasis, etc. render inside yaml-table cells.
+            html += '<td>' + formatInline(val) + '</td>';
+          }
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+        return html;
+      }
+
+      const usedHeadingIds = {};
+      function slugifyHeading(text) {
+        const base = String(text || '')
+          .toLowerCase()
+          .replace(/[`*_~]/g, '')
+          .replace(/[^a-z0-9\s-]/g, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+        return base || 'section';
+      }
+      function getUniqueHeadingId(base) {
+        let id = base;
+        let counter = 2;
+        while (usedHeadingIds[id]) {
+          id = base + '-' + counter++;
+        }
+        usedHeadingIds[id] = true;
+        return id;
+      }
+
       const lines = md.split(/\r?\n/);
       let html = '';
-      let inCode = false;
       let listOpen = false;
+      let quoteOpen = false;
+      let quoteBuffer = [];
+
+      function closeListIfOpen() {
+        if (listOpen) {
+          html += '</ul>';
+          listOpen = false;
+        }
+      }
+
+      function closeQuoteIfOpen() {
+        if (quoteOpen) {
+          const text = quoteBuffer.join(' ').trim();
+          if (text) {
+            html += '<blockquote><p>' + formatInline(text) + '</p></blockquote>';
+          }
+          quoteOpen = false;
+          quoteBuffer = [];
+        }
+      }
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+
+        // Fenced code blocks (including yaml-table)
         if (line.startsWith('```')) {
-          if (!inCode) { html += '<pre class="code-fence"><code class="mono">'; inCode = true; }
-          else { html += '</code></pre>'; inCode = false; }
+          closeListIfOpen();
+          closeQuoteIfOpen();
+          const info = line.slice(3).trim().toLowerCase();
+          const isYamlTable = info === 'yaml-table' || info === 'yaml table';
+          const blockLines = [];
+          i++;
+          while (i < lines.length && !lines[i].startsWith('```')) {
+            blockLines.push(lines[i]);
+            i++;
+          }
+          // closing fence (```...) is consumed by while; outer for will increment i again
+          if (isYamlTable) {
+            const tableHtml = renderYamlTableBlock(blockLines);
+            if (tableHtml != null) {
+              html += tableHtml;
+            } else {
+              // Fallback: render as plain code if parsing failed
+              html += '<pre class="code-fence"><code class="mono">';
+              for (let j = 0; j < blockLines.length; j++) {
+                html += esc(blockLines[j]) + '\n';
+              }
+              html += '</code></pre>';
+            }
+          } else {
+            html += '<pre class="code-fence"><code class="mono">';
+            for (let j = 0; j < blockLines.length; j++) {
+              html += esc(blockLines[j]) + '\n';
+            }
+            html += '</code></pre>';
+          }
           continue;
         }
-        if (inCode) { html += esc(line) + '\n'; continue; }
+
+        // Blockquotes (lines starting with ">")
+        const bq = line.match(/^>\s?(.*)$/);
+        if (bq) {
+          closeListIfOpen();
+          if (!quoteOpen) {
+            quoteOpen = true;
+            quoteBuffer = [];
+          }
+          quoteBuffer.push(bq[1]);
+          continue;
+        }
+        if (quoteOpen && line.trim() === '') {
+          // Blank line ends the quote block
+          closeQuoteIfOpen();
+          continue;
+        }
+        if (quoteOpen) {
+          // Any non-blank, non-quote line closes the quote first
+          closeQuoteIfOpen();
+        }
+
         const h = line.match(/^(#{1,3})\s+(.*)$/);
         if (h) {
-          if (listOpen) { html += '</ul>'; listOpen = false; }
-          html += '<' + 'h' + h[1].length + '>' + formatInline(h[2]) + '</h' + h[1].length + '>';
+          closeListIfOpen();
+          const level = h[1].length;
+          const rawText = h[2] || '';
+          const tag = 'h' + level;
+          const innerHtml = formatInline(rawText);
+          if (level === 2 || level === 3) {
+            const slugBase = slugifyHeading(rawText);
+            const id = getUniqueHeadingId(slugBase);
+            html += '<' + tag + ' id="' + id + '">' + innerHtml + '</' + tag + '>';
+          } else {
+            html += '<' + tag + '>' + innerHtml + '</' + tag + '>';
+          }
           continue;
         }
+
         const li = line.match(/^[-*]\s+(.*)$/);
         if (li) {
-          if (!listOpen) { html += '<ul>'; listOpen = true; }
+          if (!listOpen) {
+            html += '<ul>';
+            listOpen = true;
+          }
           html += '<li>' + formatInline(li[1]) + '</li>';
           continue;
         }
-        if (line.trim() === '') { if (listOpen) { html += '</ul>'; listOpen = false; } html += ''; continue; }
+
+        if (line.trim() === '') {
+          closeListIfOpen();
+          continue;
+        }
+
         html += '<p>' + formatInline(line) + '</p>';
       }
+
       if (listOpen) html += '</ul>';
-      if (inCode) html += '</code></pre>';
+      closeQuoteIfOpen();
       return html;
     }
 
     function route() {
-      const defaultId = docsOrder.length > 0 ? ('#' + docsOrder[0]) : '#quickstart';
-      const id = (location.hash || defaultId).replace('#', '');
-      loadDoc(id);
+      const fallbackDocId = docsOrder.length > 0 ? docsOrder[0] : 'quickstart';
+      const raw = window.location.hash ? window.location.hash.slice(1) : fallbackDocId;
+      const parts = raw.split(':');
+      const docId = parts[0] || fallbackDocId;
+      const sectionId = parts.length > 1 ? parts[1] : null;
+      loadDoc(docId, sectionId);
     }
     window.addEventListener('hashchange', route);
     route();

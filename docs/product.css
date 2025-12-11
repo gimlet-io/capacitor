@@ -204,6 +204,8 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   width: 100%;
+  margin-top: 32px;
+  margin-bottom: 32px;
 }
 .feature {
   background: var(--panel);
@@ -227,8 +229,6 @@ body {
 .sidebar {
   position: sticky;
   top: 16px;
-  max-height: calc(100vh - 32px);
-  overflow: auto;
   background: var(--panel);
   border: 1px solid rgba(231,231,231,0.1);
   border-radius: 6px;
@@ -259,8 +259,28 @@ body {
 }
 
 .content h1 { font-size: 32px; line-height: 1.25; margin-block-start: 30px; }
-.content h2 { font-size: 24px; line-height: 1.30; margin-block-start: 24px; }
-.content h3 { font-size: 20px; line-height: 1.35; margin-block-start: 18px; }
+.content h2 { font-size: 24px; line-height: 1.30; margin-block-start: 30px; }
+.content h3 { font-size: 20px; line-height: 1.35; margin-block-start: 30px; color: var(--cyan); font-weight: 500;}
+
+.content h2 .doc-heading-link,
+.content h3 .doc-heading-link {
+  color: inherit;
+  text-decoration: none;
+  position: relative;
+}
+.content h2 .doc-heading-link::after,
+.content h3 .doc-heading-link::after {
+  content: '#';
+  opacity: 0;
+  margin-left: 6px;
+  font-size: 0.9em;
+  color: var(--muted);
+  transition: opacity 120ms ease;
+}
+.content h2:hover .doc-heading-link::after,
+.content h3:hover .doc-heading-link::after {
+  opacity: 1;
+}
 
 .content pre {
   background: #0d1012;
@@ -269,7 +289,6 @@ body {
   padding: 12px;
   overflow: hidden;
   max-width: 100%;
-  font-size: 14px;
 }
 .content pre code {
   white-space: pre-wrap;
@@ -280,15 +299,18 @@ body {
 .content code {
   color: #cfe9f3;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
 }
 .content :not(pre) > code {
+  /* Allow inline code to wrap inside long tokens (eg. env var examples) */
   white-space: break-spaces;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .content p, .content li, .content a, .content h1, .content h2, .content h3 {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  /* Allow wrapping for long prose, but avoid breaking in the middle of words/tokens */
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .content img {
   display: block;
@@ -296,6 +318,38 @@ body {
   height: auto;
   margin: 12px 0;
   border-radius: 4px;
+}
+
+.content blockquote {
+  margin: 24px 0;
+  padding: 14px 18px;
+  border-left: 3px solid var(--yellow);
+  background: rgba(15, 17, 18, 0.9);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.content blockquote p {
+  margin: 0;
+}
+
+/* YAML table styling (for ```yaml-table fenced blocks) */
+.content table.yaml-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 16px;
+}
+.content table.yaml-table th,
+.content table.yaml-table td {
+  border: 1px solid rgba(231,231,231,0.35);
+  padding: 6px 10px;
+  text-align: left;
+}
+.content table.yaml-table thead {
+  background: rgba(106,169,189,0.10);
+}
+.content table.yaml-table th {
+  font-weight: 600;
 }
 
 .doc-nav {
@@ -310,6 +364,8 @@ body {
 
 .pricing {
   width: 100%;
+  margin-top: 32px;
+  margin-bottom: 48px;
   display: grid;
   justify-items: center;
 }

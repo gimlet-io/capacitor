@@ -8,7 +8,7 @@ import { Show } from "solid-js";
 import type { HelmRelease, Event, Kustomization, ExtendedKustomization, OCIRepository } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff } from "../utils/fluxUtils.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
@@ -26,7 +26,7 @@ import { HelmManifestDiff } from "../components/resourceDetail/HelmManifestDiff.
 import { HelmHistory } from "../components/resourceDetail/HelmHistory.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
-import { useAppConfig } from "../store/appConfigStore.tsx";
+import { useAppConfig, isFluxReconciliationAllowed } from "../store/appConfigStore.tsx";
 import { ValuesFromViewer } from "../components/resourceDetail/ValuesFromViewer.tsx";
 
 export function HelmReleaseDetails() {
@@ -34,11 +34,12 @@ export function HelmReleaseDetails() {
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
   const filterStore = useFilterStore();
+  const checkPermission = useCheckPermissionSSAR();
 
   const [helmRelease, setHelmRelease] = createSignal<HelmRelease & { events?: Event[] } | null>(null);
-  const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
-  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
-  const [canPatch, setCanPatch] = createSignal<boolean | undefined>(undefined);
+  const [canReconcile, setCanReconcile] = createSignal<boolean>(false);
+  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean>(false);
+  const [canPatch, setCanPatch] = createSignal<boolean>(false);
 
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
@@ -57,7 +58,7 @@ export function HelmReleaseDetails() {
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
   const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events" | "logs">("resource");
   const [chartRefVersion, setChartRefVersion] = createSignal<string | null>(null);
-  const { fluxcdConfig } = useAppConfig();
+  const { fluxcdConfig, permissionElevation } = useAppConfig();
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -147,16 +148,18 @@ export function HelmReleaseDetails() {
   createEffect(() => {
     const hr = helmRelease();
     if (!hr) {
-      setCanReconcile(undefined);
-      setCanReconcileWithSources(undefined);
-      setCanPatch(undefined);
       return;
     }
 
-    const mainRes: MinimalK8sResource = { apiVersion: hr.apiVersion, kind: hr.kind, metadata: { name: hr.metadata.name, namespace: hr.metadata.namespace } };
+    const elevation = permissionElevation();
+    const namespace = hr.metadata.namespace;
+    const mainRes: MinimalK8sResource = { apiVersion: hr.apiVersion, kind: hr.kind, metadata: { name: hr.metadata.name, namespace } };
     (async () => {
-      const canPatchMain = await checkPermissionSSAR(mainRes, { verb: 'patch' }, apiResourceStore.apiResources);
-      setCanReconcile(canPatchMain);
+      const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled for this namespace
+      const nsElevated = isFluxReconciliationAllowed(elevation, namespace);
+      const effectiveCanReconcile = canPatchMain || nsElevated;
+      setCanReconcile(effectiveCanReconcile);
       setCanPatch(canPatchMain);
 
       // Check source permission when available (HelmRepository, GitRepository, OCIRepository, or HelmChart)
@@ -164,15 +167,18 @@ export function HelmReleaseDetails() {
       // Handle both chartRef and chart.spec.sourceRef
       const src = (hr.spec?.chartRef || hr.spec?.chart?.spec?.sourceRef) as SourceRefLike | undefined;
       if (src?.kind && src?.name) {
+        const srcNs = src.namespace || namespace;
         const srcRes: MinimalK8sResource = {
           apiVersion: src.apiVersion || '',
           kind: src.kind,
-          metadata: { name: src.name, namespace: src.namespace || hr.metadata.namespace }
+          metadata: { name: src.name, namespace: srcNs }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources);
-        setCanReconcileWithSources(canPatchMain && canPatchSrc);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled for both namespaces
+        const srcNsElevated = isFluxReconciliationAllowed(elevation, srcNs);
+        setCanReconcileWithSources((canPatchMain && canPatchSrc) || (nsElevated && srcNsElevated));
       } else {
-        setCanReconcileWithSources(canPatchMain);
+        setCanReconcileWithSources(effectiveCanReconcile);
       }
     })();
   });

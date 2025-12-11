@@ -68,9 +68,10 @@ const makeSsarCacheKey = (
   return `${group || ''}|${resourcePlural}|${namespace || ''}|${name || ''}|${verb}|${subresource || ''}`;
 };
 
-export const checkPermissionSSAR = async (
+const checkPermissionSSAR = async (
   resource: MinimalK8sResource,
   opts: PermissionOptions,
+  ctxNameFromCaller: string,
   apiResources?: ApiResource[]
 ): Promise<boolean> => {
   if (!resource || !resource.metadata) return false;
@@ -104,14 +105,19 @@ export const checkPermissionSSAR = async (
       if (resolvedName) body.spec.resourceAttributes.name = resolvedName;
       if (opts.subresource) body.spec.resourceAttributes.subresource = opts.subresource;
 
-      const { contextInfo } = useApiResourceStore();
-      const k8sPrefix = contextInfo?.current ? `/k8s/${encodeURIComponent(contextInfo.current)}` : '/k8s';
+      // Context must be supplied by the caller (typically via useCheckPermissionSSAR);
+      // when absent, fall back to cluster-agnostic '/k8s'.
+      const effectiveCtxName = ctxNameFromCaller;
+      const k8sPrefix = effectiveCtxName ? `/k8s/${encodeURIComponent(effectiveCtxName)}` : '/k8s';
       const resp = await fetch(`${k8sPrefix}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!resp.ok) return true; // be permissive on SSAR failure (do not cache)
+      if (!resp.ok) {
+        console.log('checkPermissionSSAR', 'SSAR request failed', resp.status, resp.statusText);
+        return false;
+      }
       const data = await resp.json();
       const allowed = !!data?.status?.allowed;
       ssarResultCache.set(key, allowed);
@@ -126,8 +132,23 @@ export const checkPermissionSSAR = async (
       ssarInFlight.delete(key);
     }
   } catch (_) {
-    return true; // permissive on error
+    console.log('checkPermissionSSAR', 'error', _);
+    return false
   }
 };
-
+ 
+export function useCheckPermissionSSAR() {
+  const apiResourceStore = useApiResourceStore();
+  return async (
+    resource: MinimalK8sResource,
+    opts: PermissionOptions
+  ): Promise<boolean> => {
+    const ctxName = apiResourceStore.contextInfo?.current;
+    if (!ctxName) {
+      console.log("checkPermissionSSAR", "missing context name from ApiResourceStore");
+      return false;
+    }
+    return checkPermissionSSAR(resource, opts, ctxName, apiResourceStore.apiResources);
+  };
+}
 

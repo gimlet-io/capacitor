@@ -17,7 +17,7 @@ import * as graphlib from "graphlib";
 import { useFilterStore } from "../store/filterStore.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { handleFluxReconcile, handleFluxSuspend, handleFluxDiff, handleFluxReconcileWithSources } from "../utils/fluxUtils.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
@@ -28,7 +28,7 @@ import type { Event } from "../types/k8s.ts";
 import { EventList } from "../components/resourceList/EventList.tsx";
 import { ConditionType } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
-import { useAppConfig } from "../store/appConfigStore.tsx";
+import { useAppConfig, isFluxReconciliationAllowed } from "../store/appConfigStore.tsx";
 
 // Utility function to parse inventory entry ID and extract resource info
 interface InventoryResourceInfo {
@@ -252,9 +252,10 @@ export function KustomizationDetails() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const filterStore = useFilterStore(); // some odd thing in solidjs, the filterStore is not used in this component, but it is required to be imported
   const apiResourceStore = useApiResourceStore();
-  const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
-  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
-  const [canPatchKustomization, setCanPatchKustomization] = createSignal<boolean | undefined>(undefined);
+  const checkPermission = useCheckPermissionSSAR();
+  const [canReconcile, setCanReconcile] = createSignal<boolean>(false);
+  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean>(false);
+  const [canPatchKustomization, setCanPatchKustomization] = createSignal<boolean>(false);
   
   // Create a signal to track if k8sResources is loaded
   const [k8sResourcesLoaded, setK8sResourcesLoaded] = createSignal(false);
@@ -284,7 +285,7 @@ export function KustomizationDetails() {
   const [watchControllers, setWatchControllers] = createSignal<
     AbortController[]
   >([]);
-  const { fluxcdConfig } = useAppConfig();
+  const { fluxcdConfig, permissionElevation } = useAppConfig();
 
   // Diff drawer state
   const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
@@ -428,26 +429,31 @@ export function KustomizationDetails() {
   createEffect(() => {
     const k = kustomization();
     if (!k) {
-      setCanReconcile(undefined);
-      setCanReconcileWithSources(undefined);
-      setCanPatchKustomization(undefined);
       return;
     }
-    const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace: k.metadata.namespace } };
+    const elevation = permissionElevation();
+    const namespace = k.metadata.namespace;
+    const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace } };
     (async () => {
-      const canPatch = await checkPermissionSSAR(res, { verb: 'patch' }, apiResourceStore.apiResources as any);
-      setCanReconcile(canPatch);
+      const canPatch = await checkPermission(res, { verb: 'patch' });
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled for this namespace
+      const nsElevated = isFluxReconciliationAllowed(elevation, namespace);
+      const effectiveCanReconcile = canPatch || nsElevated;
+      setCanReconcile(effectiveCanReconcile);
       setCanPatchKustomization(canPatch);
       if (k.spec?.sourceRef?.kind && k.spec?.sourceRef?.name) {
+        const srcNs = k.spec.sourceRef.namespace || namespace;
         const srcRes: MinimalK8sResource = {
           apiVersion: (k.spec as any).sourceRef.apiVersion || '',
           kind: k.spec.sourceRef.kind,
-          metadata: { name: k.spec.sourceRef.name, namespace: k.spec.sourceRef.namespace || k.metadata.namespace }
+          metadata: { name: k.spec.sourceRef.name, namespace: srcNs }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources as any);
-        setCanReconcileWithSources(canPatch && canPatchSrc);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled for both namespaces
+        const srcNsElevated = isFluxReconciliationAllowed(elevation, srcNs);
+        setCanReconcileWithSources((canPatch && canPatchSrc) || (nsElevated && srcNsElevated));
       } else {
-        setCanReconcileWithSources(canPatch);
+        setCanReconcileWithSources(effectiveCanReconcile);
       }
     })();
   });

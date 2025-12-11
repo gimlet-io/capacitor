@@ -1,0 +1,241 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capacitor-next-preset-readonly
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+rules:
+# =============================================================================
+# Core Kubernetes Resources (read-only, excluding secrets)
+# =============================================================================
+
+# Core API group - common resources (no secrets)
+- apiGroups: [""]
+  resources:
+    - configmaps
+    - endpoints
+    - events
+    - limitranges
+    - namespaces
+    - nodes
+    - persistentvolumeclaims
+    - persistentvolumes
+    - pods
+    - pods/log
+    - pods/status
+    - replicationcontrollers
+    - resourcequotas
+    - serviceaccounts
+    - services
+  verbs: ["get", "list", "watch"]
+
+# Apps API group
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Batch API group
+- apiGroups: ["batch"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Autoscaling API group
+- apiGroups: ["autoscaling"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Networking API group
+- apiGroups: ["networking.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# RBAC API group
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Policy API group
+- apiGroups: ["policy"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Storage API group
+- apiGroups: ["storage.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Certificates API group
+- apiGroups: ["certificates.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Coordination API group
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Discovery API group
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Events API group
+- apiGroups: ["events.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Scheduling API group
+- apiGroups: ["scheduling.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Node API group
+- apiGroups: ["node.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Admission API groups
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Authorization API group (allow SelfSubjectAccessReview for UI permission checks)
+- apiGroups: ["authorization.k8s.io"]
+  resources: ["selfsubjectaccessreviews"]
+  verbs: ["create"]
+
+# API Extensions (CRDs)
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Metrics API (for pod/node metrics)
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# FluxCD Resources (all versions including 2.7+)
+# =============================================================================
+
+# FluxCD Source Controller - all resources
+- apiGroups: ["source.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# FluxCD Kustomize Controller - all resources
+- apiGroups: ["kustomize.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# FluxCD Helm Controller - all resources
+- apiGroups: ["helm.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# FluxCD Notification Controller - all resources
+- apiGroups: ["notification.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# FluxCD Image Automation Controller - all resources
+- apiGroups: ["image.toolkit.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# Terraform/Tofu Controller (FluxCD ecosystem)
+# =============================================================================
+
+# Tofu Controller / Terraform Controller - all resources
+- apiGroups: ["infra.contrib.fluxcd.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# Kluctl Resources
+# =============================================================================
+
+# Kluctl GitOps Controller - all resources
+- apiGroups: ["gitops.kluctl.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# =============================================================================
+# Other Common GitOps/CD Resources
+# =============================================================================
+
+# Argo CD (if present)
+- apiGroups: ["argoproj.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Crossplane (if present)
+- apiGroups: ["pkg.crossplane.io", "apiextensions.crossplane.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Cert-Manager (if present)
+- apiGroups: ["cert-manager.io", "acme.cert-manager.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# External Secrets (if present)
+- apiGroups: ["external-secrets.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Sealed Secrets (if present)
+- apiGroups: ["bitnami.com"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Prometheus/Monitoring (if present)
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Istio (if present)
+- apiGroups: ["networking.istio.io", "security.istio.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Gateway API
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Traefik (if present)
+- apiGroups: ["traefik.io", "traefik.containo.us"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+# Carvel (if present)
+- apiGroups: ["packaging.carvel.dev", "data.packaging.carvel.dev", "kappctrl.k14s.io", "secretgen.carvel.dev", "secretgen.k14s.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capacitor-next-preset-readonly
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capacitor-next-preset-readonly
+  labels:
+    {{- include "capacitor-agent.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capacitor-next-preset-readonly
+subjects:
+- kind: ServiceAccount
+  name: capacitor-next-preset-readonly
+  namespace: {{ .Release.Namespace }}

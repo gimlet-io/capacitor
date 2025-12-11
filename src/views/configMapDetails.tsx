@@ -8,12 +8,13 @@ import type { ConfigMap } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 
 export function ConfigMapDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const checkPermission = useCheckPermissionSSAR();
 
   // State for the specific ConfigMap
   const [configMap, setConfigMap] = createSignal<ConfigMap | null>(null);
@@ -69,7 +70,7 @@ export function ConfigMapDetails() {
               },
             };
             (async () => {
-              const ok = await checkPermissionSSAR(res, { verb: "patch" });
+              const ok = await checkPermission(res, { verb: "patch" });
               setCanPatchConfigMap(ok);
             })();
           }

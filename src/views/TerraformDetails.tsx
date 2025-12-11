@@ -7,7 +7,8 @@ import { useNavigate, useParams } from "@solidjs/router";
 import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
-import { checkPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
+import { useAppConfig, isFluxReconciliationAllowed } from "../store/appConfigStore.tsx";
+import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff, handleFluxApprove } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
 import { stringify as stringifyYAML } from "@std/yaml";
@@ -21,12 +22,14 @@ export function TerraformDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const { permissionElevation } = useAppConfig();
+  const checkPermission = useCheckPermissionSSAR();
 
   const [terraform, setTerraform] = createSignal<Terraform & { events?: Event[] } | null>(null);
 
-  const [canReconcile, setCanReconcile] = createSignal<boolean | undefined>(undefined);
-  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean | undefined>(undefined);
-  const [canPatch, setCanPatch] = createSignal<boolean | undefined>(undefined);
+  const [canReconcile, setCanReconcile] = createSignal<boolean>(false);
+  const [canReconcileWithSources, setCanReconcileWithSources] = createSignal<boolean>(false);
+  const [canPatch, setCanPatch] = createSignal<boolean>(false);
 
   const [watchControllers, setWatchControllers] = createSignal<AbortController[]>([]);
 
@@ -246,29 +249,34 @@ export function TerraformDetails() {
   createEffect(() => {
     const tf = terraform();
     if (!tf) {
-      setCanReconcile(undefined);
-      setCanReconcileWithSources(undefined);
-      setCanPatch(undefined);
       return;
     }
 
-    const mainRes: MinimalK8sResource = { apiVersion: tf.apiVersion, kind: tf.kind, metadata: { name: tf.metadata.name, namespace: tf.metadata.namespace } };
+    const elevation = permissionElevation();
+    const namespace = tf.metadata.namespace;
+    const mainRes: MinimalK8sResource = { apiVersion: tf.apiVersion, kind: tf.kind, metadata: { name: tf.metadata.name, namespace } };
     (async () => {
-      const canPatchMain = await checkPermissionSSAR(mainRes, { verb: 'patch' }, apiResourceStore.apiResources);
-      setCanReconcile(canPatchMain);
+      const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled for this namespace
+      const nsElevated = isFluxReconciliationAllowed(elevation, namespace);
+      const effectiveCanReconcile = canPatchMain || nsElevated;
+      setCanReconcile(effectiveCanReconcile);
       setCanPatch(canPatchMain);
 
       const src = tf.spec?.sourceRef;
       if (src?.kind && src?.name) {
+        const srcNs = src.namespace || namespace;
         const srcRes: MinimalK8sResource = {
           apiVersion: ((tf as unknown) as { spec?: { sourceRef?: { apiVersion?: string } } }).spec?.sourceRef?.apiVersion || '',
           kind: src.kind,
-          metadata: { name: src.name, namespace: src.namespace || tf.metadata.namespace }
+          metadata: { name: src.name, namespace: srcNs }
         };
-        const canPatchSrc = await checkPermissionSSAR(srcRes, { verb: 'patch' }, apiResourceStore.apiResources);
-        setCanReconcileWithSources(canPatchMain && canPatchSrc);
+        const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled for both namespaces
+        const srcNsElevated = isFluxReconciliationAllowed(elevation, srcNs);
+        setCanReconcileWithSources((canPatchMain && canPatchSrc) || (nsElevated && srcNsElevated));
       } else {
-        setCanReconcileWithSources(canPatchMain);
+        setCanReconcileWithSources(effectiveCanReconcile);
       }
     })();
   });

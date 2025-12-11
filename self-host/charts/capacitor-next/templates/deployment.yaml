@@ -14,11 +14,17 @@ spec:
     metadata:
       labels:
         {{- include "capacitor-server.selectorLabels" . | nindent 8 }}
-        {{- if .Values.azureWorkloadIdentity.enabled }}
+        {{- if eq .Values.env.AZURE_WORKLOAD_IDENTITY_ENABLED "true" }}
         azure.workload.identity/use: "true"
         {{- end }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "capacitor-server.serviceAccountName" . }}
       {{- if .Values.securityContext.enabled }}
@@ -48,16 +54,12 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           envFrom:
-            - secretRef:
+            - configMapRef:
                 name: {{ include "capacitor-server.fullname" . }}
             {{- if .Values.existingSecret.name }}
             - secretRef:
                 name: {{ .Values.existingSecret.name }}
             {{- end }}
-          {{- with .Values.extraEnv }}
-          env:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
           volumeMounts:
             - name: registry
               mountPath: /app/backend/registry.yaml
@@ -87,4 +89,3 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-
