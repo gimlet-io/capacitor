@@ -58,7 +58,7 @@ export function HelmReleaseDetails() {
   const [manifestResources, setManifestResources] = createSignal<MinimalRes[]>([]);
   const [activeMainTab, setActiveMainTab] = createSignal<"resource" | "values" | "manifest" | "history" | "diff" | "events" | "logs">("resource");
   const [chartRefVersion, setChartRefVersion] = createSignal<string | null>(null);
-  const { fluxcdConfig } = useAppConfig();
+  const { fluxcdConfig, permissionElevation } = useAppConfig();
 
   const isResourceTypeVisible = (resourceType: string): boolean => visibleResourceTypes().has(resourceType);
   const toggleResourceTypeVisibility = (resourceType: string): void => {
@@ -151,10 +151,13 @@ export function HelmReleaseDetails() {
       return;
     }
 
+    const elevation = permissionElevation();
     const mainRes: MinimalK8sResource = { apiVersion: hr.apiVersion, kind: hr.kind, metadata: { name: hr.metadata.name, namespace: hr.metadata.namespace } };
     (async () => {
       const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
-      setCanReconcile(canPatchMain);
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled
+      const effectiveCanReconcile = canPatchMain || !!elevation?.fluxReconciliation;
+      setCanReconcile(effectiveCanReconcile);
       setCanPatch(canPatchMain);
 
       // Check source permission when available (HelmRepository, GitRepository, OCIRepository, or HelmChart)
@@ -168,9 +171,10 @@ export function HelmReleaseDetails() {
           metadata: { name: src.name, namespace: src.namespace || hr.metadata.namespace }
         };
         const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
-        setCanReconcileWithSources(canPatchMain && canPatchSrc);
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled
+        setCanReconcileWithSources((canPatchMain && canPatchSrc) || !!elevation?.fluxReconciliation);
       } else {
-        setCanReconcileWithSources(canPatchMain);
+        setCanReconcileWithSources(effectiveCanReconcile);
       }
     })();
   });

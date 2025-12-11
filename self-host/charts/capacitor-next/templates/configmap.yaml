@@ -14,3 +14,12 @@ metadata:
   {{- end }}
 data:
   {{- toYaml .Values.env | nindent 2 }}
+  {{- if .Values.permissionElevation.workloadRestart }}
+  PERMISSION_ELEVATION_WORKLOAD_RESTART: "true"
+  {{- end }}
+  {{- if .Values.permissionElevation.fluxReconciliation }}
+  PERMISSION_ELEVATION_FLUX_RECONCILIATION: "true"
+  {{- end }}
+  {{- if .Values.permissionElevation.helmInfo }}
+  PERMISSION_ELEVATION_HELM_INFO: "true"
+  {{- end }}

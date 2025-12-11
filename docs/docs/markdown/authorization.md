@@ -169,3 +169,5 @@ Capacitor Next can enable these usecases on read-only setups if you set the `PER
 In these cases Capacitor's inpersonator service account gets additional RBAC scopes and these features will use the impersonator service account, and not the impersonated access, this we elevate the user's RBAC permissions to perform useful and not harmful actions.
 
 This is a controlled way to work around the limitations of the RBAC system.
+
+Since we are delegating work to Capacitor's impersonator role, the RBAC for that needs to allow that. The [Helm chart has values](TODO) for this.

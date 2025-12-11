@@ -285,7 +285,7 @@ export function KustomizationDetails() {
   const [watchControllers, setWatchControllers] = createSignal<
     AbortController[]
   >([]);
-  const { fluxcdConfig } = useAppConfig();
+  const { fluxcdConfig, permissionElevation } = useAppConfig();
 
   // Diff drawer state
   const [diffDrawerOpen, setDiffDrawerOpen] = createSignal(false);
@@ -431,10 +431,13 @@ export function KustomizationDetails() {
     if (!k) {
       return;
     }
+    const elevation = permissionElevation();
     const res: MinimalK8sResource = { apiVersion: k.apiVersion, kind: k.kind, metadata: { name: k.metadata.name, namespace: k.metadata.namespace } };
     (async () => {
       const canPatch = await checkPermission(res, { verb: 'patch' });
-      setCanReconcile(canPatch);
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled
+      const effectiveCanReconcile = canPatch || !!elevation?.fluxReconciliation;
+      setCanReconcile(effectiveCanReconcile);
       setCanPatchKustomization(canPatch);
       if (k.spec?.sourceRef?.kind && k.spec?.sourceRef?.name) {
         const srcRes: MinimalK8sResource = {
@@ -443,9 +446,10 @@ export function KustomizationDetails() {
           metadata: { name: k.spec.sourceRef.name, namespace: k.spec.sourceRef.namespace || k.metadata.namespace }
         };
         const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
-        setCanReconcileWithSources(canPatch && canPatchSrc);
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled
+        setCanReconcileWithSources((canPatch && canPatchSrc) || !!elevation?.fluxReconciliation);
       } else {
-        setCanReconcileWithSources(canPatch);
+        setCanReconcileWithSources(effectiveCanReconcile);
       }
     })();
   });

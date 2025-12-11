@@ -17,6 +17,7 @@ import type {
 } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
+import { useAppConfig } from "../store/appConfigStore.tsx";
 import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { handleFluxReconcile, handleFluxSuspend } from "../utils/fluxUtils.tsx";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
@@ -125,6 +126,7 @@ export function SourceDetails() {
   const params = useParams<{ kind: string; namespace: string; name: string }>();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const { permissionElevation } = useAppConfig();
   const checkPermission = useCheckPermissionSSAR();
 
   const [source, setSource] = createSignal<FluxSource | null>(null);
@@ -146,6 +148,7 @@ export function SourceDetails() {
     const src = source();
     if (!src) return;
 
+    const elevation = permissionElevation();
     const res: MinimalK8sResource = {
       apiVersion: src.apiVersion,
       kind: src.kind,
@@ -154,7 +157,8 @@ export function SourceDetails() {
 
     (async () => {
       const allowed = await checkPermission(res, { verb: "patch" });
-      setCanReconcile(allowed);
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled
+      setCanReconcile(allowed || !!elevation?.fluxReconciliation);
       setCanPatch(allowed);
     })();
   });

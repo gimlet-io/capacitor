@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "@solidjs/router";
 import type { Terraform, Event, Kustomization, ExtendedKustomization } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
+import { useAppConfig } from "../store/appConfigStore.tsx";
 import { useCheckPermissionSSAR, type MinimalK8sResource } from "../utils/permissions.ts";
 import { handleFluxReconcile, handleFluxReconcileWithSources, handleFluxSuspend, handleFluxDiff, handleFluxApprove } from "../utils/fluxUtils.tsx";
 import { DiffDrawer } from "../components/resourceDetail/DiffDrawer.tsx";
@@ -21,6 +22,7 @@ export function TerraformDetails() {
   const params = useParams();
   const navigate = useNavigate();
   const apiResourceStore = useApiResourceStore();
+  const { permissionElevation } = useAppConfig();
   const checkPermission = useCheckPermissionSSAR();
 
   const [terraform, setTerraform] = createSignal<Terraform & { events?: Event[] } | null>(null);
@@ -250,10 +252,13 @@ export function TerraformDetails() {
       return;
     }
 
+    const elevation = permissionElevation();
     const mainRes: MinimalK8sResource = { apiVersion: tf.apiVersion, kind: tf.kind, metadata: { name: tf.metadata.name, namespace: tf.metadata.namespace } };
     (async () => {
       const canPatchMain = await checkPermission(mainRes, { verb: 'patch' });
-      setCanReconcile(canPatchMain);
+      // Allow reconcile if user has patch permission OR if flux reconciliation elevation is enabled
+      const effectiveCanReconcile = canPatchMain || !!elevation?.fluxReconciliation;
+      setCanReconcile(effectiveCanReconcile);
       setCanPatch(canPatchMain);
 
       const src = tf.spec?.sourceRef;
@@ -264,9 +269,10 @@ export function TerraformDetails() {
           metadata: { name: src.name, namespace: src.namespace || tf.metadata.namespace }
         };
         const canPatchSrc = await checkPermission(srcRes, { verb: 'patch' });
-        setCanReconcileWithSources(canPatchMain && canPatchSrc);
+        // Allow reconcile with sources if both permissions are granted OR elevation is enabled
+        setCanReconcileWithSources((canPatchMain && canPatchSrc) || !!elevation?.fluxReconciliation);
       } else {
-        setCanReconcileWithSources(canPatchMain);
+        setCanReconcileWithSources(effectiveCanReconcile);
       }
     })();
   });
