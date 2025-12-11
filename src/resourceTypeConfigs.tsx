@@ -1249,8 +1249,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     detailRowRenderer: renderCarvelPackageInstallDetails,
     rowKeyField: "name",
     commands: [
-      navigateToCarvelPackageInstall,
-      ...builtInCommands
+      ...builtInCommands,
+      navigateToCarvelPackageInstall
     ],
     projectFields: [
       'spec.packageRef',

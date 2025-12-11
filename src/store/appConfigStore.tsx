@@ -123,6 +123,8 @@ export function AppConfigProvider(props: { children: JSX.Element }) {
           setCarvelConfig(carvelRaw as CarvelConfig);
         } else {
           setCarvelConfig(null);
+        }
+
         // Parse permission elevation config
         const rawElevation = (data && (data as any).permissionElevation) as any;
         if (rawElevation && typeof rawElevation === "object") {
