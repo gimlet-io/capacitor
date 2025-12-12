@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/gimlet-io/capacitor-next
-  tag: agent-0.12.0
+  tag: agent-0.12.1
   pullPolicy: IfNotPresent
 
 replicaCount: 1
