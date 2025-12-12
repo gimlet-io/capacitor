@@ -171,9 +171,23 @@ export function CarvelPackageInstallDetails() {
         setPackageLoading(true);
         setPackageError(null);
         
-        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-        const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-        const url = `${apiPrefix}/carvelPackage/${params.namespace}/${packageName}`;
+        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+        const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+
+        const withContextK8sApiPath = (apiPath: string) => {
+          // `apiResourceStore` already returns context-aware paths (e.g. /k8s/<ctx>/apis/..).
+          // Only inject context when the path is the legacy non-context form (/k8s/api/* or /k8s/apis/*).
+          if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+            return apiPath.replace("/k8s", k8sPrefix);
+          }
+          return apiPath;
+        };
+
+        const pkgApi = (apiResourceStore.apiResources || []).find(r => r.group === "data.packaging.carvel.dev" && r.kind === "Package");
+        const baseApiPath = withContextK8sApiPath(pkgApi?.apiPath || "/k8s/apis/data.packaging.carvel.dev/v1alpha1");
+        const pluralName = pkgApi?.name || "packages";
+
+        const url = `${baseApiPath}/namespaces/${params.namespace}/${pluralName}/${packageName}`;
         
         const response = await fetch(url);
         if (!response.ok) {
@@ -185,7 +199,8 @@ export function CarvelPackageInstallDetails() {
         
         const data = await response.json();
         console.log('[PackageInstall] Package data:', data);
-        setPackageData(data);
+        // Keep the previous UI expectations (had a "cluster" field)
+        setPackageData({ ...(data as any), cluster: "in-cluster" });
         setPackageLoading(false);
       } catch (e) {
         console.error('Failed to fetch Package details:', e);
@@ -348,20 +363,43 @@ export function CarvelPackageInstallDetails() {
   };
 
   // PackageInstall operations
+  const patchPackageInstallSpec = async (specPatch: Record<string, unknown>) => {
+    const pkgi = packageInstall();
+    if (!pkgi) return;
+
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+
+    const pkgiApi = (apiResourceStore.apiResources || []).find(r => r.group === "packaging.carvel.dev" && r.kind === "PackageInstall");
+    const withContextK8sApiPath = (apiPath: string) => {
+      if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+        return apiPath.replace("/k8s", k8sPrefix);
+      }
+      return apiPath;
+    };
+    const baseApiPath = withContextK8sApiPath(pkgiApi?.apiPath || "/k8s/apis/packaging.carvel.dev/v1alpha1");
+    const pluralName = pkgiApi?.name || "packageinstalls";
+
+    const url = `${baseApiPath}/namespaces/${pkgi.metadata.namespace}/${pluralName}/${pkgi.metadata.name}`;
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/merge-patch+json" },
+      body: JSON.stringify({ spec: specPatch }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error((data as any)?.message || (data as any)?.error || `PATCH failed (${response.status})`);
+    }
+  };
+
   const handlePause = async () => {
     const pkgi = packageInstall();
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/pause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ paused: true });
     } catch (e) {
       console.error('Failed to pause PackageInstall:', e);
     }
@@ -372,15 +410,7 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/unpause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ paused: false });
     } catch (e) {
       console.error('Failed to unpause PackageInstall:', e);
     }
@@ -391,15 +421,7 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/cancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ canceled: true });
     } catch (e) {
       console.error('Failed to cancel PackageInstall:', e);
     }
@@ -410,15 +432,7 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/uncancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ canceled: false });
     } catch (e) {
       console.error('Failed to uncancel PackageInstall:', e);
     }
@@ -429,15 +443,9 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/trigger`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ paused: true });
+      await new Promise((r) => setTimeout(r, 500));
+      await patchPackageInstallSpec({ paused: false });
     } catch (e) {
       console.error('Failed to trigger PackageInstall:', e);
     }

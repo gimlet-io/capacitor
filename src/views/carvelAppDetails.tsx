@@ -294,20 +294,44 @@ export function CarvelAppDetails() {
   };
 
   // Carvel operations
+  const patchAppSpec = async (specPatch: Record<string, unknown>) => {
+    const app = carvelApp();
+    if (!app) return;
+
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+
+    // Resolve API path and plural dynamically (fallback to known defaults)
+    const carvelAppApi = (apiResourceStore.apiResources || []).find(r => r.group === "kappctrl.k14s.io" && r.kind === "App");
+    const withContextK8sApiPath = (apiPath: string) => {
+      if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+        return apiPath.replace("/k8s", k8sPrefix);
+      }
+      return apiPath;
+    };
+    const baseApiPath = withContextK8sApiPath(carvelAppApi?.apiPath || "/k8s/apis/kappctrl.k14s.io/v1alpha1");
+    const pluralName = carvelAppApi?.name || "apps";
+
+    const url = `${baseApiPath}/namespaces/${app.metadata.namespace}/${pluralName}/${app.metadata.name}`;
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/merge-patch+json" },
+      body: JSON.stringify({ spec: specPatch }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error((data as any)?.message || (data as any)?.error || `PATCH failed (${response.status})`);
+    }
+  };
+
   const handlePause = async () => {
     const app = carvelApp();
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/pause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ paused: true });
     } catch (e) {
       console.error('Failed to pause App:', e);
     }
@@ -318,15 +342,7 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/unpause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ paused: false });
     } catch (e) {
       console.error('Failed to unpause App:', e);
     }
@@ -337,15 +353,7 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/cancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ canceled: true });
     } catch (e) {
       console.error('Failed to cancel App:', e);
     }
@@ -356,15 +364,7 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/uncancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ canceled: false });
     } catch (e) {
       console.error('Failed to uncancel App:', e);
     }
@@ -375,15 +375,9 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/trigger`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ paused: true });
+      await new Promise((r) => setTimeout(r, 500));
+      await patchAppSpec({ paused: false });
     } catch (e) {
       console.error('Failed to trigger App:', e);
     }
