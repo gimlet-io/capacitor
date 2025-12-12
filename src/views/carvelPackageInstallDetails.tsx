@@ -4,18 +4,15 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createEffect, createSignal, onCleanup, untrack, For, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import type { CarvelPackageInstall, Event } from "../types/k8s.ts";
+import type { CarvelPackageInstall } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
-import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { stringify as stringifyYAML } from "@std/yaml";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { createNodeWithCardRenderer, ResourceTree } from "../components/ResourceTree.tsx";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 import * as graphlib from "graphlib";
 import { Tabs } from "../components/Tabs.tsx";
-import { ConditionType, ConditionStatus } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
 import { useAppConfig } from "../store/appConfigStore.tsx";
 import { CarvelValuesViewer } from "../components/resourceDetail/CarvelValuesViewer.tsx";
