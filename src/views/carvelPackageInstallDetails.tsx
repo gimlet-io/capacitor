@@ -4,18 +4,15 @@
 // deno-lint-ignore-file jsx-button-has-type
 import { createEffect, createSignal, onCleanup, untrack, For, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import type { CarvelPackageInstall, Event } from "../types/k8s.ts";
+import type { CarvelPackageInstall } from "../types/k8s.ts";
 import { watchResource } from "../watches.tsx";
 import { useApiResourceStore } from "../store/apiResourceStore.tsx";
 import { useFilterStore } from "../store/filterStore.tsx";
-import { useCalculateAge } from "../components/resourceList/timeUtils.ts";
-import { stringify as stringifyYAML } from "@std/yaml";
 import { StatusBadges } from "../components/resourceList/KustomizationList.tsx";
 import { createNodeWithCardRenderer, ResourceTree } from "../components/ResourceTree.tsx";
 import { ResourceTypeVisibilityDropdown } from "../components/ResourceTypeVisibilityDropdown.tsx";
 import * as graphlib from "graphlib";
 import { Tabs } from "../components/Tabs.tsx";
-import { ConditionType, ConditionStatus } from "../utils/conditions.ts";
 import { LogsViewer } from "../components/resourceDetail/LogsViewer.tsx";
 import { useAppConfig } from "../store/appConfigStore.tsx";
 import { CarvelValuesViewer } from "../components/resourceDetail/CarvelValuesViewer.tsx";
@@ -64,6 +61,280 @@ export function CarvelPackageInstallDetails() {
     'rbac.authorization.k8s.io/ClusterRoleBinding',
     'core/ServiceAccount'
   ];
+
+  const parseGroupVersion = (apiVersion?: string): { group: string; version: string } => {
+    if (!apiVersion) return { group: "", version: "v1" };
+    const parts = apiVersion.split("/");
+    if (parts.length === 2) return { group: parts[0], version: parts[1] };
+    return { group: "", version: parts[0] || "v1" };
+  };
+
+  const isCarvelResource = (obj: any): boolean => {
+    const gv = parseGroupVersion(obj?.apiVersion);
+    const kind = obj?.kind;
+    return (gv.group === "kappctrl.k14s.io" && kind === "App") || (gv.group === "packaging.carvel.dev" && kind === "PackageInstall");
+  };
+
+  const sortChildrenByKappApplyOrder = (children: any[]): any[] => {
+    const getAnnotations = (n: any): Record<string, string> => (n?.metadata?.annotations || {}) as Record<string, string>;
+    const getChangeGroups = (ann: Record<string, string>) =>
+      Object.entries(ann)
+        .filter(([k, v]) => (k === "kapp.k14s.io/change-group" || k.startsWith("kapp.k14s.io/change-group.")) && typeof v === "string" && v)
+        .map(([, v]) => v);
+    const parseChangeRule = (rule: string) => {
+      const parts = rule.trim().split(/\s+/);
+      if (parts.length < 4) return null;
+      return { action: parts[0], timing: parts[1], dependencyType: parts[2], dependencyName: parts[3] };
+    };
+    const getChangeRules = (ann: Record<string, string>) =>
+      Object.entries(ann)
+        .filter(([k, v]) => (k === "kapp.k14s.io/change-rule" || k.startsWith("kapp.k14s.io/change-rule.")) && typeof v === "string" && v)
+        .map(([, v]) => parseChangeRule(v))
+        .filter(Boolean) as Array<{ action: string; timing: string; dependencyType: string; dependencyName: string }>;
+
+    const groupToNodes = new Map<string, number[]>();
+    const nodeToGroups = new Map<number, string[]>();
+    const nodeDeps = new Map<number, string[]>();
+    const allGroups = new Set<string>();
+
+    children.forEach((child, idx) => {
+      if (!isCarvelResource(child)) return;
+      const ann = getAnnotations(child);
+      const groups = getChangeGroups(ann);
+      if (groups.length === 0) return;
+
+      nodeToGroups.set(idx, groups);
+      groups.forEach((g) => {
+        allGroups.add(g);
+        groupToNodes.set(g, [...(groupToNodes.get(g) || []), idx]);
+      });
+
+      const deps: string[] = [];
+      for (const r of getChangeRules(ann)) {
+        if (r.action === "upsert" && r.timing === "after" && r.dependencyType === "upserting") {
+          deps.push(r.dependencyName);
+          allGroups.add(r.dependencyName);
+        }
+      }
+      if (deps.length) nodeDeps.set(idx, deps);
+    });
+
+    const groupDeps = new Map<string, Set<string>>();
+    for (const [nodeIdx, deps] of nodeDeps.entries()) {
+      const groups = nodeToGroups.get(nodeIdx) || [];
+      for (const g of groups) {
+        const set = groupDeps.get(g) || new Set<string>();
+        deps.forEach((d) => set.add(d));
+        groupDeps.set(g, set);
+      }
+    }
+
+    const inDegree = new Map<string, number>();
+    allGroups.forEach((g) => inDegree.set(g, 0));
+    groupDeps.forEach((deps, g) => inDegree.set(g, deps.size));
+
+    const queue: string[] = [];
+    for (const g of allGroups) if ((inDegree.get(g) || 0) === 0) queue.push(g);
+
+    const sortedGroups: string[] = [];
+    while (queue.length) {
+      const g = queue.shift()!;
+      sortedGroups.push(g);
+      for (const [gg, deps] of groupDeps.entries()) {
+        if (deps.has(g)) {
+          inDegree.set(gg, (inDegree.get(gg) || 0) - 1);
+          if ((inDegree.get(gg) || 0) === 0) queue.push(gg);
+        }
+      }
+    }
+
+    const out: any[] = [];
+    const processed = new Set<number>();
+    for (const g of sortedGroups) {
+      const idxs = groupToNodes.get(g) || [];
+      for (const idx of idxs) {
+        if (!processed.has(idx)) {
+          out.push(children[idx]);
+          processed.add(idx);
+        }
+      }
+    }
+    children.forEach((c, idx) => {
+      if (!processed.has(idx)) out.push(c);
+    });
+    return out;
+  };
+
+  const fetchAppByName = async (namespace: string, name: string) => {
+    const apiResources = apiResourceStore.apiResources || [];
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+    const withContextK8sApiPath = (apiPath: string) => {
+      if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+        return apiPath.replace("/k8s", k8sPrefix);
+      }
+      return apiPath;
+    };
+
+    const appApi = apiResources.find(r => r.group === "kappctrl.k14s.io" && r.kind === "App");
+    const baseApiPath = withContextK8sApiPath(appApi?.apiPath || "/k8s/apis/kappctrl.k14s.io/v1alpha1");
+    const pluralName = appApi?.name || "apps";
+    const url = `${baseApiPath}/namespaces/${namespace}/${pluralName}/${name}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    return await resp.json().catch(() => null);
+  };
+
+  const fetchDiagramDataFromApiServer = async (pkgi: CarvelPackageInstall) => {
+    // Mirror the previous server behavior:
+    // - Always include the associated App as a child node
+    // - Only populate the App's children when includeAll/includeOnlyCarvel is enabled
+    const includeAll = includeAllResources();
+    const includeOnly = includeOnlyCarvel();
+
+    const app = await fetchAppByName(pkgi.metadata.namespace, pkgi.metadata.name);
+    if (!app) return { child_objects: [] as any[] };
+
+    const apiResources = apiResourceStore.apiResources || [];
+    const assoc = (app as any)?.status?.deploy?.kapp?.associatedResources;
+    const labelFull = assoc?.label as string | undefined;
+    const groupKinds = assoc?.groupKinds as Array<{ group?: string; kind?: string }> | undefined;
+    const namespaces = assoc?.namespaces as string[] | undefined;
+
+    const keyOf = (obj: any) => {
+      const gv = parseGroupVersion(obj?.apiVersion);
+      const kind = obj?.kind || "";
+      const ns = obj?.metadata?.namespace || "";
+      const name = obj?.metadata?.name || "";
+      return `${gv.group}/${kind}/${ns}/${name}`;
+    };
+
+    const toNode = (obj: any) => {
+      const gv = parseGroupVersion(obj?.apiVersion);
+      const ns = obj?.metadata?.namespace || "";
+      const name = obj?.metadata?.name || "";
+      return {
+        ...obj,
+        group: gv.group || "core",
+        version: gv.version,
+        name,
+        namespace: ns,
+        cluster: "in-cluster",
+        child_objects: [] as any[],
+      };
+    };
+
+    // Always include the App node at minimum
+    const appNode = toNode(app);
+
+    // If neither toggle is enabled, return the App node without expanding children.
+    if (!includeAll && !includeOnly) {
+      return { child_objects: [appNode] };
+    }
+
+    // For expanded views, if kapp metadata is missing, still return the App node.
+    if (!labelFull || !groupKinds || groupKinds.length === 0) {
+      return { child_objects: [appNode] };
+    }
+    const parts = labelFull.split("=");
+    if (parts.length !== 2) return { child_objects: [appNode] };
+    const kappLabel = parts[1];
+
+    const targetsRemote = !!(app as any)?.spec?.cluster?.kubeconfigSecretRef?.name;
+    if (targetsRemote) return { child_objects: [appNode] };
+
+    const selector = `kapp.k14s.io/app=${kappLabel}`;
+
+    const listForGk = async (group: string, kind: string, ns?: string) => {
+      const r = apiResources.find(ar => ar.group === group && ar.kind === kind);
+      if (!r) return [] as any[];
+      const apiPath = r.apiPath;
+      const plural = r.name;
+      const namespaced = (r as any).namespaced as boolean;
+      const qs = `labelSelector=${encodeURIComponent(selector)}`;
+      const url = namespaced
+        ? `${apiPath}/namespaces/${ns}/${plural}?${qs}`
+        : `${apiPath}/${plural}?${qs}`;
+      const resp = await fetch(url);
+      if (!resp.ok) return [] as any[];
+      const data = await resp.json().catch(() => ({}));
+      return Array.isArray((data as any).items) ? (data as any).items : [];
+    };
+
+    const visited = new Set<string>();
+    const buildSubtree = async (rootObj: any): Promise<any> => {
+      const rootKey = keyOf(rootObj);
+      if (visited.has(rootKey)) return toNode(rootObj);
+      visited.add(rootKey);
+
+      const node = toNode(rootObj);
+      const assoc2 = (rootObj as any)?.status?.deploy?.kapp?.associatedResources;
+      const label2Full = assoc2?.label as string | undefined;
+      const groupKinds2 = assoc2?.groupKinds as Array<{ group?: string; kind?: string }> | undefined;
+      const namespaces2 = assoc2?.namespaces as string[] | undefined;
+      if (!label2Full || !groupKinds2 || !groupKinds2.length) return node;
+
+      const p2 = label2Full.split("=");
+      if (p2.length !== 2) return node;
+      const selector2 = `kapp.k14s.io/app=${p2[1]}`;
+
+      const listForGk2 = async (group: string, kind: string, ns?: string) => {
+        const r = apiResources.find(ar => ar.group === group && ar.kind === kind);
+        if (!r) return [] as any[];
+        const apiPath = r.apiPath;
+        const plural = r.name;
+        const namespaced = (r as any).namespaced as boolean;
+        const qs = `labelSelector=${encodeURIComponent(selector2)}`;
+        const url = namespaced
+          ? `${apiPath}/namespaces/${ns}/${plural}?${qs}`
+          : `${apiPath}/${plural}?${qs}`;
+        const resp = await fetch(url);
+        if (!resp.ok) return [] as any[];
+        const data = await resp.json().catch(() => ({}));
+        return Array.isArray((data as any).items) ? (data as any).items : [];
+      };
+
+      const includeOnly = includeOnlyCarvel();
+      const seen = new Set<string>();
+      const children: any[] = [];
+      for (const gk of groupKinds2) {
+        const g = gk.group || "";
+        const k = gk.kind || "";
+        if (!k) continue;
+
+        const r = apiResources.find(ar => ar.group === g && ar.kind === k);
+        const namespaced = r ? ((r as any).namespaced as boolean) : true;
+        if (namespaced) {
+          for (const ns of (namespaces2 || [])) {
+            if (!ns || ns === "(cluster)") continue;
+            const items = await listForGk2(g, k, ns);
+            for (const it of items) {
+              const childKey = keyOf(it);
+              if (seen.has(childKey)) continue;
+              seen.add(childKey);
+              if (includeOnly && !isCarvelResource(it)) continue;
+              children.push(isCarvelResource(it) ? await buildSubtree(it) : toNode(it));
+            }
+          }
+        } else if ((namespaces2 || []).includes("(cluster)")) {
+          const items = await listForGk2(g, k, "");
+          for (const it of items) {
+            const childKey = keyOf(it);
+            if (seen.has(childKey)) continue;
+            seen.add(childKey);
+            if (includeOnly && !isCarvelResource(it)) continue;
+            children.push(isCarvelResource(it) ? await buildSubtree(it) : toNode(it));
+          }
+        }
+      }
+
+      node.child_objects = sortChildrenByKappApplyOrder(children);
+      return node;
+    };
+
+    const expandedAppNode = await buildSubtree(app);
+    return { child_objects: [expandedAppNode] };
+  };
 
   createEffect(() => {
     if (params.namespace && params.name && apiResourceStore.apiResources) {
@@ -116,29 +387,12 @@ export function CarvelPackageInstallDetails() {
     
     (async () => {
       try {
-        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-        const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-        
-        // Build query parameters based on checkbox states
-        const queryParams = new URLSearchParams();
-        if (includeAllResources()) {
-          queryParams.set('allResources', 'true');
-        } else if (includeOnlyCarvel()) {
-          queryParams.set('onlyCarvel', 'true');
-        }
-        const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-        const url = `${apiPrefix}/carvelPkgiDiagram/${params.namespace}/${params.name}${queryString}`;
-        
-        const response = await fetch(url);
-        if (!response.ok) {
-          console.error('Failed to fetch diagram data');
-          return;
-        }
-        
-        const data = await response.json();
-        console.log('[PackageInstall] Diagram API response:', data);
-        console.log('[PackageInstall] Has child_objects?', !!data.child_objects, 'Count:', data.child_objects?.length);
-        setDiagramData(data);
+        includeAllResources();
+        includeOnlyCarvel();
+        const data = await fetchDiagramDataFromApiServer(pkgi);
+        console.log('[PackageInstall] Diagram (client-side) response:', data);
+        console.log('[PackageInstall] Has child_objects?', !!(data as any).child_objects, 'Count:', (data as any).child_objects?.length);
+        setDiagramData(data as any);
       } catch (e) {
         console.error('Failed to fetch PackageInstall diagram:', e);
       }
@@ -171,9 +425,23 @@ export function CarvelPackageInstallDetails() {
         setPackageLoading(true);
         setPackageError(null);
         
-        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-        const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-        const url = `${apiPrefix}/carvelPackage/${params.namespace}/${packageName}`;
+        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+        const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+
+        const withContextK8sApiPath = (apiPath: string) => {
+          // `apiResourceStore` already returns context-aware paths (e.g. /k8s/<ctx>/apis/..).
+          // Only inject context when the path is the legacy non-context form (/k8s/api/* or /k8s/apis/*).
+          if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+            return apiPath.replace("/k8s", k8sPrefix);
+          }
+          return apiPath;
+        };
+
+        const pkgApi = (apiResourceStore.apiResources || []).find(r => r.group === "data.packaging.carvel.dev" && r.kind === "Package");
+        const baseApiPath = withContextK8sApiPath(pkgApi?.apiPath || "/k8s/apis/data.packaging.carvel.dev/v1alpha1");
+        const pluralName = pkgApi?.name || "packages";
+
+        const url = `${baseApiPath}/namespaces/${params.namespace}/${pluralName}/${packageName}`;
         
         const response = await fetch(url);
         if (!response.ok) {
@@ -185,7 +453,8 @@ export function CarvelPackageInstallDetails() {
         
         const data = await response.json();
         console.log('[PackageInstall] Package data:', data);
-        setPackageData(data);
+        // Keep the previous UI expectations (had a "cluster" field)
+        setPackageData({ ...(data as any), cluster: "in-cluster" });
         setPackageLoading(false);
       } catch (e) {
         console.error('Failed to fetch Package details:', e);
@@ -317,13 +586,6 @@ export function CarvelPackageInstallDetails() {
         apiVersion: resource.apiVersion || `${resource.group}/${resource.version || 'v1'}`,
         kind: resource.kind,
         status: resource.status || {},
-        // Add cluster and parent information for remote resource fetching
-        _cluster: resource.cluster,
-        _parentApp: pkgi ? {
-          kind: 'PackageInstall',
-          name: pkgi.metadata.name,
-          namespace: pkgi.metadata.namespace
-        } : undefined,
       };
       
       nodeId = createNodeWithCardRenderer(
@@ -348,20 +610,43 @@ export function CarvelPackageInstallDetails() {
   };
 
   // PackageInstall operations
+  const patchPackageInstallSpec = async (specPatch: Record<string, unknown>) => {
+    const pkgi = packageInstall();
+    if (!pkgi) return;
+
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+
+    const pkgiApi = (apiResourceStore.apiResources || []).find(r => r.group === "packaging.carvel.dev" && r.kind === "PackageInstall");
+    const withContextK8sApiPath = (apiPath: string) => {
+      if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+        return apiPath.replace("/k8s", k8sPrefix);
+      }
+      return apiPath;
+    };
+    const baseApiPath = withContextK8sApiPath(pkgiApi?.apiPath || "/k8s/apis/packaging.carvel.dev/v1alpha1");
+    const pluralName = pkgiApi?.name || "packageinstalls";
+
+    const url = `${baseApiPath}/namespaces/${pkgi.metadata.namespace}/${pluralName}/${pkgi.metadata.name}`;
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/merge-patch+json" },
+      body: JSON.stringify({ spec: specPatch }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error((data as any)?.message || (data as any)?.error || `PATCH failed (${response.status})`);
+    }
+  };
+
   const handlePause = async () => {
     const pkgi = packageInstall();
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/pause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ paused: true });
     } catch (e) {
       console.error('Failed to pause PackageInstall:', e);
     }
@@ -372,15 +657,7 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/unpause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ paused: false });
     } catch (e) {
       console.error('Failed to unpause PackageInstall:', e);
     }
@@ -391,15 +668,7 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/cancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ canceled: true });
     } catch (e) {
       console.error('Failed to cancel PackageInstall:', e);
     }
@@ -410,15 +679,7 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/uncancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ canceled: false });
     } catch (e) {
       console.error('Failed to uncancel PackageInstall:', e);
     }
@@ -429,15 +690,9 @@ export function CarvelPackageInstallDetails() {
     if (!pkgi) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelPackageInstall/${pkgi.metadata.namespace}/${pkgi.metadata.name}/trigger`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchPackageInstallSpec({ paused: true });
+      await new Promise((r) => setTimeout(r, 500));
+      await patchPackageInstallSpec({ paused: false });
     } catch (e) {
       console.error('Failed to trigger PackageInstall:', e);
     }

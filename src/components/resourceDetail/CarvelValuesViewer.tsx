@@ -56,25 +56,247 @@ export function CarvelValuesViewer(props: {
     fetchCarvelValues();
   });
 
+  function decodeSecretData(secret: any): Record<string, string> {
+    const data = (secret && secret.data) || {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (typeof v === "string") {
+        try {
+          out[k] = atob(v);
+        } catch {
+          // If it's not valid base64, keep original
+          out[k] = v;
+        }
+      }
+    }
+    return out;
+  }
+
+  async function fetchJson(url: string) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status})`);
+    }
+    return await response.json();
+  }
+
+  async function getSecret(namespace: string, name: string) {
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+    return await fetchJson(`${k8sPrefix}/api/v1/namespaces/${namespace}/secrets/${name}`);
+  }
+
+  async function getConfigMap(namespace: string, name: string) {
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+    return await fetchJson(`${k8sPrefix}/api/v1/namespaces/${namespace}/configmaps/${name}`);
+  }
+
   async function fetchCarvelValues() {
     setLoading(true);
     setError(null);
     try {
-      const ctxName = apiResourceStore.contextInfo?.current;
-      const apiPrefix = ctxName ? `/api/${encodeURIComponent(ctxName)}` : '/api';
       const namespace = props.namespace;
       const name = props.name;
-      
-      // Choose the correct endpoint based on kind
-      const endpoint = props.kind === 'App' 
-        ? `${apiPrefix}/carvelAppValues/${namespace}/${name}`
-        : `${apiPrefix}/carvelPackageInstallValues/${namespace}/${name}`;
-      
-      const response = await fetch(endpoint);
-      if (!response.ok) throw new Error(`Failed to fetch Carvel ${props.kind} values`);
-      
-      const data = await response.json();
-      setValuesData(data);
+
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+      const withContextK8sApiPath = (apiPath: string) => {
+        if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+          return apiPath.replace("/k8s", k8sPrefix);
+        }
+        return apiPath;
+      };
+
+      if (props.kind === "App") {
+        const appApi = (apiResourceStore.apiResources || []).find(r => r.group === "kappctrl.k14s.io" && r.kind === "App");
+        const baseApiPath = withContextK8sApiPath(appApi?.apiPath || "/k8s/apis/kappctrl.k14s.io/v1alpha1");
+        const pluralName = appApi?.name || "apps";
+
+        const app = await fetchJson(`${baseApiPath}/namespaces/${namespace}/${pluralName}/${name}`);
+
+        // Fetch sources: keep the UI expectations (type + config + optional path)
+        const fetchSources: CarvelFetchSource[] = [];
+        const fetchArr = app?.spec?.fetch;
+        if (Array.isArray(fetchArr)) {
+          for (const item of fetchArr) {
+            const path = (item && typeof item === "object") ? (item as any).path : undefined;
+            if ((item as any)?.inline) fetchSources.push({ type: "inline", config: (item as any).inline, path });
+            else if ((item as any)?.image) fetchSources.push({ type: "image", config: (item as any).image, path });
+            else if ((item as any)?.imgpkgBundle) fetchSources.push({ type: "imgpkgBundle", config: (item as any).imgpkgBundle, path });
+            else if ((item as any)?.http) fetchSources.push({ type: "http", config: (item as any).http, path });
+            else if ((item as any)?.git) fetchSources.push({ type: "git", config: (item as any).git, path });
+            else if ((item as any)?.helmChart) fetchSources.push({ type: "helmChart", config: (item as any).helmChart, path });
+          }
+        }
+
+        const values: CarvelValueSource[] = [];
+        let order = 1;
+
+        const templateArr = app?.spec?.template;
+        if (Array.isArray(templateArr)) {
+          for (const tmpl of templateArr) {
+            const ytt = (tmpl as any)?.ytt;
+            if (ytt) {
+              const inlinePaths = ytt?.inline?.paths;
+              if (inlinePaths && typeof inlinePaths === "object") {
+                const data: Record<string, string> = {};
+                for (const [k, v] of Object.entries(inlinePaths)) {
+                  if (typeof v === "string") data[k] = v;
+                }
+                if (Object.keys(data).length > 0) {
+                  values.push({ type: "inline", name: "inline-paths", namespace, data, order });
+                  order += 1;
+                }
+              }
+
+              const pathsFrom = ytt?.inline?.pathsFrom;
+              if (Array.isArray(pathsFrom)) {
+                for (const pf of pathsFrom) {
+                  const secretName = (pf as any)?.secretRef?.name;
+                  if (typeof secretName === "string" && secretName) {
+                    const secret = await getSecret(namespace, secretName);
+                    values.push({ type: "secret", name: secretName, namespace, data: decodeSecretData(secret), order });
+                    order += 1;
+                  }
+                  const configMapName = (pf as any)?.configMapRef?.name;
+                  if (typeof configMapName === "string" && configMapName) {
+                    const configMap = await getConfigMap(namespace, configMapName);
+                    values.push({ type: "configmap", name: configMapName, namespace, data: (configMap?.data || {}) as Record<string, string>, order });
+                    order += 1;
+                  }
+                }
+              }
+
+              const valuesFrom = ytt?.valuesFrom;
+              if (Array.isArray(valuesFrom)) {
+                for (const vf of valuesFrom) {
+                  const secretName = (vf as any)?.secretRef?.name;
+                  if (typeof secretName === "string" && secretName) {
+                    const secret = await getSecret(namespace, secretName);
+                    values.push({ type: "secret", name: secretName, namespace, data: decodeSecretData(secret), order });
+                    order += 1;
+                  }
+                  const configMapName = (vf as any)?.configMapRef?.name;
+                  if (typeof configMapName === "string" && configMapName) {
+                    const configMap = await getConfigMap(namespace, configMapName);
+                    values.push({ type: "configmap", name: configMapName, namespace, data: (configMap?.data || {}) as Record<string, string>, order });
+                    order += 1;
+                  }
+                }
+              }
+            }
+
+            const helmTemplate = (tmpl as any)?.helmTemplate;
+            if (helmTemplate?.valuesFrom && Array.isArray(helmTemplate.valuesFrom)) {
+              for (const vf of helmTemplate.valuesFrom) {
+                const secretName = (vf as any)?.secretRef?.name;
+                if (typeof secretName === "string" && secretName) {
+                  const secret = await getSecret(namespace, secretName);
+                  values.push({ type: "secret", name: secretName, namespace, data: decodeSecretData(secret), order });
+                  order += 1;
+                }
+                const configMapName = (vf as any)?.configMapRef?.name;
+                if (typeof configMapName === "string" && configMapName) {
+                  const configMap = await getConfigMap(namespace, configMapName);
+                  values.push({ type: "configmap", name: configMapName, namespace, data: (configMap?.data || {}) as Record<string, string>, order });
+                  order += 1;
+                }
+              }
+            }
+
+            const cue = (tmpl as any)?.cue;
+            if (cue?.valuesFrom && Array.isArray(cue.valuesFrom)) {
+              for (const vf of cue.valuesFrom) {
+                const secretName = (vf as any)?.secretRef?.name;
+                if (typeof secretName === "string" && secretName) {
+                  const secret = await getSecret(namespace, secretName);
+                  values.push({ type: "secret", name: secretName, namespace, data: decodeSecretData(secret), order });
+                  order += 1;
+                }
+                const configMapName = (vf as any)?.configMapRef?.name;
+                if (typeof configMapName === "string" && configMapName) {
+                  const configMap = await getConfigMap(namespace, configMapName);
+                  values.push({ type: "configmap", name: configMapName, namespace, data: (configMap?.data || {}) as Record<string, string>, order });
+                  order += 1;
+                }
+              }
+            }
+          }
+        }
+
+        setValuesData({
+          kind: "App",
+          name,
+          namespace,
+          fetch: fetchSources,
+          values,
+          overlays: [],
+        });
+      } else {
+        const pkgiApi = (apiResourceStore.apiResources || []).find(r => r.group === "packaging.carvel.dev" && r.kind === "PackageInstall");
+        const baseApiPath = withContextK8sApiPath(pkgiApi?.apiPath || "/k8s/apis/packaging.carvel.dev/v1alpha1");
+        const pluralName = pkgiApi?.name || "packageinstalls";
+
+        const pkgi = await fetchJson(`${baseApiPath}/namespaces/${namespace}/${pluralName}/${name}`);
+
+        const packageRef: CarvelPackageRef | undefined = pkgi?.spec?.packageRef?.refName
+          ? {
+              refName: pkgi.spec.packageRef.refName,
+              constraints: pkgi.spec.packageRef?.versionSelection?.constraints,
+            }
+          : undefined;
+
+        const values: CarvelValueSource[] = [];
+        let order = 1;
+        const specValues = pkgi?.spec?.values;
+        if (Array.isArray(specValues)) {
+          for (const v of specValues) {
+            const secretName = (v as any)?.secretRef?.name;
+            if (typeof secretName === "string" && secretName) {
+              const secret = await getSecret(namespace, secretName);
+              values.push({ type: "secret", name: secretName, namespace, data: decodeSecretData(secret), order });
+              order += 1;
+            }
+            const configMapName = (v as any)?.configMapRef?.name;
+            if (typeof configMapName === "string" && configMapName) {
+              const configMap = await getConfigMap(namespace, configMapName);
+              values.push({ type: "configmap", name: configMapName, namespace, data: (configMap?.data || {}) as Record<string, string>, order });
+              order += 1;
+            }
+          }
+        }
+
+        // Overlays from annotations: ext.packaging.carvel.dev/ytt-paths-from-secret-name.<n>
+        const overlays: CarvelOverlaySource[] = [];
+        const annotations = pkgi?.metadata?.annotations || {};
+        const overlayPairs: Array<{ order: number; secretName: string }> = [];
+        if (annotations && typeof annotations === "object") {
+          for (const [k, v] of Object.entries(annotations)) {
+            if (k.startsWith("ext.packaging.carvel.dev/ytt-paths-from-secret-name.") && typeof v === "string") {
+              const suffix = k.split(".").pop() || "";
+              const parsed = Number.parseInt(suffix, 10);
+              if (!Number.isNaN(parsed)) {
+                overlayPairs.push({ order: parsed, secretName: v });
+              }
+            }
+          }
+        }
+        overlayPairs.sort((a, b) => a.order - b.order);
+        for (const entry of overlayPairs) {
+          const secret = await getSecret(namespace, entry.secretName);
+          overlays.push({ type: "secret", name: entry.secretName, namespace, data: decodeSecretData(secret), order: entry.order });
+        }
+
+        setValuesData({
+          kind: "PackageInstall",
+          name,
+          namespace,
+          packageRef,
+          values,
+          overlays,
+        });
+      }
     } catch (err) {
       console.error('Error fetching Carvel values:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');

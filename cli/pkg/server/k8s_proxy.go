@@ -19,14 +19,12 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/kubernetes"
 	"github.com/labstack/echo/v4"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 )
 
 // KubernetesProxy handles proxying requests to the Kubernetes API
 type KubernetesProxy struct {
 	k8sClient        *kubernetes.Client
-	dynamicClient    dynamic.Interface // Dynamic client for Carvel and other custom resources
 	proxy            *httputil.ReverseProxy
 	fluxAPIPaths     map[string]string // Cache for discovered Flux API paths (kind -> API path template)
 	fluxAPIPathsMu   sync.RWMutex      // Mutex for thread-safe access to fluxAPIPaths
@@ -131,17 +129,10 @@ func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) 
 		io.WriteString(w, fmt.Sprintf("Error proxying request to Kubernetes API: %v", err))
 	}
 
-	// Create dynamic client for Carvel and other custom resources
-	dynamicClient, err := dynamic.NewForConfig(k8sClient.Config)
-	if err != nil {
-		return nil, fmt.Errorf("error creating dynamic client: %w", err)
-	}
-
 	return &KubernetesProxy{
-		k8sClient:     k8sClient,
-		dynamicClient: dynamicClient,
-		proxy:         proxy,
-		fluxAPIPaths:  make(map[string]string),
+		k8sClient:    k8sClient,
+		proxy:        proxy,
+		fluxAPIPaths: make(map[string]string),
 	}, nil
 }
 

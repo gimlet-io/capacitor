@@ -61,6 +61,252 @@ export function CarvelAppDetails() {
     'core/ServiceAccount'
   ];
 
+  const parseGroupVersion = (apiVersion?: string): { group: string; version: string } => {
+    if (!apiVersion) return { group: "", version: "v1" };
+    const parts = apiVersion.split("/");
+    if (parts.length === 2) return { group: parts[0], version: parts[1] };
+    return { group: "", version: parts[0] || "v1" };
+  };
+
+  const isCarvelResource = (obj: any): boolean => {
+    const gv = parseGroupVersion(obj?.apiVersion);
+    const kind = obj?.kind;
+    return (gv.group === "kappctrl.k14s.io" && kind === "App") || (gv.group === "packaging.carvel.dev" && kind === "PackageInstall");
+  };
+
+  const sortChildrenByKappApplyOrder = (children: any[]): any[] => {
+    // Ported from the old server-side logic: only affects App/PackageInstall nodes
+    const getAnnotations = (n: any): Record<string, string> => (n?.metadata?.annotations || {}) as Record<string, string>;
+    const getChangeGroups = (ann: Record<string, string>) =>
+      Object.entries(ann)
+        .filter(([k, v]) => (k === "kapp.k14s.io/change-group" || k.startsWith("kapp.k14s.io/change-group.")) && typeof v === "string" && v)
+        .map(([, v]) => v);
+    const parseChangeRule = (rule: string) => {
+      const parts = rule.trim().split(/\s+/);
+      if (parts.length < 4) return null;
+      return { action: parts[0], timing: parts[1], dependencyType: parts[2], dependencyName: parts[3] };
+    };
+    const getChangeRules = (ann: Record<string, string>) =>
+      Object.entries(ann)
+        .filter(([k, v]) => (k === "kapp.k14s.io/change-rule" || k.startsWith("kapp.k14s.io/change-rule.")) && typeof v === "string" && v)
+        .map(([, v]) => parseChangeRule(v))
+        .filter(Boolean) as Array<{ action: string; timing: string; dependencyType: string; dependencyName: string }>;
+
+    const groupToNodes = new Map<string, number[]>();
+    const nodeToGroups = new Map<number, string[]>();
+    const nodeDeps = new Map<number, string[]>();
+    const allGroups = new Set<string>();
+
+    children.forEach((child, idx) => {
+      if (!isCarvelResource(child)) return;
+      const ann = getAnnotations(child);
+      const groups = getChangeGroups(ann);
+      if (groups.length === 0) return;
+
+      nodeToGroups.set(idx, groups);
+      groups.forEach((g) => {
+        allGroups.add(g);
+        groupToNodes.set(g, [...(groupToNodes.get(g) || []), idx]);
+      });
+
+      const deps: string[] = [];
+      for (const r of getChangeRules(ann)) {
+        if (r.action === "upsert" && r.timing === "after" && r.dependencyType === "upserting") {
+          deps.push(r.dependencyName);
+          allGroups.add(r.dependencyName);
+        }
+      }
+      if (deps.length) nodeDeps.set(idx, deps);
+    });
+
+    // groupDeps: group -> groups it depends on
+    const groupDeps = new Map<string, Set<string>>();
+    for (const [nodeIdx, deps] of nodeDeps.entries()) {
+      const groups = nodeToGroups.get(nodeIdx) || [];
+      for (const g of groups) {
+        const set = groupDeps.get(g) || new Set<string>();
+        deps.forEach((d) => set.add(d));
+        groupDeps.set(g, set);
+      }
+    }
+
+    // Kahn topological sort (inDegree = dependency count)
+    const inDegree = new Map<string, number>();
+    allGroups.forEach((g) => inDegree.set(g, 0));
+    groupDeps.forEach((deps, g) => inDegree.set(g, deps.size));
+
+    const queue: string[] = [];
+    for (const g of allGroups) if ((inDegree.get(g) || 0) === 0) queue.push(g);
+
+    const sortedGroups: string[] = [];
+    while (queue.length) {
+      const g = queue.shift()!;
+      sortedGroups.push(g);
+      for (const [gg, deps] of groupDeps.entries()) {
+        if (deps.has(g)) {
+          inDegree.set(gg, (inDegree.get(gg) || 0) - 1);
+          if ((inDegree.get(gg) || 0) === 0) queue.push(gg);
+        }
+      }
+    }
+
+    const out: any[] = [];
+    const processed = new Set<number>();
+    for (const g of sortedGroups) {
+      const idxs = groupToNodes.get(g) || [];
+      for (const idx of idxs) {
+        if (!processed.has(idx)) {
+          out.push(children[idx]);
+          processed.add(idx);
+        }
+      }
+    }
+    children.forEach((c, idx) => {
+      if (!processed.has(idx)) out.push(c);
+    });
+    return out;
+  };
+
+  const fetchDiagramDataFromApiServer = async (app: CarvelApp) => {
+    const apiResources = apiResourceStore.apiResources || [];
+    const assoc = (app as any)?.status?.deploy?.kapp?.associatedResources;
+    const labelFull = assoc?.label as string | undefined;
+    const groupKinds = assoc?.groupKinds as Array<{ group?: string; kind?: string }> | undefined;
+    const namespaces = assoc?.namespaces as string[] | undefined;
+
+    if (!labelFull || !groupKinds || groupKinds.length === 0) return { child_objects: [] as any[] };
+    const parts = labelFull.split("=");
+    if (parts.length !== 2) return { child_objects: [] as any[] };
+    const kappLabel = parts[1];
+
+    // If the App targets a remote cluster, the associated resources likely live there.
+    // We can still render the App node, but we can't safely fetch remote resources in-browser.
+    const targetsRemote = !!(app as any)?.spec?.cluster?.kubeconfigSecretRef?.name;
+    if (targetsRemote) return { child_objects: [] as any[] };
+
+    const includeAll = includeAllResources();
+    const includeOnly = includeOnlyCarvel();
+    if (!includeAll && !includeOnly) return { child_objects: [] as any[] };
+
+    const selector = `kapp.k14s.io/app=${kappLabel}`;
+
+    const listForGk = async (group: string, kind: string, ns?: string) => {
+      const r = apiResources.find(ar => ar.group === group && ar.kind === kind);
+      if (!r) return [] as any[];
+      const apiPath = r.apiPath; // already includes /k8s/<ctx>/...
+      const plural = r.name;
+      const namespaced = (r as any).namespaced as boolean;
+      const qs = `labelSelector=${encodeURIComponent(selector)}`;
+
+      const url = namespaced
+        ? `${apiPath}/namespaces/${ns}/${plural}?${qs}`
+        : `${apiPath}/${plural}?${qs}`;
+
+      const resp = await fetch(url);
+      if (!resp.ok) return [] as any[];
+      const data = await resp.json().catch(() => ({}));
+      return Array.isArray((data as any).items) ? (data as any).items : [];
+    };
+
+    const keyOf = (obj: any) => {
+      const gv = parseGroupVersion(obj?.apiVersion);
+      const kind = obj?.kind || "";
+      const ns = obj?.metadata?.namespace || "";
+      const name = obj?.metadata?.name || "";
+      return `${gv.group}/${kind}/${ns}/${name}`;
+    };
+
+    const toNode = (obj: any) => {
+      const gv = parseGroupVersion(obj?.apiVersion);
+      const ns = obj?.metadata?.namespace || "";
+      const name = obj?.metadata?.name || "";
+      return {
+        ...obj,
+        // Fields expected by existing carvel graph rendering
+        group: gv.group || "core",
+        version: gv.version,
+        name,
+        namespace: ns,
+        cluster: "in-cluster",
+        child_objects: [] as any[],
+      };
+    };
+
+    const visited = new Set<string>();
+    const buildSubtree = async (rootObj: any): Promise<any> => {
+      const rootKey = keyOf(rootObj);
+      if (visited.has(rootKey)) return toNode(rootObj);
+      visited.add(rootKey);
+
+      const node = toNode(rootObj);
+      const assoc2 = (rootObj as any)?.status?.deploy?.kapp?.associatedResources;
+      const label2Full = assoc2?.label as string | undefined;
+      const groupKinds2 = assoc2?.groupKinds as Array<{ group?: string; kind?: string }> | undefined;
+      const namespaces2 = assoc2?.namespaces as string[] | undefined;
+      if (!label2Full || !groupKinds2 || !groupKinds2.length) return node;
+
+      const p2 = label2Full.split("=");
+      if (p2.length !== 2) return node;
+      const selector2 = `kapp.k14s.io/app=${p2[1]}`;
+
+      const listForGk2 = async (group: string, kind: string, ns?: string) => {
+        const r = apiResources.find(ar => ar.group === group && ar.kind === kind);
+        if (!r) return [] as any[];
+        const apiPath = r.apiPath;
+        const plural = r.name;
+        const namespaced = (r as any).namespaced as boolean;
+        const qs = `labelSelector=${encodeURIComponent(selector2)}`;
+        const url = namespaced
+          ? `${apiPath}/namespaces/${ns}/${plural}?${qs}`
+          : `${apiPath}/${plural}?${qs}`;
+        const resp = await fetch(url);
+        if (!resp.ok) return [] as any[];
+        const data = await resp.json().catch(() => ({}));
+        return Array.isArray((data as any).items) ? (data as any).items : [];
+      };
+
+      const seen = new Set<string>();
+      const children: any[] = [];
+      for (const gk of groupKinds2) {
+        const g = gk.group || "";
+        const k = gk.kind || "";
+        if (!k) continue;
+
+        const r = apiResources.find(ar => ar.group === g && ar.kind === k);
+        const namespaced = r ? ((r as any).namespaced as boolean) : true;
+        if (namespaced) {
+          for (const ns of (namespaces2 || [])) {
+            if (!ns || ns === "(cluster)") continue;
+            const items = await listForGk2(g, k, ns);
+            for (const it of items) {
+              const childKey = keyOf(it);
+              if (seen.has(childKey)) continue;
+              seen.add(childKey);
+              if (includeOnly && !isCarvelResource(it)) continue;
+              children.push(isCarvelResource(it) ? await buildSubtree(it) : toNode(it));
+            }
+          }
+        } else if ((namespaces2 || []).includes("(cluster)")) {
+          const items = await listForGk2(g, k, "");
+          for (const it of items) {
+            const childKey = keyOf(it);
+            if (seen.has(childKey)) continue;
+            seen.add(childKey);
+            if (includeOnly && !isCarvelResource(it)) continue;
+            children.push(isCarvelResource(it) ? await buildSubtree(it) : toNode(it));
+          }
+        }
+      }
+
+      node.child_objects = sortChildrenByKappApplyOrder(children);
+      return node;
+    };
+
+    // Root App subtree
+    const rootNode = await buildSubtree(app as any);
+    return { child_objects: rootNode.child_objects || [] };
+  };
+
   createEffect(() => {
     if (params.namespace && params.name && apiResourceStore.apiResources) {
       setupWatches(params.namespace, params.name);
@@ -112,29 +358,13 @@ export function CarvelAppDetails() {
     
     (async () => {
       try {
-        const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-        const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-        
-        // Build query parameters based on checkbox states
-        const queryParams = new URLSearchParams();
-        if (includeAllResources()) {
-          queryParams.set('allResources', 'true');
-        } else if (includeOnlyCarvel()) {
-          queryParams.set('onlyCarvel', 'true');
-        }
-        const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-        const url = `${apiPrefix}/carvelAppDiagram/${params.namespace}/${params.name}${queryString}`;
-        
-        const response = await fetch(url);
-        if (!response.ok) {
-          console.error('Failed to fetch diagram data');
-          return;
-        }
-        
-        const data = await response.json();
-        console.log('[CarvelApp] Diagram API response:', data);
-        console.log('[CarvelApp] Has child_objects?', !!data.child_objects, 'Count:', data.child_objects?.length);
-        setDiagramData(data);
+        // Re-run when toggles change
+        includeAllResources();
+        includeOnlyCarvel();
+        const data = await fetchDiagramDataFromApiServer(app);
+        console.log('[CarvelApp] Diagram (client-side) response:', data);
+        console.log('[CarvelApp] Has child_objects?', !!(data as any).child_objects, 'Count:', (data as any).child_objects?.length);
+        setDiagramData(data as any);
       } catch (e) {
         console.error('Failed to fetch Carvel App diagram:', e);
       }
@@ -263,13 +493,7 @@ export function CarvelAppDetails() {
         apiVersion: resource.apiVersion || `${resource.group}/${resource.version || 'v1'}`,
         kind: resource.kind,
         status: resource.status || {},
-        // Add cluster and parent information for remote resource fetching
-        _cluster: resource.cluster,
-        _parentApp: app ? {
-          kind: 'App',
-          name: app.metadata.name,
-          namespace: app.metadata.namespace
-        } : undefined,
+        // Remote-cluster fetching is intentionally not supported.
       };
       
       nodeId = createNodeWithCardRenderer(
@@ -294,20 +518,44 @@ export function CarvelAppDetails() {
   };
 
   // Carvel operations
+  const patchAppSpec = async (specPatch: Record<string, unknown>) => {
+    const app = carvelApp();
+    if (!app) return;
+
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : "";
+    const k8sPrefix = ctxName ? `/k8s/${ctxName}` : "/k8s";
+
+    // Resolve API path and plural dynamically (fallback to known defaults)
+    const carvelAppApi = (apiResourceStore.apiResources || []).find(r => r.group === "kappctrl.k14s.io" && r.kind === "App");
+    const withContextK8sApiPath = (apiPath: string) => {
+      if (apiPath.startsWith("/k8s/api/") || apiPath.startsWith("/k8s/apis/")) {
+        return apiPath.replace("/k8s", k8sPrefix);
+      }
+      return apiPath;
+    };
+    const baseApiPath = withContextK8sApiPath(carvelAppApi?.apiPath || "/k8s/apis/kappctrl.k14s.io/v1alpha1");
+    const pluralName = carvelAppApi?.name || "apps";
+
+    const url = `${baseApiPath}/namespaces/${app.metadata.namespace}/${pluralName}/${app.metadata.name}`;
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/merge-patch+json" },
+      body: JSON.stringify({ spec: specPatch }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error((data as any)?.message || (data as any)?.error || `PATCH failed (${response.status})`);
+    }
+  };
+
   const handlePause = async () => {
     const app = carvelApp();
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/pause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ paused: true });
     } catch (e) {
       console.error('Failed to pause App:', e);
     }
@@ -318,15 +566,7 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/unpause`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ paused: false });
     } catch (e) {
       console.error('Failed to unpause App:', e);
     }
@@ -337,15 +577,7 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/cancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ canceled: true });
     } catch (e) {
       console.error('Failed to cancel App:', e);
     }
@@ -356,15 +588,7 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/uncancel`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ canceled: false });
     } catch (e) {
       console.error('Failed to uncancel App:', e);
     }
@@ -375,15 +599,9 @@ export function CarvelAppDetails() {
     if (!app) return;
     
     try {
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const apiPrefix = ctxName ? `/api/${ctxName}` : '/api';
-      const response = await fetch(`${apiPrefix}/carvelApp/${app.metadata.namespace}/${app.metadata.name}/trigger`, { method: 'POST' });
-      const data = await response.json();
-      if (response.ok) {
-        console.log(data.message);
-      } else {
-        console.error(data.error);
-      }
+      await patchAppSpec({ paused: true });
+      await new Promise((r) => setTimeout(r, 500));
+      await patchAppSpec({ paused: false });
     } catch (e) {
       console.error('Failed to trigger App:', e);
     }
