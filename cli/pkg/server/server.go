@@ -1546,8 +1546,6 @@ func (s *Server) Setup() {
 		})
 	})
 
-	// NOTE: Carvel diagrams are now generated client-side using the Kubernetes apiserver proxy (`/k8s/:context/*`).
-
 	// Kubernetes API proxy endpoints
 	// New: match routes with explicit context: /k8s/:context/*
 	s.echo.Any("/k8s/:context/*", func(c echo.Context) error {
