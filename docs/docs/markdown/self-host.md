@@ -37,7 +37,7 @@ There are various options to deploy Capacitor Next bellow. Regardless of what in
 
 ### OCIArtifact
 
-- [Kustomization and OCIArtifact](https://github.com/gimlet-io/capacitor/tree/main/self-host/yaml/README.md)
+- [Kustomization and OCIArtifact](https://github.com/gimlet-io/capacitor/tree/main/self-host/yaml/capacitor-next/README.md)
 
 
 ### Plain yaml
