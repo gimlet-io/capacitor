@@ -2745,7 +2745,7 @@ func (s *Server) generateKustomizationDiffWithFluxStyle(ctx context.Context, cli
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
-	fluxDiffResult, err := fluxDiff(kubeClient, builder, kustomization)
+	fluxDiffResult, err := FluxDiff(kubeClient, builder, kustomization)
 	if err != nil {
 		return nil, fmt.Errorf("FluxCD diff failed: %w", err)
 	}

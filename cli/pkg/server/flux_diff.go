@@ -63,7 +63,10 @@ type FluxDiffResult struct {
 	Deleted     bool   `json:"deleted"`
 }
 
-func fluxDiff(
+// FluxDiff performs a dry-run diff comparing what's in the cluster against what
+// would be applied from the built Kustomization. It returns a slice of FluxDiffResult
+// entries describing created, changed, unchanged, and deleted resources.
+func FluxDiff(
 	kubeClient client.WithWatch,
 	b *build.Builder,
 	kustomization *kustomizev1.Kustomization,
