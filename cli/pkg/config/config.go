@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/pflag"
 )
@@ -17,6 +18,7 @@ type Config struct {
 	Address              string
 	Port                 int
 	StaticFilesDirectory string
+	AccessLogEnabled     bool
 
 	// Kubernetes settings
 	KubeConfigPath        string
@@ -68,6 +70,7 @@ func New() *Config {
 		Address:               "0.0.0.0",
 		Port:                  8080,
 		StaticFilesDirectory:  "./web/static",
+		AccessLogEnabled:      false,
 		KubeConfigPath:        defaultKubeConfigPath(),
 		InsecureSkipTLSVerify: false,
 		FluxCD: FluxCDConfig{
@@ -96,6 +99,7 @@ func (c *Config) Parse() {
 	pflag.StringVar(&c.StaticFilesDirectory, "static-dir", c.StaticFilesDirectory, "Directory containing static files to serve (dev purposes only)")
 	pflag.StringVar(&c.KubeConfigPath, "kubeconfig", c.KubeConfigPath, "Path to kubeconfig file (KUBECONFIG)")
 	pflag.BoolVar(&c.InsecureSkipTLSVerify, "insecure-skip-tls-verify", c.InsecureSkipTLSVerify, "Skip TLS certificate verification (insecure, use only for development) (KUBECONFIG_INSECURE_SKIP_TLS_VERIFY)")
+	pflag.BoolVar(&c.AccessLogEnabled, "access-log", c.AccessLogEnabled, "Enable HTTP/WebSocket access logging (ACCESS_LOG_ENABLED)")
 
 	pflag.Parse()
 
@@ -110,6 +114,17 @@ func (c *Config) Parse() {
 	}
 	if env := os.Getenv("CAPACITOR_NEXT_STATIC_DIR"); env != "" {
 		c.StaticFilesDirectory = env
+	}
+
+	// Optional: access log toggle
+	// ACCESS_LOG_ENABLED can be set to "false" or "0" to disable it.
+	if v := os.Getenv("ACCESS_LOG_ENABLED"); v != "" {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "true", "1":
+			c.AccessLogEnabled = true
+		default:
+			c.AccessLogEnabled = false
+		}
 	}
 
 	if env := os.Getenv("KUBECONFIG"); env != "" {

@@ -42,6 +42,8 @@ func openBrowser(url string) error {
 }
 
 func main() {
+	log.Print(server.CapacitorBanner)
+
 	// Handle subcommands
 	if len(os.Args) > 1 && os.Args[1] == "version" {
 		fmt.Println(version)

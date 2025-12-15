@@ -8,7 +8,8 @@
       "mode": "auto",
       "program": "${workspaceFolder}/cli/cmd/main.go",
       "env": {
-        "KUBECONFIG": "/Users/laszlo/.kube/config"
+        "KUBECONFIG": "/Users/laszlo/.kube/config",
+        "ACCESS_LOG_ENABLED": "true"
       }
     }
   ]

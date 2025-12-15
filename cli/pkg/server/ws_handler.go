@@ -47,9 +47,10 @@ type watchCfg struct {
 
 // WebSocketHandler handles WebSocket connections
 type WebSocketHandler struct {
-	upgrader   websocket.Upgrader
-	k8sClient  *kubernetes.Client
-	helmClient *helm.Client
+	upgrader         websocket.Upgrader
+	k8sClient        *kubernetes.Client
+	helmClient       *helm.Client
+	accessLogEnabled bool
 
 	// Maps connection to a map of resource paths to contexts
 	// This allows us to cancel watches when clients unsubscribe
@@ -57,15 +58,16 @@ type WebSocketHandler struct {
 }
 
 // NewWebSocketHandler creates a new WebSocketHandler
-func NewWebSocketHandler(k8sClient *kubernetes.Client, helmClient *helm.Client) *WebSocketHandler {
+func NewWebSocketHandler(k8sClient *kubernetes.Client, helmClient *helm.Client, accessLogEnabled bool) *WebSocketHandler {
 	return &WebSocketHandler{
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins
 			},
 		},
-		k8sClient:  k8sClient,
-		helmClient: helmClient,
+		k8sClient:        k8sClient,
+		helmClient:       helmClient,
+		accessLogEnabled: accessLogEnabled,
 	}
 }
 
@@ -166,8 +168,10 @@ func (h *WebSocketHandler) handleSubscribe(
 	watchIdsForConn map[string]string,
 	counters *wsutil.Counters,
 ) {
-	// Log the subscription request
-	log.Printf("Subscribe request for path: %s", msg.Path)
+	// Log the subscription request (controlled by accessLogEnabled flag).
+	if h.accessLogEnabled {
+		log.Printf("Subscribe request for path: %s", msg.Path)
+	}
 
 	// Build composite key from path and projection fields (if any)
 	projFields := wsutil.ParseProjectionFields(msg.Params)
@@ -192,7 +196,9 @@ func (h *WebSocketHandler) handleSubscribe(
 	if strings.Contains(msg.Path, "/api/helm/releases") {
 		h.handleHelmReleaseWatch(watchCtx, ws, msg)
 		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
-		log.Printf("Successfully subscribed to Helm releases path: %s", msg.Path)
+		if h.accessLogEnabled {
+			log.Printf("Successfully subscribed to Helm releases path: %s", msg.Path)
+		}
 		return
 	}
 
@@ -200,7 +206,9 @@ func (h *WebSocketHandler) handleSubscribe(
 	if strings.Contains(msg.Path, "/api/kluctl/deployments") {
 		h.handleKluctlDeploymentWatch(watchCtx, ws, msg)
 		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
-		log.Printf("Successfully subscribed to Kluctl deployments path: %s", msg.Path)
+		if h.accessLogEnabled {
+			log.Printf("Successfully subscribed to Kluctl deployments path: %s", msg.Path)
+		}
 		return
 	}
 
@@ -208,7 +216,9 @@ func (h *WebSocketHandler) handleSubscribe(
 	if strings.Contains(msg.Path, "/api/helm/history") {
 		h.handleHelmHistoryWatch(watchCtx, ws, msg)
 		h.sendStatusMessage(ws, msg.ID, msg.Path, "subscribed")
-		log.Printf("Successfully subscribed to Helm history path: %s", msg.Path)
+		if h.accessLogEnabled {
+			log.Printf("Successfully subscribed to Helm history path: %s", msg.Path)
+		}
 		return
 	}
 
@@ -222,7 +232,9 @@ func (h *WebSocketHandler) handleSubscribe(
 
 		if err := h.k8sClient.WatchPath(watchCtx, msg.Path, eventsChan); err != nil {
 			if watchCtx.Err() == context.Canceled {
-				log.Printf("Watch canceled for path: %s", msg.Path)
+				if h.accessLogEnabled {
+					log.Printf("Watch canceled for path: %s", msg.Path)
+				}
 				return // Context was cancelled, expected
 			}
 			log.Printf("Error watching resource: %v", err)
@@ -248,7 +260,9 @@ func (h *WebSocketHandler) handleSubscribe(
 					}
 				}
 			case <-watchCtx.Done():
-				log.Printf("Watch context done for path: %s", msg.Path)
+				if h.accessLogEnabled {
+					log.Printf("Watch context done for path: %s", msg.Path)
+				}
 				return
 			}
 		}
@@ -416,7 +430,6 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *wsuti
 	// Look for standard K8s path pattern: /api/helm/releases/namespaces/{namespace}
 	if len(pathParts) >= 6 && pathParts[4] == "namespaces" {
 		namespace = pathParts[5]
-		log.Printf("Extracted namespace from path: %s", namespace)
 	}
 
 	// Store previous releases to detect changes
@@ -440,12 +453,16 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *wsuti
 		h.compareAndSendHelmChanges(ws, msg, []*helm.Release{}, releases)
 		previousReleases = releases
 		elapsed := time.Since(startTime)
-		log.Printf("Helm releases loading time: %v for namespace: %s", elapsed, namespace)
+		if h.accessLogEnabled {
+			log.Printf("Helm releases loading time: %v for namespace: %s", elapsed, namespace)
+		}
 		// Poll for changes
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Context cancelled for Helm releases watch: %s", msg.Path)
+				if h.accessLogEnabled {
+					log.Printf("Context cancelled for Helm releases watch: %s", msg.Path)
+				}
 				return
 			case <-ticker.C:
 				pollStartTime := time.Now()
@@ -459,7 +476,9 @@ func (h *WebSocketHandler) handleHelmReleaseWatch(ctx context.Context, ws *wsuti
 				h.compareAndSendHelmChanges(ws, msg, previousReleases, currentReleases)
 				previousReleases = currentReleases
 				pollElapsed := time.Since(pollStartTime)
-				log.Printf("Helm releases poll time: %v for namespace: %s", pollElapsed, namespace)
+				if h.accessLogEnabled {
+					log.Printf("Helm releases poll time: %v for namespace: %s", pollElapsed, namespace)
+				}
 			}
 		}
 	}()
