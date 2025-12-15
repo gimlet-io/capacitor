@@ -41,6 +41,7 @@ import (
 	"github.com/fluxcd/cli-utils/pkg/object"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/ssa"
+	"github.com/fluxcd/pkg/ssa/normalize"
 	ssautil "github.com/fluxcd/pkg/ssa/utils"
 
 	"github.com/fluxcd/flux2/v2/pkg/printers"
@@ -80,7 +81,7 @@ func (b *Builder) diff() (string, bool, error) {
 		return "", createdOrDrifted, err
 	}
 
-	err = ssa.SetNativeKindsDefaults(objects)
+	err = normalize.UnstructuredList(objects)
 	if err != nil {
 		return "", createdOrDrifted, err
 	}
@@ -105,12 +106,18 @@ func (b *Builder) diff() (string, bool, error) {
 			IfNotPresentSelector: map[string]string{
 				"kustomize.toolkit.fluxcd.io/ssa": "ifnotpresent",
 			},
+			ForceSelector: map[string]string{
+				"kustomize.toolkit.fluxcd.io/force": "enabled",
+			},
 		}
 		change, liveObject, mergedObject, err := resourceManager.Diff(ctx, obj, diffOptions)
 		if err != nil {
 			// gather errors and continue, as we want to see all the diffs
 			diffErrs = append(diffErrs, err)
 			continue
+		}
+		if change.Action == ssa.SkippedAction {
+			output.WriteString(writeString(fmt.Sprintf("► %s skipped\n", change.Subject), bunt.Orange))
 		}
 
 		// if the object is a sops secret, we need to
