@@ -96,6 +96,8 @@ export function LogsViewer(props: {
   let searchInputRef: HTMLInputElement | undefined;
   // Store a reference to control our polling mechanism
   let logsEventSource: { close: () => void } | null = null;
+  // Track when scrolling is triggered programmatically to avoid disabling auto-scroll
+  let programmaticScroll = false;
 
   // Extract containers and init containers from a pod resource
   const extractContainers = (resource: any) => {
@@ -296,7 +298,12 @@ export function LogsViewer(props: {
         
         // Scroll to bottom if auto-refresh is enabled
         if (logsAutoRefresh() && logsContentRef) {
+          programmaticScroll = true;
           logsContentRef.scrollTop = logsContentRef.scrollHeight;
+          // Reset the flag after the scroll event has been processed
+          setTimeout(() => {
+            programmaticScroll = false;
+          }, 0);
         }
       };
 
@@ -593,7 +600,26 @@ export function LogsViewer(props: {
     }
   };
 
+  // Disable auto-scroll when user manually scrolls away from the bottom
+  const handleLogsScroll = (event: Event) => {
+    if (!logsAutoRefresh()) {
+      return;
+    }
 
+    if (programmaticScroll) {
+      return;
+    }
+
+    const target = event.currentTarget as HTMLElement;
+    const distanceFromBottom =
+      target.scrollHeight - target.clientHeight - target.scrollTop;
+    const threshold = 5;
+    const atBottom = distanceFromBottom <= threshold;
+
+    if (!atBottom) {
+      setLogsAutoRefresh(false);
+    }
+  };
 
   // Search functionality
   const performSearch = () => {
@@ -1101,6 +1127,7 @@ export function LogsViewer(props: {
             class="logs-content"
             ref={logsContentRef}
             tabIndex={0}
+            onScroll={handleLogsScroll}
             style={{
               "outline": "none",
               ...(props.contentMaxHeightPx ? { "max-height": `${props.contentMaxHeightPx}px`, "overflow": "auto" } : {})
