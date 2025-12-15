@@ -699,7 +699,27 @@ export function ResourceList<T>(props: {
       e.preventDefault();
       const resources = sortedResources();
       const current = selectedIndex();
-      const newIndex = current === -1 ? 0 : Math.min(current + 20, resources.length - 1);
+      // Count rows that are actually visible on screen
+      const container = listContainer();
+      let pageSize = 10; // fallback
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const thead = container.querySelector('thead');
+        const headerHeight = thead ? thead.getBoundingClientRect().height : 0;
+        const visibleTop = containerRect.top + headerHeight;
+        const visibleBottom = containerRect.bottom;
+        const rows = container.querySelectorAll('tbody tr:not([aria-hidden])');
+        let visibleCount = 0;
+        for (const row of rows) {
+          const rowRect = row.getBoundingClientRect();
+          // Count rows that are at least partially visible
+          if (rowRect.bottom > visibleTop && rowRect.top < visibleBottom) {
+            visibleCount++;
+          }
+        }
+        pageSize = Math.max(1, visibleCount - 1); // -1 to keep one row of context
+      }
+      const newIndex = current === -1 ? 0 : Math.min(current + pageSize, resources.length - 1);
       setSelectedIndex(newIndex);
       if (newIndex >= 0 && newIndex < resources.length) {
         const res = resources[newIndex];
@@ -712,7 +732,27 @@ export function ResourceList<T>(props: {
       e.preventDefault();
       const resources = sortedResources();
       const current = selectedIndex();
-      const newIndex = current === -1 ? 0 : Math.max(current - 20, 0);
+      // Count rows that are actually visible on screen
+      const container = listContainer();
+      let pageSize = 10; // fallback
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const thead = container.querySelector('thead');
+        const headerHeight = thead ? thead.getBoundingClientRect().height : 0;
+        const visibleTop = containerRect.top + headerHeight;
+        const visibleBottom = containerRect.bottom;
+        const rows = container.querySelectorAll('tbody tr:not([aria-hidden])');
+        let visibleCount = 0;
+        for (const row of rows) {
+          const rowRect = row.getBoundingClientRect();
+          // Count rows that are at least partially visible
+          if (rowRect.bottom > visibleTop && rowRect.top < visibleBottom) {
+            visibleCount++;
+          }
+        }
+        pageSize = Math.max(1, visibleCount - 1); // -1 to keep one row of context
+      }
+      const newIndex = current === -1 ? 0 : Math.max(current - pageSize, 0);
       setSelectedIndex(newIndex);
       if (newIndex >= 0 && newIndex < resources.length) {
         const res = resources[newIndex];
@@ -795,44 +835,56 @@ export function ResourceList<T>(props: {
       const container = listContainer();
       if (!container) return;
       
-      // When virtualization is enabled, the target row might not be in the DOM.
-      // In that case, adjust the scrollTop directly to bring the row into view.
+      // Account for sticky header height
+      const thead = container.querySelector('thead');
+      const headerHeight = thead ? thead.getBoundingClientRect().height : 0;
+      
+      // Try to find the actual row element in the DOM
+      // For virtualized lists, get non-spacer rows; for detail rows, get odd rows only
+      let rows: NodeListOf<HTMLTableRowElement>;
+      if (props.resourceTypeConfig.detailRowRenderer) {
+        rows = container.querySelectorAll('tbody tr:not([aria-hidden]):nth-child(odd)');
+      } else {
+        rows = container.querySelectorAll('tbody tr:not([aria-hidden])');
+      }
+      
+      // Calculate which row in the DOM corresponds to our index
+      const visibleStartIdx = canVirtualize() ? startIndex() : 0;
+      const localIndex = index - visibleStartIdx;
+      
+      if (localIndex >= 0 && localIndex < rows.length) {
+        // Row is rendered in DOM, use actual measurements
+        const selectedRow = rows[localIndex];
+        const containerRect = container.getBoundingClientRect();
+        const rowRect = selectedRow.getBoundingClientRect();
+        const visibleTop = containerRect.top + headerHeight;
+        
+        if (rowRect.bottom > containerRect.bottom) {
+          // Scrolling down - position row at bottom of viewport
+          selectedRow.scrollIntoView({ behavior: 'instant', block: 'end' });
+        } else if (rowRect.top < visibleTop) {
+          // Scrolling up - position row below the sticky header
+          selectedRow.scrollIntoView({ behavior: 'instant', block: 'start' });
+          // Adjust for sticky header - scrollIntoView puts element at container top,
+          // but we need it below the header
+          container.scrollTop = Math.max(0, container.scrollTop - headerHeight);
+        }
+        return;
+      }
+      
+      // Row not in DOM (virtualized away), use calculated scroll position
       if (canVirtualize()) {
         const rh = rowHeight;
         const targetTop = index * rh;
         const targetBottom = targetTop + rh;
         const viewHeight = container.clientHeight || viewportHeight();
-        const currentTop = container.scrollTop;
-        const currentBottom = currentTop + viewHeight;
-
-        if (targetTop < currentTop || targetBottom > currentBottom) {
-          // Center the selected row within the viewport when scrolling
-          const centerOffset = Math.max(0, Math.floor((viewHeight - rh) / 2));
-          const newTop = Math.max(0, targetTop - centerOffset);
-          container.scrollTop = newTop;
-        }
-        return;
-      }
-      
-      // If we have detail rows, we need to select the main row
-      let rows: NodeListOf<HTMLTableRowElement>;
-      if (props.resourceTypeConfig.detailRowRenderer) {
-        rows = container.querySelectorAll('tbody tr:nth-child(odd)');
-      } else {
-        rows = container.querySelectorAll('tbody tr');
-      }
-      
-      if (index >= 0 && index < rows.length) {
-        const selectedRow = rows[index];
         
-        // Calculate if element is in view
-        const containerRect = container.getBoundingClientRect();
-        const rowRect = selectedRow.getBoundingClientRect();
-        
-        // Check if the element is not fully visible
-        if (rowRect.top < containerRect.top || rowRect.bottom > containerRect.bottom) {
-          // Use scrollIntoView with block: 'center' for better positioning
-          selectedRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+        if (index > visibleStartIdx + rows.length) {
+          // Scrolling down past rendered rows
+          container.scrollTop = targetBottom - viewHeight + headerHeight;
+        } else {
+          // Scrolling up past rendered rows
+          container.scrollTop = targetTop;
         }
       }
     });
