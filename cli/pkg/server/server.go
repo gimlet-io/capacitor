@@ -52,6 +52,15 @@ import (
 	"github.com/gimlet-io/capacitor/pkg/flux/utils"
 )
 
+// CapacitorBanner is the ASCII art banner printed on startup.
+const CapacitorBanner = `
+ ██████╗ █████╗ ██████╗  █████╗  ██████╗██╗████████╗ ██████╗ ██████╗     ███╗   ██╗███████╗██╗  ██╗████████╗
+██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔════╝██║╚══██╔══╝██╔═══██╗██╔══██╗    ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝
+██║     ███████║██████╔╝███████║██║     ██║   ██║   ██║   ██║██████╔╝    ██╔██╗ ██║█████╗   ╚███╔╝    ██║   
+██║     ██╔══██║██╔═══╝ ██╔══██║██║     ██║   ██║   ██║   ██║██╔══██╗    ██║╚██╗██║██╔══╝   ██╔██╗    ██║   
+╚██████╗██║  ██║██║     ██║  ██║╚██████╗██║   ██║   ╚██████╔╝██║  ██║    ██║ ╚████║███████╗██╔╝ ██╗   ██║   
+ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝   `
+
 // Server represents the API server
 type Server struct {
 	echo         *echo.Echo
@@ -201,10 +210,11 @@ func getProxyFromContext(c echo.Context) (*KubernetesProxy, bool) {
 func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Server, error) {
 	// Create the echo instance
 	e := echo.New()
+	e.HideBanner = true
 
 	// Initialize proxy cache and seed with current context
 	proxyCache := make(map[string]*KubernetesProxy)
-	initialProxy, err := NewKubernetesProxy(k8sClient)
+	initialProxy, err := NewKubernetesProxy(k8sClient, cfg.AccessLogEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("error creating kubernetes proxy: %w", err)
 	}
@@ -221,7 +231,7 @@ func New(cfg *config.Config, k8sClient *kubernetes.Client, version string) (*Ser
 // Setup configures and sets up the server routes
 func (s *Server) Setup() {
 	// Add middleware
-	s.echo.Use(middleware.Logger())
+	// s.echo.Use(middleware.Logger())
 	s.echo.Use(middleware.Recover())
 	s.echo.Use(middleware.CORS())
 
@@ -310,7 +320,8 @@ func (s *Server) Setup() {
 		}
 
 		// Create a per-connection handler so it uses the context-specific clients
-		h := NewWebSocketHandler(proxy.k8sClient, hc)
+		// and respects the global access log toggle from config.
+		h := NewWebSocketHandler(proxy.k8sClient, hc, s.config.AccessLogEnabled)
 		return h.HandleWebSocket(c)
 	})
 
@@ -1597,7 +1608,7 @@ func (s *Server) getOrCreateK8sProxyForContext(contextName string) (*KubernetesP
 	}
 
 	// Create proxy for this context
-	proxy, err := NewKubernetesProxy(client)
+	proxy, err := NewKubernetesProxy(client, s.config.AccessLogEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy for context '%s': %w", contextName, err)
 	}
@@ -2050,7 +2061,7 @@ func ListArtifactFiles(root string) ([]map[string]interface{}, error) {
 // Helper function to discover Flux API path for a resource kind using a client
 func (s *Server) discoverFluxAPIPathForClient(ctx context.Context, client *kubernetes.Client, kind string) (string, error) {
 	// Create a temporary proxy for discovery (or we could extract discovery logic)
-	proxy, err := NewKubernetesProxy(client)
+	proxy, err := NewKubernetesProxy(client, s.config.AccessLogEnabled)
 	if err != nil {
 		return "", fmt.Errorf("failed to create proxy for discovery: %w", err)
 	}
@@ -2236,7 +2247,8 @@ func (s *Server) describeResourceWithKubectl(client *kubernetes.Client, namespac
 // Start starts the server
 func (s *Server) Start() error {
 	address := fmt.Sprintf("%s:%d", s.config.Address, s.config.Port)
-	return s.echo.Start(address)
+	s.echo.Server.Addr = address
+	return s.echo.StartServer(s.echo.Server)
 }
 
 // Shutdown gracefully shuts down the server

@@ -26,13 +26,14 @@ import (
 type KubernetesProxy struct {
 	k8sClient        *kubernetes.Client
 	proxy            *httputil.ReverseProxy
+	accessLogEnabled bool
 	fluxAPIPaths     map[string]string // Cache for discovered Flux API paths (kind -> API path template)
 	fluxAPIPathsMu   sync.RWMutex      // Mutex for thread-safe access to fluxAPIPaths
 	fluxAPIDiscovery sync.Once         // Ensures discovery happens only once
 }
 
 // NewKubernetesProxy creates a new KubernetesProxy
-func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) {
+func NewKubernetesProxy(k8sClient *kubernetes.Client, accessLogEnabled bool) (*KubernetesProxy, error) {
 	// Get the Kubernetes API server URL from the client config
 	apiServerURL, err := url.Parse(k8sClient.Config.Host)
 	if err != nil {
@@ -130,9 +131,10 @@ func NewKubernetesProxy(k8sClient *kubernetes.Client) (*KubernetesProxy, error) 
 	}
 
 	return &KubernetesProxy{
-		k8sClient:    k8sClient,
-		proxy:        proxy,
-		fluxAPIPaths: make(map[string]string),
+		k8sClient:        k8sClient,
+		proxy:            proxy,
+		accessLogEnabled: accessLogEnabled,
+		fluxAPIPaths:     make(map[string]string),
 	}, nil
 }
 
@@ -148,8 +150,10 @@ func (p *KubernetesProxy) HandleAPIRequest(c echo.Context) error {
 	// Update the request path
 	c.Request().URL.Path = path
 
-	// Log the proxied request (optional, might want to disable for production)
-	log.Printf("Proxying request: %s %s", c.Request().Method, path)
+	// Log the proxied request (optional, controlled by configuration)
+	if p.accessLogEnabled {
+		log.Printf("Proxying request: %s %s", c.Request().Method, path)
+	}
 
 	// Proxy the request
 	p.proxy.ServeHTTP(c.Response().Writer, c.Request())
