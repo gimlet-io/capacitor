@@ -13,23 +13,30 @@ function getJobCompletionComponent(job: Job): { element: JSX.Element, title: str
   const completions = job?.spec?.completions || 1;
   const failed = job.status?.failed || 0;
   const active = job.status?.active || 0;
-  
+  const terminating = Boolean(job.metadata?.deletionTimestamp);
+
   let status = "Pending";
   let statusClass = "text-secondary";
+
+  // Show Terminating explicitly when the Job is being deleted
+  if (terminating) {
+    status = "Terminating";
+    statusClass = "text-warning";
+  } else {
+    if (active > 0) {
+      status = "Active";
+      statusClass = "text-info";
+    }
   
-  if (active > 0) {
-    status = "Active";
-    statusClass = "text-info";
-  }
+    if (failed > 0) {
+      status = "Failed";
+      statusClass = "text-danger";
+    }
   
-  if (failed > 0) {
-    status = "Failed";
-    statusClass = "text-danger";
-  }
-  
-  if (succeeded >= completions) {
-    status = "Completed";
-    statusClass = "text-success";
+    if (succeeded >= completions) {
+      status = "Completed";
+      statusClass = "text-success";
+    }
   }
   
   return {
@@ -133,6 +140,7 @@ export const jobStatusFilter: Filter = {
     { value: "Completed", label: "Completed" },
     { value: "Active", label: "Active" },
     { value: "Failed", label: "Failed" },
+    { value: "Terminating", label: "Terminating" },
     { value: "Pending", label: "Pending" },
   ],
   filterFunction: (job: Job, value: string) => {
@@ -140,19 +148,24 @@ export const jobStatusFilter: Filter = {
     const completions = job?.spec?.completions || 1;
     const failed = job.status?.failed || 0;
     const active = job.status?.active || 0;
+    const terminating = Boolean(job.metadata?.deletionTimestamp);
     
     let status = "Pending";
     
-    if (active > 0) {
-      status = "Active";
-    }
-    
-    if (failed > 0) {
-      status = "Failed";
-    }
-    
-    if (succeeded >= completions) {
-      status = "Completed";
+    if (terminating) {
+      status = "Terminating";
+    } else {
+      if (active > 0) {
+        status = "Active";
+      }
+      
+      if (failed > 0) {
+        status = "Failed";
+      }
+      
+      if (succeeded >= completions) {
+        status = "Completed";
+      }
     }
     
     return status === value;

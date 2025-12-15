@@ -710,7 +710,8 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
       'status.succeeded',
       'status.failed',
       'status.conditions',
-      'status.ready'
+      'status.ready',
+      'metadata.deletionTimestamp'
     ],
     extraWatches: [
       {
