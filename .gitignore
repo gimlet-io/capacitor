@@ -16,3 +16,4 @@ dist/
 tofu-controller/
 self-host/charts/*.tgz
 kluctl
+homebrew-capacitor/
