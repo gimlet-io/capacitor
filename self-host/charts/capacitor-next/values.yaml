@@ -1,7 +1,7 @@
 # Container image configuration
 image:
   repository: ghcr.io/gimlet-io/capacitor-next
-  tag: 0.14.0-rc.1
+  tag: 0.14.0-rc.2
   pullPolicy: IfNotPresent
 
 # Number of replicas
