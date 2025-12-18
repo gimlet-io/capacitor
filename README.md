@@ -16,6 +16,29 @@ Capacitor Next is a local-first Kubernetes client that uses your kubeconfig to a
 
 [https://gimlet.io/capacitor-next/docs/#quickstart](https://gimlet.io/capacitor-next/docs/#quickstart)
 
+### Install
+
+On macOS or Linux with Homebrew:
+
+```bash
+brew install gimlet-io/capacitor/capacitor
+```
+
+Or with the install script:
+
+```bash
+wget -qO- https://gimlet.io/install-capacitor | bash
+```
+
+Then run
+
+```
+next --port 3333
+```
+
+Open [http://localhost:3333](http://localhost:3333) in your browser
+
+
 ## Features
 
 - Kubernetes resource discovery
