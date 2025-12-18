@@ -13,6 +13,15 @@ Capacitor Next is a local-first Kubernetes client that uses your kubeconfig to a
 
 ## Install
 
+On macOS or Linux with Homebrew:
+
+```bash
+brew tap gimlet-io/capacitor https://github.com/gimlet-io/capacitor.git
+brew install gimlet-io/capacitor/capacitor
+```
+
+Or with the install script:
+
 ```bash
 wget -qO- https://gimlet.io/install-capacitor | bash
 ```
