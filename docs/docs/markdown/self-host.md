@@ -52,7 +52,7 @@ The [Backstage Capacitor Plugin npm package](https://www.npmjs.com/package/@giml
 
 The Backstage plugin proxies requests to the self-hosted Capacitor instance. You can use the Backstage authenticated user identity with the `AUTH=trusted_proxy` setting, see the [Authentication](#authentication:authtrustedproxy) docs.
 
-An `AUTH=noauth` example is hosted on [Github](http://github.com/gimlet-io/capacitor-backstage-testbed2).
+An `AUTH=noauth` example is hosted on [Github](http://github.com/gimlet-io/capacitor-backstage-testbed).
 
 ## Environment Variables reference
 
