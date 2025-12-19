@@ -19,6 +19,8 @@ export function TerminalViewer(props: {
   const [availableContainers, setAvailableContainers] = createSignal<string[]>([]);
   const [availableInitContainers, setAvailableInitContainers] = createSignal<string[]>([]);
   const [selectedContainer, setSelectedContainer] = createSignal<string>("");
+  const [manuallySelectedContainer, setManuallySelectedContainer] = createSignal<boolean>(false);
+  const [triedContainers, setTriedContainers] = createSignal<Set<string>>(new Set());
 
   
   let terminalContainer: HTMLDivElement | undefined;
@@ -108,6 +110,8 @@ export function TerminalViewer(props: {
       setAvailableContainers([]);
       setAvailableInitContainers([]);
       setSelectedContainer("");
+      setManuallySelectedContainer(false);
+      setTriedContainers(new Set<string>());
       return;
     }
 
@@ -116,6 +120,10 @@ export function TerminalViewer(props: {
 
     setAvailableContainers(containers);
     setAvailableInitContainers(initContainers);
+
+    // Reset manual selection and tried containers when pod changes
+    setManuallySelectedContainer(false);
+    setTriedContainers(new Set<string>());
 
     // Default to the first regular container if present, otherwise first init container
     if (containers.length > 0) {
@@ -197,8 +205,21 @@ export function TerminalViewer(props: {
             
             // Check if error is about no suitable shell found
             if (data.error && data.error.includes('no suitable shell found')) {
-              console.log("No shell available in container, won't reconnect");
-              setNoShellAvailable(true);
+              console.log("No shell available in container");
+              
+              // If this was an auto-selected container, try the next one
+              if (!manuallySelectedContainer()) {
+                const hasMoreToTry = tryNextContainer();
+                if (hasMoreToTry && props.isOpen) {
+                  // Try connecting to the next container
+                  setTimeout(() => {
+                    handleConnect();
+                  }, 500);
+                }
+              } else {
+                // User manually selected this container, respect their choice
+                setNoShellAvailable(true);
+              }
             }
           }
         } catch (error) {
@@ -262,6 +283,33 @@ export function TerminalViewer(props: {
     }
   };
 
+  const tryNextContainer = () => {
+    // Get all containers in order (regular containers first, then init containers)
+    const allContainers = [...availableContainers(), ...availableInitContainers()];
+    const currentContainer = selectedContainer();
+    
+    // Mark current container as tried
+    const tried = new Set<string>(triedContainers());
+    tried.add(currentContainer);
+    setTriedContainers(tried);
+    
+    // Find the next container that hasn't been tried
+    const nextContainer = allContainers.find(c => !tried.has(c));
+    
+    if (nextContainer) {
+      console.log(`No shell in ${currentContainer}, trying next container: ${nextContainer}`);
+      setSelectedContainer(nextContainer);
+      setNoShellAvailable(false);
+      // Don't set manuallySelectedContainer to true here - this is still auto-selection
+      return true;
+    } else {
+      // We've tried all containers
+      console.log("No suitable shell found in any container");
+      setNoShellAvailable(true);
+      return false;
+    }
+  };
+
   const disconnect = () => {
     if (wsUnsubscribe) {
       wsUnsubscribe();
@@ -284,8 +332,12 @@ export function TerminalViewer(props: {
 
   const handleContainerChange = (containerName: string) => {
     setSelectedContainer(containerName);
+    // Mark this as a manual selection
+    setManuallySelectedContainer(true);
     // Reset shell availability state when switching containers
     setNoShellAvailable(false);
+    // Reset tried containers since user is explicitly selecting one
+    setTriedContainers(new Set<string>());
     // Reconnect to use the newly selected container
     if (props.isOpen) {
       handleConnect();
@@ -398,7 +450,19 @@ export function TerminalViewer(props: {
                 <p class="terminal-retry-message">Retrying in 2 seconds...</p>
               </Show>
               <Show when={noShellAvailable()}>
-                <p class="terminal-no-shell-message">No shell available in any container in this pod.</p>
+                <Show 
+                  when={manuallySelectedContainer()}
+                  fallback={
+                    <p class="terminal-no-shell-message">
+                      No shell available in any container in this pod.
+                      {triedContainers().size > 0 && ` Tried: ${Array.from(triedContainers()).join(', ')}`}
+                    </p>
+                  }
+                >
+                  <p class="terminal-no-shell-message">
+                    No shell available in the selected container ({selectedContainer()}).
+                  </p>
+                </Show>
               </Show>
             </div>
           </Show>
