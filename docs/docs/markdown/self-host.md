@@ -44,6 +44,16 @@ There are various options to deploy Capacitor Next bellow. Regardless of what in
 
 - The OCIArtifact is built from the [self-host/yaml/capacitor-next](https://github.com/gimlet-io/capacitor/tree/docs-revamp/self-host/yaml/capacitor-next) folder. You can copy the yaml from the folder and craft your own path following the process described in [Kustomization and OCIArtifact](https://github.com/gimlet-io/capacitor/tree/main/self-host/yaml/capacitor-next/README.md).
 
+## Using as a Backstage plugin
+
+![Capacitor Next Backstage plugin](media/backstage-plugin.png)
+
+The [Backstage Capacitor Plugin npm package](https://www.npmjs.com/package/@gimlet-io/backstage-plugin-capacitor) makes it possible to use self-hosted Capacitor instances in Backstage.
+
+The Backstage plugin proxies requests to the self-hosted Capacitor instance. You can use the Backstage authenticated user identity with the `AUTH=trusted_proxy` setting, see the [Authentication](#authentication:authtrustedproxy) docs.
+
+An `AUTH=noauth` example is hosted on [Github](http://github.com/gimlet-io/capacitor-backstage-testbed2).
+
 ## Environment Variables reference
 
 Regardless of what installation method you chose, you can configure behavior with environment variables.
@@ -52,11 +62,13 @@ Regardless of what installation method you chose, you can configure behavior wit
 - Variable: AGENT_SHARED_SECRET
   Description: Shared secret string that must match between Capacitor Next and its agent to authenticate agent connections. [See Agent installation](https://github.com/gimlet-io/capacitor/blob/main/self-host/charts/capacitor-next-agent/README.md)
 - Variable: AUTH
-  Description: Selects the authentication mode for Capacitor Next, such as `noauth`, `static`, or `oidc`. [See Authentication](#authentication)
+  Description: Selects the authentication mode for Capacitor Next, such as `noauth`, `static`, `oidc` or `trusted_proxy`. [See Authentication](#authentication)
 - Variable: AUTHORIZED_EMAILS
   Description: Lists the email addresses or wildcards that are allowed to authenticate via OIDC. [See Authentication](#authentication)
 - Variable: AUTH_DEBUG
   Description: When true, logs impersonation headers for debugging namespace listing, OIDC, and ServiceAccount impersonation. [See Authentication](#authentication)
+- Variable: CAPACITOR_PROXY_SHARED_SECRET
+  Description: Used with `AUTH=trusted_proxy` and Backstage. Backstage signs and forwards the current user identity via `X-Onurl-*` headers. This secret is used to validate the signature.
 - Variable: CLUSTER_REGISTRY_PATH
   Description: Points to the YAML file that defines the cluster registry Capacitor Next connects to.
 - Variable: ENTRA_ID_FEDEREATED_TOKEN_AUTH

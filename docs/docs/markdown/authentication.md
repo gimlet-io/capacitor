@@ -24,6 +24,8 @@ We support three authentication options via the `AUTH` environment variable:
   Description: for small teams or multiple role dashboards
 - AUTH: AUTH=oidc
   Description: for per-user based access (most secure)
+- AUTH: AUTH=trusted_proxy
+  Description: Used with Backstage. Backstage authenticates then signs and forwards the current user identity via `X-Onurl-*` headers.
 ```
 
 ### AUTH=noauth
@@ -78,4 +80,13 @@ AUTHORIZED_EMAILS=laszlo@gimlet.io,*@mycompany.com
 # OIDC_GROUP_PREFIX= # If your OIDC group names don't match exactly your RBAC role grant subjects, you add a prefix to the OIDC group name when setting the impersonation headers. Debug with AUTH_DEBUG: true
 # OIDC_GROUP_SUFFIX= # If your OIDC group names don't match exactly your RBAC role grant subjects, you add a suffix to the OIDC group name when setting the impersonation headers. Debug with AUTH_DEBUG: true
 # AUTH_DEBUG=true #logs impersonation headers for namespace listing (useful for OIDC and ServiceAccount impersonation debugging)
+```
+
+### AUTH=trusted_proxy
+
+Used only with Backstage. Backstage signs and forwards the current user identity to the upstream via `X-Onurl-*` headers. The `CAPACITOR_PROXY_SHARED_SECRET` has to match the Backstage `CAPACITOR_PROXY_SHARED_SECRET` (or `capacitor.proxy.sharedSecret`) value to be able to validate the signature.
+
+```
+AUTH=trusted_proxy
+CAPACITOR_PROXY_SHARED_SECRET=9876543210
 ```
