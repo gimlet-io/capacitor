@@ -97,7 +97,11 @@ func main() {
 	log.Printf("WebSocket endpoint available at ws://%s:%d/ws", cfg.Address, cfg.Port)
 
 	// Open browser
-	serverURL := fmt.Sprintf("http://%s:%d", cfg.Address, cfg.Port)
+	browserHost := cfg.Address
+	if browserHost == "0.0.0.0" {
+		browserHost = "localhost"
+	}
+	serverURL := fmt.Sprintf("http://%s:%d", browserHost, cfg.Port)
 	log.Printf("Opening browser at %s", serverURL)
 	if err := openBrowser(serverURL); err != nil {
 		log.Printf("Warning: Could not open browser: %v", err)
