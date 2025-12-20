@@ -14,6 +14,7 @@ export function TerminalViewer(props: {
   const [terminal, setTerminal] = createSignal<Terminal | null>(null);
   const [fitAddon, setFitAddon] = createSignal<FitAddon | null>(null);
   const [isConnected, setIsConnected] = createSignal<boolean>(false);
+  const [isConnecting, setIsConnecting] = createSignal<boolean>(false);
   const [connectionError, setConnectionError] = createSignal<string>("");
   const [noShellAvailable, setNoShellAvailable] = createSignal<boolean>(false);
   const [availableContainers, setAvailableContainers] = createSignal<string[]>([]);
@@ -21,6 +22,11 @@ export function TerminalViewer(props: {
   const [selectedContainer, setSelectedContainer] = createSignal<string>("");
   const [manuallySelectedContainer, setManuallySelectedContainer] = createSignal<boolean>(false);
   const [triedContainers, setTriedContainers] = createSignal<Set<string>>(new Set());
+
+  // Check if resource is a Node
+  const resourceIsNode = () => props.resource?.kind === "Node";
+  // Check if resource is a Pod
+  const resourceIsPod = () => props.resource?.kind === "Pod";
 
   
   let terminalContainer: HTMLDivElement | undefined;
@@ -106,7 +112,17 @@ export function TerminalViewer(props: {
   };
 
   const updateAvailableContainers = () => {
-    if (!props.resource || props.resource.kind !== "Pod") {
+    // For Nodes, we don't need container selection
+    if (resourceIsNode()) {
+      setAvailableContainers([]);
+      setAvailableInitContainers([]);
+      setSelectedContainer("");
+      setManuallySelectedContainer(false);
+      setTriedContainers(new Set<string>());
+      return;
+    }
+
+    if (!props.resource || !resourceIsPod()) {
       setAvailableContainers([]);
       setAvailableInitContainers([]);
       setSelectedContainer("");
@@ -135,13 +151,188 @@ export function TerminalViewer(props: {
     }
   };
 
+  // Track the debug pod name for cleanup
+  let debugPodName: string | null = null;
+  let debugPodNamespace: string | null = null;
+
+  // Create debug pod for a Node, wait for it, then exec into it
+  const createNodeDebugPod = async () => {
+    if (!props.resource || !resourceIsNode() || !terminal()) {
+      return;
+    }
+
+    setConnectionError("");
+    setIsConnecting(true);
+
+    const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+    const contextSegment = ctxName ? `/${ctxName}` : '';
+    const nodeName = props.resource.metadata.name;
+    const createUrl = `/api${contextSegment}/node-debug/${nodeName}`;
+
+    terminal()?.write(`Creating privileged debug pod on node ${nodeName}...\r\n`);
+
+    try {
+      // Step 1: Create the debug pod
+      const response = await fetch(createUrl, { method: 'POST' });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create debug pod');
+      }
+
+      debugPodName = data.pod;
+      debugPodNamespace = data.namespace;
+
+      terminal()?.write(`Debug pod ${data.pod} created, waiting for it to be ready...\r\n`);
+
+      // Step 2: Poll until pod is running
+      const k8sPrefix = ctxName ? `/k8s/${ctxName}` : '/k8s';
+      const podUrl = `${k8sPrefix}/api/v1/namespaces/${data.namespace}/pods/${data.pod}`;
+      
+      let podReady = false;
+      let attempts = 0;
+      const maxAttempts = 120; // 2 minutes max
+
+      while (!podReady && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+
+        try {
+          const podResponse = await fetch(podUrl);
+          if (podResponse.ok) {
+            const podData = await podResponse.json();
+            if (podData.status?.phase === 'Running') {
+              podReady = true;
+              terminal()?.write(`Debug pod is running!\r\n`);
+            } else if (podData.status?.phase === 'Failed') {
+              throw new Error(`Debug pod failed: ${podData.status?.message || 'Unknown error'}`);
+            }
+          }
+        } catch (_pollError) {
+          // Ignore poll errors, keep trying
+        }
+      }
+
+      if (!podReady) {
+        throw new Error('Timeout waiting for debug pod to be ready');
+      }
+
+      terminal()?.write(`Connecting to debug pod...\r\n\r\n`);
+
+      // Step 3: Connect via WebSocket to exec into the debug pod
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api${contextSegment}/exec/${data.namespace}/${data.pod}?container=debugger`;
+
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        setIsConnecting(false);
+        setIsConnected(true);
+        setTimeout(() => {
+          terminal()?.focus();
+          terminal()?.scrollToBottom();
+        }, 100);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msgData = JSON.parse(event.data);
+          if (msgData.type === 'connected') {
+            setIsConnecting(false);
+            setIsConnected(true);
+            terminal()?.write(`\r\n🎉 ${msgData.message || 'Connected to debug pod'}\r\n`);
+            terminal()?.write(`Host filesystem is mounted at /host\r\n\r\n`);
+            setTimeout(() => terminal()?.scrollToBottom(), 10);
+          } else if (msgData.type === 'data' && msgData.data) {
+            terminal()?.write(msgData.data);
+            setTimeout(() => terminal()?.scrollToBottom(), 10);
+          } else if (msgData.type === 'error') {
+            setConnectionError(msgData.error || 'Connection error');
+            setIsConnected(false);
+            setIsConnecting(false);
+          }
+        } catch (parseError) {
+          console.error("Error parsing WebSocket message:", parseError);
+        }
+      };
+
+      ws.onerror = () => {
+        setConnectionError("WebSocket connection error");
+        setIsConnected(false);
+        setIsConnecting(false);
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        setIsConnecting(false);
+        // Clean up the debug pod when connection closes
+        if (debugPodName && debugPodNamespace) {
+          cleanupDebugPod(debugPodNamespace, debugPodName, contextSegment);
+        }
+      };
+
+      // Store WebSocket reference for cleanup
+      wsUnsubscribe = () => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+        }
+      };
+
+      // Handle terminal input
+      terminal()?.onData((inputData) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'input', data: inputData }));
+          setTimeout(() => terminal()?.scrollToBottom(), 10);
+        }
+      });
+
+      // Handle terminal resize
+      terminal()?.onResize((size) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
+        }
+      });
+
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      terminal()?.write(`\r\n❌ Error: ${errMsg}\r\n`);
+      setConnectionError(errMsg);
+      setIsConnecting(false);
+      // Clean up the debug pod on error
+      if (debugPodName && debugPodNamespace) {
+        cleanupDebugPod(debugPodNamespace, debugPodName, contextSegment);
+      }
+    }
+  };
+
+  // Clean up the debug pod
+  const cleanupDebugPod = async (namespace: string, podName: string, contextSegment: string) => {
+    try {
+      terminal()?.write(`\r\nCleaning up debug pod ${podName}...\r\n`);
+      const k8sPrefix = contextSegment ? `/k8s${contextSegment}` : '/k8s';
+      const deleteUrl = `${k8sPrefix}/api/v1/namespaces/${namespace}/pods/${podName}`;
+      await fetch(deleteUrl, { method: 'DELETE' });
+      terminal()?.write(`Debug pod deleted.\r\n`);
+    } catch (error) {
+      console.error("Failed to clean up debug pod:", error);
+    }
+    debugPodName = null;
+    debugPodNamespace = null;
+  };
+
   const connectWebSocket = async () => {
-    if (!props.resource || props.resource.kind !== "Pod" || !terminal()) {
+    // For Node resources, use POST endpoint instead of WebSocket
+    if (resourceIsNode()) {
+      return createNodeDebugPod();
+    }
+
+    // For Pod resources, use WebSocket exec
+    if (!props.resource || !resourceIsPod() || !terminal()) {
       return;
     }
     
-    // If already connected, don't reconnect
-    if (isConnected()) {
+    // If already connected or connecting, don't start another connection
+    if (isConnected() || isConnecting()) {
       return;
     }
     
@@ -153,15 +344,16 @@ export function TerminalViewer(props: {
     try {
       setConnectionError("");
       setIsConnected(false);
+      setIsConnecting(true);
 
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
+      const contextSegment = ctxName ? `/${ctxName}` : '';
+      
       const podName = props.resource.metadata.name;
       const namespace = props.resource.metadata.namespace;
       const containerName = selectedContainer();
       
-      // Create WebSocket URL for exec (direct connection) - backend will auto-select shell
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ctxName = apiResourceStore.contextInfo?.current ? encodeURIComponent(apiResourceStore.contextInfo.current) : '';
-      const contextSegment = ctxName ? `/${ctxName}` : '';
       let wsUrl = `${protocol}//${window.location.host}/api${contextSegment}/exec/${namespace}/${podName}`;
       if (containerName) {
         const params = new URLSearchParams();
@@ -169,13 +361,12 @@ export function TerminalViewer(props: {
         wsUrl = `${wsUrl}?${params.toString()}`;
       }
       
-      console.log("Connecting to exec WebSocket:", wsUrl);
-      
       // Create direct WebSocket connection
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
         console.log("Exec WebSocket connected");
+        setIsConnecting(false);
         setIsConnected(true);
         
         // Focus terminal on connect and scroll to bottom
@@ -190,6 +381,7 @@ export function TerminalViewer(props: {
           const data = JSON.parse(event.data);
 
           if (data.type === 'connected') {
+            setIsConnecting(false);
             setIsConnected(true);
             terminal()?.write(`\r\n🎉 ${data.message || 'Connected'}\r\n\r\n`);
             // Scroll to bottom after connection message
@@ -202,13 +394,17 @@ export function TerminalViewer(props: {
           } else if (data.type === 'error') {
             setConnectionError(data.error || 'Connection error');
             setIsConnected(false);
+            setIsConnecting(false);
             
             // Check if error is about no suitable shell found
             if (data.error && data.error.includes('no suitable shell found')) {
-              console.log("No shell available in container");
+              console.log("No shell available in container/pod");
               
-              // If this was an auto-selected container, try the next one
-              if (!manuallySelectedContainer()) {
+              // For Nodes, we can't try other containers, just mark as unavailable
+              if (resourceIsNode()) {
+                setNoShellAvailable(true);
+              } else if (!manuallySelectedContainer()) {
+                // If this was an auto-selected container, try the next one
                 const hasMoreToTry = tryNextContainer();
                 if (hasMoreToTry && props.isOpen) {
                   // Try connecting to the next container
@@ -231,17 +427,20 @@ export function TerminalViewer(props: {
         console.error("WebSocket error:", error);
         setConnectionError("WebSocket connection error");
         setIsConnected(false);
+        setIsConnecting(false);
       };
       
       ws.onclose = () => {
         console.log("Exec WebSocket disconnected");
         setIsConnected(false);
+        setIsConnecting(false);
         
         // Auto-reconnect if drawer is still open and we haven't determined that no shell is available
-        if (props.isOpen && !noShellAvailable()) {
+        // Don't auto-reconnect for Nodes since it creates new debug pods each time
+        if (props.isOpen && !noShellAvailable() && !resourceIsNode()) {
           console.log("Auto-reconnecting...");
           setTimeout(() => {
-            if (props.isOpen && !isConnected() && !noShellAvailable()) {
+            if (props.isOpen && !isConnected() && !isConnecting() && !noShellAvailable()) {
               handleConnect();
             }
           }, 2000);
@@ -316,6 +515,7 @@ export function TerminalViewer(props: {
       wsUnsubscribe = null;
     }
     setIsConnected(false);
+    setIsConnecting(false);
     setConnectionError("");
   };
 
@@ -325,8 +525,18 @@ export function TerminalViewer(props: {
       return;
     }
     
+    // Don't start a new connection if already connecting or connected
+    if (isConnecting() || isConnected()) {
+      return;
+    }
+    
+    // For Nodes, use POST request (no disconnect needed)
+    if (resourceIsNode()) {
+      await createNodeDebugPod();
+      return;
+    }
+    
     disconnect();
-    console.log("Connecting to exec WebSocket");
     await connectWebSocket();
   };
 
@@ -355,11 +565,14 @@ export function TerminalViewer(props: {
 
   // Reset state and available containers when the resource changes
   createEffect(() => {
-    if (props.resource && props.resource.kind === "Pod") {
+    if (props.resource && (resourceIsPod() || resourceIsNode())) {
       setNoShellAvailable(false);
+      setConnectionError("");
       updateAvailableContainers();
     } else if (props.resource) {
       setNoShellAvailable(false);
+      setConnectionError("");
+      setIsConnecting(false);
       setAvailableContainers([]);
       setAvailableInitContainers([]);
       setSelectedContainer("");
@@ -373,8 +586,8 @@ export function TerminalViewer(props: {
       setTimeout(() => {
         fitAddon()?.fit();
         
-        // Auto-connect when tab becomes active (only if shell is available)
-        if (!isConnected() && !connectionError() && !noShellAvailable()) {
+        // Auto-connect when tab becomes active (only if not already connecting/connected and shell might be available)
+        if (!isConnected() && !isConnecting() && !noShellAvailable()) {
           handleConnect();
         }
         
@@ -403,65 +616,75 @@ export function TerminalViewer(props: {
   return (
     <Show when={props.isOpen}>
       <div class="terminal-viewer">
-        <Show when={props.resource?.kind !== "Pod"}>
+        <Show when={!resourceIsPod() && !resourceIsNode()}>
           <div class="terminal-error">
-            <p>Terminal exec is only available for Pod resources.</p>
+            <p>Terminal exec is only available for Pod and Node resources.</p>
           </div>
         </Show>
         
-        <Show when={props.resource?.kind === "Pod"}>
-          <div class="terminal-controls">
-            <div class="terminal-options-row">
-              <div class="logs-select-container">
-                <label>Container:</label>
-                <select
-                  value={selectedContainer()}
-                  onChange={(e) => handleContainerChange(e.target.value)}
-                  class="container-select"
-                >
-                  <Show when={availableContainers().length > 0}>
-                    <optgroup label="Containers">
-                      <For each={availableContainers()}>
-                        {(container) => (
-                          <option value={container}>{container}</option>
-                        )}
-                      </For>
-                    </optgroup>
-                  </Show>
+        <Show when={resourceIsPod() || resourceIsNode()}>
+          {/* Container selection only for Pods */}
+          <Show when={resourceIsPod()}>
+            <div class="terminal-controls">
+              <div class="terminal-options-row">
+                <div class="logs-select-container">
+                  <label>Container:</label>
+                  <select
+                    value={selectedContainer()}
+                    onChange={(e) => handleContainerChange(e.target.value)}
+                    class="container-select"
+                  >
+                    <Show when={availableContainers().length > 0}>
+                      <optgroup label="Containers">
+                        <For each={availableContainers()}>
+                          {(container) => (
+                            <option value={container}>{container}</option>
+                          )}
+                        </For>
+                      </optgroup>
+                    </Show>
 
-                  <Show when={availableInitContainers().length > 0}>
-                    <optgroup label="Init Containers">
-                      <For each={availableInitContainers()}>
-                        {(container) => (
-                          <option value={container}>{container}</option>
-                        )}
-                      </For>
-                    </optgroup>
-                  </Show>
-                </select>
+                    <Show when={availableInitContainers().length > 0}>
+                      <optgroup label="Init Containers">
+                        <For each={availableInitContainers()}>
+                          {(container) => (
+                            <option value={container}>{container}</option>
+                          )}
+                        </For>
+                      </optgroup>
+                    </Show>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
+          </Show>
 
           <Show when={connectionError()}>
             <div class="terminal-error">
               <p>Connection Error: {connectionError()}</p>
-              <Show when={!noShellAvailable()}>
+              <Show when={!noShellAvailable() && resourceIsPod()}>
                 <p class="terminal-retry-message">Retrying in 2 seconds...</p>
               </Show>
               <Show when={noShellAvailable()}>
-                <Show 
-                  when={manuallySelectedContainer()}
-                  fallback={
-                    <p class="terminal-no-shell-message">
-                      No shell available in any container in this pod.
-                      {triedContainers().size > 0 && ` Tried: ${Array.from(triedContainers()).join(', ')}`}
-                    </p>
-                  }
-                >
+                <Show when={resourceIsNode()}>
                   <p class="terminal-no-shell-message">
-                    No shell available in the selected container ({selectedContainer()}).
+                    Failed to start debug session on node {props.resource?.metadata?.name}.
                   </p>
+                </Show>
+                <Show when={resourceIsPod()}>
+                  <Show 
+                    when={manuallySelectedContainer()}
+                    fallback={
+                      <p class="terminal-no-shell-message">
+                        No shell available in any container in this pod.
+                        {triedContainers().size > 0 && ` Tried: ${Array.from(triedContainers()).join(', ')}`}
+                      </p>
+                    }
+                  >
+                    <p class="terminal-no-shell-message">
+                      No shell available in the selected container ({selectedContainer()}).
+                    </p>
+                  </Show>
                 </Show>
               </Show>
             </div>

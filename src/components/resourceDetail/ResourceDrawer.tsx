@@ -272,10 +272,10 @@ export function ResourceDrawer(props: {
     });
   });
 
-  // Check whether the current user can exec into this Pod
+  // Check whether the current user can exec into this Pod or debug a Node
   createEffect(() => {
     const res = props.resource as MinimalK8sResource | undefined;
-    if (!props.isOpen || !res || !res.metadata || res.kind !== "Pod") {
+    if (!props.isOpen || !res || !res.metadata || (res.kind !== "Pod" && res.kind !== "Node")) {
       setCanExecResource(undefined);
       return;
     }
@@ -285,23 +285,46 @@ export function ResourceDrawer(props: {
 
     (async () => {
       try {
-        const allowed = await checkPermission(
-          {
-            apiVersion: res.apiVersion,
-            kind: res.kind,
-            metadata: {
-              name: res.metadata.name,
-              namespace: res.metadata.namespace,
+        let allowed: boolean;
+        
+        if (res.kind === "Node") {
+          // For Nodes, check if user can create pods in default namespace (for debug pod)
+          allowed = await checkPermission(
+            {
+              apiVersion: "v1",
+              kind: "Pod",
+              metadata: {
+                name: "",
+                namespace: "default",
+              },
             },
-          },
-          {
-            verb: "create",
-            subresource: "exec",
-            resourceOverride: "pods",
-            groupOverride: "",
-            nameOverride: res.metadata.name,
-          },
-        );
+            {
+              verb: "create",
+              resourceOverride: "pods",
+              groupOverride: "",
+            },
+          );
+        } else {
+          // For Pods, check exec permission
+          allowed = await checkPermission(
+            {
+              apiVersion: res.apiVersion,
+              kind: res.kind,
+              metadata: {
+                name: res.metadata.name,
+                namespace: res.metadata.namespace,
+              },
+            },
+            {
+              verb: "create",
+              subresource: "exec",
+              resourceOverride: "pods",
+              groupOverride: "",
+              nameOverride: res.metadata.name,
+            },
+          );
+        }
+        
         if (!cancelled) {
           const current = props.resource as MinimalK8sResource | undefined;
           const currentKey = current
@@ -587,8 +610,8 @@ export function ResourceDrawer(props: {
         setActiveTab("logs");
       }
     } else if (e.key === "5" || e.key === "x") {
-      // x shortcut for exec tab (only available for Pods)
-      if (props.resource?.kind === "Pod" && canExecResource() !== false) {
+      // x shortcut for exec tab (available for Pods and Nodes)
+      if ((props.resource?.kind === "Pod" || props.resource?.kind === "Node") && canExecResource() !== false) {
         e.preventDefault();
         setActiveTab("exec");
       }
@@ -656,10 +679,10 @@ export function ResourceDrawer(props: {
               ...( ["Pod", "Deployment", "StatefulSet", "DaemonSet", "Job", "ReplicaSet"].includes(props.resource?.kind)
                 ? [{ key: "logs", label: <span>Logs <span class="shortcut-key">l</span></span> }]
                 : []),
-              ...( props.resource?.kind === "Pod"
+              ...( (props.resource?.kind === "Pod" || props.resource?.kind === "Node")
                 ? [{
                     key: "exec",
-                    label: <span>Exec <span class="shortcut-key">x</span></span>,
+                    label: <span>{props.resource?.kind === "Node" ? "Debug" : "Exec"} <span class="shortcut-key">x</span></span>,
                     disabled: canExecResource() === false,
                   }]
                 : []),

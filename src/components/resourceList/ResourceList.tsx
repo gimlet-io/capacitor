@@ -191,6 +191,11 @@ export const replaceHandlers = (
           ...cmd,
           handler: (resource) => handlers.openDrawer("exec", resource)
         };
+      } else if (cmd.shortcut.key === 'x' && cmd.shortcut.description === 'Debug node') {
+        commands[i] = {
+          ...cmd,
+          handler: (resource) => handlers.openDrawer("exec", resource)
+        };
       } else if (cmd.shortcut.key === 'Mod+e' && cmd.shortcut.description === 'Edit resource YAML') {
         commands[i] = {
           ...cmd,
@@ -538,6 +543,14 @@ export function ResourceList<T>(props: {
     // Exec
     if (key === 'x' && desc.includes('exec')) {
       const allowed = await checkPermission(resource, { verb: 'create', subresource: 'exec', resourceOverride: 'pods', groupOverride: '', nameOverride: resource.kind === 'Pod' ? resource.metadata.name : null });
+      return allowed;
+    }
+    // Debug node (requires ability to create pods in default namespace)
+    if (key === 'x' && desc.includes('debug node')) {
+      const allowed = await checkPermission(
+        { apiVersion: 'v1', kind: 'Pod', metadata: { name: '', namespace: 'default' } },
+        { verb: 'create', resourceOverride: 'pods', groupOverride: '' }
+      );
       return allowed;
     }
     // Scale
