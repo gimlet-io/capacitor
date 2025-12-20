@@ -1577,6 +1577,16 @@ func (s *Server) Setup() {
 		return s.handleExecWebSocketWithClient(c, proxy.k8sClient)
 	})
 
+	// Add endpoint for node debug (similar to kubectl debug node)
+	s.echo.POST("/api/:context/node-debug/:nodename", func(c echo.Context) error {
+		proxy, ok := getProxyFromContext(c)
+		if !ok {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing proxy in context"})
+		}
+
+		return s.handleNodeDebugCreate(c, proxy.k8sClient)
+	})
+
 	// Health check endpoint
 	s.echo.GET("/healthz", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
@@ -2798,4 +2808,108 @@ func (s *Server) getSourceArtifactDirectory(ctx context.Context, client *kuberne
 	}
 
 	return tempDir, nil
+}
+
+// handleNodeDebugCreate creates a debug pod on a node (similar to kubectl debug node)
+func (s *Server) handleNodeDebugCreate(c echo.Context, client *kubernetes.Client) error {
+	nodename := c.Param("nodename")
+	image := c.QueryParam("image")
+	if image == "" {
+		image = "busybox" // Default debug image
+	}
+
+	log.Printf("Creating debug pod for node %s with image %s", nodename, image)
+
+	ctx := c.Request().Context()
+
+	// Verify node exists
+	_, err := client.Clientset.CoreV1().Nodes().Get(ctx, nodename, metav1.GetOptions{})
+	if err != nil {
+		log.Printf("Failed to get node %s: %v", nodename, err)
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"error": fmt.Sprintf("failed to get node %s: %v", nodename, err),
+		})
+	}
+
+	// Generate a unique debug pod name
+	debugPodName := fmt.Sprintf("node-debugger-%s-%d", nodename, time.Now().Unix())
+	debugNamespace := "default" // Use default namespace for debug pods
+
+	// Create the debug pod spec (similar to kubectl debug node)
+	debugPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      debugPodName,
+			Namespace: debugNamespace,
+			Labels: map[string]string{
+				"app":                        "capacitor-node-debugger",
+				"capacitor.io/node-debugger": nodename,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeSelector: map[string]string{
+				"kubernetes.io/hostname": nodename,
+			},
+			HostPID:     true,
+			HostNetwork: true,
+			Tolerations: []corev1.Toleration{
+				{
+					Operator: corev1.TolerationOpExists,
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name:  "debugger",
+					Image: image,
+					Stdin: true,
+					TTY:   true,
+					SecurityContext: &corev1.SecurityContext{
+						Privileged: boolPtr(true),
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host-root",
+							MountPath: "/host",
+						},
+					},
+					Command: []string{"sleep", "infinity"},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "host-root",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/",
+						},
+					},
+				},
+			},
+			RestartPolicy: corev1.RestartPolicyNever,
+		},
+	}
+
+	// Create the debug pod
+	log.Printf("Creating debug pod %s/%s for node %s", debugNamespace, debugPodName, nodename)
+
+	createdPod, err := client.Clientset.CoreV1().Pods(debugNamespace).Create(ctx, debugPod, metav1.CreateOptions{})
+	if err != nil {
+		log.Printf("Failed to create debug pod: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": fmt.Sprintf("failed to create debug pod: %v", err),
+		})
+	}
+
+	log.Printf("Debug pod %s/%s created successfully", debugNamespace, debugPodName)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"status":    "created",
+		"pod":       createdPod.Name,
+		"namespace": createdPod.Namespace,
+		"node":      nodename,
+	})
+}
+
+// boolPtr returns a pointer to a bool value
+func boolPtr(b bool) *bool {
+	return &b
 }

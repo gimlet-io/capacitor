@@ -529,6 +529,10 @@ export const resourceTypeConfigs: Record<string, ResourceTypeConfig> = {
     columns: nodeColumns,
     filter: [nodeReadinessFilter, nodeRoleFilter],
     commands: [
+      {
+        shortcut: { key: "x", description: "Debug node", isContextual: true },
+        handler: null as any  // Will be implemented in ResourceList
+      },
       ...builtInCommands
     ],
     defaultSortColumn: "NAME",
