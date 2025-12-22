@@ -3,6 +3,9 @@ image:
   tag: agent-0.14.0-rc.3
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+  # - name: regcred
+
 replicaCount: 1
 
 # Environment variables to configure all aspects of Capacitor Next Agent
