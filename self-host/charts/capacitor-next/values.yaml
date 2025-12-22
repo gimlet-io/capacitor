@@ -4,6 +4,9 @@ image:
   tag: 0.14.0-rc.3
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+  # - name: regcred
+
 # Number of replicas
 replicaCount: 1
 
