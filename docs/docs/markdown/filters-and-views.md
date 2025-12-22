@@ -57,7 +57,7 @@ In the self-hosted version you can configure the system views by setting the `SY
 ```
 
 The JSON structure is an object with key value pairs.
-- The keys are context names, therefore you can have different presets per environment. - The context names accept wildcards. `*` is a catch-all rule and `dev4` matches one cluster, while `dev*` matches all cluster names starting with dev.
+- The keys are context names, therefore you can have different presets per environment. - The context names accept wildcards. ` * ` is a catch-all rule and `dev4` matches one cluster, while `dev*` matches all cluster names starting with dev.
 - The values of the key-value pairs are arrays of views.
 - A view has an id and a label and an array of filtes.
 - The best way to create the views array is to copy views from the browser local storage. Define a custom view on the UI, then copy the JSON from the local storage with the browser developer toolbar.
