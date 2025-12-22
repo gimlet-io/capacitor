@@ -67,8 +67,8 @@ type CarvelConfig struct {
 // New returns a new configuration with sensible defaults
 func New() *Config {
 	return &Config{
-		Address:               "0.0.0.0",
-		Port:                  8080,
+		Address:               "localhost",
+		Port:                  4739,
 		StaticFilesDirectory:  "./web/static",
 		AccessLogEnabled:      false,
 		KubeConfigPath:        defaultKubeConfigPath(),

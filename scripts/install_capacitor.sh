@@ -122,9 +122,8 @@ fi
 
 echo
 echo -e "${BOLD}Next steps${RESET}"
-echo -e "- Run:  ${GREEN}next -p 3333${RESET}"
-echo -e "- Open: ${CYAN}http://localhost:3333${RESET} in your browser"
+echo -e "- Run:  ${GREEN}next${RESET}"
+echo -e "- Open: ${CYAN}http://localhost:4739${RESET} in your browser"
 echo -e "- Help: ${DIM}next --help${RESET}"
 echo
 echo -e "${MAGENTA}Happy Fluxing!${RESET} ✨"
-

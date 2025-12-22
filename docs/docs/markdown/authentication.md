@@ -10,7 +10,7 @@ If you have multiple kubeconfig files, Capacitor Next respects the `KUBECONFIG` 
 
 ```bash
 export KUBECONFIG=~/.kube/my-other-config
-next -p 3333
+next
 ```
 
 ## Self-hosted version

@@ -93,15 +93,9 @@ func main() {
 	}()
 
 	log.Printf("Server started on %s:%d", cfg.Address, cfg.Port)
-	log.Printf("Kubernetes proxy available at http://%s:%d/k8s", cfg.Address, cfg.Port)
-	log.Printf("WebSocket endpoint available at ws://%s:%d/ws", cfg.Address, cfg.Port)
 
 	// Open browser
-	browserHost := cfg.Address
-	if browserHost == "0.0.0.0" {
-		browserHost = "localhost"
-	}
-	serverURL := fmt.Sprintf("http://%s:%d", browserHost, cfg.Port)
+	serverURL := fmt.Sprintf("http://%s:%d", cfg.Address, cfg.Port)
 	log.Printf("Opening browser at %s", serverURL)
 	if err := openBrowser(serverURL); err != nil {
 		log.Printf("Warning: Could not open browser: %v", err)
