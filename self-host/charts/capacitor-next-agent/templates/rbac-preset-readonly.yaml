@@ -186,6 +186,11 @@ rules:
   resources: ["*"]
   verbs: ["get", "list", "watch"]
 
+# 1Password Operator (if present)
+- apiGroups: ["onepassword.com"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
 # Sealed Secrets (if present)
 - apiGroups: ["bitnami.com"]
   resources: ["*"]
