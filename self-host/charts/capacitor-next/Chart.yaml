@@ -2,8 +2,8 @@ apiVersion: v2
 name: capacitor-next
 description: A Helm chart for Capacitor Next - Kubernetes UI for FluxCD
 type: application
-version: 0.14.0-rc.3
-appVersion: "0.14.0-rc.3"
+version: 0.14.0-rc.4
+appVersion: "0.14.0-rc.4"
 home: https://github.com/gimlet-io/capacitor
 maintainers:
   - name: Gimlet
