@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -62,14 +63,14 @@ func (w *ResourceWatcher) WatchResource(ctx context.Context, path string, events
 	// Execute request
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error executing watch request: %w", err)
+		return fmt.Errorf("error executing watch request for path %s: %w", path, err)
 	}
 	defer resp.Body.Close()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("watch request failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("watch request failed for path %s with status %d: %s", path, resp.StatusCode, string(body))
 	}
 
 	// Process the response stream
@@ -99,11 +100,12 @@ func (w *ResourceWatcher) createWatchRequest(path string) (*http.Request, error)
 
 	// Combine the base URL with the path
 	fullURL := w.client.Config.Host + path
+	log.Printf("Watch request: context=%s url=%s", w.client.CurrentContext, fullURL)
 
 	// Create request
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating request: %w", err)
+		return nil, fmt.Errorf("error creating request for path %s: %w", path, err)
 	}
 
 	// Set up authentication

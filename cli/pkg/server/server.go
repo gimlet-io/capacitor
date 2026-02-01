@@ -362,7 +362,7 @@ func (s *Server) Setup() {
 
 	// Add endpoint for getting kubeconfig contexts
 	s.echo.GET("/api/contexts", func(c echo.Context) error {
-		tmpClient, err := kubernetes.NewClient(s.config.KubeConfigPath, s.config.InsecureSkipTLSVerify)
+		tmpClient, err := kubernetes.NewClient(s.config.KubeConfigPath, s.config.InsecureSkipTLSVerify, "")
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("failed to create kubernetes client: %v", err),
@@ -449,7 +449,6 @@ func (s *Server) Setup() {
 			AbsPath(fmt.Sprintf(apiPath, resourceNamespace, resourceName)).
 			Body([]byte(patchData)).
 			DoRaw(ctx)
-
 		if err != nil {
 			log.Printf("Error reconciling Flux resource: %v", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -624,7 +623,6 @@ func (s *Server) Setup() {
 				AbsPath(fmt.Sprintf(sourceAPIPath, sourceNamespace, sourceName)).
 				Body([]byte(sourcePatchData)).
 				DoRaw(ctx)
-
 			if err != nil {
 				log.Printf("Error reconciling source resource: %v", err)
 				return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -918,7 +916,6 @@ func (s *Server) Setup() {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"fluxResult": fluxDiffResult,
 		})
-
 	})
 
 	// Add endpoint for inspecting Flux source artifacts (GitRepository, OCIRepository, Bucket, etc.)
@@ -1604,17 +1601,10 @@ func (s *Server) getOrCreateK8sProxyForContext(contextName string) (*KubernetesP
 	}
 	s.k8sProxiesMu.RUnlock()
 
-	// Build a new client for the requested context
-	client, err := kubernetes.NewClient(s.config.KubeConfigPath, s.config.InsecureSkipTLSVerify)
+	// Create client directly for the requested context (no mutable SwitchContext needed)
+	client, err := kubernetes.NewClient(s.config.KubeConfigPath, s.config.InsecureSkipTLSVerify, contextName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	// Switch to requested context (validates existence)
-	if client.CurrentContext != contextName {
-		if err := client.SwitchContext(contextName, s.config.KubeConfigPath); err != nil {
-			return nil, fmt.Errorf("failed to switch to context '%s': %w", contextName, err)
-		}
+		return nil, fmt.Errorf("failed to create kubernetes client for context '%s': %w", contextName, err)
 	}
 
 	// Create proxy for this context
@@ -1623,9 +1613,12 @@ func (s *Server) getOrCreateK8sProxyForContext(contextName string) (*KubernetesP
 		return nil, fmt.Errorf("failed to create proxy for context '%s': %w", contextName, err)
 	}
 
-	// Cache it with write lock
+	// Cache with write lock; re-check to avoid duplicates from concurrent creation
 	s.k8sProxiesMu.Lock()
-	// Initialize map if nil (defensive)
+	if existing, ok := s.k8sProxies[contextName]; ok {
+		s.k8sProxiesMu.Unlock()
+		return existing, nil
+	}
 	if s.k8sProxies == nil {
 		s.k8sProxies = make(map[string]*KubernetesProxy)
 	}
@@ -1933,7 +1926,7 @@ func DownloadAndExtractArtifact(ctx context.Context, client *kubernetes.Client, 
 			}
 		}
 		destPath := filepath.Join(tempDir, filename)
-		if err := os.WriteFile(destPath, data, 0644); err != nil {
+		if err := os.WriteFile(destPath, data, 0o644); err != nil {
 			os.RemoveAll(tempDir)
 			return "", fmt.Errorf("failed to write artifact file: %w", err)
 		}
@@ -1985,7 +1978,7 @@ func ExtractTarGz(data []byte, destDir string) (int, error) {
 		case tar.TypeDir:
 			// Create directory
 			log.Printf("Extracting directory: %s", header.Name)
-			err := os.MkdirAll(path, 0755)
+			err := os.MkdirAll(path, 0o755)
 			if err != nil {
 				return extractedCount, fmt.Errorf("failed to create directory %s: %w", path, err)
 			}
@@ -1993,7 +1986,7 @@ func ExtractTarGz(data []byte, destDir string) (int, error) {
 		case tar.TypeReg:
 			// Create file
 			log.Printf("Extracting file: %s (%d bytes)", header.Name, header.Size)
-			err := os.MkdirAll(filepath.Dir(path), 0755)
+			err := os.MkdirAll(filepath.Dir(path), 0o755)
 			if err != nil {
 				return extractedCount, fmt.Errorf("failed to create parent directory for %s: %w", path, err)
 			}
@@ -2060,7 +2053,6 @@ func ListArtifactFiles(root string) ([]map[string]interface{}, error) {
 		files = append(files, entry)
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

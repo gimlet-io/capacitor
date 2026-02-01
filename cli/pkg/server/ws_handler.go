@@ -237,8 +237,11 @@ func (h *WebSocketHandler) handleSubscribe(
 				}
 				return // Context was cancelled, expected
 			}
-			log.Printf("Error watching resource: %v", err)
-			h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("error watching resource: %v", err))
+			log.Printf("Error watching resource [context=%s path=%s]: %v",
+				h.k8sClient.CurrentContext, msg.Path, err)
+			h.sendErrorMessage(ws, msg.ID, msg.Path,
+				fmt.Sprintf("error watching resource [context=%s]: %v",
+					h.k8sClient.CurrentContext, err))
 			delete(watchContextsForConn, key)
 			delete(watchIdsForConn, msg.ID)
 		}
@@ -510,7 +513,6 @@ func (h *WebSocketHandler) handleHelmHistoryWatch(ctx context.Context, ws *wsuti
 
 		// Get initial state
 		history, err := h.helmClient.GetHistory(ctx, releaseName, namespace)
-
 		if err != nil {
 			log.Printf("Error getting Helm release history: %v", err)
 			h.sendErrorMessage(ws, msg.ID, msg.Path, fmt.Sprintf("Failed to get Helm release history: %v", err))

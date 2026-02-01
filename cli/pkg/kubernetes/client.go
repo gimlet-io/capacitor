@@ -27,8 +27,10 @@ type Client struct {
 	AvailableContexts map[string]*api.Context
 }
 
-// NewClient creates a new Kubernetes client
-func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
+// NewClient creates a new Kubernetes client.
+// If contextName is non-empty, the client is created for that specific context;
+// otherwise the kubeconfig's current context is used.
+func NewClient(kubeconfig string, insecureSkipTLSVerify bool, contextName string) (*Client, error) {
 	var config *rest.Config
 	var err error
 	var currentContext string
@@ -53,8 +55,12 @@ func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
 		configLoadingRules.ExplicitPath = kubeconfig
 	}
 
-	// Create config with optional TLS settings; let client-go pick the current context
 	configOverrides := &clientcmd.ConfigOverrides{}
+
+	// Set context if specified (empty string means use current context from kubeconfig)
+	if contextName != "" {
+		configOverrides.CurrentContext = contextName
+	}
 
 	// Only override TLS verification if explicitly requested
 	if insecureSkipTLSVerify {
@@ -73,7 +79,11 @@ func NewClient(kubeconfig string, insecureSkipTLSVerify bool) (*Client, error) {
 	}
 
 	// Get current context and available contexts
-	currentContext = apiConfig.CurrentContext
+	if contextName != "" {
+		currentContext = contextName
+	} else {
+		currentContext = apiConfig.CurrentContext
+	}
 	contextConfig = apiConfig.Contexts[currentContext]
 	availableContexts = apiConfig.Contexts
 
