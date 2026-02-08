@@ -15,7 +15,11 @@ import { ResourceTree, createNodeWithCardRenderer } from "../components/Resource
 import { getDeploymentMatchingPods } from "../utils/k8s.ts";
 import type { DiffHunk, FileDiffSection } from "../utils/diffUtils.ts";
 import { generateDiffHunks } from "../utils/diffUtils.ts";
-import { ConditionStatus, ConditionType } from "../utils/conditions.ts";
+import {
+  ConditionStatus,
+  ConditionType,
+  isDependencyNotReadyCondition,
+} from "../utils/conditions.ts";
 
 type KluctlDeploymentResult = any;
 
@@ -431,6 +435,8 @@ const renderKluctlDeploymentStatusBadges = (kd: any | null) => {
     (c: any) => c.type === ConditionType.Stalled,
   );
 
+  const depNotReady = isDependencyNotReadyCondition(readyCondition as any);
+
   const driftMessage: string | undefined =
     kd.status?.lastDriftDetectionResultMessage;
   const hasDriftInfo =
@@ -471,10 +477,10 @@ const renderKluctlDeploymentStatusBadges = (kd: any | null) => {
       {readyCondition?.status === ConditionStatus.True && (
         <span class="status-badge ready">Ready</span>
       )}
-      {readyCondition?.status === ConditionStatus.False && (
+      {readyCondition?.status === ConditionStatus.False && !depNotReady && (
         <span class="status-badge not-ready">NotReady</span>
       )}
-      {reconcilingCondition?.status === ConditionStatus.True && (
+      {(reconcilingCondition?.status === ConditionStatus.True || depNotReady) && (
         <span class="status-badge reconciling">Reconciling</span>
       )}
       {kd.spec?.suspend && (

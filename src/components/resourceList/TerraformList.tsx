@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Terraform } from "../../types/k8s.ts";
-import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import {
+  ConditionStatus,
+  ConditionType,
+  isDependencyNotReadyCondition,
+} from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
@@ -54,18 +58,25 @@ export const terraformColumns = [
         c.type === ConditionType.Reconciling
       );
 
+      const depNotReady = isDependencyNotReadyCondition(readyCondition as any);
+      const isReconciling =
+        depNotReady ||
+        reconcilingCondition?.status === ConditionStatus.True ||
+        (readyCondition?.status === ConditionStatus.Unknown &&
+          readyCondition?.reason !== "TerraformPlannedWithChanges");
+
       return (
         <div class="status-badges">
           {readyCondition?.status === ConditionStatus.True && (
             <span class="status-badge ready">Ready</span>
           )}
-          {readyCondition?.status === ConditionStatus.False && (
+          {readyCondition?.status === ConditionStatus.False && !depNotReady && (
             <span class="status-badge not-ready">NotReady</span>
           )}
           {(readyCondition?.status === ConditionStatus.Unknown) && (readyCondition?.reason === "TerraformPlannedWithChanges")  && ( // The Terraform controller uses Unknown for reconciling
             <span class="status-badge approval-required">Approval Required</span>
           )}
-          {(readyCondition?.status === ConditionStatus.Unknown) && (readyCondition?.reason !== "TerraformPlannedWithChanges")  && ( // The Terraform controller uses Unknown for reconciling
+          {isReconciling && (
             <span class="status-badge reconciling">Reconciling</span>
           )}
           {terraform.spec.suspend && (
