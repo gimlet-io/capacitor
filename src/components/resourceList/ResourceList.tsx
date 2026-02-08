@@ -558,6 +558,16 @@ export function ResourceList<T>(props: {
       const allowed = await checkPermission(resource, { verb: 'update', subresource: 'scale' });
       return allowed;
     }
+    // Run CronJob now (requires creating a Job in the CronJob's namespace)
+    if (desc.includes('run cronjob') && key.includes('+t')) {
+      const allowed = await checkPermission(resource, {
+        verb: 'create',
+        resourceOverride: 'jobs',
+        groupOverride: 'batch',
+        nameOverride: null,
+      });
+      return allowed;
+    }
     // Rollout restart (elevated with workloadRestart for specific namespaces)
     if (desc.includes('rollout restart') && key.includes('+r')) {
       const allowed = await checkPermission(resource, { verb: 'patch' });
