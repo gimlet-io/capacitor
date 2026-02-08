@@ -1156,30 +1156,32 @@ func (s *Server) Setup() {
 		// Get the Kubernetes client
 		clientset := proxy.k8sClient.Clientset
 
+		now := time.Now().Format(time.RFC3339)
+		patchBytes, err := json.Marshal(map[string]any{
+			"spec": map[string]any{
+				"template": map[string]any{
+					"metadata": map[string]any{
+						"annotations": map[string]string{
+							"kubectl.kubernetes.io/restartedAt": now,
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			log.Printf("Error creating patch payload: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to create patch payload: %v", err),
+			})
+		}
+
 		switch strings.ToLower(kind) {
 		case "deployment", "deployments":
 			// Restart deployment rollout by patching the pod template with a restart annotation
-			deployment, err := clientset.
-				AppsV1().
-				Deployments(req.Namespace).
-				Get(ctx, req.Name, metav1.GetOptions{})
-			if err != nil {
-				log.Printf("Error getting deployment: %v", err)
-				return c.JSON(http.StatusInternalServerError, map[string]string{
-					"error": fmt.Sprintf("Failed to get deployment: %v", err),
-				})
-			}
-
-			// Add or update the restart annotation
-			if deployment.Spec.Template.Annotations == nil {
-				deployment.Spec.Template.Annotations = make(map[string]string)
-			}
-			deployment.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
-
 			_, err = clientset.
 				AppsV1().
 				Deployments(req.Namespace).
-				Update(ctx, deployment, metav1.UpdateOptions{})
+				Patch(ctx, req.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 			if err != nil {
 				log.Printf("Error restarting deployment rollout: %v", err)
 				return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -1191,27 +1193,10 @@ func (s *Server) Setup() {
 
 		case "statefulset", "statefulsets":
 			// Restart statefulset rollout by patching the pod template with a restart annotation
-			statefulset, err := clientset.
-				AppsV1().
-				StatefulSets(req.Namespace).
-				Get(ctx, req.Name, metav1.GetOptions{})
-			if err != nil {
-				log.Printf("Error getting statefulset: %v", err)
-				return c.JSON(http.StatusInternalServerError, map[string]string{
-					"error": fmt.Sprintf("Failed to get statefulset: %v", err),
-				})
-			}
-
-			// Add or update the restart annotation
-			if statefulset.Spec.Template.Annotations == nil {
-				statefulset.Spec.Template.Annotations = make(map[string]string)
-			}
-			statefulset.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
-
 			_, err = clientset.
 				AppsV1().
 				StatefulSets(req.Namespace).
-				Update(ctx, statefulset, metav1.UpdateOptions{})
+				Patch(ctx, req.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 			if err != nil {
 				log.Printf("Error restarting statefulset rollout: %v", err)
 				return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -1223,27 +1208,10 @@ func (s *Server) Setup() {
 
 		case "daemonset", "daemonsets":
 			// Restart daemonset rollout by patching the pod template with a restart annotation
-			daemonset, err := clientset.
-				AppsV1().
-				DaemonSets(req.Namespace).
-				Get(ctx, req.Name, metav1.GetOptions{})
-			if err != nil {
-				log.Printf("Error getting daemonset: %v", err)
-				return c.JSON(http.StatusInternalServerError, map[string]string{
-					"error": fmt.Sprintf("Failed to get daemonset: %v", err),
-				})
-			}
-
-			// Add or update the restart annotation
-			if daemonset.Spec.Template.Annotations == nil {
-				daemonset.Spec.Template.Annotations = make(map[string]string)
-			}
-			daemonset.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
-
 			_, err = clientset.
 				AppsV1().
 				DaemonSets(req.Namespace).
-				Update(ctx, daemonset, metav1.UpdateOptions{})
+				Patch(ctx, req.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 			if err != nil {
 				log.Printf("Error restarting daemonset rollout: %v", err)
 				return c.JSON(http.StatusInternalServerError, map[string]string{
