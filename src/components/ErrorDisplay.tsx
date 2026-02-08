@@ -23,6 +23,11 @@ export function ErrorDisplay(props: ErrorDisplayProps) {
             <div class="error-container">            
               <div class="error-content">
                 <div class="error-message">{error().message}</div>
+                <Show when={error().path}>
+                  <div class="error-path">
+                    <small>Path: <code>{error().path}</code></small>
+                  </div>
+                </Show>
                 <div class="error-timestamp">
                   <small>Error occurred at {formatTimestamp(error().timestamp)}</small>
                 </div>

@@ -2777,9 +2777,21 @@ td.message-cell {
 
 .error-message {
   font-weight: 500;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   line-height: 1.5;
   font-size: 14px;
+}
+
+.error-path {
+  font-size: 12px;
+  margin-bottom: 0.5rem;
+  opacity: 0.85;
+}
+
+.error-path code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 1px 4px;
+  border-radius: 2px;
 }
 
 .error-timestamp {
