@@ -1,7 +1,12 @@
 // Shared status badge renderer for Flux source resources
 // (GitRepository, HelmRepository, HelmChart, OCIRepository, Bucket)
 
-import { ConditionReason, ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import {
+  ConditionReason,
+  ConditionStatus,
+  ConditionType,
+  isDependencyNotReadyCondition,
+} from "../../utils/conditions.ts";
 
 // Minimal shape we need from any Flux source-like resource
 export type FluxSourceLike = {
@@ -38,6 +43,8 @@ export const FluxSourceStatusBadges = (props: FluxSourceStatusBadgesProps) => {
   const suspended = !!props.resource.spec?.suspend;
 
   const isReconciling =
+    // Dependency not ready is a transient state; treat it as "in progress".
+    isDependencyNotReadyCondition(readyCondition) ||
     // Generic Flux pattern: Ready = Unknown while reconciling
     (readyCondition?.status === ConditionStatus.Unknown &&
       readyCondition?.reason !== ConditionReason.TerraformPlannedWithChanges) ||
@@ -49,7 +56,8 @@ export const FluxSourceStatusBadges = (props: FluxSourceStatusBadgesProps) => {
       {readyCondition?.status === ConditionStatus.True && (
         <span class="status-badge ready">Ready</span>
       )}
-      {readyCondition?.status === ConditionStatus.False && (
+      {readyCondition?.status === ConditionStatus.False &&
+        !isDependencyNotReadyCondition(readyCondition) && (
         <span class="status-badge not-ready">NotReady</span>
       )}
       {isReconciling && (
@@ -76,6 +84,7 @@ export const fluxSourceReconciling = (resource: FluxSourceLike): boolean => {
     (c) => c.type === ConditionType.Reconciling || c.type === "Reconciling",
   );
   return (
+    isDependencyNotReadyCondition(readyCondition) ||
     (readyCondition?.status === ConditionStatus.Unknown &&
       readyCondition?.reason !== ConditionReason.TerraformPlannedWithChanges) ||
     reconcilingCondition?.status === ConditionStatus.True

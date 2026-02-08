@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Kustomization, ExtendedKustomization } from "../../types/k8s.ts";
-import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
+import {
+  ConditionStatus,
+  ConditionType,
+  isDependencyNotReadyCondition,
+} from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import { DetailRowCard } from "./DetailRowCard.tsx";
@@ -82,6 +86,9 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
     c.type === ConditionType.Reconciling
   );
 
+  const depNotReady = isDependencyNotReadyCondition(readyCondition as any);
+  const sourceDepNotReady = isDependencyNotReadyCondition(sourceReadyCondition as any);
+
   return (
     <div class="status-badges">
       {stalledCondition?.status === ConditionStatus.True && (
@@ -90,7 +97,7 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
       {readyCondition?.status === ConditionStatus.True && (
         <span class="status-badge ready">Ready</span>
       )}
-      {readyCondition?.status === ConditionStatus.False && (
+      {readyCondition?.status === ConditionStatus.False && !depNotReady && (
         <span class="status-badge not-ready">NotReady</span>
       )}
       {(readyCondition?.status === ConditionStatus.Unknown) && (readyCondition?.reason === "TerraformPlannedWithChanges")  && ( // The Terraform controller uses Unknown for reconciling
@@ -99,7 +106,7 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
       {(readyCondition?.status === ConditionStatus.Unknown) && (readyCondition?.reason !== "TerraformPlannedWithChanges")  && ( // The Terraform controller uses Unknown for reconciling
         <span class="status-badge reconciling">Reconciling</span>
       )}
-      {reconcilingCondition?.status === ConditionStatus.True && (
+      {(reconcilingCondition?.status === ConditionStatus.True || depNotReady) && (
         <span class="status-badge reconciling">Reconciling</span>
       )}
       {kustomization.spec?.suspend && (
@@ -108,10 +115,10 @@ export const StatusBadges = (kustomization: ExtendedKustomization) => {
       {sourceReadyCondition?.status === ConditionStatus.True && (
         <span class="status-badge ready">Source: Ready</span>
       )}
-      {sourceReadyCondition?.status === ConditionStatus.False && (
+      {sourceReadyCondition?.status === ConditionStatus.False && !sourceDepNotReady && (
         <span class="status-badge not-ready">Source: NotReady</span>
       )}
-      {sourceReconcilingCondition?.status === ConditionStatus.True && (
+      {(sourceReconcilingCondition?.status === ConditionStatus.True || sourceDepNotReady) && (
         <span class="status-badge reconciling">Source: Reconciling</span>
       )}
     </div>

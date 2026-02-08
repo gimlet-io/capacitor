@@ -41,6 +41,22 @@ export interface Condition {
   observedGeneration?: number;
 }
 
+// Minimal shape used across the UI when looking at "Ready"-like conditions
+// coming from untyped Kubernetes objects.
+export type ReadyLikeCondition = {
+  status?: ConditionStatus | string;
+  reason?: ConditionReason | string;
+} | null | undefined;
+
+// Flux controllers commonly use Ready=False with reason DependencyNotReady
+// to indicate a transient "waiting for dependencies" state.
+export function isDependencyNotReadyCondition(condition: ReadyLikeCondition): boolean {
+  return (
+    condition?.status === ConditionStatus.False &&
+    condition?.reason === ConditionReason.DependencyNotReady
+  );
+}
+
 // Helper functions to check condition status
 export function isConditionTrue(conditions: Condition[], type: ConditionType): boolean {
   const condition = conditions.find(c => c.type === type);
