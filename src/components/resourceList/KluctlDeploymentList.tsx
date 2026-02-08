@@ -1,11 +1,7 @@
 // Copyright 2025 Laszlo Consulting Kft.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  ConditionStatus,
-  ConditionType,
-  isDependencyNotReadyCondition,
-} from "../../utils/conditions.ts";
+import { ConditionStatus, ConditionType } from "../../utils/conditions.ts";
 import { useCalculateAge } from "./timeUtils.ts";
 import { sortByName, sortByAge } from "../../utils/sortUtils.ts";
 import type { Column } from "../../resourceTypeConfigs.tsx";
@@ -97,8 +93,6 @@ export const kluctlDeploymentColumns: Column<KluctlDeployment>[] = [
         (c: any) => c.type === ConditionType.Stalled,
       );
 
-      const depNotReady = isDependencyNotReadyCondition(readyCondition as any);
-
       const driftMessage: string | undefined =
         deployment.status?.lastDriftDetectionResultMessage;
       const hasDriftInfo =
@@ -130,10 +124,10 @@ export const kluctlDeploymentColumns: Column<KluctlDeployment>[] = [
           {readyCondition?.status === ConditionStatus.True && (
             <span class="status-badge ready">Ready</span>
           )}
-          {readyCondition?.status === ConditionStatus.False && !depNotReady && (
+          {readyCondition?.status === ConditionStatus.False && (
             <span class="status-badge not-ready">NotReady</span>
           )}
-          {(reconcilingCondition?.status === ConditionStatus.True || depNotReady) && (
+          {reconcilingCondition?.status === ConditionStatus.True && (
             <span class="status-badge reconciling">Reconciling</span>
           )}
           {deployment.spec?.suspend && (
