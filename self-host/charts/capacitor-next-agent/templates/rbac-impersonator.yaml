@@ -31,7 +31,7 @@ subjects:
 {{- if has "*" .Values.permissionElevation.workloadRestartNamespaces }}
 ---
 # Permission Elevation: Workload Restart (cluster-wide)
-# Allows the agent service account to delete pods and update workloads
+# Allows the agent service account to delete pods and patch workloads
 # for rollout restart operations, bypassing user impersonation.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -44,11 +44,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["delete"]
-  # Deployment/StatefulSet/DaemonSet get+update for rollout restart
-  # (update is required for the get-modify-update pattern used by rollout restart)
+  # Deployment/StatefulSet/DaemonSet patch for rollout restart
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets", "daemonsets"]
-    verbs: ["get", "update"]
+    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -81,10 +80,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["delete"]
-  # Deployment/StatefulSet/DaemonSet get+update for rollout restart
+  # Deployment/StatefulSet/DaemonSet patch for rollout restart
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets", "daemonsets"]
-    verbs: ["get", "update"]
+    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
