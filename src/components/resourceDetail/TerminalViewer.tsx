@@ -5,6 +5,7 @@ import { createSignal, onMount, onCleanup, Show, createEffect, For } from "solid
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { useApiResourceStore } from "../../store/apiResourceStore.tsx";
+import { createTerminalNewlineState, normalizeTerminalNewlines } from "../../utils/terminal.ts";
 
 export function TerminalViewer(props: {
   resource: any;
@@ -31,6 +32,7 @@ export function TerminalViewer(props: {
   
   let terminalContainer: HTMLDivElement | undefined;
   let wsUnsubscribe: (() => void) | null = null;
+  let newlineState = createTerminalNewlineState();
 
   const initializeTerminal = () => {
     if (!terminalContainer) return;
@@ -223,6 +225,7 @@ export function TerminalViewer(props: {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/api${contextSegment}/exec/${data.namespace}/${data.pod}?container=debugger`;
 
+      newlineState = createTerminalNewlineState();
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -244,7 +247,7 @@ export function TerminalViewer(props: {
             terminal()?.write(`Host filesystem is mounted at /host\r\n\r\n`);
             setTimeout(() => terminal()?.scrollToBottom(), 10);
           } else if (msgData.type === 'data' && msgData.data) {
-            terminal()?.write(msgData.data);
+            terminal()?.write(normalizeTerminalNewlines(msgData.data, newlineState));
             setTimeout(() => terminal()?.scrollToBottom(), 10);
           } else if (msgData.type === 'error') {
             setConnectionError(msgData.error || 'Connection error');
@@ -362,6 +365,7 @@ export function TerminalViewer(props: {
       }
       
       // Create direct WebSocket connection
+      newlineState = createTerminalNewlineState();
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
@@ -388,7 +392,7 @@ export function TerminalViewer(props: {
             setTimeout(() => terminal()?.scrollToBottom(), 10);
           } else if (data.type === 'data' && data.data) {
             // Write received data to terminal
-            terminal()?.write(data.data);
+            terminal()?.write(normalizeTerminalNewlines(data.data, newlineState));
             // Auto-scroll to bottom when new data arrives
             setTimeout(() => terminal()?.scrollToBottom(), 10);
           } else if (data.type === 'error') {
