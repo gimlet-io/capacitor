@@ -1,0 +1,36 @@
+{{- if .Values.httpRoute.enabled -}}
+apiVersion: {{ .Values.httpRoute.apiVersion | default "gateway.networking.k8s.io/v1" }}
+kind: {{ .Values.httpRoute.kind | default "HTTPRoute" }}
+metadata:
+  name: {{ include "capacitor-server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "capacitor-server.labels" . | nindent 4 }}
+  {{- with .Values.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.httpRoute.parentRefs }}
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  {{- end }}
+  {{- if .Values.httpRoute.hostnames }}
+  hostnames:
+    {{- range .Values.httpRoute.hostnames }}
+    - {{ tpl . $ | quote }}
+    {{- end }}
+  {{- end }}
+  rules:
+    - matches:
+      {{- if .Values.httpRoute.matches }}
+        {{- toYaml .Values.httpRoute.matches | nindent 8 }}
+      {{- else }}
+        - path:
+            type: PathPrefix
+            value: /
+      {{- end }}
+      backendRefs:
+        - name: {{ include "capacitor-server.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}

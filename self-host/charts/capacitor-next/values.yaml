@@ -176,6 +176,23 @@ ingress:
   #    hosts:
   #      - capacitor.example.com
 
+## HTTPRoute configuration
+httpRoute:
+  # -- Enables Gateway API HTTPRoute resource generation instead of standard Ingress
+  enabled: false
+  # -- HTTPRoute apiVersion. Keep this configurable for environments that need a non-default Gateway API version
+  apiVersion: gateway.networking.k8s.io/v1
+  # -- HTTPRoute kind
+  kind: HTTPRoute
+  # -- Key-value map for controller-specific metadata
+  annotations: {}
+  # -- FQDNs for Layer 7 hostname matching. If empty, the route matches all hostnames allowed by the parent Gateway listener
+  hostnames: []
+  # -- References to the parent Gateway listeners this route should attach to
+  parentRefs: []
+  # -- Match rules applied before the default PathPrefix "/" fallback
+  matches: []
+
 nodeSelector: {}
 
 tolerations: []
